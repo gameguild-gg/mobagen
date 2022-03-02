@@ -25,3 +25,11 @@ jobs:
       - name: Build
         shell: cmd
         run: cmake --build build --config MinSizeRel
+
+      - name: Release
+        uses: fnkr/github-action-ghr@v1.3
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GHR_COMPRESS: zip
+          GHR_PATH: build/
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
