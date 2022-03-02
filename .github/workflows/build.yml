@@ -1,4 +1,4 @@
-name: CMake
+name: Build
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
         run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel
 
       - name: Build
-        run: cmake --build build/    
+        run: cmake --build build/
 
   linux-emscripten:
     runs-on: ubuntu-latest
