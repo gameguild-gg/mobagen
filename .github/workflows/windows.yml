@@ -1,0 +1,27 @@
+name: Windows
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  BUILD_TYPE: MinSizeRel
+
+jobs:
+  windows-native:
+    runs-on: windows-2019
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: Configure CMake
+        shell: cmd
+        run: cmake -H. -Bbuild -G "Visual Studio 16 2019" -T ClangCL -DCMAKE_BUILD_TYPE=MinSizeRel
+
+      - name: Build
+        shell: cmd
+        run: cmake --build build --config MinSizeRel

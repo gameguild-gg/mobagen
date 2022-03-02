@@ -1,4 +1,4 @@
-name: Build
+name: Web
 
 on:
   push:
@@ -10,34 +10,6 @@ env:
   BUILD_TYPE: MinSizeRel
 
 jobs:
-  linux-native:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-
-    - name: Configure CMake
-      run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel 
-
-    - name: Build
-      run: cmake --build build/
-
-  osx-native:
-    runs-on: macos-latest
-
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'true'
-
-      - name: Configure CMake
-        run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel
-
-      - name: Build
-        run: cmake --build build/
-
   linux-emscripten:
     runs-on: ubuntu-latest
 
@@ -89,19 +61,3 @@ jobs:
           #dry_run: # optional, default is false
           # Enable verbose output
           #verbose: # optional, default is false
-
-  windows-native:
-    runs-on: windows-2019
-
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'true'
-
-      - name: Configure CMake
-        shell: cmd
-        run: cmake -H. -Bbuild -G "Visual Studio 16 2019" -T ClangCL -DCMAKE_BUILD_TYPE=MinSizeRel
-
-      - name: Build
-        shell: cmd
-        run: cmake --build build --config MinSizeRel
