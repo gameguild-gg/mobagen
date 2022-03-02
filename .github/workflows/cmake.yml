@@ -40,6 +40,8 @@ jobs:
         run: ./scripts/emscripten-build.sh
       
       - name: GitHub Pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # You may pin to the exact commit or the version.
         # uses: crazy-max/ghaction-github-pages@a117e4aa1fb4854d021546d2abdfac95be568a3a
         uses: crazy-max/ghaction-github-pages@v2.6.0
