@@ -163,8 +163,54 @@ void Engine::Tick() {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    ImGui::ShowDemoWindow(&show_demo_window);
+//    ImGui::ShowDemoWindow(&show_demo_window);
+    if (ImGui::BeginMainMenuBar())
+    {
+        if (ImGui::BeginMenu("File"))
+        {
+            ImGui::MenuItem("New Scene");
+            ImGui::MenuItem("Open Scene");
+            ImGui::MenuItem("Open Recent");
+            ImGui::Separator();
+            ImGui::MenuItem("Save");
+            ImGui::MenuItem("Save As...");
+            ImGui::MenuItem("Save As Scene Template...");
+            ImGui::Separator();
+            ImGui::MenuItem("New Project...");
+            ImGui::MenuItem("Open Project...");
+            ImGui::MenuItem("Save Project");
+            ImGui::Separator();
+            ImGui::MenuItem("Build Settings");
+            ImGui::MenuItem("Build and Run");
+            ImGui::Separator();
+            if(ImGui::MenuItem("Exit")) done = true;
+
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Edit")) {
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Assets")) {
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("GameObject")) {
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Component")) {
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Window")) {
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Help")) {
+            ImGui::EndMenu();
+        }
+        ImGui::Separator();
+        ImGui::Text("%.3fms (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::EndMenuBar();
+    }
+
+
 
     // Rendering
     ImGui::Render();
@@ -173,7 +219,7 @@ void Engine::Tick() {
     ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
     SDL_RenderPresent(renderer);
 
-    SDL_Delay(1);
+    SDL_Delay(0);
 }
 
 void Engine::Exit() {
