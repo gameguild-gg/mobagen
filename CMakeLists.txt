@@ -25,6 +25,8 @@ LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs/Debug)
 
 add_subdirectory(external)
 
+add_subdirectory(core)
+
 IF(EMSCRIPTEN)
     message(STATUS "emscripten build")
     #  SET(CMAKE_CXX_FLAGS "--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets/ -s WASM=0 -s ALLOW_MEMORY_GROWTH=1 -s USE_SDL=2 -s DISABLE_EXCEPTION_CATCHING=2 -s USE_PTHREADS=1 --proxy-to-worker -s FETCH=1")
@@ -42,11 +44,11 @@ ELSE()
     set ( SDL2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/SDL/include)
 ENDIF()
 
-include_directories(${SDL2_INCLUDE_DIR})
+include_directories(${SDL2_INCLUDE_DIR} core)
 #add_library(main SHARED main.cpp)
 #target_sources(main PRIVATE main.cpp)
 #target_link_libraries(main SDL2 ${SDL2_LIBRARY})
 
 add_executable(editor)
 target_sources(editor PUBLIC editor/main.cpp)
-target_link_libraries(editor IMGUI SDL2)
+target_link_libraries(editor IMGUI SDL2 core)
