@@ -1,9 +1,6 @@
 [submodule "cmake/gate"]
 	path = cmake/gate
 	url = https://github.com/cpp-pm/gate.git
-[submodule "external/imgui"]
-	path = external/imgui
-	url = https://github.com/ocornut/imgui.git
 [submodule "external/SDL"]
 	path = external/SDL
 	url = https://github.com/libsdl-org/SDL.git
