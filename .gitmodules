@@ -10,3 +10,6 @@
 [submodule "cmake/polly"]
 	path = cmake/polly
 	url = https://github.com/cpp-pm/polly.git
+[submodule "external/imgui"]
+	path = external/imgui
+	url = https://github.com/Flix01/imgui.git
