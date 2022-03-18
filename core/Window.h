@@ -1,13 +1,12 @@
 #pragma once
 
+#include <string>
 #include "SDL_video.h"
+#include "SDL_render.h"
 
 class Window {
-    Window(char *title);
 
-    ~Window(void);
-
-//    void init(void);
+    //    void init(void);
 
 //    void tick(void);
 
@@ -43,8 +42,15 @@ class Window {
 
 //    void toggleFullscreen(void);
 
+public:
+    Window(std::string title);
+
+    SDL_Window *sdlWindow;
+    SDL_Renderer *sdlRenderer;
+
+    ~Window(void);
+
 private:
-    SDL_Window *m_window;
     SDL_GLContext m_glContext;
 //    std::unique_ptr<GuiManager> m_guiManager;
 
