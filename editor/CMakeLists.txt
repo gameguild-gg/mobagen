@@ -1,21 +1,13 @@
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
-#set(BUILD_SHARED_LIBS TRUE) TODO: check if this could be improved
 
-file(GLOB CORE_INC
+file(GLOB EDITOR_INC
         ${CMAKE_CURRENT_SOURCE_DIR}/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
 
-file(GLOB CORE_SRC
+file(GLOB EDITOR_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*.c
         )
-
-SET(CORE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "CORE INCLUDE SOURCE PATH")
-
-#SET(CORE_SRC ${CORE_SRC} ${CORE_INC})
-
-add_library(core SHARED ${CORE_SRC} ${CORE_INC})
-target_link_libraries (core PUBLIC SDL2 IMGUI)
 
 #If(NOT EMSCRIPTEN AND NOT ANDROID)
 #    add_definitions(-DGLEW_STATIC)
@@ -38,17 +30,18 @@ target_link_libraries (core PUBLIC SDL2 IMGUI)
 
 # TODO: Check if this approach bellow is better
 #IF (ANDROID)
-#  add_library (core STATIC ${CORE_SRC})
+#  add_library (engine STATIC ${TARGET_SRC})
 #ELSE ()
-#  add_library (core SHARED ${CORE_SRC})
+#  add_library (engine SHARED ${TARGET_SRC})
 #ENDIF ()
 #
-#target_link_libraries (core ${ENGINE_LIBS})
-#set_target_properties(core PROPERTIES COTIRE_CXX_PREFIX_HEADER_INIT "stdafx.h")
-#cotire(core)
+#target_link_libraries (engine ${ENGINE_LIBS})
+#set_target_properties(engine PROPERTIES COTIRE_CXX_PREFIX_HEADER_INIT "stdafx.h")
+#cotire(engine)
 
-install (TARGETS core DESTINATION lib)
-install (FILES ${CORE_INC} DESTINATION include/core)
+# todo: check this
+#install (TARGETS editor DESTINATION lib)
+install (FILES ${EDITOR_INC} DESTINATION include/editor)
 
 # TODO: ADD THIS BACK WHEN NEEDED
 # IF (NOT TARGET uninstall)
@@ -57,4 +50,10 @@ install (FILES ${CORE_INC} DESTINATION include/core)
 #   add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 # ENDIF()
 
-include_directories(${SDL2_INCLUDE_DIR} core)
+add_executable(editor ${EDITOR_SRC} ${EDITOR_INC})
+
+target_include_directories(editor PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
+target_link_libraries (editor PUBLIC SDL2 IMGUI core)
+
+#target_sources(editor PUBLIC ${TARGET_SRC} )
+
