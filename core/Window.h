@@ -4,6 +4,10 @@
 #include "SDL_video.h"
 #include "SDL_render.h"
 
+#ifdef EMSCRIPTEN
+#include <emscripten.h>
+#endif
+
 class Window {
 
     //    void init(void);
