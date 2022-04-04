@@ -5,6 +5,15 @@
 #include <stdexcept>
 
 #include <SDL.h>
+#ifdef EMSCRIPTEN
+EM_JS(int, canvas_get_width, (), {
+return canvas.width;
+});
+
+EM_JS(int, canvas_get_height, (), {
+return canvas.height;
+});
+#endif
 
 Window::Window(std::string title) {
     // Setup SDL

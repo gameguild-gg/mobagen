@@ -13,6 +13,8 @@
 
 class Engine{
 public:
+    // todo: wrap this as a get instance and protect against writes
+    static Engine *instance;
 
     bool done = false;
 

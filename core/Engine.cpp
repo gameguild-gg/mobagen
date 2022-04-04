@@ -1,20 +1,13 @@
 #include "Engine.h"
 
+Engine *Engine::instance = nullptr;
+
 #ifdef EMSCRIPTEN
-static Engine *instance = nullptr;
 void Engine::loop() {
     {
         instance->Tick();
     }
 }
-
-EM_JS(int, canvas_get_width, (), {
-  return canvas.width;
-});
-
-EM_JS(int, canvas_get_height, (), {
-  return canvas.height;
-});
 #endif
 
 Engine::Engine() {}
