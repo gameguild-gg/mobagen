@@ -60,6 +60,7 @@ void Engine::Tick() {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    // TODO: move this to the EDITOR location
 //    ImGui::ShowDemoWindow(&show_demo_window);
     if (ImGui::BeginMainMenuBar())
     {

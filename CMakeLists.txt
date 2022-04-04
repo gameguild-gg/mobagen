@@ -47,6 +47,7 @@ ENDIF()
 #SET(CORE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
 
 add_subdirectory(editor)
+add_subdirectory(examples)
 
 #add_library(main SHARED main.cpp)
 #target_sources(main PRIVATE main.cpp)
