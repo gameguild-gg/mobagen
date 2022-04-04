@@ -1,5 +1,7 @@
 #pragma once
 
-class BehaviourCohesion {
+#include "FlockingBehaviour.h"
+
+class BehaviourCohesion: FlockingBehaviour {
 
 };

@@ -2,7 +2,6 @@
 
 #include "FlockingBehaviour.h"
 
-class BehaviourAlignment: FlockingBehaviour {
+class BehaviourAvoidance: FlockingBehaviour {
 
 };
-
