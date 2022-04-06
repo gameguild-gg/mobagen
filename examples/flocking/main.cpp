@@ -7,7 +7,7 @@ int main(int, char**) {
     auto engine = new Engine();
     if(engine->Start())
         engine->Run();
-    engine->Exit();
+    delete(engine);
     return 0;
 }
 

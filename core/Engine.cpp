@@ -12,7 +12,10 @@ void Engine::loop() {
 
 Engine::Engine() {}
 
-Engine::~Engine() {}
+Engine::~Engine() {
+    instance= nullptr;
+    delete(window);
+}
 
 void Engine::Run() {
     // Main loop
@@ -72,9 +75,11 @@ void Engine::Tick() {
             ImGui::MenuItem("Save Project");
             ImGui::Separator();
             ImGui::MenuItem("Build Settings");
-            ImGui::MenuItem("Build and Run");
             ImGui::Separator();
-            if(ImGui::MenuItem("Exit")) done = true;
+            if(ImGui::MenuItem("Exit")) {
+                std::cout << "exiting";
+                done = true;
+            }
 
             ImGui::EndMenu();
         }
@@ -118,6 +123,4 @@ void Engine::Exit() {
     ImGui_ImplSDLRenderer_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
-
-    delete(window);
 }
