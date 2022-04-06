@@ -76,10 +76,8 @@ void Engine::Tick() {
             ImGui::Separator();
             ImGui::MenuItem("Build Settings");
             ImGui::Separator();
-            if(ImGui::MenuItem("Exit")) {
-                std::cout << "exiting";
+            if(ImGui::MenuItem("Exit"))
                 done = true;
-            }
 
             ImGui::EndMenu();
         }
