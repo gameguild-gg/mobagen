@@ -1,7 +1,5 @@
 #include "Engine.h"
 
-Engine *Engine::instance = nullptr;
-
 #ifdef EMSCRIPTEN
 void Engine::loop() {
     {
@@ -14,7 +12,13 @@ Engine::Engine() {}
 
 Engine::~Engine() {
     instance= nullptr;
-    delete(window);
+    if(window) {
+        // Cleanup
+        ImGui_ImplSDLRenderer_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+        delete (window);
+    }
 }
 
 void Engine::Run() {
@@ -58,52 +62,8 @@ void Engine::Tick() {
 
     // TODO: move this to the EDITOR location
 //    ImGui::ShowDemoWindow(&show_demo_window);
-    if (ImGui::BeginMainMenuBar())
-    {
-        if (ImGui::BeginMenu("File"))
-        {
-            ImGui::MenuItem("New Scene");
-            ImGui::MenuItem("Open Scene");
-            ImGui::MenuItem("Open Recent");
-            ImGui::Separator();
-            ImGui::MenuItem("Save");
-            ImGui::MenuItem("Save As...");
-            ImGui::MenuItem("Save As Scene Template...");
-            ImGui::Separator();
-            ImGui::MenuItem("New Project...");
-            ImGui::MenuItem("Open Project...");
-            ImGui::MenuItem("Save Project");
-            ImGui::Separator();
-            ImGui::MenuItem("Build Settings");
-            ImGui::Separator();
-            if(ImGui::MenuItem("Exit"))
-                done = true;
 
-            ImGui::EndMenu();
-        }
-        if(ImGui::BeginMenu("Edit")) {
-            ImGui::EndMenu();
-        }
-        if(ImGui::BeginMenu("Assets")) {
-            ImGui::EndMenu();
-        }
-        if(ImGui::BeginMenu("GameObject")) {
-            ImGui::EndMenu();
-        }
-        if(ImGui::BeginMenu("Component")) {
-            ImGui::EndMenu();
-        }
-        if(ImGui::BeginMenu("Window")) {
-            ImGui::EndMenu();
-        }
-        if(ImGui::BeginMenu("Help")) {
-            ImGui::EndMenu();
-        }
-        ImGui::Separator();
-        ImGui::Text("%.3fms (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::EndMenuBar();
-    }
-
+    // todo: call all objects ongui here
 
 
     // Rendering
@@ -117,8 +77,5 @@ void Engine::Tick() {
 }
 
 void Engine::Exit() {
-    // Cleanup
-    ImGui_ImplSDLRenderer_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
+    done = true;
 }

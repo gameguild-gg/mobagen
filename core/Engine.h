@@ -14,8 +14,10 @@
 class Engine{
 public:
     // todo: wrap this as a get instance and protect against writes
-    static Engine *instance;
+    static inline Engine *instance = nullptr;
+    Window *window;
 
+private:
     bool done = false;
 
     // Our state
@@ -23,8 +25,8 @@ public:
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    Window *window;
-
+    // todo: better ordering
+public:
 #ifdef EMSCRIPTEN
     static void loop();
 #endif
