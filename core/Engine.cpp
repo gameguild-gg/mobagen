@@ -64,7 +64,9 @@ void Engine::Tick() {
 //    ImGui::ShowDemoWindow(&show_demo_window);
 
     // todo: call all objects ongui here
-
+    for(auto go : gameObjects){
+        go.OnGui();
+    }
 
     // Rendering
     ImGui::Render();

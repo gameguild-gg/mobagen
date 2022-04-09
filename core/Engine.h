@@ -4,8 +4,10 @@
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_sdlrenderer.h"
 #include "Window.h"
+#include "GameObject.h"
 #include <cstdio>
 #include <SDL.h>
+#include <vector>
 
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
@@ -19,6 +21,7 @@ public:
 
 private:
     bool done = false;
+    std::vector<GameObject> gameObjects;
 
     // Our state
     bool show_demo_window = true;
