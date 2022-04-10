@@ -11,7 +11,6 @@ void Engine::loop() {
 Engine::Engine() {}
 
 Engine::~Engine() {
-    instance= nullptr;
     if(window) {
         // Cleanup
         ImGui_ImplSDLRenderer_Shutdown();
@@ -33,9 +32,9 @@ int Engine::Start() {
     window = new Window("Placeholder");
 
 #ifdef EMSCRIPTEN
-    instance = this;
     emscripten_set_main_loop(Engine::loop, 0, 1); // should be called only after sldrenderinit
 #endif
+
     return true;
 }
 
@@ -60,13 +59,10 @@ void Engine::Tick() {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    // TODO: move this to the EDITOR location
-//    ImGui::ShowDemoWindow(&show_demo_window);
-
-    // todo: call all objects ongui here
-    for(auto go : gameObjects){
-        go.OnGui();
-    }
+    // iterate over all game objects ui
+    ImGuiContext *context = ImGui::GetCurrentContext();
+    for(auto go : gameObjects)
+        go->OnGui(context); // todo: find a better way to pass imgui context
 
     // Rendering
     ImGui::Render();
@@ -80,4 +76,7 @@ void Engine::Tick() {
 
 void Engine::Exit() {
     done = true;
+    for(auto go : gameObjects)
+        delete(go); // clear all remaining game objects
+    gameObjects.clear();
 }

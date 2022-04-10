@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ENGINE_H
+#define ENGINE_H
 
 #include "imgui.h"
 #include "imgui_impl_sdl.h"
@@ -13,15 +14,17 @@
 #include <emscripten.h>
 #endif
 
+class GameObject;
+
 class Engine{
 public:
-    // todo: wrap this as a get instance and protect against writes
-    static inline Engine *instance = nullptr;
     Window *window;
+
+    // todo: move this to a scene manager and make this private
+    std::vector<GameObject*> gameObjects;
 
 private:
     bool done = false;
-    std::vector<GameObject> gameObjects;
 
     // Our state
     bool show_demo_window = true;
@@ -40,3 +43,4 @@ public:
     void Tick();
     void Exit();
 };
+#endif

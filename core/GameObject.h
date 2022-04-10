@@ -1,6 +1,16 @@
-#pragma once
+#ifndef GAMEOBJECT_H
+#define GAMEOBJECT_H
+
+#include <imgui.h>
+#include "Engine.h"
+
+class Engine;
 
 class GameObject {
 public:
-    void virtual OnGui();
+    Engine* engine;
+public:
+    explicit GameObject(Engine* engine);
+    virtual void OnGui(ImGuiContext *context) {};
 };
+#endif
