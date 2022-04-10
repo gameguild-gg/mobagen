@@ -12,5 +12,6 @@ public:
 public:
     explicit GameObject(Engine* engine);
     virtual void OnGui(ImGuiContext *context) {};
+    virtual void OnDraw(SDL_Renderer* renderer) {};
 };
 #endif

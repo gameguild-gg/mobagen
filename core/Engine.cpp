@@ -64,6 +64,9 @@ void Engine::Tick() {
     for(auto go : gameObjects)
         go->OnGui(context); // todo: find a better way to pass imgui context
 
+    for(auto go : gameObjects)
+        go->OnDraw(window->sdlRenderer);
+
     // Rendering
     ImGui::Render();
     SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
