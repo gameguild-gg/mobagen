@@ -4,6 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 #include "SDL.h"
+#include "MathLib.h"
 
 // #TODO: create a math lib more efficient than this
 #define DEG2RAD (float)((M_PI * 2) / 360)
@@ -94,6 +95,8 @@ struct Vector2 {
         return (i == 0) ? x : y ;
     }
 
+    // todo: create a rotation that receives an up vector
+
     static Vector2 Rotate(Vector2 v, float degrees) {
         float sin = std::sinf(degrees * DEG2RAD);
         float cos = std::cosf(degrees * DEG2RAD);
@@ -115,6 +118,18 @@ struct Vector2 {
         v.x = (cos * tx) - (sin * ty);
         v.y = (sin * tx) + (cos * ty);
         return v;
+    }
+
+    float eulerAngle() {
+        float rad = std::atanf(y/x);   // arcus tangent in radians
+        float deg = rad*180/(float)M_PI;  // converted to degrees
+        if (x<0) deg += 180;              // fixed mirrored angle of arctan
+        float eul = MathLib::normalize(270+deg, 0, 360);    // folded to [0,360) domain
+        return eul;
+    }
+
+    float static eulerAngle(Vector2 v) {
+        return v.eulerAngle();
     }
 };
 

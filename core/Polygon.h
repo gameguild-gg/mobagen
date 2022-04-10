@@ -3,12 +3,12 @@
 
 #include <vector>
 #include "Vector2.h"
+#include "Transform.h"
 
 // naive approach to represent a polygon
 struct Polygon {
-    float rotation;
-    float scale;
-    Vector2 position;
+public:
+    Transform transform;
     std::vector<Vector2> points;
 
     // to be used in the draw functions
