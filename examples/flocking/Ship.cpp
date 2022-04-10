@@ -21,3 +21,7 @@ void Ship::OnDraw(SDL_Renderer* renderer) {
                            (int)drawablePoints[other].y);
     }
 }
+
+void Ship::Update(float deltaTime) {
+    polygon.rotation += deltaTime*10;
+}

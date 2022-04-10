@@ -44,7 +44,11 @@ void UserInterface::OnGui(ImGuiContext *context) {
             ImGui::EndMenu();
         }
         ImGui::Separator();
-        ImGui::Text("%.3fms (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
+                    ImGui::GetIO().DeltaTime*1000,
+                    1.0f/ImGui::GetIO().DeltaTime,
+                    1000.0f/ImGui::GetIO().Framerate,
+                    ImGui::GetIO().Framerate);
         ImGui::EndMenuBar();
     }
 }

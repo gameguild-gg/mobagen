@@ -27,23 +27,23 @@ struct Vector2 {
     }
 
     //unary operations
-    Vector2 operator- () const { return Vector2(-x, -y); }
+    Vector2 operator- () const { return {-x, -y}; }
 
     //binary operations
     Vector2 operator- (const Vector2& rhs) const {
-        return Vector2(x - rhs.x, y - rhs.y);
+        return {x - rhs.x, y - rhs.y};
     }
     Vector2 operator+ (const Vector2& rhs) const {
-        return Vector2(x + rhs.x, y + rhs.y);
+        return {x + rhs.x, y + rhs.y};
     }
     Vector2 operator* (const float& rhs) const {
-        return Vector2(x * rhs, y * rhs);
+        return {x * rhs, y * rhs};
     }
     friend Vector2 operator* (const float& lhs, const Vector2& rhs) {
         return rhs * lhs;
     }
     Vector2 operator/ (const float& rhs) const {
-        return Vector2(x / rhs, y / rhs);
+        return {x / rhs, y / rhs};
     }
     bool operator!= (const Vector2& rhs) const {
         return (*this - rhs).sqrMagnitude() >= 1.0e-6;

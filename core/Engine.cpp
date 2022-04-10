@@ -60,6 +60,10 @@ void Engine::Tick() {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    auto deltaTime = ImGui::GetIO().DeltaTime;
+    for(auto go : gameObjects)
+        go->Update(deltaTime);
+
     // iterate over all game objects ui
     ImGuiContext *context = ImGui::GetCurrentContext();
     for(auto go : gameObjects)

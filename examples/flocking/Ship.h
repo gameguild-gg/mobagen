@@ -10,6 +10,7 @@ private:
 public:
     explicit Ship(Engine *pEngine);
     void OnDraw(SDL_Renderer* renderer) override;
+    void Update(float deltaTime) override;
 };
 
 #endif
