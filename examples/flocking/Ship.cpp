@@ -2,9 +2,10 @@
 
 Ship::Ship(Engine *pEngine) : GameObject(pEngine) {
     polygon.rotation = 0;
-    polygon.scale = 1;
-    polygon.position = {200,200};
+    polygon.scale = 100;
+    polygon.position = {500,500};
     polygon.points = {{0,2}, {1,-1},{0,0},{-1,-1}};
+//    polygon.points = {{1000,1000}, {1,-1},{0,0},{-1,-1}};
 }
 
 void Ship::OnDraw(SDL_Renderer* renderer) {

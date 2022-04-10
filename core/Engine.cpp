@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "SDL.h"
 
 #ifdef EMSCRIPTEN
 void Engine::loop() {
@@ -64,13 +65,17 @@ void Engine::Tick() {
     for(auto go : gameObjects)
         go->OnGui(context); // todo: find a better way to pass imgui context
 
-    for(auto go : gameObjects)
-        go->OnDraw(window->sdlRenderer);
+
 
     // Rendering
     ImGui::Render();
     SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
     SDL_RenderClear(window->sdlRenderer);
+
+    for(auto go : gameObjects)
+        go->OnDraw(window->sdlRenderer);
+
+
     ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
     SDL_RenderPresent(window->sdlRenderer);
 
