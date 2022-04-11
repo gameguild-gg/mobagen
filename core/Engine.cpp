@@ -4,7 +4,7 @@
 #ifdef EMSCRIPTEN
 static Engine *instance = nullptr;
 void Engine::loop(void){
-  instance->tick();
+  instance->Tick();
 }
 #endif
 
