@@ -24,5 +24,6 @@ int main(int, char**) {
     SDL_Log("Exiting Engine");
     engine->Exit();
     SDL_Log("Engine Exited");
+    return 0;
 }
 
