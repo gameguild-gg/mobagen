@@ -42,9 +42,9 @@ Window::Window(std::string title) {
         SDL_Log("Error creating SDL_Renderer!");
         throw std::runtime_error("Error creating SDL_Renderer!");
     }
-    //SDL_RendererInfo info;
-    //SDL_GetRendererInfo(renderer, &info);
-    //SDL_Log("Current SDL_Renderer: %s", info.name);
+    SDL_RendererInfo info;
+    SDL_GetRendererInfo(sdlRenderer, &info);
+    SDL_Log("Current SDL_Renderer: %s", info.name);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();

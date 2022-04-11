@@ -30,8 +30,14 @@ void Engine::Run() {
 #endif
 }
 
-int Engine::Start() {
-    window = new Window("Placeholder");
+int Engine::Start(std::string title) {
+    SDL_Log("Initializing Window");
+    window = new Window(std::move(title));
+    if(window != nullptr)
+        SDL_Log("Window Initialized");
+    else
+        exit(0);
+
 
 #ifdef EMSCRIPTEN
     emscripten_set_main_loop(Engine::loop, 0, 1); // should be called only after sldrenderinit

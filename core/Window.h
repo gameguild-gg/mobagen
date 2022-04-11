@@ -47,7 +47,7 @@ class Window {
 //    void toggleFullscreen(void);
 
 public:
-    Window(std::string title);
+    explicit Window(std::string title);
 
     SDL_Window *sdlWindow;
     SDL_Renderer *sdlRenderer;

@@ -38,7 +38,7 @@ public:
 #endif
     Engine();
     ~Engine();
-    int Start();
+    int Start(std::string title);
     void Run();
     void Tick();
     void Exit();

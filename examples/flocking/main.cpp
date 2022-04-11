@@ -6,12 +6,23 @@
 
 // Main code
 int main(int, char**) {
+    SDL_Log("Creating Engine");
     auto engine = new Engine();
+    SDL_Log("Engine Created");
+
+    SDL_Log("Creating Game Objects");
     new UserInterface(engine);
     new Ship(engine);
-    if(engine->Start())
+    SDL_Log("Game Objects Created");
+
+    SDL_Log("Starting Engine");
+    if(engine->Start("Flocking")) {
+        SDL_Log("Engine Started");
         engine->Run();
-    delete(engine);
-    return 0;
+    }
+
+    SDL_Log("Exiting Engine");
+    engine->Exit();
+    SDL_Log("Engine Exited");
 }
 
