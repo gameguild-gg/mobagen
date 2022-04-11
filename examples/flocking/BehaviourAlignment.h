@@ -1,8 +1,8 @@
 #pragma once
 
-#include "FlockingBehaviour.h"
+#include "BehaviourBase.h"
 
-class BehaviourAlignment: FlockingBehaviour {
+class BehaviourAlignment: BehaviourBase {
 
 };
 

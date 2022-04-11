@@ -1,7 +1,7 @@
 #pragma once
 
-#include "FlockingBehaviour.h"
+#include "BehaviourBase.h"
 
-class BehaviourAvoidance: FlockingBehaviour {
+class BehaviourAvoidance: BehaviourBase {
 
 };

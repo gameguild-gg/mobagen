@@ -9,9 +9,9 @@ Ship::Ship(Engine *pEngine) : GameObject(pEngine) {
 
     Random rand;
     color = Vector3(
-            rand.Range(127,255),
-            rand.Range(127,255),
-            rand.Range(127,255));
+            rand.Range(31,255),
+            rand.Range(31,255),
+            rand.Range(31,255));
 }
 
 void Ship::OnDraw(SDL_Renderer* renderer) {
