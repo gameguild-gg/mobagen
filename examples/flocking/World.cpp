@@ -1,11 +1,16 @@
 #include "World.h"
-
 #include "imgui.h"
-
 #include "Utils.h"
 #include "ImGuiExtra.h"
+#include "Random.h"
 
 using namespace utils;
+
+World::World(Engine *pEngine): GameObject(pEngine) {
+    initializeRules();
+    setNumberOfBoids(nbBoids);
+    applyFlockingRulesToAllBoids();
+}
 
 void World::initializeRules()
 {
@@ -14,18 +19,17 @@ void World::initializeRules()
     boidsRules.emplace_back(std::make_unique<CohesionRule>(4.25));
     boidsRules.emplace_back(std::make_unique<AlignmentRule>(2.9));
     boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(2.));
+    // todo: make this call engine and every frame to keep in sync with the real size. Cache it on window
     boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(
-            windowPtr->getSize().y, windowPtr->getSize().x, 80, 3.5, false));
+            engine->window->size().y, engine->window->size().x, 80, 3.5, false));
     boidsRules.emplace_back(std::make_unique<WindRule>(1., 6.f, false));
 
     //Starting weights are saved as defaults
     defaultWeights = new float[boidsRules.size()];
     int i = 0;
-    for (const auto& rule : boidsRules)
-    {
+    for (const auto& rule : boidsRules) {
         defaultWeights[i++] = rule->weight;
     }
-
 }
 
 void World::applyFlockingRulesToAllBoids()
@@ -38,7 +42,7 @@ void World::applyFlockingRulesToAllBoids()
 
 void World::setNumberOfBoids(int number)
 {
-    int diff = boids.size() - number;
+    auto diff = boids.size() - number;
 
     if (diff == 0)
     {
@@ -71,17 +75,17 @@ void World::setNumberOfBoids(int number)
     }
 }
 
-void World::randomizeBoidPositionAndVelocity(Boid* boid)
-{
-    boid->setPosition(vector2::getRandom(windowPtr->getSize().x, windowPtr->getSize().y));
-    boid->setVelocity(vector2::getVector2FromDegree(rand() % 360) * desiredSpeed); //Random dir
+void World::randomizeBoidPositionAndVelocity(Boid* boid) {
+    // todo: give boid a transform to store position, rotation... etc
+    boid->setPosition(Vector2::Random(engine->window->size().x, engine->window->size().y));
+
+    boid->setVelocity(Vector2().Rotate(Random::Range(0,360)) * desiredSpeed); //Random dir
 }
 
-void World::warpParticleIfOutOfBounds(Particle* particle)
-{
+void World::warpParticleIfOutOfBounds(Particle* particle) {
     //Correct position with windows borders
-    sf::Vector2f position = particle->getShape().getPosition();
-    sf::Vector2u sizeWindow = windowPtr->getSize();
+    Vector2 position = particle->getShape().getPosition();
+    Vector2 sizeWindow = engine->window->size(); // todo: make it int
 
     if (position.x < 0) {
         position.x += sizeWindow.x;
@@ -104,8 +108,7 @@ void World::warpParticleIfOutOfBounds(Particle* particle)
     }
 }
 
-BoidPtr World::createBoid()
-{
+BoidPtr World::createBoid() {
     //Create new boid
     BoidPtr boid = std::make_unique<Boid>(&cachedBoids); //TODO : CHANGE
 
@@ -119,15 +122,6 @@ BoidPtr World::createBoid()
     boid->drawDebugRules = showRules;
 
     return boid;
-}
-
-World::World(sf::RenderWindow* windowPtr_) : windowPtr(windowPtr_)
-{
-    initializeRules();
-
-    setNumberOfBoids(nbBoids);
-
-    applyFlockingRulesToAllBoids();
 }
 
 std::vector<Boid*>* World::getAllBoids()
@@ -284,8 +278,8 @@ void World::drawRulesUI()
     }
 }
 
-void World::update(float deltaTime)
-{
+void World::Update(float deltaTime) {
+    // todo: when the boid become a GameObject, we wont need this
     for (auto& b : boids) {
         b->update(deltaTime);
     }
@@ -294,8 +288,11 @@ void World::update(float deltaTime)
 void World::updatePositions(float deltaTime)
 {
     for (auto& b : boids) {
-
         b->updatePosition(deltaTime);
         warpParticleIfOutOfBounds(b.get());
     }
+}
+
+int World::getNbBoids() const {
+    return nbBoids;
 }

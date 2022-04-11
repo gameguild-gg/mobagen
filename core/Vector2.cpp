@@ -1,4 +1,5 @@
 #include "Vector2.h"
+#include "Random.h"
 
 Vector2::Vector2() {
     x = 0;
@@ -14,16 +15,19 @@ float Vector2::sqrMagnitude() const {
     return x * x + y * y;
 }
 
-float Vector2::eulerAngle() const {
-    float rad = std::atan(y/x);   // arcus tangent in radians
-    float deg = rad*180/(float)M_PI;  // converted to degrees
-    if (x<0) deg += 180;              // fixed mirrored angle of arctan
-    float eul = MathLib::normalize(270+deg, 0, 360);    // folded to [0,360) domain
-    return eul;
+float Vector2::getAngleDegree() const {
+    return getAngleRadian(this) * 180 / (float)M_PI;
+
+    // todo: if something looks weird. it would be probably bc we should just return the atan2
+//    float rad = std::atan2(y,x);   // arcus tangent in radians
+//    float deg = rad*180/(float)M_PI;  // converted to degrees
+//    if (x<0) deg += 180;              // fixed mirrored angle of arctan
+//    float eul = MathLib::normalize(270+deg, 0, 360);    // folded to [0,360) domain
+//    return eul;
 }
 
-float Vector2::eulerAngle(Vector2 v) {
-    return v.eulerAngle();
+float Vector2::getAngleDegree(Vector2 v) {
+    return v.getAngleDegree();
 }
 
 Vector2 Vector2::Rotate(float degrees) const {
@@ -130,10 +134,63 @@ Vector2 Vector2::Rotate(Vector2 v, float degrees) {
 
 Vector2 Vector2::Rotate(Vector2 v, Vector2 up) {
     // todo: improve this!
-    return v.Rotate(up.eulerAngle());
+    return v.Rotate(up.getAngleDegree());
 }
 
 Vector2 Vector2::Rotate(Vector2 up) const {
-    return this->Rotate(up.eulerAngle());
+    return this->Rotate(up.getAngleDegree());
+}
+
+Vector2 Vector2::Random(float start, float end) {
+    return {Random::Range(start,end),Random::Range(start,end)};
+}
+
+float Vector2::getAngleRadian() const {
+    return atan2(x, -y);
+}
+
+float Vector2::getAngleRadian(Vector2 v) {
+    return v.getAngleRadian();
+}
+
+Vector2 Vector2::getVector2FromRadian(const float radian) {
+    return {cos(radian), sin(radian)};
+}
+
+Vector2 Vector2::getVector2FromDegree(const float degree) {
+    float radian = degree * ((float)M_PI / 180.f);
+    return getVector2FromRadian(radian);
+}
+
+float Vector2::getMagnitude() const {
+    return sqrt(sqrMagnitude());
+}
+
+float Vector2::getMagnitude(const Vector2 &vector) {
+    return vector.getMagnitude();
+}
+
+float Vector2::getDistance(const Vector2 &a, const Vector2 &b) {
+    auto ab = a - b;
+    return sqrt(ab.x * ab.x +
+                ab.y * ab.y);
+}
+
+float Vector2::getSquaredDistance(const Vector2 &a, const Vector2 &b) {
+    return (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+}
+
+Vector2 Vector2::normalized(const Vector2 &vector) {
+    return vector.normalized();
+}
+
+Vector2 Vector2::normalized() const {
+    float magnitude = getMagnitude();
+
+    //If the magnitude is not null
+    if (magnitude > 0.)
+        return Vector2(x,y) / magnitude;
+    else
+        return {x,y};
 }
 

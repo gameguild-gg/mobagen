@@ -83,3 +83,11 @@ Window::~Window() {
     SDL_DestroyWindow(sdlWindow);
     SDL_Quit();
 }
+
+// todo: cache this per frame to avoid call SDL_GetWindowSize every single call
+// todo: this should be integer return
+Vector2 Window::size() const {
+    int x,y;
+    SDL_GetWindowSize(this->sdlWindow,&x, &y);
+    return {(float)x,(float)y};
+}

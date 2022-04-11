@@ -3,6 +3,7 @@
 
 #include "FlockingRule.h"
 #include "Boid.h"
+#include "GameObject.h"
 
 class Particle;
 
@@ -10,24 +11,20 @@ using BoidPtr = std::unique_ptr<Boid>;
 
 
 
-class World
-{
+class World: GameObject {
 private:
-
     /// MEMBERS
-
     /// Configuration
-
-    //Boids
+    // Boids
     int nbBoids = 300;
 
     bool hasConstantSpeed = false;
-    float desiredSpeed = 120.;
+    float desiredSpeed = 120.0f;
 
     bool hasMaxAcceleration = false;
-    float maxAcceleration = 10.;
+    float maxAcceleration = 10.0f;
 
-    float detectionRadius = 40.;
+    float detectionRadius = 40.04;
 
     //Display
     bool showRadius = false;
@@ -36,19 +33,15 @@ private:
 
     //rules
     std::vector<std::unique_ptr<FlockingRule>> boidsRules;
-    float* defaultWeights; //array of default rules weight
+    float* defaultWeights; // array of default rules weight
 
     /// Particles
-    std::vector<BoidPtr> boids; //owned particles
+    std::vector<BoidPtr> boids; // owned particles
 
     //cached list to manipulate objects
     std::vector<Boid*> cachedBoids;
 
-
-    sf::RenderWindow* windowPtr;
-
     /// METHODS
-
     void initializeRules();
 
     //Boids
@@ -63,15 +56,12 @@ private:
 public:
 
     /// METHODS
-    World(sf::RenderWindow* windowPtr_);
+    explicit World(Engine* pEngine);
 
     //Getters
     std::vector<Boid*>* getAllBoids();
 
-    int getNbBoids()
-    {
-        return nbBoids;
-    }
+    int getNbBoids() const;
 
     //Setters
 
@@ -80,7 +70,7 @@ public:
     void drawRulesUI();
 
     //Update
-    void update(float deltaTime);
+    void Update(float deltaTime);
     void updatePositions(float deltaTime);
 };
 

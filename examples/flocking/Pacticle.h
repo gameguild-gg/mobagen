@@ -59,8 +59,7 @@ public:
         shape.setRotation(utils::vector2::getAngleDegree(velocity));
     }
 
-    void setSpeed(float newSpeed)
-    {
+    void setSpeed(float newSpeed) {
         speed = newSpeed;
     }
 

@@ -261,9 +261,7 @@ public:
 
 class BoundedAreaRule : public FlockingRule
 {
-
 private:
-
     int widthWindows;
     int heightWindows;
 
