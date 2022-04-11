@@ -17,6 +17,8 @@
 class GameObject;
 
 class Engine{
+    static Engine *instance;
+
 public:
     Window *window;
 

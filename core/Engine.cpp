@@ -1,6 +1,8 @@
 #include "Engine.h"
 #include "SDL.h"
 
+Engine *Engine::instance = nullptr;
+
 #ifdef EMSCRIPTEN
 void Engine::loop() {
     {
@@ -9,7 +11,10 @@ void Engine::loop() {
 }
 #endif
 
-Engine::Engine() {}
+Engine::Engine() {
+    instance = this;
+    window = nullptr;
+}
 
 Engine::~Engine() {
     if(window) {
