@@ -15,7 +15,7 @@ float Vector2::sqrMagnitude() const {
 }
 
 float Vector2::eulerAngle() const {
-    float rad = std::atanf(y/x);   // arcus tangent in radians
+    float rad = std::atan(y/x);   // arcus tangent in radians
     float deg = rad*180/(float)M_PI;  // converted to degrees
     if (x<0) deg += 180;              // fixed mirrored angle of arctan
     float eul = MathLib::normalize(270+deg, 0, 360);    // folded to [0,360) domain
