@@ -11,7 +11,7 @@ public:
     Transform transform;
     std::vector<Vector2> points;
 
-    // to be used in the draw functions
+    // polygon points to be used in the draw functions
     std::vector<Vector2> getDrawablePoints();
 };
 

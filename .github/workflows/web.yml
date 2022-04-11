@@ -1,4 +1,4 @@
-name: Web
+name: WEB-EMSCRIPTEN
 
 on:
   push:
