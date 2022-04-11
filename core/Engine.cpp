@@ -1,18 +1,14 @@
 #include "Engine.h"
 #include "SDL.h"
 
-Engine *Engine::instance = nullptr;
-
 #ifdef EMSCRIPTEN
-void Engine::loop() {
-    {
-        instance->Tick();
-    }
+static Engine *instance = nullptr;
+void Engine::loop(void){
+  instance->tick();
 }
 #endif
 
 Engine::Engine() {
-    instance = this;
     window = nullptr;
 }
 
@@ -65,6 +61,7 @@ void Engine::Tick() {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    // update
     auto deltaTime = ImGui::GetIO().DeltaTime;
     for(auto go : gameObjects)
         go->Update(deltaTime);
@@ -74,16 +71,14 @@ void Engine::Tick() {
     for(auto go : gameObjects)
         go->OnGui(context); // todo: find a better way to pass imgui context
 
-
-
     // Rendering
     ImGui::Render();
     SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
     SDL_RenderClear(window->sdlRenderer);
 
+    // Draw
     for(auto go : gameObjects)
         go->OnDraw(window->sdlRenderer);
-
 
     ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
     SDL_RenderPresent(window->sdlRenderer);

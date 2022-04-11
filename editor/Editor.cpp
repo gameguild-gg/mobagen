@@ -2,7 +2,8 @@
 #include "imgui.h"
 #include "Engine.h"
 
-void Editor::OnGui() {
+void Editor::OnGui(ImGuiContext *context) {
+    ImGui::SetCurrentContext(context);
     if (ImGui::BeginMainMenuBar())
     {
         if (ImGui::BeginMenu("File"))
@@ -22,7 +23,7 @@ void Editor::OnGui() {
             ImGui::MenuItem("Build Settings");
             ImGui::Separator();
             if(ImGui::MenuItem("Exit"))
-                Engine::instance->Exit();
+                engine->Exit();
 
             ImGui::EndMenu();
         }
@@ -49,3 +50,5 @@ void Editor::OnGui() {
         ImGui::EndMenuBar();
     }
 }
+
+Editor::Editor(Engine *pEngine) : GameObject(pEngine) {}
