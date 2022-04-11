@@ -9,6 +9,9 @@ void Engine::loop(void){
 #endif
 
 Engine::Engine() {
+#ifdef EMSCRIPTEN
+    instance = nullptr;
+#endif
     window = nullptr;
 }
 
@@ -38,9 +41,11 @@ int Engine::Start(std::string title) {
     else
         exit(0);
 
-
 #ifdef EMSCRIPTEN
+    SDL_Log("Setting main loop for emscripten");
+    instance = this;
     emscripten_set_main_loop(Engine::loop, 0, 1); // should be called only after sldrenderinit
+    SDL_Log("Main loop set");
 #endif
 
     return true;
@@ -93,8 +98,10 @@ void Engine::Tick() {
 }
 
 void Engine::Exit() {
+    SDL_Log("Exit called");
     done = true;
     for(auto go : gameObjects)
         delete(go); // clear all remaining game objects
     gameObjects.clear();
+    SDL_Log("Game Objects Cleared");
 }
