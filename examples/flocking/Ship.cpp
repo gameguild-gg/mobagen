@@ -1,6 +1,5 @@
 #include "Ship.h"
 #include "Random.h"
-#include<cstdlib>
 
 Ship::Ship(Engine *pEngine) : GameObject(pEngine) {
     polygon.transform.rotation = {0,1};
