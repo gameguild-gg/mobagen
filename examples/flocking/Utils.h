@@ -1,15 +1,13 @@
+#include "SDL.h"
+#include "Vector2.h"
+#include "Vector3.h"
+
 #ifndef UTILS_H
 #define UTILS_H
 
-#define _USE_MATH_DEFINES //Pour utiliser PI
+#define _USE_MATH_DEFINES
 
 //UniqueVector
-#include <vector>
-#include <memory>
-#include <deque>
-#include "Vector3.h"
-#include "SDL.h"
-#include "Vector2.h"
 
 namespace utils {
 

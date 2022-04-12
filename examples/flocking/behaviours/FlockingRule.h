@@ -1,7 +1,10 @@
 #ifndef FLOCKINGRULE_H
 #define FLOCKINGRULE_H
 
-#include "Utils.h"
+#include <vector>
+#include <memory>
+#include "Vector2.h"
+#include "Vector3.h"
 
 class Boid;
 

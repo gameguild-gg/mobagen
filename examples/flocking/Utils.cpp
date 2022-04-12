@@ -1,5 +1,4 @@
 #include "Utils.h"
-#include "Vector2.h"
 
 namespace utils {
     namespace graphics {

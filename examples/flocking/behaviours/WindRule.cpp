@@ -1,4 +1,5 @@
 #include "WindRule.h"
+#include <imgui.h>
 
 sf::Vector2f WindRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid)
 {
