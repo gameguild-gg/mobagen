@@ -32,8 +32,7 @@ std::vector<Boid*> Boid::computeBoidNeighbordhood()
 }
 
 
-Boid::Boid(std::vector<Boid*>* boids_) : Particle(), boids(boids_)
-{
+Boid::Boid(std::vector<Boid*>* boids_) : Particle(), boids(boids_) {
 
 }
 
@@ -49,7 +48,6 @@ void Boid::update(const float deltaTime)
         //std::cout << typeid(*rule).name() << " Force : " << vector2::getMagnitude(weightedForce) << std::endl;
         applyForce(weightedForce);
     }
-
 }
 
 void Boid::draw(sf::RenderTarget& target, sf::RenderStates states) const

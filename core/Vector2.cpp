@@ -16,7 +16,7 @@ float Vector2::sqrMagnitude() const {
 }
 
 float Vector2::getAngleDegree() const {
-    return getAngleRadian(this) * 180 / (float)M_PI;
+    return getAngleRadian() * 180 / (float)M_PI;
 
     // todo: if something looks weird. it would be probably bc we should just return the atan2
 //    float rad = std::atan2(y,x);   // arcus tangent in radians

@@ -3,12 +3,14 @@
 
 #include <imgui.h>
 #include "Engine.h"
+#include "Transform.h"
 
 class Engine;
 
 class GameObject {
 public:
     Engine* engine;
+    Transform transform;
 public:
     explicit GameObject(Engine* engine);
     virtual void OnGui(ImGuiContext *context) {};

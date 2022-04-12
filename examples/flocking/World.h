@@ -72,6 +72,10 @@ public:
     //Update
     void Update(float deltaTime);
     void updatePositions(float deltaTime);
+
+public:
+    void showConfigurationWindow();
+    void drawPerformanceUI();
 };
 
 

@@ -2,10 +2,10 @@
 #define PACTICLE_H
 
 #include "Utils.h"
+#include "GameObject.h"
+#include "Transform.h"
 
-class Particle : public sf::Drawable
-{
-
+class Particle : GameObject {
 private:
 
     //Members
@@ -16,47 +16,41 @@ private:
     float maxAcceleration = 10.;
 
 
-    sf::Vector2f velocity;
-    sf::Vector2f acceleration;
-    sf::Vector2f previousAcceleration; //to draw Acc
+    Vector2 velocity;
+    Vector2 acceleration;
+    Vector2 previousAcceleration; //to draw Acc
 
     //Methods
     void resetAcceleration();
 
-protected:
-
-    sf::CircleShape shape;
-
 public:
-
-
     bool drawAcceleration = false;
 
     //Constructor
 
-    Particle(float size = 4.f, sf::Color color = sf::Color::Green);
+    explicit Particle(Engine *pEngine, float size = 4.f, Vector3 color = Vector3::Green());
 
     //Getter / Setters
-    sf::CircleShape getShape() const {
-        return shape;
+    Transform getTransform() const {
+        return transform;
     }
 
-    sf::Vector2f getPosition() const {
-        return shape.getPosition();
+    Vector2 getPosition() const {
+        return transform.position;
     }
 
-    sf::Vector2f getVelocity() const {
+    Vector2 getVelocity() const {
         return velocity;
     }
 
-    void setPosition(sf::Vector2f position) {
-        shape.setPosition(position);
+    void setPosition(Vector2 position) {
+        transform.position = position;
     }
 
-    void setVelocity(sf::Vector2f velocity_) {
+    void setVelocity(Vector2 velocity_) {
         velocity = velocity_;
-
-        shape.setRotation(utils::vector2::getAngleDegree(velocity));
+//        shape.setRotation(utils::vector2::getAngleDegree(velocity));
+        transform.rotation = velocity.normalized();
     }
 
     void setSpeed(float newSpeed) {
@@ -76,16 +70,16 @@ public:
 
     //Methods
 
-    void applyForce(sf::Vector2f force);
+    void applyForce(Vector2 force);
 
-    virtual void update(const float deltaTime);
+//    virtual void update(const float deltaTime);
 
     virtual void updatePosition(const float deltaTime);
 
 
     // Inherited via Drawable
-    virtual void draw(sf::RenderTarget& target, sf::RenderStates states = sf::RenderStates::Default) const override;
+    virtual void OnDraw(SDL_Renderer* renderer) override;
 
 };
 
-#endif //MOBAGEN_PACTICLE_H
+#endif

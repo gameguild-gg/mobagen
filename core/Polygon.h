@@ -8,11 +8,10 @@
 // naive approach to represent a polygon
 struct Polygon {
 public:
-    Transform transform;
     std::vector<Vector2> points;
 
     // polygon points to be used in the draw functions
-    std::vector<Vector2> getDrawablePoints();
+    std::vector<Vector2> getDrawablePoints(Transform& transform);
 };
 
 #endif //MOBAGEN_POLYGON_H

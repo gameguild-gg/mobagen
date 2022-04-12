@@ -3,6 +3,12 @@
 #include "Utils.h"
 #include "ImGuiExtra.h"
 #include "Random.h"
+#include "ImGuiExtra.h"
+
+#if defined(_WIN32)
+#include "windows.h"
+#include "psapi.h"
+#endif
 
 using namespace utils;
 
@@ -283,6 +289,13 @@ void World::Update(float deltaTime) {
     for (auto& b : boids) {
         b->update(deltaTime);
     }
+
+    // move the first boid
+    if (engine->getInputArrow() != Vector2::zero() && getNbBoids() > 0)
+    {
+        Boid* firstBoid = *getAllBoids()->begin();
+        firstBoid->applyForce(engine->getInputArrow() * 20.f);
+    }
 }
 
 void World::updatePositions(float deltaTime)
@@ -295,4 +308,88 @@ void World::updatePositions(float deltaTime)
 
 int World::getNbBoids() const {
     return nbBoids;
+}
+
+
+void World::showConfigurationWindow()
+{
+    //Resized once at first windows appearance
+    ImGui::SetNextWindowPos(ImVec2(850, 20), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(320, 550), ImGuiCond_Once);
+
+    ImGui::Begin("Configuration"); // begin window
+
+    ImGui::Text("Control the simulation with those settings.");
+    ImGui::Spacing();
+    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.45f);
+
+    drawGeneralUI();
+
+    //ImGui::SetNextItemOpen(true, ImGuiCond_Once); //Next header is opened by default
+
+    drawRulesUI();
+
+    drawPerformanceUI();
+
+    ImGui::End(); // end window
+}
+
+void World::drawPerformanceUI()
+{
+    if (ImGui::CollapsingHeader("Performance"))
+    {
+        //The  functions called are Windows specific
+#if defined(_WIN32)
+        ///FPS Count
+        float framePerSecond = 1. / deltaTime.asSeconds();
+        ImGui::Text("Frames Per Second (FPS) : %.f", framePerSecond);
+        PlotVar("Frame duration (ms)", deltaTime.asMilliseconds());
+        ImGui::Separator();
+
+        ///CPU and RAM
+        MEMORYSTATUSEX memInfo;
+        memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+        GlobalMemoryStatusEx(&memInfo);
+
+        //Total Virtual Memory
+        std::int64_t totalVirtualMem = memInfo.ullTotalPageFile;
+
+        //Virtual Memory currently used
+        std::int64_t virtualMemUsed = memInfo.ullTotalPageFile - memInfo.ullAvailPageFile;
+
+        //Virtual Memory current process
+        PROCESS_MEMORY_COUNTERS_EX pmc;
+        GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
+        std::size_t virtualMemUsedByMe = pmc.PrivateUsage;
+
+        //Total RAM
+        std::int64_t totalPhysMem = memInfo.ullTotalPhys;
+
+        //Ram Currently Used
+        std::int64_t physMemUsed = memInfo.ullTotalPhys - memInfo.ullAvailPhys;
+
+        //Ram Current used by Process
+        std::size_t physMemUsedByMe = pmc.WorkingSetSize;
+
+        int div = 1048576;
+
+        //PC info
+
+        ImGui::Text("Total Virtual Memory : %uMb \n", totalVirtualMem / div);
+        ImGui::Text("Total RAM : %uMb \n", totalPhysMem / div);
+
+        //ImGui::Text("Virtual Memory Currently Used : %iMb \n", virtualMemUsed / div);
+        //ImGui::Text("RAM Currently Used : %uMb \n", physMemUsed / div);
+        //ImGui::Separator();
+
+        ImGui::Text("Virtual Memory used by process : %uMb \n", virtualMemUsedByMe / div);
+        PlotVar("Virtual Memory Consumption (Mb)", virtualMemUsedByMe / div);
+
+        ImGui::Text("RAM used by process : %uMb \n", physMemUsedByMe / div);
+        PlotVar("Ram Consumption (Mb)", physMemUsedByMe / div);
+
+#else
+        ImGui::Text("Only implemented on Windows.");
+#endif
+    }
 }

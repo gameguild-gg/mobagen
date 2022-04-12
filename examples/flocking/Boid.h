@@ -5,7 +5,7 @@
 #include "FlockingRule.h"
 #include "Pacticle.h"
 
-class Boid : public Particle
+class Boid : Particle
 {
 
 private:
@@ -20,7 +20,6 @@ private:
 
     //Methods
     std::vector<Boid*> computeBoidNeighbordhood();
-
 
 public:
 

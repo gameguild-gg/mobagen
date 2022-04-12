@@ -18,6 +18,29 @@ struct Vector3 {
         this->y = y;
         this->z = z;
     }
+
+    // todo: move this to a Colors context
+    // todo: make them static inline constexpr
+    static const Vector3 Gray(){return{130, 130, 130};}
+    static const Vector3 LightRed(){return{245, 88, 122};}
+    static const Vector3 Orange(){return{255, 107, 15};}
+    static const Vector3 LightOrange(){return{245, 197, 66};}
+    static const Vector3 LimeGreen(){return{140, 245, 66};}
+    static const Vector3 LightBlue(){return{66, 188, 245};}
+    static const Vector3 DarkBlue(){return{91, 15, 255};}
+    static const Vector3 Purple(){return{138, 66, 245};}
+    static const Vector3 Pink(){return{245, 88, 232};}
+
+    static const Vector3 Black(){return{0, 0, 0};}
+    static const Vector3 White(){return{255, 255, 255};}
+    static const Vector3 Red(){return{255, 0, 0};}
+    static const Vector3 Green(){return{0, 255, 0};}
+    static const Vector3 Blue(){return{0, 0, 255};}
+    static const Vector3 Yellow(){return{255, 255, 0};}
+    static const Vector3 Magenta(){return{255, 0, 255};}
+    static const Vector3 Cyan(){return{0, 255, 255};}
 };
+
+
 
 #endif
