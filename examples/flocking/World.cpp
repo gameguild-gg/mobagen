@@ -97,7 +97,7 @@ void World::randomizeBoidPositionAndVelocity(Boid* boid) {
 
 void World::warpParticleIfOutOfBounds(Particle* particle) {
     //Correct position with windows borders
-    Vector2 position = particle->getShape().getPosition();
+    Vector2 position = particle->getTransform().position;
     Vector2 sizeWindow = engine->window->size(); // todo: make it int
 
     if (position.x < 0) {

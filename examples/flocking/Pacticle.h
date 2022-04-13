@@ -5,17 +5,15 @@
 #include "GameObject.h"
 #include "Transform.h"
 
-class Particle : GameObject {
+class Particle : public GameObject {
 private:
-
     //Members
-
     bool hasConstantSpeed = false;
     float speed = 120.;
-
     float maxAcceleration = 10.;
+    float circleSize; // todo: is this needed?
 
-
+    Vector3 color;
     Vector2 velocity;
     Vector2 acceleration;
     Vector2 previousAcceleration; //to draw Acc
@@ -27,7 +25,6 @@ public:
     bool drawAcceleration = false;
 
     //Constructor
-
     explicit Particle(Engine *pEngine, float size = 4.f, Vector3 color = Vector3::Green());
 
     //Getter / Setters
@@ -48,9 +45,7 @@ public:
     }
 
     void setVelocity(Vector2 velocity_) {
-        velocity = velocity_;
-//        shape.setRotation(utils::vector2::getAngleDegree(velocity));
-        transform.rotation = velocity.normalized();
+        transform.rotation = velocity_.normalized();
     }
 
     void setSpeed(float newSpeed) {
@@ -74,7 +69,7 @@ public:
 
 //    virtual void update(const float deltaTime);
 
-    virtual void updatePosition(const float deltaTime);
+    virtual void UpdatePosition(const float deltaTime);
 
 
     // Inherited via Drawable

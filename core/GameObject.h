@@ -7,6 +7,7 @@
 
 class Engine;
 
+// todo: create a game list of game components of a game object
 class GameObject {
 public:
     Engine* engine;

@@ -2,7 +2,7 @@
 
 namespace utils {
     namespace graphics {
-        void drawVector(SDL_Renderer* renderer, Vector2 start, Vector2 vector, Vector3 color) {
+        void drawVector(SDL_Renderer* renderer, const Vector2& start, const Vector2& vector, const Vector3& color) {
             SDL_SetRenderDrawColor(renderer,
                                    (uint8_t)color.x,
                                    (uint8_t)color.y,

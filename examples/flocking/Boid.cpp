@@ -1,5 +1,5 @@
 #include "Boid.h"
-#include "FlockingRule.h"
+#include "behaviours/FlockingRule.h"
 #include <iostream>
 
 using namespace utils;
@@ -8,8 +8,8 @@ std::vector<Boid*> Boid::computeBoidNeighbordhood()
 {
     std::vector<Boid*> neighborhood;
 
-    float detectionRadiusSquared = std::pow(detectionRadius, 2.);
-    sf::Vector2f position = getPosition();
+    float detectionRadiusSquared = detectionRadius * detectionRadius;
+    auto position = getPosition();
 
     //We compare distance to squared distances to avoid doing square roots.
 
@@ -17,7 +17,7 @@ std::vector<Boid*> Boid::computeBoidNeighbordhood()
     {
         if (boid != this) {
 
-            float squareDistance = vector2::getSquaredDistance(position, boid->getPosition());
+            float squareDistance = Vector2::getSquaredDistance(position, boid->getPosition());
 
             //Verify if boid is close enough to be part of the neighborhood
             if (squareDistance <= detectionRadiusSquared)
@@ -32,30 +32,27 @@ std::vector<Boid*> Boid::computeBoidNeighbordhood()
 }
 
 
-Boid::Boid(std::vector<Boid*>* boids_) : Particle(), boids(boids_) {
+Boid::Boid(Engine *pEngine, std::vector<Boid*>* boids_) : Particle(engine), boids(boids_) {
 
 }
 
-void Boid::update(const float deltaTime)
-{
-    Particle::update(deltaTime);
+void Boid::Update(const float deltaTime) {
+    Particle::Update(deltaTime);
 
     std::vector<Boid*> neighbordhood = computeBoidNeighbordhood();
 
     for (auto& rule : rules)
     {
-        sf::Vector2f weightedForce = rule->computeWeightedForce(neighbordhood, this);
+        auto weightedForce = rule->computeWeightedForce(neighbordhood, this);
         //std::cout << typeid(*rule).name() << " Force : " << vector2::getMagnitude(weightedForce) << std::endl;
         applyForce(weightedForce);
     }
 }
 
-void Boid::draw(sf::RenderTarget& target, sf::RenderStates states) const
-{
-    Particle::draw(target, states); //super()
+void Boid::OnDraw(SDL_Renderer *renderer) {
+    Particle::OnDraw(renderer); // super()
 
     if (drawDebugRadius) {
-
         //Display radius detection
         sf::CircleShape vision = sf::CircleShape(detectionRadius);
 

@@ -5,9 +5,7 @@
 #include "behaviours/FlockingRule.h"
 #include "Pacticle.h"
 
-class Boid : public Particle
-{
-
+class Boid : public Particle {
 private:
 
     //Reference to all particles
@@ -28,7 +26,7 @@ public:
     bool drawDebugRules = true;
 
     //Constructor
-    Boid(std::vector<Boid*>* boids_);
+    Boid(Engine *pEngine, std::vector<Boid*>* boids_);
 
     //Getter - Setters
     void setFlockingRules(std::vector<std::unique_ptr<FlockingRule>> const& newRules)
@@ -53,12 +51,11 @@ public:
         return detectionRadius;
     }
 
-    void update(const float deltaTime) override;
+    void Update(const float deltaTime) override;
 
 
     // Inherited via Drawable
-    virtual void draw(sf::RenderTarget& target, sf::RenderStates states = sf::RenderStates::Default) const override;
-
+    virtual void OnDraw(SDL_Renderer* renderer) override;
 };
 
 

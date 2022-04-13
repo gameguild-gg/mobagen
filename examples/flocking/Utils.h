@@ -13,7 +13,7 @@ namespace utils {
 
     namespace graphics {
         /* Draw a line SFML, show the given vector from the starting point with the given color */
-        void drawVector(SDL_Renderer* renderer, Vector2 start, Vector2 vector, Vector3 color);
+        void drawVector(SDL_Renderer* renderer, const Vector2& start, const Vector2& vector, const Vector3& color);
     }
 }
 #endif
