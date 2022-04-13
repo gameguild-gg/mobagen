@@ -3,12 +3,19 @@
 #include "Utils.h"
 #include "ImGuiExtra.h"
 #include "Random.h"
-#include "ImGuiExtra.h"
+
+#include "behaviours/SeparationRule.h"
+#include "behaviours/CohesionRule.h"
+#include "behaviours/AlignmentRule.h"
+#include "behaviours/MouseInfluenceRule.h"
+#include "behaviours/BoundedAreaRule.h"
+#include "behaviours/WindRule.h"
 
 #if defined(_WIN32)
 #include "windows.h"
 #include "psapi.h"
 #endif
+
 
 using namespace utils;
 

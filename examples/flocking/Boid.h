@@ -2,10 +2,10 @@
 #ifndef BOID_H
 #define BOID_H
 
-#include "FlockingRule.h"
+#include "behaviours/FlockingRule.h"
 #include "Pacticle.h"
 
-class Boid : Particle
+class Boid : public Particle
 {
 
 private:
