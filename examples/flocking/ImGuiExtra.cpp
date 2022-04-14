@@ -64,7 +64,7 @@ void PlotVar(const char* label, float value, float scale_min, float scale_max, s
 void PlotVarFlushOldEntries()
 {
     int current_frame = ImGui::GetFrameCount();
-    for (PlotVarsMap::iterator it = g_PlotVarsMap.begin(); it != g_PlotVarsMap.end(); )
+    for (auto it = g_PlotVarsMap.begin(); it != g_PlotVarsMap.end(); )
     {
         PlotVarData& pvd = it->second;
         if (pvd.LastFrame < current_frame - std::max(400, (int)pvd.Data.size()))

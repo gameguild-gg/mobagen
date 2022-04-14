@@ -1,6 +1,7 @@
 #ifndef WINDRULE_H
 #define WINDRULE_H
 
+#include "FlockingRule.h"
 
 class WindRule : public FlockingRule
 {
