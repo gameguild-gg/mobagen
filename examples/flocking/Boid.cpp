@@ -33,7 +33,6 @@ std::vector<Boid*> Boid::computeBoidNeighbordhood()
 
 
 Boid::Boid(Engine *pEngine, std::vector<Boid*>* boids_) : Particle(engine), boids(boids_) {
-
 }
 
 void Boid::Update(const float deltaTime) {
@@ -52,31 +51,12 @@ void Boid::Update(const float deltaTime) {
 void Boid::OnDraw(SDL_Renderer *renderer) {
     Particle::OnDraw(renderer); // super()
 
-    if (drawDebugRadius) {
-        //Display radius detection
-        sf::CircleShape vision = sf::CircleShape(detectionRadius);
+    if (drawDebugRadius)
+        circle.Draw(renderer, transform, Vector3::Blue());
 
-        vision.setFillColor(sf::Color::Transparent);
-        vision.setOutlineThickness(1.);
-        vision.setOrigin(vision.getRadius(), vision.getRadius());
-        vision.setOutlineColor(sf::Color::Blue);
-        vision.setPosition(shape.getPosition());
-
-        target.draw(vision, states);
-    }
-
+    //Display rules
     if (drawDebugRules)
-    {
-
-        //Display rules
-
         for (auto& rule : rules)
-        {
             if (rule->isEnabled)
-            {
-                rule->draw(*this, target, states);
-            }
-        }
-
-    }
+                rule->draw(*this, renderer);
 }

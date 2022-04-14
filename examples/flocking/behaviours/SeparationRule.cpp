@@ -1,16 +1,14 @@
 #include "SeparationRule.h"
 
-sf::Vector2f SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid)
-{
+Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
 
     //Try to avoid boids too close
-    sf::Vector2f separatingForce;
+    Vector2 separatingForce;
 
     float desiredDistance = desiredMinimalDistance;
 
-    if (neighbordhood.size() > 0)
-    {
-        sf::Vector2f position = boid->getPosition();
+    if (neighbordhood.size() > 0) {
+        Vector2 position = boid->transform.position;
         int countCloseFlockmates = 0;
 
         for (auto const& flockmate : neighbordhood)

@@ -1,26 +1,19 @@
 #include "CohesionRule.h"
 
-sf::Vector2f CohesionRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid)
-{
+Vector2 CohesionRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
+    Vector2 cohesionForce;
 
-    sf::Vector2f cohesionForce;
-
-    if (neighbordhood.size() > 0)
-    {
-
-        sf::Vector2f centerOfMass;
+    if (neighbordhood.size() > 0) {
+        Vector2 centerOfMass;
 
         for (auto const& flockmate : neighbordhood)
-        {
-            centerOfMass += flockmate->getPosition();
-        }
-
+            centerOfMass += flockmate->transform.position;
         centerOfMass /= static_cast<float>(neighbordhood.size());
 
         //Get direction toward center of mass
-        sf::Vector2f towardCenter = centerOfMass - boid->getPosition();
+        Vector2 towardCenter = centerOfMass - boid->transform.position;
 
-        cohesionForce = utils::vector2::normalized(towardCenter);
+        cohesionForce = Vector2::normalized(towardCenter);
     }
 
     return cohesionForce;

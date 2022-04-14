@@ -30,6 +30,15 @@ void Polygon::Draw(SDL_Renderer *renderer, const Transform& transform, const Vec
     }
 }
 
+void Polygon::DrawLine(SDL_Renderer *renderer, const Vector2 &v1, const Vector2 &v2, const Vector3& color) {
+    SDL_SetRenderDrawColor(renderer,
+                           (uint8_t)color.x,
+                           (uint8_t)color.y,
+                           (uint8_t)color.z,
+                           SDL_ALPHA_OPAQUE);
+    SDL_RenderDrawLine(renderer,(int) v1.x,(int) v1.y,(int) v2.x,(int) v2.y);
+}
+
 Circle::Circle(int sample) {
     for (int i = 0; i < sample; i++) {
         Vector2 point = Vector2::up().Rotate(360.f * (float) i / (float) sample);

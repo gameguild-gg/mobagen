@@ -1,9 +1,9 @@
 #include "FlockingRule.h"
 
-#include "Utils.h"
-#include "Boid.h"
+#include "../Utils.h"
 #include "imgui.h"
 #include "../ImGuiExtra.h"
+#include "Polygon.h"
 
 using namespace utils;
 
@@ -61,9 +61,14 @@ bool FlockingRule::drawImguiRule() {
     return valueHasChanged;
 }
 
-void FlockingRule::draw(const Boid& boid, sf::RenderTarget& target, sf::RenderStates states) const {
+void FlockingRule::draw(const Boid& boid, SDL_Renderer* renderer) const {
+    Polygon::DrawLine(renderer,
+                      boid.transform.position,
+                      boid.transform.position+force*1.5f,
+                      debugColor);
+
     //Scaled by 1.5f to see it more easily on screen.
-    graphics::drawVector(target, states, boid.getPosition(), force * 1.5f, debugColor);
+    // graphics::drawVector(target, states, boid.getPosition(), force * 1.5f, debugColor);
 }
 
 

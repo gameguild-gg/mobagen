@@ -4,12 +4,12 @@
 
 #include "behaviours/FlockingRule.h"
 #include "Pacticle.h"
+#include "Polygon.h"
 
 class Boid : public Particle {
 private:
 
     //Reference to all particles
-
     std::vector<Boid*>* boids;
 
     float detectionRadius = 100.;
@@ -18,6 +18,8 @@ private:
 
     //Methods
     std::vector<Boid*> computeBoidNeighbordhood();
+
+    Circle circle = Circle(12);
 
 public:
 

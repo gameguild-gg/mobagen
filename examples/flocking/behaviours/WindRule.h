@@ -6,12 +6,11 @@
 class WindRule : public FlockingRule
 {
 private:
-
     float windAngle;
 
 public:
 
-    WindRule(float weight = 1., float angle = 0, bool isEnabled = true) : FlockingRule(sf::Color::White, weight, isEnabled), windAngle(angle)
+    explicit WindRule(float weight = 1., float angle = 0, bool isEnabled = true) : FlockingRule(Vector3::White(), weight, isEnabled), windAngle(angle)
     {}
 
     WindRule(const WindRule & toCopy) : FlockingRule(toCopy)
@@ -40,7 +39,7 @@ public:
         return 0.5;
     }
 
-    sf::Vector2f computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) override;
+    Vector2 computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) override;
 
     bool drawImguiRuleExtra() override;
 };

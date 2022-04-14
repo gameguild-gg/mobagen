@@ -53,10 +53,9 @@ bool BoundedAreaRule::drawImguiRuleExtra()
     return valusHasChanged;
 }
 
-void BoundedAreaRule::draw(const Boid& boid, sf::RenderTarget& target, sf::RenderStates states) const
-{
+void BoundedAreaRule::draw(const Boid& boid, SDL_Renderer* renderer) const {
 
-    FlockingRule::draw(boid, target, states);
+    FlockingRule::draw(boid, renderer);
 
     //Draw a rectangle on the map
 

@@ -1,19 +1,16 @@
 #include "WindRule.h"
 #include <imgui.h>
 
-sf::Vector2f WindRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid)
-{
-    return utils::vector2::normalized(utils::vector2::getVector2FromRadian(windAngle));
+Vector2 WindRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
+    return Vector2::normalized(Vector2::getVector2FromRadian(windAngle));
 }
 
-bool WindRule::drawImguiRuleExtra()
-{
-    bool valusHasChanged = false;
+bool WindRule::drawImguiRuleExtra() {
+    bool valueHasChanged = false;
 
-    if (ImGui::SliderAngle("Wind Direction", &windAngle, 0))
-    {
-        valusHasChanged = true;
+    if (ImGui::SliderAngle("Wind Direction", &windAngle, 0)) {
+        valueHasChanged = true;
     }
 
-    return valusHasChanged;
+    return valueHasChanged;
 }

@@ -14,7 +14,7 @@ private:
     float circleSize; // todo: is this needed?
 
     Vector3 color;
-    Vector2 velocity;
+//    Vector2 velocity;
     Vector2 acceleration;
     Vector2 previousAcceleration; //to draw Acc
 
@@ -22,6 +22,7 @@ private:
     void resetAcceleration();
 
 public:
+    Vector2 velocity;
     bool drawAcceleration = false;
 
     //Constructor

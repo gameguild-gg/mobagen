@@ -1,51 +1,38 @@
 #include "MouseInfluenceRule.h"
 
-sf::Vector2f MouseInfluenceRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid)
-{
-
+Vector2 MouseInfluenceRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
     ImGuiIO& io = ImGui::GetIO();
 
-    if (ImGui::IsMousePosValid() && io.MouseDown[0])
-    {
-        sf::Vector2f mousePos(io.MousePos.x, io.MousePos.y);
-        sf::Vector2f displacement = mousePos - boid->getPosition();
-        float distance = utils::vector2::getMagnitude(displacement);
+    if (ImGui::IsMousePosValid() && io.MouseDown[0]) {
+        Vector2 mousePos(io.MousePos.x, io.MousePos.y);
+        Vector2 displacement = mousePos - boid->transform.position;
+        float distance = Vector2::getMagnitude(displacement);
 
         //The force is inversely proportional to distance
-
-        sf::Vector2f force = displacement / exp(distance / 100.f);
+        Vector2 force = displacement / exp(distance / 100.f);
 
         if (isRepulsive)
-        {
             force *= -1.f;
-        }
 
         return force;
     }
     else
-    {
-        return sf::Vector2f();
-    }
-
+        return Vector2::zero();
 }
 
-bool MouseInfluenceRule::drawImguiRuleExtra()
-{
+bool MouseInfluenceRule::drawImguiRuleExtra() {
+    bool valueHasChanged = false;
 
-    bool valusHasChanged = false;
-
-    if (ImGui::RadioButton("Attractive", !isRepulsive))
-    {
+    if (ImGui::RadioButton("Attractive", !isRepulsive)) {
         isRepulsive = false;
-        valusHasChanged = true;
+        valueHasChanged = true;
     }
 
     ImGui::SameLine();
-    if (ImGui::RadioButton("Repulsive", isRepulsive))
-    {
+    if (ImGui::RadioButton("Repulsive", isRepulsive)) {
         isRepulsive = true;
-        valusHasChanged = true;
+        valueHasChanged = true;
     }
 
-    return valusHasChanged;
+    return valueHasChanged;
 }

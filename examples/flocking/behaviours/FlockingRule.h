@@ -5,8 +5,7 @@
 #include <memory>
 #include "Vector2.h"
 #include "Vector3.h"
-
-class Boid;
+#include "../Boid.h"
 
 class FlockingRule {
 protected:
@@ -16,7 +15,7 @@ protected:
     //if displayed
     Vector3 debugColor;
 
-    FlockingRule(Vector3 debugColor_, float weight_, bool isEnabled_ = true) :
+    explicit FlockingRule(Vector3 debugColor_, float weight_, bool isEnabled_ = true) :
             debugColor(debugColor_),
             force(Vector2()),
             weight(weight_),
@@ -40,9 +39,7 @@ protected:
     virtual bool drawImguiRuleExtra() { return false; };
 
 public:
-
     float weight;
-
     bool isEnabled;
 
     //Copy constructor
@@ -57,8 +54,9 @@ public:
     bool drawImguiRule();
 
 
+    // todo: probably we need to call this and change boid to particle
     // Inherited via Drawable
-    virtual void draw(const Boid &boid, sf::RenderTarget& target, sf::RenderStates states = sf::RenderStates::Default) const;
+    virtual void draw(const Boid &boid, SDL_Renderer* renderer) const;
 };
 
 #endif
