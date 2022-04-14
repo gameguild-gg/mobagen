@@ -6,12 +6,11 @@ Ship::Ship(Engine *pEngine) : GameObject(pEngine) {
     transform.scale = {10,10};
     transform.position = {300,300};
     polygon.points = {{0,2}, {1,-1}, {0,0}, {-1,-1}};
-
-    Random rand;
+    
     color = Vector3(
-            rand.Range(31,255),
-            rand.Range(31,255),
-            rand.Range(31,255));
+            Random::Range(31,255),
+            Random::Range(31,255),
+            Random::Range(31,255));
 }
 
 void Ship::OnDraw(SDL_Renderer* renderer) {
