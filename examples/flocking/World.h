@@ -49,7 +49,7 @@ private:
     void randomizeBoidPositionAndVelocity(Boid* boid);
     void warpParticleIfOutOfBounds(Particle* particle);
 
-    BoidPtr createBoid(Engine *pEngine);
+    BoidPtr createBoid();
 
 public:
 

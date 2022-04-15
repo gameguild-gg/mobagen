@@ -1,4 +1,5 @@
 #include "MouseInfluenceRule.h"
+#include "../Boid.h"
 
 Vector2 MouseInfluenceRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
     ImGuiIO& io = ImGui::GetIO();

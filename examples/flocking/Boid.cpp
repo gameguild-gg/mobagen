@@ -5,7 +5,6 @@
 using namespace utils;
 
 std::vector<Boid*> Boid::computeBoidNeighborhood() {
-{
     std::vector<Boid*> neighborhood;
 
     float detectionRadiusSquared = detectionRadius * detectionRadius;
@@ -38,7 +37,7 @@ Boid::Boid(Engine *pEngine, std::vector<Boid*>* boids_) : Particle(engine), boid
 void Boid::Update(const float deltaTime) {
     Particle::Update(deltaTime);
 
-    std::vector<Boid*> neighbordhood = computeBoidNeighbordhood();
+    std::vector<Boid*> neighbordhood = computeBoidNeighborhood();
 
     for (auto& rule : rules)
     {

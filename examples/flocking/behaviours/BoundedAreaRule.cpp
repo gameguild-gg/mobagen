@@ -1,4 +1,5 @@
 #include "BoundedAreaRule.h"
+#include "../Boid.h"
 
 sf::Vector2f BoundedAreaRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid)
 {

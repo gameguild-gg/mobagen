@@ -113,9 +113,9 @@ void World::warpParticleIfOutOfBounds(Particle* particle) {
     }
 }
 
-BoidPtr World::createBoid(Engine *pEngine) {
+BoidPtr World::createBoid() {
     //Create new boid
-    BoidPtr boid = std::make_unique<Boid>(pEngine, &boids); //TODO : CHANGE
+    BoidPtr boid = std::make_unique<Boid>(engine, &cachedBoids); //TODO : CHANGE! do not use the cached version
 
     randomizeBoidPositionAndVelocity(boid.get());
     boid->setFlockingRules(boidsRules);

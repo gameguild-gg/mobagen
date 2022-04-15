@@ -1,4 +1,5 @@
 #include "SeparationRule.h"
+#include "../Boid.h"
 
 Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
 

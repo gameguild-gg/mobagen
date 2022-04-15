@@ -1,4 +1,5 @@
 #include "CohesionRule.h"
+#include "../Boid.h"
 
 Vector2 CohesionRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
     Vector2 cohesionForce;

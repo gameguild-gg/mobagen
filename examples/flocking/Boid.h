@@ -1,4 +1,3 @@
-
 #ifndef BOID_H
 #define BOID_H
 
