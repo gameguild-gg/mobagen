@@ -2,23 +2,20 @@
 #include "../Boid.h"
 
 Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
-
     //Try to avoid boids too close
     Vector2 separatingForce;
 
     float desiredDistance = desiredMinimalDistance;
 
-    if (neighbordhood.size() > 0) {
+    if (!neighbordhood.empty()) {
         Vector2 position = boid->transform.position;
         int countCloseFlockmates = 0;
 
-        for (auto const& flockmate : neighbordhood)
-        {
-            float distance = vector2::getDistance(position, flockmate->getPosition());
+        for (auto const& flockmate : neighbordhood) {
+            float distance = Vector2::getDistance(position, flockmate->getPosition());
 
-            if (distance < desiredDistance && distance > 0)
-            {
-                sf::Vector2f opposedDirection = vector2::normalized(position - flockmate->getPosition());
+            if (distance < desiredDistance && distance > 0) {
+                Vector2 opposedDirection = Vector2::normalized(position - flockmate->getPosition());
 
                 //Each neighbor has an influence proportional to its distance
                 separatingForce += opposedDirection / distance;
@@ -32,7 +29,7 @@ Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Bo
         }
     }
 
-    separatingForce = vector2::normalized(separatingForce);
+    separatingForce = Vector2::normalized(separatingForce);
 
     return separatingForce;
 }

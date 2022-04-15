@@ -45,3 +45,10 @@ Circle::Circle(int sample) {
         points.push_back(point);
     }
 }
+
+Square::Square() {
+    points.push_back(Vector2::up().Rotate(45));
+    points.push_back(Vector2::up().Rotate(135));
+    points.push_back(Vector2::up().Rotate(225));
+    points.push_back(Vector2::up().Rotate(315));
+}

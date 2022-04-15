@@ -4,14 +4,12 @@
 #include "FlockingRule.h"
 
 /* Steer to avoid local flockmates */
-class SeparationRule : public FlockingRule
-{
+class SeparationRule : public FlockingRule {
 private:
     float desiredMinimalDistance = 10;
 
 public:
-
-    SeparationRule(float desiredSeparation = 20., float weight = 1., bool isEnabled = true) :
+    explicit SeparationRule(float desiredSeparation = 20., float weight = 1., bool isEnabled = true) :
             FlockingRule(Vector3::Red(), weight, isEnabled), desiredMinimalDistance(desiredSeparation)
     {}
 
@@ -27,9 +25,8 @@ public:
         return "Steer to avoid collision with nearby boids.";
     }
 
-    virtual float getBaseWeightMultiplier() override
-    {
-        return 1.;
+    virtual float getBaseWeightMultiplier() override {
+        return 1.f;
     }
 
 

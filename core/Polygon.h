@@ -23,4 +23,8 @@ struct Circle: Polygon{
     explicit Circle(int sample);
 };
 
+struct Square: Polygon{
+    explicit Square();
+};
+
 #endif //MOBAGEN_POLYGON_H
