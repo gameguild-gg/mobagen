@@ -1,6 +1,5 @@
 #include <Engine.h>
 #include "UserInterface.h"
-#include "Ship.h"
 #include "World.h"
 
 // Reference code https://github.com/boardtobits/flocking-algorithm

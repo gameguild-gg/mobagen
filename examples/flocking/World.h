@@ -64,7 +64,6 @@ public:
 
     //Update
     void Update(float deltaTime) override;
-    void updatePositions(float deltaTime);
 
 public:
     void showConfigurationWindow(float deltaTime);
