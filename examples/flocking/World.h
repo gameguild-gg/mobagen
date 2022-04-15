@@ -61,7 +61,7 @@ public:
 
     int getNbBoids() const;
 
-    //Setters
+    /// Setters
 
     //ImGui
     void drawGeneralUI();

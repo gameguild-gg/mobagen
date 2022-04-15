@@ -11,7 +11,7 @@ private:
     bool hasConstantSpeed = false;
     float speed = 120.;
     float maxAcceleration = 10.;
-    float circleSize; // todo: is this needed?
+    float circleSize; // todo: is this really needed?
 
     Vector3 color;
 //    Vector2 velocity;
@@ -22,7 +22,7 @@ private:
     void resetAcceleration();
 
 public:
-    Vector2 velocity;
+    Vector2 velocity; // todo: make this private
     bool drawAcceleration = false;
 
     //Constructor

@@ -1,9 +1,9 @@
+#ifndef UTILS_H
+#define UTILS_H
+
 #include "SDL.h"
 #include "Vector2.h"
 #include "Vector3.h"
-
-#ifndef UTILS_H
-#define UTILS_H
 
 #define _USE_MATH_DEFINES
 

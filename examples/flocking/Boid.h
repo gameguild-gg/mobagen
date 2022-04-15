@@ -17,7 +17,7 @@ private:
     std::vector<std::unique_ptr<FlockingRule>> rules;
 
     //Methods
-    std::vector<Boid*> computeBoidNeighbordhood();
+    std::vector<Boid*> computeBoidNeighborhood();
 
     Circle circle = Circle(12);
 

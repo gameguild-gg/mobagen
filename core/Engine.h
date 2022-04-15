@@ -48,5 +48,11 @@ public:
     void Run();
     void Tick();
     void Exit();
+
+
+    template<class T>
+    std::vector<T> FindObjectsOfType();
+
+    void Destroy(GameObject* go);
 };
 #endif

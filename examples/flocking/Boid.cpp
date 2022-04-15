@@ -4,7 +4,7 @@
 
 using namespace utils;
 
-std::vector<Boid*> Boid::computeBoidNeighbordhood()
+std::vector<Boid*> Boid::computeBoidNeighborhood() {
 {
     std::vector<Boid*> neighborhood;
 

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef USERINTERFACE_H
+#define USERINTERFACE_H
 
 #include <GameObject.h>
 #include <imgui.h>
@@ -10,3 +11,4 @@ public:
 
     void OnGui(ImGuiContext *context) override;
 };
+#endif

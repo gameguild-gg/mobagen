@@ -1,5 +1,6 @@
 #include "Engine.h"
 #include "SDL.h"
+#include <type_traits>
 
 #ifdef EMSCRIPTEN
 static Engine *instance = nullptr;
@@ -139,3 +140,27 @@ void Engine::processInput() {
 Vector2 Engine::getInputArrow() const {
     return arrowInput;
 }
+
+// todo: optimize this
+template<class T>
+std::vector<T> Engine::FindObjectsOfType() {
+    std::vector<T> ret;
+    for (GameObject* go: gameObjects)
+        if ( T elem = dynamic_cast<T>( &go ) ) // todo: check this
+           ret.push_back(elem);
+
+    return ret;
+}
+
+// todo: optimize this
+void Engine::Destroy(GameObject *go) {
+    for(auto it = gameObjects.begin(); it != gameObjects.end(); ++it) {
+        if(*it == go) {
+            gameObjects.erase(it);
+            return;
+        }
+    }
+
+}
+
+
