@@ -14,6 +14,7 @@ FlockingRule::FlockingRule(const FlockingRule& toCopy){
     debugColor = toCopy.debugColor;
     force = toCopy.force;
     isEnabled = toCopy.isEnabled;
+    world = toCopy.world;
 }
 
 Vector2 FlockingRule::computeWeightedForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
