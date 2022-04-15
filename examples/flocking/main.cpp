@@ -14,9 +14,9 @@ int main(int, char**) {
     if(engine->Start("Flocking")) {
         SDL_Log("Engine Started");
 
-        SDL_Log("Creating Game Objects");
+        SDL_Log("Creating World Object");
         new World(engine);
-        SDL_Log("Game Objects Created");
+        SDL_Log("World Created");
 
         SDL_Log("Running Engine");
         engine->Run();

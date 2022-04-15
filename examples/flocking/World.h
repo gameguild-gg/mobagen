@@ -7,6 +7,7 @@
 
 class Particle;
 
+// todo: make world a game engine scene manager
 class World: public GameObject {
 private:
     /// MEMBERS
@@ -65,9 +66,10 @@ public:
     //Update
     void Update(float deltaTime) override;
 
-public:
     void showConfigurationWindow(float deltaTime);
     void drawPerformanceUI(float deltaTime);
+
+    void OnGui(ImGuiContext *context) override;
 };
 
 

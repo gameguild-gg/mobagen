@@ -236,7 +236,6 @@ int World::getNbBoids() const {
     return nbBoids;
 }
 
-
 void World::showConfigurationWindow(float deltaTime) {
     //Resized once at first windows appearance
     ImGui::SetNextWindowPos(ImVec2(850, 20), ImGuiCond_Once);
@@ -315,4 +314,10 @@ void World::drawPerformanceUI(float deltaTime) {
         ImGui::Text("Only implemented on Windows.");
 #endif
     }
+}
+
+void World::OnGui(ImGuiContext *context) {
+    ImGui::SetCurrentContext(context);
+    float deltaTime = ImGui::GetIO().DeltaTime;
+    showConfigurationWindow(deltaTime);
 }
