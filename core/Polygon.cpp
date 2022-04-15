@@ -39,6 +39,27 @@ void Polygon::DrawLine(SDL_Renderer *renderer, const Vector2 &v1, const Vector2 
     SDL_RenderDrawLine(renderer,(int) v1.x,(int) v1.y,(int) v2.x,(int) v2.y);
 }
 
+void Polygon::Draw(SDL_Renderer *renderer, const Vector2 &position, const Vector2 &scale, const Vector2 &rotation,
+                   const Vector3 &color) {
+    Transform transform = {position,scale,rotation};
+    SDL_SetRenderDrawColor(renderer,
+                           (uint8_t)color.x,
+                           (uint8_t)color.y,
+                           (uint8_t)color.z,
+                           SDL_ALPHA_OPAQUE);
+    auto drawablePoints = getDrawablePoints(transform);
+    for(int i=0; i<drawablePoints.size(); i++) {
+        int other = i + 1;
+        if (other == drawablePoints.size())
+            other = 0;
+        SDL_RenderDrawLine(renderer,
+                           (int) drawablePoints[i].x,
+                           (int) drawablePoints[i].y,
+                           (int) drawablePoints[other].x,
+                           (int) drawablePoints[other].y);
+    }
+}
+
 Circle::Circle(int sample) {
     for (int i = 0; i < sample; i++) {
         Vector2 point = Vector2::up().Rotate(360.f * (float) i / (float) sample);

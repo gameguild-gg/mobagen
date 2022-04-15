@@ -7,7 +7,7 @@ Particle::Particle(Engine *pEngine, float size, Vector3 color): GameObject(pEngi
     velocity = Vector2::zero();
     acceleration = Vector2::zero();
     polygon.points = {{0,2}, {1,-1}, {0,0}, {-1,-1}};
-    transform.scale = {3,3};
+    transform.scale = {4,4};
 }
 
 //Public Methods

@@ -17,6 +17,7 @@ public:
     std::vector<Vector2> getDrawablePoints(const Transform& transform);
 
     void Draw(SDL_Renderer* renderer, const Transform& transform, const Vector3& color);
+    void Draw(SDL_Renderer* renderer, const Vector2& position, const Vector2& scale, const Vector2& rotation, const Vector3& color);
 
     static void DrawLine(SDL_Renderer* renderer, const Vector2& v1, const Vector2& v2, const Vector3& color);
 };

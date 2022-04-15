@@ -243,6 +243,12 @@ void World::showConfigurationWindow(float deltaTime) {
 
     ImGui::Begin("Configuration"); // begin window
 
+    ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
+                ImGui::GetIO().DeltaTime*1000,
+                1.0f/ImGui::GetIO().DeltaTime,
+                1000.0f/ImGui::GetIO().Framerate,
+                ImGui::GetIO().Framerate);
+
     ImGui::Text("Control the simulation with those settings.");
     ImGui::Spacing();
     ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.45f);

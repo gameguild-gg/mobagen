@@ -28,7 +28,7 @@ public:
     bool drawAcceleration = false;
 
     //Constructor
-    explicit Particle(Engine *pEngine, float size = 4.f, Vector3 color = Vector3::Green());
+    explicit Particle(Engine *pEngine, float size = 4.f, Vector3 color = Vector3::RandomColor(31,255));
 
     //Getter / Setters
     Transform getTransform() const {

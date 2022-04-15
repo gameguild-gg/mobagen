@@ -35,7 +35,6 @@ Boid::Boid(Engine *pEngine, World *pWorld) : Particle(pEngine), world(pWorld) {}
 
 void Boid::Update(const float deltaTime) {
     Particle::Update(deltaTime);
-
     std::vector<Boid*> neighbordhood = computeBoidNeighborhood();
 
     for (auto& rule : rules)
@@ -50,7 +49,12 @@ void Boid::OnDraw(SDL_Renderer *renderer) {
     Particle::OnDraw(renderer); // super()
 
     if (drawDebugRadius)
-        circle.Draw(renderer, transform, Vector3::Blue());
+        circle.Draw(
+                renderer,
+                transform.position,
+                {detectionRadius,detectionRadius},
+                Vector2::zero(),
+                Vector3::Blue());
 
     //Display rules
     if (drawDebugRules)

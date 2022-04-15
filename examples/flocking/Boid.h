@@ -17,7 +17,6 @@ private:
     std::vector<Boid*> computeBoidNeighborhood();
 
     Circle circle = Circle(12);
-
     World* world;
 
 public:
