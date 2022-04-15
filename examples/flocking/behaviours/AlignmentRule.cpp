@@ -6,9 +6,8 @@ Vector2 AlignmentRule::computeForce(const std::vector<Boid*>& neighbordhood, Boi
     Vector2 averageVelocity;
 
     if (!neighbordhood.empty()) {
-        for (auto flockmate : neighbordhood) {
+        for (auto flockmate : neighbordhood)
             averageVelocity += flockmate->velocity;
-        }
         averageVelocity /= static_cast<float>(neighbordhood.size());
     }
 

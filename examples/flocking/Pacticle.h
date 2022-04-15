@@ -48,6 +48,7 @@ public:
     }
 
     void setVelocity(Vector2 velocity_) {
+        velocity = velocity_;
         transform.rotation = velocity_.normalized();
     }
 
