@@ -1,10 +1,5 @@
 #include "ImGuiExtra.h"
 
-#include <map>
-#include <vector>
-#include <imgui.h>
-#include <algorithm>
-
 struct PlotVarData
 {
     ImGuiID        ID;
