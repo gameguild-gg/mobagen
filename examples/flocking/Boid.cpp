@@ -31,8 +31,7 @@ std::vector<Boid*> Boid::computeBoidNeighborhood() {
 }
 
 
-Boid::Boid(Engine *pEngine, World *pWorld) : Particle(pEngine), world(pWorld) {
-}
+Boid::Boid(Engine *pEngine, World *pWorld) : Particle(pEngine), world(pWorld) {}
 
 void Boid::Update(const float deltaTime) {
     Particle::Update(deltaTime);

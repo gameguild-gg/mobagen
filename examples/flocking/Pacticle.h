@@ -4,6 +4,7 @@
 #include "Utils.h"
 #include "GameObject.h"
 #include "Transform.h"
+#include "Polygon.h"
 
 class Particle : public GameObject {
 private:
@@ -14,9 +15,10 @@ private:
     float circleSize; // todo: is this really needed?
 
     Vector3 color;
-//    Vector2 velocity;
     Vector2 acceleration;
     Vector2 previousAcceleration; //to draw Acc
+
+    Polygon polygon;
 
     //Methods
     void resetAcceleration();
@@ -53,29 +55,23 @@ public:
         speed = newSpeed;
     }
 
-    void setMaxAcceleration(float newMaxAcceleration)
-    {
+    void setMaxAcceleration(float newMaxAcceleration) {
         maxAcceleration = newMaxAcceleration;
     }
 
-    void setHasConstantSpeed(bool hasConstantSpeed_)
-    {
+    void setHasConstantSpeed(bool hasConstantSpeed_) {
         hasConstantSpeed = hasConstantSpeed_;
     }
-
 
     //Methods
 
     void applyForce(Vector2 force);
-
 //    virtual void update(const float deltaTime);
 
-    virtual void UpdatePosition(const float deltaTime);
-
+    virtual void UpdatePosition(float deltaTime);
 
     // Inherited via Drawable
-    virtual void OnDraw(SDL_Renderer* renderer) override;
-
+    void OnDraw(SDL_Renderer* renderer) override;
 };
 
 #endif

@@ -9,6 +9,8 @@
 // naive approach to represent a polygon
 struct Polygon {
 public:
+    Polygon() = default;
+    explicit Polygon(std::vector<Vector2> points):points(std::move(points)){};
     std::vector<Vector2> points;
 
     // polygon points to be used in the draw functions

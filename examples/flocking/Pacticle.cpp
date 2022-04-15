@@ -1,13 +1,14 @@
 #include "Pacticle.h"
+#include <Polygon.h>
 
 Particle::Particle(Engine *pEngine, float size, Vector3 color): GameObject(pEngine) {
     circleSize = size;
     this->color = color;
-
     velocity = Vector2::zero();
     acceleration = Vector2::zero();
+    polygon.points = {{0,2}, {1,-1}, {0,0}, {-1,-1}};
+    transform.scale = {3,3};
 }
-
 
 //Public Methods
 void Particle::applyForce(Vector2 force) {
@@ -30,10 +31,9 @@ void Particle::UpdatePosition(const float deltaTime) {
     transform.position += velocity * deltaTime;
 }
 
-void Particle::OnDraw(SDL_Renderer* renderer)
-{
+void Particle::OnDraw(SDL_Renderer* renderer) {
     // todo: draw a circle or the ship?
-    // target.draw(shape);
+    polygon.Draw(renderer, transform, color);
 
     if (drawAcceleration) {
         Vector3 accelerationColor = Vector3::Purple();
@@ -41,10 +41,7 @@ void Particle::OnDraw(SDL_Renderer* renderer)
     }
 }
 
-//Private Methods
-
-void Particle::resetAcceleration()
-{
+void Particle::resetAcceleration() {
     previousAcceleration = acceleration;
     acceleration = Vector2::zero();
 }

@@ -19,6 +19,7 @@ private:
     Circle circle = Circle(12);
 
     World* world;
+
 public:
 
     //Member

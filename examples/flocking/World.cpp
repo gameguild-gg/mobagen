@@ -78,7 +78,6 @@ void World::setNumberOfBoids(int number) {
 void World::randomizeBoidPositionAndVelocity(Boid* boid) {
     // todo: give boid a transform to store position, rotation... etc
     boid->setPosition(Vector2::Random(engine->window->size().x, engine->window->size().y));
-
     boid->setVelocity(Vector2().Rotate(Random::Range(0,360)) * desiredSpeed); //Random dir
 }
 
@@ -87,24 +86,19 @@ void World::warpParticleIfOutOfBounds(Particle* particle) {
     Vector2 position = particle->getTransform().position;
     Vector2 sizeWindow = engine->window->size(); // todo: make it int
 
-    if (position.x < 0) {
+    if (position.x < 0)
         position.x += sizeWindow.x;
-    }
-    else if (position.x > sizeWindow.x) {
+    else if (position.x > sizeWindow.x)
         position.x -= sizeWindow.x;
-    }
 
-    if (position.y < 0) {
+    if (position.y < 0)
         position.y += sizeWindow.y;
-    }
-    else if (position.y > sizeWindow.y) {
+    else if (position.y > sizeWindow.y)
         position.y -= sizeWindow.y;
-    }
 
     //If the position changed
-    if (position != particle->transform.position) {
-        particle->setPosition(position);
-    }
+    if (position != particle->transform.position)
+        particle->transform.position = position;
 }
 
 Boid* World::createBoid() {
@@ -230,12 +224,10 @@ void World::Update(float deltaTime) {
         Boid* firstBoid = *getAllBoids()->begin();
         firstBoid->applyForce(engine->getInputArrow() * 20.f);
     }
-}
 
-void World::updatePositions(float deltaTime)
-{
+    // update positions
     for (auto& b : boids) {
-        b->UpdatePosition(deltaTime);
+        b->UpdatePosition(deltaTime); // todo: this should be on the boid, not here.
         warpParticleIfOutOfBounds(b);
     }
 }

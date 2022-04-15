@@ -59,7 +59,6 @@ public:
     //Draw the core of the rule settings on ImGui.
     bool drawImguiRule();
 
-
     // todo: probably we need to call this and change boid to particle
     // Inherited via Drawable
     virtual void draw(const Boid &boid, SDL_Renderer* renderer) const;

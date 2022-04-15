@@ -61,13 +61,15 @@ void Engine::Tick() {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    // update context
+    imGuiContext = ImGui::GetCurrentContext(); // todo: move this to another place
+
     // update
     auto deltaTime = ImGui::GetIO().DeltaTime;
     for(auto go : gameObjects)
         go->Update(deltaTime);
 
     // iterate over all game objects ui
-    imGuiContext = ImGui::GetCurrentContext();
     for(auto go : gameObjects)
         go->OnGui(imGuiContext); // todo: find a better way to pass imgui context
 

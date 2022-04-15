@@ -63,7 +63,7 @@ public:
     void drawRulesUI();
 
     //Update
-    void Update(float deltaTime);
+    void Update(float deltaTime) override;
     void updatePositions(float deltaTime);
 
 public:
