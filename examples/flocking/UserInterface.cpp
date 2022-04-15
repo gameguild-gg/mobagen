@@ -54,4 +54,3 @@ void UserInterface::OnGui(ImGuiContext *context) {
 }
 
 UserInterface::UserInterface(Engine *pEngine) : GameObject(pEngine) {}
-

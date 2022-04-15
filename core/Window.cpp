@@ -51,7 +51,7 @@ Window::Window(std::string title) {
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     (void) io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
     // Setup Dear ImGui style
@@ -82,4 +82,12 @@ Window::~Window() {
     SDL_DestroyRenderer(sdlRenderer);
     SDL_DestroyWindow(sdlWindow);
     SDL_Quit();
+}
+
+// todo: cache this per frame to avoid call SDL_GetWindowSize every single call
+// todo: this should be integer return
+Vector2 Window::size() const {
+    int x,y;
+    SDL_GetWindowSize(this->sdlWindow,&x, &y);
+    return {(float)x,(float)y};
 }

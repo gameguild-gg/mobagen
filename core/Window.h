@@ -3,6 +3,7 @@
 #include <string>
 #include "SDL_video.h"
 #include "SDL_render.h"
+#include "Vector2.h"
 
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
@@ -52,7 +53,9 @@ public:
     SDL_Window *sdlWindow;
     SDL_Renderer *sdlRenderer;
 
-    ~Window(void);
+    Vector2 size() const;
+
+    ~Window();
 
 private:
     SDL_GLContext m_glContext;

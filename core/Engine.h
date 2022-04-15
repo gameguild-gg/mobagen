@@ -22,6 +22,7 @@ public:
 
     // todo: move this to a scene manager and make this private
     std::vector<GameObject*> gameObjects;
+    Vector2 getInputArrow() const;
 
 private:
     bool done = false;
@@ -30,6 +31,11 @@ private:
     bool show_demo_window = true;
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0, 0, 0, 1);
+
+
+    // todo: move this to input class
+    void processInput();
+    Vector2 arrowInput;
 
     // todo: better ordering
 public:
@@ -42,5 +48,11 @@ public:
     void Run();
     void Tick();
     void Exit();
+
+
+    template<class T>
+    std::vector<T> FindObjectsOfType();
+
+    void Destroy(GameObject* go);
 };
 #endif
