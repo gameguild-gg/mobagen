@@ -5,7 +5,8 @@
 #include <memory>
 #include "Vector2.h"
 #include "Vector3.h"
-#include "../Boid.h"
+
+class Boid;
 
 class FlockingRule {
 protected:

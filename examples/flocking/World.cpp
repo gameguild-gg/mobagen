@@ -25,66 +25,59 @@ World::World(Engine *pEngine): GameObject(pEngine) {
     applyFlockingRulesToAllBoids();
 }
 
-void World::initializeRules()
-{
+void World::initializeRules() {
     //Starting Rules
-    boidsRules.emplace_back(std::make_unique<SeparationRule>(25., 4.75));
-    boidsRules.emplace_back(std::make_unique<CohesionRule>(4.25));
-    boidsRules.emplace_back(std::make_unique<AlignmentRule>(2.9));
-    boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(2.));
+    boidsRules.emplace_back(std::make_unique<SeparationRule>(25.f, 4.75f));
+    boidsRules.emplace_back(std::make_unique<CohesionRule>(4.25f));
+    boidsRules.emplace_back(std::make_unique<AlignmentRule>(2.9f));
+    boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(2.f));
     // todo: make this call engine and every frame to keep in sync with the real size. Cache it on window
     boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(
-            engine->window->size().y, engine->window->size().x, 80, 3.5, false));
-    boidsRules.emplace_back(std::make_unique<WindRule>(1., 6.f, false));
+            (int)engine->window->size().y,
+            (int)engine->window->size().x,
+            80,
+            3.5f,
+            false));
+    boidsRules.emplace_back(std::make_unique<WindRule>(1.f, 6.f, false));
 
     //Starting weights are saved as defaults
     defaultWeights = new float[boidsRules.size()];
     int i = 0;
-    for (const auto& rule : boidsRules) {
+    for (const auto& rule : boidsRules)
         defaultWeights[i++] = rule->weight;
-    }
 }
 
-void World::applyFlockingRulesToAllBoids()
-{
+void World::applyFlockingRulesToAllBoids() {
     for (const auto& boid : boids)
-    {
         boid->setFlockingRules(boidsRules);
-    }
 }
 
-void World::setNumberOfBoids(int number)
-{
+void World::setNumberOfBoids(int number) {
     auto diff = boids.size() - number;
 
     if (diff == 0)
-    {
         return;
-    }
-        //Need to add boids
-    else if (diff < 0)
-    {
+
+    //Need to add boids
+    else if (diff < 0) {
         //Back to positive
         diff = -diff;
 
         //Add boids equal to diff
-        for (int i = 0; i < diff; i++)
-        {
+        for (int i = 0; i < diff; i++) {
             BoidPtr boidPtr = createBoid();
             cachedBoids.push_back(boidPtr.get()); //lookup list
             boids.push_back(std::move(boidPtr)); //owning list
         }
     }
-        //Too much boid, remove them
-    else
-    {
+
+    //Too much boid, remove them
+    else {
         //Remove from end
-        for (int i = 0; i < diff; i++)
-        {
+        for (int i = 0; i < diff; i++) {
             boids.pop_back();
             cachedBoids.pop_back();
         }
-
     }
 }
 
@@ -115,15 +108,14 @@ void World::warpParticleIfOutOfBounds(Particle* particle) {
     }
 
     //If the position changed
-    if (position != particle->getShape().getPosition())
-    {
+    if (position != particle->transform.position) {
         particle->setPosition(position);
     }
 }
 
-BoidPtr World::createBoid() {
+BoidPtr World::createBoid(Engine *pEngine) {
     //Create new boid
-    BoidPtr boid = std::make_unique<Boid>(&cachedBoids); //TODO : CHANGE
+    BoidPtr boid = std::make_unique<Boid>(pEngine, &boids); //TODO : CHANGE
 
     randomizeBoidPositionAndVelocity(boid.get());
     boid->setFlockingRules(boidsRules);
@@ -137,19 +129,14 @@ BoidPtr World::createBoid() {
     return boid;
 }
 
-std::vector<Boid*>* World::getAllBoids()
-{
+std::vector<Boid*>* World::getAllBoids() {
     return &cachedBoids;
 }
 
-void World::drawGeneralUI()
-{
+void World::drawGeneralUI() {
     ImGui::SetNextItemOpen(true, ImGuiCond_Once); //Next header is opened by default
-    if (ImGui::CollapsingHeader("General"))
-    {
-
-        if (ImGui::DragInt("Number of Boids", &nbBoids))
-        {
+    if (ImGui::CollapsingHeader("General")) {
+        if (ImGui::DragInt("Number of Boids", &nbBoids)) {
             if (nbBoids < 0)
                 nbBoids = 0;
             setNumberOfBoids(nbBoids);
@@ -158,132 +145,79 @@ void World::drawGeneralUI()
         ImGui::SameLine(); HelpMarker("Drag to change the weight's value or CTRL+Click to input a new value.");
 
         if (ImGui::SliderFloat("Neighborhood Radius", &detectionRadius, 0.0f, 250.0f, "%.f"))
-        {
             for (const auto& boid : boids)
-            {
                 boid->setDetectionRadius(detectionRadius);
-            }
-        }
 
         //Speeds
-
         ImGui::SetNextItemOpen(false, ImGuiCond_Once);
-        if (ImGui::TreeNode("Movement Settings"))
-        {
-
+        if (ImGui::TreeNode("Movement Settings")) {
             if (ImGui::Checkbox("Has Constant Speed", &hasConstantSpeed))
-            {
                 for (const auto& boid : boids)
-                {
                     boid->setHasConstantSpeed(hasConstantSpeed);
-                }
-            }
+
 
             const char* speedLabel = hasConstantSpeed ? "Speed" : "Max Speed";
             if (ImGui::SliderFloat(speedLabel, &desiredSpeed, 0.0f, 300.0f, "%.f"))
-            {
                 for (const auto& boid : boids)
-                {
                     boid->setSpeed(desiredSpeed);
-                }
-            }
+
 
             //Acceleration
-
-            if (ImGui::Checkbox("Has Max Acceleration", &hasMaxAcceleration))
-            {
-                for (const auto& boid : boids)
-                {
+            if (ImGui::Checkbox("Has Max Acceleration", &hasMaxAcceleration)) {
+                for (const auto& boid : boids) {
                     if (hasMaxAcceleration)
-                    {
                         boid->setMaxAcceleration(maxAcceleration);
-                    }
-                    else {
+                    else
                         boid->setMaxAcceleration(10000.);
-                    }
                 }
             }
             ImguiTooltip("Boids keeps more momentum when the acceleration is capped.");
 
             if (hasMaxAcceleration)
-            {
                 if (ImGui::SliderFloat("Max Acceleration", &maxAcceleration, 0.0f, 35.0f, "%.f"))
-                {
                     for (const auto& boid : boids)
-                    {
                         boid->setMaxAcceleration(maxAcceleration);
-                    }
-                }
-            }
 
             ImGui::TreePop();
         }
 
-
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-        if (ImGui::TreeNode("Display Settings"))
-        {
-
+        if (ImGui::TreeNode("Display Settings")) {
             if (ImGui::Checkbox("Show Acceleration", &showAcceleration))
-            {
                 for (const auto& boid : boids)
-                {
                     boid->drawAcceleration = showAcceleration;
-                }
-            }
 
             if (ImGui::Checkbox("Show Radius", &showRadius))
-            {
                 for (const auto& boid : boids)
-                {
                     boid->drawDebugRadius = showRadius;
-                }
-            }
 
             if (ImGui::Checkbox("Show Rules", &showRules))
-            {
                 for (const auto& boid : boids)
-                {
                     boid->drawDebugRules = showRules;
-                }
-            }
 
             ImGui::TreePop();
         }
 
         if (ImGui::Button("Randomize Boids position and velocity"))
-        {
             for (const auto& boid : boids)
-            {
                 randomizeBoidPositionAndVelocity(boid.get());
-            }
-        }
     }
 }
 
-void World::drawRulesUI()
-{
-    if (ImGui::CollapsingHeader("Rules"))
-    {
-        for (auto& rule : boidsRules)
-        {
-
+void World::drawRulesUI() {
+    if (ImGui::CollapsingHeader("Rules")) {
+        for (auto& rule : boidsRules) {
             if (rule->drawImguiRule()) //display the UI and returns true if a value has been changed
-            {
                 applyFlockingRulesToAllBoids();
-            }
             ImGui::Separator();
-
         }
 
-        if (ImGui::Button("Restore Default Weights"))
-        {
+        if (ImGui::Button("Restore Default Weights")) {
             int i = 0;
             //restore default values
             for (auto& rule : boidsRules)
-            {
                 rule->weight = defaultWeights[i++];
-            }
+
             applyFlockingRulesToAllBoids();
         }
 
@@ -293,9 +227,8 @@ void World::drawRulesUI()
 
 void World::Update(float deltaTime) {
     // todo: when the boid become a GameObject, we wont need this
-    for (auto& b : boids) {
-        b->update(deltaTime);
-    }
+    for (auto& b : boids)
+        b->Update(deltaTime);
 
     // move the first boid
     if (engine->getInputArrow() != Vector2::zero() && getNbBoids() > 0)
@@ -308,7 +241,7 @@ void World::Update(float deltaTime) {
 void World::updatePositions(float deltaTime)
 {
     for (auto& b : boids) {
-        b->updatePosition(deltaTime);
+        b->UpdatePosition(deltaTime);
         warpParticleIfOutOfBounds(b.get());
     }
 }
@@ -318,8 +251,7 @@ int World::getNbBoids() const {
 }
 
 
-void World::showConfigurationWindow()
-{
+void World::showConfigurationWindow(float deltaTime) {
     //Resized once at first windows appearance
     ImGui::SetNextWindowPos(ImVec2(850, 20), ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(320, 550), ImGuiCond_Once);
@@ -336,21 +268,19 @@ void World::showConfigurationWindow()
 
     drawRulesUI();
 
-    drawPerformanceUI();
+    drawPerformanceUI(deltaTime);
 
     ImGui::End(); // end window
 }
 
-void World::drawPerformanceUI()
-{
-    if (ImGui::CollapsingHeader("Performance"))
-    {
+void World::drawPerformanceUI(float deltaTime) {
+    if (ImGui::CollapsingHeader("Performance")) {
         //The  functions called are Windows specific
 #if defined(_WIN32)
         ///FPS Count
-        float framePerSecond = 1. / deltaTime.asSeconds();
+        float framePerSecond = 1. / deltaTime;
         ImGui::Text("Frames Per Second (FPS) : %.f", framePerSecond);
-        PlotVar("Frame duration (ms)", deltaTime.asMilliseconds());
+        PlotVar("Frame duration (ms)", deltaTime*1000);
         ImGui::Separator();
 
         ///CPU and RAM

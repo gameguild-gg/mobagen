@@ -4,6 +4,7 @@
 #include "imgui.h"
 #include "../ImGuiExtra.h"
 #include "Polygon.h"
+#include "../Boid.h"
 
 using namespace utils;
 
@@ -66,9 +67,6 @@ void FlockingRule::draw(const Boid& boid, SDL_Renderer* renderer) const {
                       boid.transform.position,
                       boid.transform.position+force*1.5f,
                       debugColor);
-
-    //Scaled by 1.5f to see it more easily on screen.
-    // graphics::drawVector(target, states, boid.getPosition(), force * 1.5f, debugColor);
 }
 
 

@@ -9,8 +9,6 @@ class Particle;
 
 using BoidPtr = std::unique_ptr<Boid>;
 
-
-
 class World: GameObject {
 private:
     /// MEMBERS
@@ -51,7 +49,7 @@ private:
     void randomizeBoidPositionAndVelocity(Boid* boid);
     void warpParticleIfOutOfBounds(Particle* particle);
 
-    BoidPtr createBoid();
+    BoidPtr createBoid(Engine *pEngine);
 
 public:
 
@@ -74,8 +72,8 @@ public:
     void updatePositions(float deltaTime);
 
 public:
-    void showConfigurationWindow();
-    void drawPerformanceUI();
+    void showConfigurationWindow(float deltaTime);
+    void drawPerformanceUI(float deltaTime);
 };
 
 
