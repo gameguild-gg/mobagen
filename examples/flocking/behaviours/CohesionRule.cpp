@@ -4,7 +4,7 @@
 Vector2 CohesionRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
     Vector2 cohesionForce;
 
-    if (neighbordhood.size() > 0) {
+    if (!neighbordhood.empty()) {
         Vector2 centerOfMass;
 
         for (auto const& flockmate : neighbordhood)

@@ -1,7 +1,9 @@
 #include "MouseInfluenceRule.h"
 #include "../Boid.h"
+#include "../World.h"
 
 Vector2 MouseInfluenceRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
+    ImGui::SetCurrentContext(world->engine->imGuiContext);
     ImGuiIO& io = ImGui::GetIO();
 
     if (ImGui::IsMousePosValid() && io.MouseDown[0]) {

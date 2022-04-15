@@ -67,9 +67,9 @@ void Engine::Tick() {
         go->Update(deltaTime);
 
     // iterate over all game objects ui
-    ImGuiContext *context = ImGui::GetCurrentContext();
+    imGuiContext = ImGui::GetCurrentContext();
     for(auto go : gameObjects)
-        go->OnGui(context); // todo: find a better way to pass imgui context
+        go->OnGui(imGuiContext); // todo: find a better way to pass imgui context
 
     // Rendering
     ImGui::Render();

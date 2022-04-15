@@ -10,32 +10,26 @@ private:
 
 public:
 
-    explicit WindRule(float weight = 1., float angle = 0, bool isEnabled = true) : FlockingRule(Vector3::White(), weight, isEnabled), windAngle(angle)
+    explicit WindRule(World* pWorld, float weight = 1., float angle = 0, bool isEnabled = true) : FlockingRule(pWorld, Vector3::White(), weight, isEnabled), windAngle(angle)
     {}
 
-    WindRule(const WindRule & toCopy) : FlockingRule(toCopy)
-    {
+    WindRule(const WindRule & toCopy) : FlockingRule(toCopy) {
         windAngle = toCopy.windAngle;
     }
 
-
-    std::unique_ptr<FlockingRule> clone() override
-    {
+    std::unique_ptr<FlockingRule> clone() override {
         return std::make_unique<WindRule>(*this);
     }
 
-    const char* getRuleName() override
-    {
+    const char* getRuleName() override {
         return "Wind Force";
     }
 
-    const char* getRuleExplanation() override
-    {
+    const char* getRuleExplanation() override {
         return "Apply a constant force to all boids.";
     }
 
-    virtual float getBaseWeightMultiplier() override
-    {
+    virtual float getBaseWeightMultiplier() override {
         return 0.5;
     }
 

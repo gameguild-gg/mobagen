@@ -6,12 +6,10 @@
 class Boid;
 
 /* Steer to move toward center of mass of local flockmates */
-class CohesionRule : public FlockingRule
-{
-
+class CohesionRule : public FlockingRule {
 public:
 
-    explicit CohesionRule(float weight = 1., bool isEnabled = true) : FlockingRule(Vector3::Cyan(), weight, isEnabled)  {}
+    explicit CohesionRule(World* pWorld, float weight = 1., bool isEnabled = true) : FlockingRule(pWorld,Vector3::Cyan(), weight, isEnabled)  {}
 
     std::unique_ptr<FlockingRule> clone() override {
         // Créer un pointeur concret en utilisant le constructeur abstrait parent

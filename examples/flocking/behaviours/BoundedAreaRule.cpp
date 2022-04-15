@@ -35,6 +35,7 @@
 //}
 //
 //bool BoundedAreaRule::drawImguiRuleExtra() {
+//    ImGui::SetCurrentContext(world->engine->imGuiContext);
 //    bool valueHasChanged = false;
 //
 //    //We cap the max separation as the third of the min of the width.height

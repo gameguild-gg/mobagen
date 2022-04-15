@@ -1,5 +1,6 @@
 #include "SeparationRule.h"
 #include "../Boid.h"
+#include "../World.h"
 
 Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
     //Try to avoid boids too close
@@ -34,12 +35,11 @@ Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Bo
     return separatingForce;
 }
 
-bool SeparationRule::drawImguiRuleExtra()
-{
+bool SeparationRule::drawImguiRuleExtra() {
+    ImGui::SetCurrentContext(world->engine->imGuiContext);
     bool valusHasChanged = false;
 
-    if (ImGui::DragFloat("Desired Separation", &desiredMinimalDistance, 0.05f))
-    {
+    if (ImGui::DragFloat("Desired Separation", &desiredMinimalDistance, 0.05f)) {
         valusHasChanged = true;
     }
 

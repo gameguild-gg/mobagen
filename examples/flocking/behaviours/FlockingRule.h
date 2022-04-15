@@ -7,8 +7,12 @@
 #include "Vector3.h"
 
 class Boid;
+class World;
 
 class FlockingRule {
+public:
+    World* world;
+
 protected:
     //We'll cache the computed force to be able to display it later
     Vector2 force;
@@ -16,11 +20,12 @@ protected:
     //if displayed
     Vector3 debugColor;
 
-    explicit FlockingRule(Vector3 debugColor_, float weight_, bool isEnabled_ = true) :
+    explicit FlockingRule(World* pWorld, Vector3 debugColor_, float weight_, bool isEnabled_ = true) :
             debugColor(debugColor_),
             force(Vector2()),
             weight(weight_),
-            isEnabled(isEnabled_)
+            isEnabled(isEnabled_),
+            world(pWorld)
     {}
 
     virtual Vector2 computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) = 0;

@@ -5,6 +5,7 @@
 #include "../ImGuiExtra.h"
 #include "Polygon.h"
 #include "../Boid.h"
+#include "../World.h"
 
 using namespace utils;
 
@@ -30,6 +31,7 @@ Vector2 FlockingRule::computeWeightedForce(const std::vector<Boid*>& neighbordho
 }
 
 bool FlockingRule::drawImguiRule() {
+    ImGui::SetCurrentContext(world->engine->imGuiContext);
     bool valueHasChanged = false;
 
     ImGui::SetNextItemOpen(isEnabled, ImGuiCond_Once); //Opened by default if rule active
@@ -55,9 +57,8 @@ bool FlockingRule::drawImguiRule() {
 
         ImGui::TreePop();
     }
-    else {
+    else
         ImguiTooltip(getRuleExplanation());
-    }
 
     return valueHasChanged;
 }

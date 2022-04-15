@@ -5,13 +5,12 @@
 
 class MouseInfluenceRule : public FlockingRule {
 private:
-
     //If not avoiding, is attracted
     bool isRepulsive;
 
 public:
 
-    explicit MouseInfluenceRule(float weight = 1., bool isRepulsive_ = false, bool isEnabled = true) : FlockingRule(Vector3::Magenta(), weight, isEnabled), isRepulsive(isRepulsive_)
+    explicit MouseInfluenceRule(World* pWorld, float weight = 1., bool isRepulsive_ = false, bool isEnabled = true) : FlockingRule(pWorld, Vector3::Magenta(), weight, isEnabled), isRepulsive(isRepulsive_)
     {}
 
     MouseInfluenceRule(const MouseInfluenceRule& toCopy) : FlockingRule(toCopy) {

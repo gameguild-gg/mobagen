@@ -19,6 +19,7 @@ class GameObject;
 class Engine{
 public:
     Window *window;
+    ImGuiContext *imGuiContext;
 
     // todo: move this to a scene manager and make this private
     std::vector<GameObject*> gameObjects;

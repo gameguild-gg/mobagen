@@ -33,8 +33,9 @@ public:
         rules.clear();
 
         //Clone the rules in newRules in the boid rules.
-        for (auto& rule : newRules)
+        for (auto& rule : newRules) {
             rules.push_back(rule->clone());
+        }
     }
 
     void setDetectionRadius(float newRadius) {

@@ -12,8 +12,8 @@
 //    float desiredDistance;
 //
 //public:
-//    BoundedAreaRule(float heightWindows_, float widthWindows_, float distanceFromBorder_, float weight = 1., bool isEnabled = true) :
-//            FlockingRule(Vector3::LightRed(), weight, isEnabled), widthWindows(widthWindows_), heightWindows(heightWindows_), desiredDistance(distanceFromBorder_)
+//    BoundedAreaRule(World* pWorld, float heightWindows_, float widthWindows_, float distanceFromBorder_, float weight = 1., bool isEnabled = true) :
+//            FlockingRule(pworld, Vector3::LightRed(), weight, isEnabled), widthWindows(widthWindows_), heightWindows(heightWindows_), desiredDistance(distanceFromBorder_)
 //    {}
 //
 //    BoundedAreaRule(const BoundedAreaRule& toCopy) : FlockingRule(toCopy) {

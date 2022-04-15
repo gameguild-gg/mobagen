@@ -7,7 +7,7 @@
 
 class Particle;
 
-class World: GameObject {
+class World: public GameObject {
 private:
     /// MEMBERS
     /// Configuration

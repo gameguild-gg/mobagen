@@ -10,8 +10,8 @@ class Engine;
 // todo: create a game list of game components of a game object
 class GameObject {
 public:
-    Engine* engine;
     Transform transform;
+    Engine* engine;
 public:
     explicit GameObject(Engine* engine);
     virtual void OnGui(ImGuiContext *context) {};
