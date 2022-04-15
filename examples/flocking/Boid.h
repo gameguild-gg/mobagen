@@ -5,12 +5,10 @@
 #include "Pacticle.h"
 #include "Polygon.h"
 
+class World;
+
 class Boid : public Particle {
 private:
-
-    //Reference to all particles
-    std::vector<Boid*>* boids;
-
     float detectionRadius = 100.;
 
     std::vector<std::unique_ptr<FlockingRule>> rules;
@@ -20,6 +18,7 @@ private:
 
     Circle circle = Circle(12);
 
+    World* world;
 public:
 
     //Member
@@ -27,7 +26,7 @@ public:
     bool drawDebugRules = true;
 
     //Constructor
-    explicit Boid(Engine *pEngine, std::vector<Boid*>* boids_);
+    explicit Boid(Engine *pEngine, World* pWorld);
 
     //Getter - Setters
     void setFlockingRules(std::vector<std::unique_ptr<FlockingRule>> const& newRules) {

@@ -7,8 +7,6 @@
 
 class Particle;
 
-using BoidPtr = std::unique_ptr<Boid>;
-
 class World: GameObject {
 private:
     /// MEMBERS
@@ -31,13 +29,8 @@ private:
 
     //rules
     std::vector<std::unique_ptr<FlockingRule>> boidsRules;
+    // todo: make this a vector
     float* defaultWeights; // array of default rules weight
-
-    /// Particles
-    std::vector<BoidPtr> boids; // owned particles
-
-    //cached list to manipulate objects
-    std::vector<Boid*> cachedBoids;
 
     /// METHODS
     void initializeRules();
@@ -49,9 +42,11 @@ private:
     void randomizeBoidPositionAndVelocity(Boid* boid);
     void warpParticleIfOutOfBounds(Particle* particle);
 
-    BoidPtr createBoid();
+    Boid* createBoid();
 
 public:
+    //cached list to manipulate objects
+    std::vector<Boid*> boids;
 
     /// METHODS
     explicit World(Engine* pEngine);

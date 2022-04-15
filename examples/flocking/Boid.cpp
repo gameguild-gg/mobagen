@@ -1,6 +1,7 @@
 #include "Boid.h"
 #include "behaviours/FlockingRule.h"
 #include <iostream>
+#include "World.h"
 
 using namespace utils;
 
@@ -12,8 +13,7 @@ std::vector<Boid*> Boid::computeBoidNeighborhood() {
 
     //We compare distance to squared distances to avoid doing square roots.
 
-    for (const auto& boid : *boids)
-    {
+    for (const auto& boid : world->boids) {
         if (boid != this) {
 
             float squareDistance = Vector2::getSquaredDistance(position, boid->getPosition());
@@ -31,7 +31,7 @@ std::vector<Boid*> Boid::computeBoidNeighborhood() {
 }
 
 
-Boid::Boid(Engine *pEngine, std::vector<Boid*>* boids_) : Particle(engine), boids(boids_) {
+Boid::Boid(Engine *pEngine, World *pWorld) : Particle(pEngine), world(pWorld) {
 }
 
 void Boid::Update(const float deltaTime) {

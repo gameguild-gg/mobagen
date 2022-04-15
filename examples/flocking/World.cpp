@@ -16,7 +16,6 @@
 #include "psapi.h"
 #endif
 
-
 using namespace utils;
 
 World::World(Engine *pEngine): GameObject(pEngine) {
@@ -53,7 +52,7 @@ void World::applyFlockingRulesToAllBoids() {
 }
 
 void World::setNumberOfBoids(int number) {
-    auto diff = boids.size() - number;
+    int diff = (int)boids.size() - number;
 
     if (diff == 0)
         return;
@@ -64,21 +63,15 @@ void World::setNumberOfBoids(int number) {
         diff = -diff;
 
         //Add boids equal to diff
-        for (int i = 0; i < diff; i++) {
-            BoidPtr boidPtr = createBoid();
-            cachedBoids.push_back(boidPtr.get()); //lookup list
-            boids.push_back(std::move(boidPtr)); //owning list
-        }
+        for (int i = 0; i < diff; i++)
+            boids.push_back(createBoid());
     }
 
     //Too much boid, remove them
-    else {
+    else
         //Remove from end
-        for (int i = 0; i < diff; i++) {
+        for (int i = 0; i < diff; i++)
             boids.pop_back();
-            cachedBoids.pop_back();
-        }
-    }
 }
 
 void World::randomizeBoidPositionAndVelocity(Boid* boid) {
@@ -113,11 +106,11 @@ void World::warpParticleIfOutOfBounds(Particle* particle) {
     }
 }
 
-BoidPtr World::createBoid() {
+Boid* World::createBoid() {
     //Create new boid
-    BoidPtr boid = std::make_unique<Boid>(engine, &cachedBoids); //TODO : CHANGE! do not use the cached version
+    auto boid = new Boid(engine, this);
 
-    randomizeBoidPositionAndVelocity(boid.get());
+    randomizeBoidPositionAndVelocity(boid);
     boid->setFlockingRules(boidsRules);
     boid->setDetectionRadius(detectionRadius);
     boid->setSpeed(desiredSpeed);
@@ -130,7 +123,7 @@ BoidPtr World::createBoid() {
 }
 
 std::vector<Boid*>* World::getAllBoids() {
-    return &cachedBoids;
+    return &boids;
 }
 
 void World::drawGeneralUI() {
@@ -200,7 +193,7 @@ void World::drawGeneralUI() {
 
         if (ImGui::Button("Randomize Boids position and velocity"))
             for (const auto& boid : boids)
-                randomizeBoidPositionAndVelocity(boid.get());
+                randomizeBoidPositionAndVelocity(boid);
     }
 }
 
@@ -242,7 +235,7 @@ void World::updatePositions(float deltaTime)
 {
     for (auto& b : boids) {
         b->UpdatePosition(deltaTime);
-        warpParticleIfOutOfBounds(b.get());
+        warpParticleIfOutOfBounds(b);
     }
 }
 
