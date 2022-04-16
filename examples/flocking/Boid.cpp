@@ -1,9 +1,6 @@
 #include "Boid.h"
 #include "behaviours/FlockingRule.h"
-#include <iostream>
 #include "World.h"
-
-using namespace utils;
 
 std::vector<Boid*> Boid::computeBoidNeighborhood() {
     std::vector<Boid*> neighborhood;
@@ -33,7 +30,7 @@ std::vector<Boid*> Boid::computeBoidNeighborhood() {
 
 Boid::Boid(Engine *pEngine, World *pWorld) : Particle(pEngine), world(pWorld) {}
 
-void Boid::Update(const float deltaTime) {
+void Boid::Update(float deltaTime) {
     Particle::Update(deltaTime);
     std::vector<Boid*> neighbordhood = computeBoidNeighborhood();
 

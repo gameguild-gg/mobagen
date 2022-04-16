@@ -1,6 +1,5 @@
 #include "World.h"
 #include "imgui.h"
-#include "Utils.h"
 #include "ImGuiExtra.h"
 #include "Random.h"
 
@@ -15,8 +14,6 @@
 #include "windows.h"
 #include "psapi.h"
 #endif
-
-using namespace utils;
 
 World::World(Engine *pEngine): GameObject(pEngine) {
     initializeRules();

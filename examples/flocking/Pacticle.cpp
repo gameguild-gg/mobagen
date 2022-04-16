@@ -37,7 +37,8 @@ void Particle::OnDraw(SDL_Renderer* renderer) {
 
     if (drawAcceleration) {
         Vector3 accelerationColor = Vector3::Purple();
-        utils::graphics::drawVector(renderer, getPosition(), previousAcceleration * 1.5f, accelerationColor);
+        auto pos = getPosition();
+        Polygon::DrawLine(renderer, pos , pos + previousAcceleration * 2.f, accelerationColor);
     }
 }
 

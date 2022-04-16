@@ -1,7 +1,6 @@
 #ifndef PACTICLE_H
 #define PACTICLE_H
 
-#include "Utils.h"
 #include "GameObject.h"
 #include "Transform.h"
 #include "Polygon.h"

@@ -1,8 +1,7 @@
 #include <Engine.h>
-#include "UserInterface.h"
 #include "World.h"
 
-// Reference code https://github.com/boardtobits/flocking-algorithm
+// Reference https://github.com/boardtobits/flocking-algorithm
 
 // Main code
 int main(int, char**) {

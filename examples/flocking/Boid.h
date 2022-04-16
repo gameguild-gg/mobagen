@@ -46,7 +46,7 @@ public:
         return detectionRadius;
     }
 
-    void Update(const float deltaTime) override;
+    void Update(float deltaTime) override;
 
     // Inherited via Drawable
     virtual void OnDraw(SDL_Renderer* renderer) override;
