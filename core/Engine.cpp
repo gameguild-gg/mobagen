@@ -11,7 +11,7 @@ void Engine::loop(void){
 
 Engine::Engine() {
 #ifdef EMSCRIPTEN
-    instance = nullptr;
+    instance = this;
 #endif
     window = nullptr;
 }
