@@ -1,17 +1,17 @@
 #include "Engine.h"
 #include "SDL.h"
-#include <type_traits>
 
-#ifdef EMSCRIPTEN
 static Engine *instance = nullptr;
-void Engine::loop(void){
-  instance->Tick();
+void loop(){
+    instance->Tick();
 }
+#ifdef EMSCRIPTEN
 #endif
 
 Engine::Engine() {
-#ifdef EMSCRIPTEN
     instance = this;
+    imGuiContext = nullptr;
+#ifdef EMSCRIPTEN
 #endif
     window = nullptr;
 }
@@ -40,20 +40,20 @@ void Engine::Run() {
 
 int Engine::Start(std::string title) {
     SDL_Log("Initializing Window");
-    window = new Window(std::move(title));
+    window = new Window(title);
     if(window != nullptr)
         SDL_Log("Window Initialized");
     else
         exit(0);
 
+    imGuiContext = ImGui::GetCurrentContext(); // todo: make this work on all game objects
+
 #ifdef EMSCRIPTEN
     SDL_Log("Setting main loop for emscripten");
-    instance = this;
-    emscripten_set_main_loop(Engine::loop, 0, 1); // should be called only after sldrenderinit
+    emscripten_set_main_loop(loop, 60, 1); // should be called only after sldrenderinit
     SDL_Log("Main loop set");
 #endif
 
-    imGuiContext = ImGui::GetCurrentContext(); // todo: make this work on all game objects
     return true;
 }
 
@@ -91,7 +91,6 @@ void Engine::Tick() {
 
     ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
     SDL_RenderPresent(window->sdlRenderer);
-
     SDL_Delay(0);
 }
 

@@ -23,6 +23,7 @@ Window::Window(std::string title) {
         printf("Error: %s\n", SDL_GetError());
         throw std::runtime_error(SDL_GetError());
     }
+    SDL_Log("SDL INIT");
 
     auto width = 1280;
     auto height = 720;
@@ -31,10 +32,12 @@ Window::Window(std::string title) {
     height = canvas_get_height();
 #endif
 
+
     // Setup window
     auto window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     sdlWindow = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,
                                  SDL_WINDOWPOS_CENTERED, width, height, window_flags);
+    SDL_Log("SDL CREATED");
 
     // Setup SDL_Renderer instance
     sdlRenderer = SDL_CreateRenderer(sdlWindow, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);

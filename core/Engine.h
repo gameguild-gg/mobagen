@@ -40,9 +40,6 @@ private:
 
     // todo: better ordering
 public:
-#ifdef EMSCRIPTEN
-    static void loop();
-#endif
     Engine();
     ~Engine();
     int Start(std::string title);

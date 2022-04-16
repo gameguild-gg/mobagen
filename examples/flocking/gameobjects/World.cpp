@@ -265,9 +265,9 @@ void World::showConfigurationWindow(float deltaTime) {
 }
 
 void World::drawPerformanceUI(float deltaTime) {
+#if defined(_WIN32)
     if (ImGui::CollapsingHeader("Performance")) {
         //The  functions called are Windows specific
-#if defined(_WIN32)
         ///FPS Count
         float framePerSecond = 1. / deltaTime;
         ImGui::Text("Frames Per Second (FPS) : %.f", framePerSecond);
@@ -315,10 +315,8 @@ void World::drawPerformanceUI(float deltaTime) {
         ImGui::Text("RAM used by process : %uMb \n", physMemUsedByMe / div);
         PlotVar("Ram Consumption (Mb)", physMemUsedByMe / div);
 
-#else
-        ImGui::Text("Only implemented on Windows.");
-#endif
     }
+#endif
 }
 
 void World::OnGui(ImGuiContext *context) {
