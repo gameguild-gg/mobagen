@@ -6,6 +6,8 @@ file(GLOB FLOCKING_INC
         ${CMAKE_CURRENT_SOURCE_DIR}/behaviours/*.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/gameobjects/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/gameobjects/*.hpp
         )
 
 file(GLOB FLOCKING_SRC
@@ -15,6 +17,8 @@ file(GLOB FLOCKING_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/behaviours/*.c
         ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.c
         ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/gameobjects/*.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/gameobjects/*.cpp
         )
 
 

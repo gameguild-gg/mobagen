@@ -1,5 +1,5 @@
 #include "Pacticle.h"
-#include <Polygon.h>
+#include "Polygon.h"
 
 Particle::Particle(Engine *pEngine, float size, Vector3 color): GameObject(pEngine) {
     circleSize = size;

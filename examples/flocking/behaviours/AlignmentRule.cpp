@@ -1,5 +1,5 @@
 #include "AlignmentRule.h"
-#include "../Boid.h"
+#include "../gameobjects/Boid.h"
 
 Vector2 AlignmentRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
     //Try to match the heading of neighbors = Average velocity

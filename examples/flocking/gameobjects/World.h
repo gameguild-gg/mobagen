@@ -1,7 +1,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
-#include "behaviours/FlockingRule.h"
+#include "../behaviours/FlockingRule.h"
 #include "Boid.h"
 #include "GameObject.h"
 

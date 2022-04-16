@@ -1,18 +1,18 @@
 #include "World.h"
 #include "imgui.h"
-#include "utils/ImGuiExtra.h"
+#include "../utils/ImGuiExtra.h"
 #include "Random.h"
 
-#include "behaviours/SeparationRule.h"
-#include "behaviours/CohesionRule.h"
-#include "behaviours/AlignmentRule.h"
-#include "behaviours/MouseInfluenceRule.h"
-#include "behaviours/BoundedAreaRule.h"
-#include "behaviours/WindRule.h"
+#include "../behaviours/SeparationRule.h"
+#include "../behaviours/CohesionRule.h"
+#include "../behaviours/AlignmentRule.h"
+#include "../behaviours/MouseInfluenceRule.h"
+#include "../behaviours/BoundedAreaRule.h"
+#include "../behaviours/WindRule.h"
 
 #if defined(_WIN32)
-#include "windows.h"
-#include "psapi.h"
+#include "Windows.h"
+#include "Psapi.h"
 #endif
 
 World::World(Engine *pEngine): GameObject(pEngine) {

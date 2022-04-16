@@ -1,5 +1,5 @@
 #include "Boid.h"
-#include "behaviours/FlockingRule.h"
+#include "../behaviours/FlockingRule.h"
 #include "World.h"
 
 std::vector<Boid*> Boid::computeBoidNeighborhood() {

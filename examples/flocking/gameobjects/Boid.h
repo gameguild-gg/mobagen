@@ -1,7 +1,7 @@
 #ifndef BOID_H
 #define BOID_H
 
-#include "behaviours/FlockingRule.h"
+#include "../behaviours/FlockingRule.h"
 #include "Pacticle.h"
 #include "Polygon.h"
 

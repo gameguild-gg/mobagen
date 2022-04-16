@@ -3,8 +3,8 @@
 #include "imgui.h"
 #include "../utils/ImGuiExtra.h"
 #include "Polygon.h"
-#include "../Boid.h"
-#include "../World.h"
+#include "../gameobjects/Boid.h"
+#include "../gameobjects/World.h"
 
 FlockingRule::FlockingRule(const FlockingRule& toCopy){
     weight = toCopy.weight;
