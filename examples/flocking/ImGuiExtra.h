@@ -18,4 +18,7 @@ void HelpMarker(const char* desc);
 
 void ImguiTooltip(const char* desc);
 
+// From Avoid/Doug Binks
+void SetupImGuiStyle();
+
 #endif

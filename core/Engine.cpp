@@ -49,6 +49,7 @@ int Engine::Start(std::string title) {
     SDL_Log("Main loop set");
 #endif
 
+    imGuiContext = ImGui::GetCurrentContext(); // todo: make this work on all game objects
     return true;
 }
 
@@ -60,9 +61,6 @@ void Engine::Tick() {
     ImGui_ImplSDLRenderer_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
-
-    // update context
-    imGuiContext = ImGui::GetCurrentContext(); // todo: move this to another place
 
     // update
     auto deltaTime = ImGui::GetIO().DeltaTime;

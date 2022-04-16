@@ -45,6 +45,9 @@ void World::initializeRules() {
     int i = 0;
     for (const auto& rule : boidsRules)
         defaultWeights[i++] = rule->weight;
+
+    ImGui::SetCurrentContext(engine->imGuiContext);
+    SetupImGuiStyle();
 }
 
 void World::applyFlockingRulesToAllBoids() {
@@ -242,27 +245,28 @@ void World::showConfigurationWindow(float deltaTime) {
     ImGui::SetNextWindowPos(ImVec2(850, 20), ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(320, 550), ImGuiCond_Once);
 
-    ImGui::Begin("Configuration"); // begin window
+    if(ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar )) { // begin window
 
-    ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
-                ImGui::GetIO().DeltaTime*1000,
-                1.0f/ImGui::GetIO().DeltaTime,
-                1000.0f/ImGui::GetIO().Framerate,
-                ImGui::GetIO().Framerate);
+        ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
+                    ImGui::GetIO().DeltaTime * 1000,
+                    1.0f / ImGui::GetIO().DeltaTime,
+                    1000.0f / ImGui::GetIO().Framerate,
+                    ImGui::GetIO().Framerate);
 
-    ImGui::Text("Control the simulation with those settings.");
-    ImGui::Spacing();
-    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.45f);
+        ImGui::Text("Control the simulation with those settings.");
+        ImGui::Spacing();
+        ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.45f);
 
-    drawGeneralUI();
+        drawGeneralUI();
 
-    //ImGui::SetNextItemOpen(true, ImGuiCond_Once); //Next header is opened by default
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once); //Next header is opened by default
 
-    drawRulesUI();
+        drawRulesUI();
 
-    drawPerformanceUI(deltaTime);
+        drawPerformanceUI(deltaTime);
 
-    ImGui::End(); // end window
+        ImGui::End(); // end window
+    }
 }
 
 void World::drawPerformanceUI(float deltaTime) {
