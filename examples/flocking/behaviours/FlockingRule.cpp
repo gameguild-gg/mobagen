@@ -1,13 +1,10 @@
 #include "FlockingRule.h"
 
-#include "../Utils.h"
 #include "imgui.h"
 #include "../ImGuiExtra.h"
 #include "Polygon.h"
 #include "../Boid.h"
 #include "../World.h"
-
-using namespace utils;
 
 FlockingRule::FlockingRule(const FlockingRule& toCopy){
     weight = toCopy.weight;

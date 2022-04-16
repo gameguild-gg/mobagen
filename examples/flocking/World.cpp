@@ -304,13 +304,12 @@ void World::drawPerformanceUI(float deltaTime) {
         int div = 1048576;
 
         //PC info
-
         ImGui::Text("Total Virtual Memory : %uMb \n", totalVirtualMem / div);
         ImGui::Text("Total RAM : %uMb \n", totalPhysMem / div);
 
-        //ImGui::Text("Virtual Memory Currently Used : %iMb \n", virtualMemUsed / div);
-        //ImGui::Text("RAM Currently Used : %uMb \n", physMemUsed / div);
-        //ImGui::Separator();
+        ImGui::Text("Virtual Memory Currently Used : %iMb \n", virtualMemUsed / div);
+        ImGui::Text("RAM Currently Used : %uMb \n", physMemUsed / div);
+        ImGui::Separator();
 
         ImGui::Text("Virtual Memory used by process : %uMb \n", virtualMemUsedByMe / div);
         PlotVar("Virtual Memory Consumption (Mb)", virtualMemUsedByMe / div);
