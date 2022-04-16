@@ -24,6 +24,10 @@ Engine::~Engine() {
         ImGui::DestroyContext();
         delete (window);
     }
+
+    for(auto go : gameObjects)
+        delete(go); // clear all remaining game objects
+    gameObjects.clear();
 }
 
 void Engine::Run() {
@@ -94,9 +98,6 @@ void Engine::Tick() {
 void Engine::Exit() {
     SDL_Log("Exit called");
     done = true;
-    for(auto go : gameObjects)
-        delete(go); // clear all remaining game objects
-    gameObjects.clear();
     SDL_Log("Game Objects Cleared");
 }
 
@@ -191,7 +192,6 @@ void Engine::Destroy(GameObject *go) {
             return;
         }
     }
-
 }
 
 

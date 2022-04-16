@@ -33,10 +33,9 @@ void World::initializeRules() {
     boidsRules.emplace_back(std::make_unique<WindRule>(this, 1.f, 6.f, false));
 
     //Starting weights are saved as defaults
-    defaultWeights = new float[boidsRules.size()];
-    int i = 0;
+    defaultWeights.clear();
     for (const auto& rule : boidsRules)
-        defaultWeights[i++] = rule->weight;
+        defaultWeights.push_back(rule->weight);
 
     ImGui::SetCurrentContext(engine->imGuiContext);
     SetupImGuiStyle();
@@ -228,18 +227,27 @@ int World::getNbBoids() const {
 }
 
 void World::showConfigurationWindow(float deltaTime) {
-    //Resized once at first windows appearance
-    ImGui::SetNextWindowPos(ImVec2(850, 20), ImGuiCond_Once);
-    ImGui::SetNextWindowSize(ImVec2(320, 550), ImGuiCond_Once);
-
-    if(ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar )) { // begin window
+    if(ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Exit")){
+                engine->Exit();
+            }
+            ImGui::EndMenu();
+        }
 
         ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
                     ImGui::GetIO().DeltaTime * 1000,
                     1.0f / ImGui::GetIO().DeltaTime,
                     1000.0f / ImGui::GetIO().Framerate,
                     ImGui::GetIO().Framerate);
+        ImGui::EndMainMenuBar();
+    }
 
+    //Resized once at first windows appearance
+    ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(320, 550), ImGuiCond_Once);
+
+    if(ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar )) { // begin window
         ImGui::Text("Control the simulation with those settings.");
         ImGui::Spacing();
         ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.45f);

@@ -63,7 +63,6 @@ public:
     }
 
     //Methods
-
     void applyForce(Vector2 force);
 
     virtual void Update(float deltaTime) override;

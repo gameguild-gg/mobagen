@@ -21,7 +21,7 @@ private:
     bool hasMaxAcceleration = false;
     float maxAcceleration = 10.0f;
 
-    float detectionRadius = 40.04;
+    float detectionRadius = 35;
 
     //Display
     bool showRadius = false;
@@ -31,7 +31,7 @@ private:
     //rules
     std::vector<std::unique_ptr<FlockingRule>> boidsRules;
     // todo: make this a vector
-    float* defaultWeights; // array of default rules weight
+    std::vector<float> defaultWeights; // array of default rules weight
 
     /// METHODS
     void initializeRules();
