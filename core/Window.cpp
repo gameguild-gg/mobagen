@@ -32,7 +32,6 @@ Window::Window(std::string title) {
     height = canvas_get_height();
 #endif
 
-
     // Setup window
     auto window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     sdlWindow = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,

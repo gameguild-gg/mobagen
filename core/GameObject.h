@@ -13,7 +13,9 @@ public:
     Transform transform;
     Engine* engine;
 public:
-    explicit GameObject(Engine* engine);
+    explicit GameObject(Engine* pEngine);
+
+    virtual void Start(){};
     virtual void OnGui(ImGuiContext *context) {};
     virtual void OnDraw(SDL_Renderer* renderer) {};
     virtual void Update(float deltaTime) {};
