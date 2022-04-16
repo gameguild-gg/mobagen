@@ -2,17 +2,17 @@
 #include "../Boid.h"
 #include "../World.h"
 
-Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
+Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
     //Try to avoid boids too close
     Vector2 separatingForce;
 
     float desiredDistance = desiredMinimalDistance;
 
-    if (!neighbordhood.empty()) {
+    if (!neighborhood.empty()) {
         Vector2 position = boid->transform.position;
         int countCloseFlockmates = 0;
 
-        for (auto const& flockmate : neighbordhood) {
+        for (auto const& flockmate : neighborhood) {
             float distance = Vector2::getDistance(position, flockmate->getPosition());
 
             if (distance < desiredDistance && distance > 0) {

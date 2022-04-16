@@ -28,7 +28,7 @@ protected:
             world(pWorld)
     {}
 
-    virtual Vector2 computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) = 0;
+    virtual Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) = 0;
 
     //Multiplier for weight so we can tilt values closer to each other
     virtual float getBaseWeightMultiplier() {
@@ -54,7 +54,7 @@ public:
     virtual std::unique_ptr<FlockingRule> clone() = 0;
 
     //Compute the force, weight it, and save it in cache.
-    Vector2 computeWeightedForce(const std::vector<Boid*>& neighbordhood, Boid* boid);
+    Vector2 computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid);
 
     //Draw the core of the rule settings on ImGui.
     bool drawImguiRule();

@@ -30,7 +30,7 @@ public:
     }
 
 
-    Vector2 computeForce(const std::vector<Boid*>& neighbordhood, Boid* boid) override;
+    Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) override;
 
     bool drawImguiRuleExtra() override;
 

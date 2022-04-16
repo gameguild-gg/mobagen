@@ -17,10 +17,10 @@ FlockingRule::FlockingRule(const FlockingRule& toCopy){
     world = toCopy.world;
 }
 
-Vector2 FlockingRule::computeWeightedForce(const std::vector<Boid*>& neighbordhood, Boid* boid) {
+Vector2 FlockingRule::computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
     //the computed force is cached in a var
     if (isEnabled) {
-        force = getBaseWeightMultiplier() * weight * computeForce(neighbordhood, boid);
+        force = getBaseWeightMultiplier() * weight * computeForce(neighborhood, boid);
     }
     else
     {
