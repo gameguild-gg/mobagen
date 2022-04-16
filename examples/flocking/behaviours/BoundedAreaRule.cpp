@@ -7,6 +7,10 @@ Vector2 BoundedAreaRule::computeForce(const std::vector<Boid*>& neighborhood, Bo
     Vector2 force; //zero
     Vector2 position = boid->getPosition();
 
+    auto size = this->world->engine->window->size();
+    auto widthWindows = size.x;
+    auto heightWindows = size.y;
+
     float epsilon = 0.00001f;  //avoid div by zero
 
     //Too close from min
@@ -37,17 +41,19 @@ Vector2 BoundedAreaRule::computeForce(const std::vector<Boid*>& neighborhood, Bo
 
 bool BoundedAreaRule::drawImguiRuleExtra() {
     ImGui::SetCurrentContext(world->engine->imGuiContext);
+    auto size = this->world->engine->window->size();
+    auto widthWindows = size.x;
+    auto heightWindows = size.y;
     bool valueHasChanged = false;
 
     //We cap the max separation as the third of the min of the width.height
     auto minHeightWidth = std::min(widthWindows, heightWindows);
-    int desired;
+
     if (ImGui::SliderInt("Desired Distance From Borders",
-                         &desired,
+                         &desiredDistance,
                          0.0f,
                          (int)(minHeightWidth/3),
                          "%i")) {
-        desiredDistance = (float)desired;
         valueHasChanged = true;
     }
 
@@ -56,15 +62,12 @@ bool BoundedAreaRule::drawImguiRuleExtra() {
 
 void BoundedAreaRule::draw(const Boid& boid, SDL_Renderer* renderer) const {
     FlockingRule::draw(boid, renderer);
+    auto size = this->world->engine->window->size();
+    auto dist = (float)desiredDistance;
 
-    //Draw a rectangle on the map
-    // todo: draw the rectangles
-
-//    sf::RectangleShape bound(sf::Vector2f(widthWindows - 2 * desiredDistance, heightWindows - 2 * desiredDistance));
-//    bound.setOutlineColor(debugColor);
-//    bound.setOutlineThickness(1); //1 pixel outline
-//    bound.setFillColor(sf::Color::Transparent); //Transparent inside, we just draw the box bound
-//    bound.setPosition(desiredDistance, desiredDistance);
-//
-//    target.draw(bound, states);
+    // Draw a rectangle on the map
+    Polygon::DrawLine(renderer, Vector2(dist,dist), Vector2(size.x - dist,dist), Vector3::Gray()); // TOP
+    Polygon::DrawLine(renderer, Vector2(size.x - dist,dist), Vector2(size.x - dist,size.y - dist), Vector3::Gray()); // RIGHT
+    Polygon::DrawLine(renderer, Vector2(size.x - dist,size.y - dist), Vector2(dist,size.y - dist), Vector3::Gray()); // Bottom
+    Polygon::DrawLine(renderer, Vector2(dist,size.y - dist), Vector2(dist,dist), Vector3::Gray()); // LEFT
 }

@@ -57,7 +57,7 @@ public:
     Vector2 computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid);
 
     //Draw the core of the rule settings on ImGui.
-    bool drawImguiRule();
+    virtual bool drawImguiRule();
 
     // todo: probably we need to call this and change boid to particle
     // Inherited via Drawable

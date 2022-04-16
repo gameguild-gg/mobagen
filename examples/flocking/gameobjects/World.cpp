@@ -22,18 +22,14 @@ World::World(Engine *pEngine): GameObject(pEngine) {
 }
 
 void World::initializeRules() {
+    auto size = engine->window->size();
+
     //Starting Rules
     boidsRules.emplace_back(std::make_unique<SeparationRule>(this, 25.f, 4.75f));
     boidsRules.emplace_back(std::make_unique<CohesionRule>(this, 4.25f));
     boidsRules.emplace_back(std::make_unique<AlignmentRule>(this, 2.9f));
     boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(this, 2.f));
-    boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(
-            this,
-            (int)engine->window->size().y,
-            (int)engine->window->size().x,
-            80,
-            3.5f,
-            false));
+    boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(this, 20, 8.f, false));
     boidsRules.emplace_back(std::make_unique<WindRule>(this, 1.f, 6.f, false));
 
     //Starting weights are saved as defaults
