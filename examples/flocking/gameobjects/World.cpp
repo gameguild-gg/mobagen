@@ -27,14 +27,13 @@ void World::initializeRules() {
     boidsRules.emplace_back(std::make_unique<CohesionRule>(this, 4.25f));
     boidsRules.emplace_back(std::make_unique<AlignmentRule>(this, 2.9f));
     boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(this, 2.f));
-//    // todo: make this call engine and every frame to keep in sync with the real size. Cache it on window
-//    boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(
-//            this,
-//            (int)engine->window->size().y,
-//            (int)engine->window->size().x,
-//            80,
-//            3.5f,
-//            false));
+    boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(
+            this,
+            (int)engine->window->size().y,
+            (int)engine->window->size().x,
+            80,
+            3.5f,
+            false));
     boidsRules.emplace_back(std::make_unique<WindRule>(this, 1.f, 6.f, false));
 
     //Starting weights are saved as defaults
