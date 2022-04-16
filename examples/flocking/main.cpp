@@ -1,8 +1,7 @@
 #include <Engine.h>
-#include "UserInterface.h"
-#include "Ship.h"
+#include "gameobjects/World.h"
 
-// Reference code https://github.com/boardtobits/flocking-algorithm
+// Reference https://github.com/boardtobits/flocking-algorithm
 
 // Main code
 int main(int, char**) {
@@ -10,15 +9,17 @@ int main(int, char**) {
     auto engine = new Engine();
     SDL_Log("Engine Created");
 
-    SDL_Log("Creating Game Objects");
-    new UserInterface(engine);
-    new Ship(engine);
-    SDL_Log("Game Objects Created");
-
     SDL_Log("Starting Engine");
     if(engine->Start("Flocking")) {
         SDL_Log("Engine Started");
+
+        SDL_Log("Creating World Object");
+        new World(engine);
+        SDL_Log("World Created");
+
+        SDL_Log("Running Engine");
         engine->Run();
+        SDL_Log("Engine Stopped");
     }
 
     SDL_Log("Exiting Engine");

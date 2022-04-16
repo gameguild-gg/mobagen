@@ -3,11 +3,14 @@
 
 #include <imgui.h>
 #include "Engine.h"
+#include "Transform.h"
 
 class Engine;
 
+// todo: create a game list of game components of a game object
 class GameObject {
 public:
+    Transform transform;
     Engine* engine;
 public:
     explicit GameObject(Engine* engine);
