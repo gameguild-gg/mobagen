@@ -13,10 +13,8 @@ private:
     float maxAcceleration = 10.;
     float circleSize; // todo: is this really needed?
 
-    Vector3 color;
     Vector2 acceleration;
     Vector2 previousAcceleration; //to draw Acc
-
     Polygon polygon;
 
     //Methods
@@ -25,6 +23,7 @@ private:
 public:
     Vector2 velocity; // todo: make this private
     bool drawAcceleration = false;
+    Vector3 color; // todo: make this private
 
     //Constructor
     explicit Particle(Engine *pEngine, float size = 4.f, Vector3 color = Vector3::RandomColor(31,255));
@@ -66,9 +65,8 @@ public:
     //Methods
 
     void applyForce(Vector2 force);
-//    virtual void update(const float deltaTime);
 
-    virtual void UpdatePosition(float deltaTime);
+    virtual void Update(float deltaTime) override;
 
     // Inherited via Drawable
     void OnDraw(SDL_Renderer* renderer) override;

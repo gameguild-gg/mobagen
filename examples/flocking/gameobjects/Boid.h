@@ -20,10 +20,10 @@ private:
     World* world;
 
 public:
-
     //Member
     bool drawDebugRadius = true;
     bool drawDebugRules = true;
+    Vector3 circleColor = Vector3::Purple();
 
     //Constructor
     explicit Boid(Engine *pEngine, World* pWorld);

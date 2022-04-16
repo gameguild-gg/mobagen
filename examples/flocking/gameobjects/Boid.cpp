@@ -1,5 +1,4 @@
 #include "Boid.h"
-#include "../behaviours/FlockingRule.h"
 #include "World.h"
 
 std::vector<Boid*> Boid::computeBoidNeighborhood() {
@@ -38,19 +37,19 @@ void Boid::Update(float deltaTime) {
 }
 
 void Boid::OnDraw(SDL_Renderer *renderer) {
-    Particle::OnDraw(renderer); // super()
-
     if (drawDebugRadius)
         circle.Draw(
                 renderer,
                 transform.position,
                 {detectionRadius,detectionRadius},
                 Vector2::zero(),
-                Vector3::Blue());
+                circleColor);
 
     //Display rules
     if (drawDebugRules)
         for (auto& rule : rules)
             if (rule->isEnabled)
                 rule->draw(*this, renderer);
+
+    Particle::OnDraw(renderer); // super()
 }

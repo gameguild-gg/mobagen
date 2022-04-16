@@ -220,13 +220,12 @@ void World::Update(float deltaTime) {
         Boid* firstBoid = *getAllBoids()->begin();
         firstBoid->applyForce(engine->getInputArrow() * 20.f);
         firstBoid->drawDebugRadius = true;
+        firstBoid->circleColor = Vector3::Red();
     }
 
     // update positions
-    for (auto& b : boids) {
-        b->UpdatePosition(deltaTime); // todo: this should be on the boid, not here.
+    for (auto& b : boids)
         warpParticleIfOutOfBounds(b);
-    }
 }
 
 int World::getNbBoids() const {

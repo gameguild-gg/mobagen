@@ -15,7 +15,7 @@ void Particle::applyForce(Vector2 force) {
     acceleration += force;
 }
 
-void Particle::UpdatePosition(const float deltaTime) {
+void Particle::Update(const float deltaTime) {
     //Has a max acceleration per frame
     if (Vector2::getMagnitude(acceleration) > maxAcceleration)
         acceleration = Vector2::normalized(acceleration) * maxAcceleration;
