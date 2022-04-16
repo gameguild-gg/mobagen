@@ -84,7 +84,8 @@ void Engine::Tick() {
 
     // iterate over all game objects ui
     imGuiContext = ImGui::GetCurrentContext();
-    for(auto go : gameObjects)
+    auto gos = gameObjects; // clone to prevent out of bounds access
+    for(auto go : gos)
         go->OnGui(imGuiContext); // todo: find a better way to pass imgui context
 
     // Rendering
@@ -93,6 +94,16 @@ void Engine::Tick() {
     // Draw
     for(auto go : gameObjects)
         go->OnDraw(window->sdlRenderer);
+
+    // destroy objects marked to death
+    for(auto go : toDestroy){
+        for(auto it = gameObjects.begin(); it != gameObjects.end(); ++it) {
+            if(*it == go) {
+                gameObjects.erase(it);
+                return;
+            }
+        }
+    }
 
     ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
     SDL_RenderPresent(window->sdlRenderer);
@@ -190,12 +201,7 @@ std::vector<T> Engine::FindObjectsOfType() {
 
 // todo: optimize this
 void Engine::Destroy(GameObject *go) {
-    for(auto it = gameObjects.begin(); it != gameObjects.end(); ++it) {
-        if(*it == go) {
-            gameObjects.erase(it);
-            return;
-        }
-    }
+    toDestroy.push_back(go);
 }
 
 

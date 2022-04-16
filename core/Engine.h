@@ -39,6 +39,7 @@ private:
     Vector2 arrowInput;
 
     // todo: better ordering
+    std::vector<GameObject*> toDestroy;
 public:
 #ifdef EMSCRIPTEN
     static void loop();

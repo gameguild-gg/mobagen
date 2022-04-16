@@ -61,8 +61,11 @@ void World::setNumberOfBoids(int number) {
     //Too much boid, remove them
     else
         //Remove from end
-        for (int i = 0; i < diff; i++)
+        for (int i = 0; i < diff; i++) {
+            auto go = boids.back();
+            engine->Destroy(go);
             boids.pop_back();
+        }
 }
 
 void World::randomizeBoidPositionAndVelocity(Boid* boid) {
