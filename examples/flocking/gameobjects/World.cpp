@@ -215,15 +215,11 @@ void World::drawRulesUI() {
 }
 
 void World::Update(float deltaTime) {
-    // todo: when the boid become a GameObject, we wont need this
-    for (auto& b : boids)
-        b->Update(deltaTime);
-
     // move the first boid
-    if (engine->getInputArrow() != Vector2::zero() && getNbBoids() > 0)
-    {
+    if (engine->getInputArrow() != Vector2::zero() && getNbBoids() > 0) {
         Boid* firstBoid = *getAllBoids()->begin();
         firstBoid->applyForce(engine->getInputArrow() * 20.f);
+        firstBoid->drawDebugRadius = true;
     }
 
     // update positions

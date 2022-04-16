@@ -54,13 +54,13 @@ int Engine::Start(std::string title) {
 }
 
 void Engine::Tick() {
-    // inputs processing
-    processInput();
-
     // Start the Dear ImGui frame
     ImGui_ImplSDLRenderer_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+
+    // inputs processing
+    processInput();
 
     // update
     auto deltaTime = ImGui::GetIO().DeltaTime;
@@ -73,7 +73,12 @@ void Engine::Tick() {
 
     // Rendering
     ImGui::Render();
-    SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
+    SDL_SetRenderDrawColor(
+            window->sdlRenderer,
+            (Uint8)(clear_color.x * 255),
+            (Uint8)(clear_color.y * 255),
+            (Uint8)(clear_color.z * 255),
+            (Uint8)(clear_color.w * 255));
     SDL_RenderClear(window->sdlRenderer);
 
     // Draw
@@ -101,40 +106,66 @@ void Engine::processInput() {
     // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
     // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
     // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-    
+
+    // todo: move this to Input
+    static bool up = false, down = false, left = false, right = false;
+
+    // clean the state
+    arrowInput = Vector2();
+
+    // process events
     SDL_Event event;
-    while (SDL_PollEvent(&event))
-    {
+    while (SDL_PollEvent(&event)) {
         ImGui_ImplSDL2_ProcessEvent(&event);
         if (event.type == SDL_QUIT)
             done = true;
         if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window->sdlWindow))
             done = true;
-        arrowInput = Vector2();
 
+        // todo: improve the key strokes tracking
         switch(event.type){
             case SDL_KEYDOWN:
                 switch( event.key.keysym.sym ){
                     case SDLK_LEFT:
-                        arrowInput += Vector2::left();
+                        left = true;
                         break;
                     case SDLK_RIGHT:
-                        arrowInput += Vector2::right();
+                        right = true;
                         break;
                     case SDLK_UP:
-                        arrowInput += Vector2::up();
+                        up = true;
                         break;
                     case SDLK_DOWN:
-                        arrowInput += Vector2::down();
+                        down = true;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case SDL_KEYUP:
+                switch( event.key.keysym.sym ){
+                    case SDLK_LEFT:
+                        left = false;
+                        break;
+                    case SDLK_RIGHT:
+                        right = false;
+                        break;
+                    case SDLK_UP:
+                        up = false;
+                        break;
+                    case SDLK_DOWN:
+                        down = false;
                         break;
                     default:
                         break;
                 }
                 break;
         }
-
-        arrowInput = arrowInput.normalized();
     }
+    if(up) arrowInput+=Vector2::up();
+    if(down) arrowInput+=Vector2::down();
+    if(left) arrowInput+=Vector2::left();
+    if(right) arrowInput+=Vector2::right();
 }
 
 Vector2 Engine::getInputArrow() const {
