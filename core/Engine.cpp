@@ -1,17 +1,17 @@
 #include "Engine.h"
 #include "SDL.h"
+#include "Polygon.h"
 
-static Engine *instance = nullptr;
-void loop(){
-    instance->Tick();
-}
 #ifdef EMSCRIPTEN
+static Engine *instance = nullptr;
+void Engine::loop(void){
+  instance->Tick();
+}
 #endif
 
 Engine::Engine() {
-    instance = this;
-    imGuiContext = nullptr;
 #ifdef EMSCRIPTEN
+    instance = nullptr;
 #endif
     window = nullptr;
 }
@@ -48,12 +48,15 @@ int Engine::Start(std::string title) {
 
     imGuiContext = ImGui::GetCurrentContext(); // todo: make this work on all game objects
 
+    // start all gameobjects
+    for(auto go : gameObjects)
+        go->Start();
 #ifdef EMSCRIPTEN
     SDL_Log("Setting main loop for emscripten");
-    emscripten_set_main_loop(loop, 60, 1); // should be called only after sldrenderinit
+    instance = this;
+    emscripten_set_main_loop(Engine::loop, 0, 1); // should be called only after sldrenderinit
     SDL_Log("Main loop set");
 #endif
-
     return true;
 }
 
@@ -62,6 +65,14 @@ void Engine::Tick() {
     ImGui_ImplSDLRenderer_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+
+    SDL_SetRenderDrawColor(
+            window->sdlRenderer,
+            (Uint8)(clear_color.x * 255),
+            (Uint8)(clear_color.y * 255),
+            (Uint8)(clear_color.z * 255),
+            (Uint8)(clear_color.w * 255));
+    SDL_RenderClear(window->sdlRenderer);
 
     // inputs processing
     processInput();
@@ -72,18 +83,12 @@ void Engine::Tick() {
         go->Update(deltaTime);
 
     // iterate over all game objects ui
+    imGuiContext = ImGui::GetCurrentContext();
     for(auto go : gameObjects)
         go->OnGui(imGuiContext); // todo: find a better way to pass imgui context
 
     // Rendering
     ImGui::Render();
-    SDL_SetRenderDrawColor(
-            window->sdlRenderer,
-            (Uint8)(clear_color.x * 255),
-            (Uint8)(clear_color.y * 255),
-            (Uint8)(clear_color.z * 255),
-            (Uint8)(clear_color.w * 255));
-    SDL_RenderClear(window->sdlRenderer);
 
     // Draw
     for(auto go : gameObjects)

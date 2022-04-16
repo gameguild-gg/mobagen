@@ -15,11 +15,7 @@
 #include "Psapi.h"
 #endif
 
-World::World(Engine *pEngine): GameObject(pEngine) {
-    initializeRules();
-    setNumberOfBoids(nbBoids);
-    applyFlockingRulesToAllBoids();
-}
+World::World(Engine *pEngine): GameObject(pEngine) {}
 
 void World::initializeRules() {
     auto size = engine->window->size();
@@ -323,4 +319,10 @@ void World::OnGui(ImGuiContext *context) {
     ImGui::SetCurrentContext(context);
     float deltaTime = ImGui::GetIO().DeltaTime;
     showConfigurationWindow(deltaTime);
+}
+
+void World::Start() {
+    initializeRules();
+    setNumberOfBoids(nbBoids);
+    applyFlockingRulesToAllBoids();
 }

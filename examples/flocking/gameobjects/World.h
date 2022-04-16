@@ -70,6 +70,7 @@ public:
     void drawPerformanceUI(float deltaTime);
 
     void OnGui(ImGuiContext *context) override;
+    void Start() override;
 };
 
 
