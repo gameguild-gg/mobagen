@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <SDL.h>
 #include <vector>
+#include <unordered_set>
 
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
@@ -22,7 +23,7 @@ public:
     ImGuiContext *imGuiContext;
 
     // todo: move this to a scene manager and make this private
-    std::vector<GameObject*> gameObjects;
+    std::unordered_set<GameObject*> gameObjects;
     Vector2 getInputArrow() const;
 
 private:
@@ -53,7 +54,7 @@ public:
 
 
     template<class T>
-    std::vector<T> FindObjectsOfType();
+    std::unordered_set<T> FindObjectsOfType();
 
     void Destroy(GameObject* go);
 };

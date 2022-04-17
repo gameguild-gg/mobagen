@@ -96,13 +96,12 @@ void Engine::Tick() {
         go->OnDraw(window->sdlRenderer);
 
     // destroy objects marked to death
-    for(auto go : toDestroy){
-        for(auto it = gameObjects.begin(); it != gameObjects.end(); ++it) {
-            if(*it == go) {
-                gameObjects.erase(it);
-                return;
-            }
+    if(!toDestroy.empty()) {
+        for (auto go: toDestroy) {
+            gameObjects.erase(go);
+            delete (go);
         }
+        toDestroy.clear();
     }
 
     ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
@@ -190,11 +189,11 @@ Vector2 Engine::getInputArrow() const {
 
 // todo: optimize this
 template<class T>
-std::vector<T> Engine::FindObjectsOfType() {
-    std::vector<T> ret;
+std::unordered_set<T> Engine::FindObjectsOfType() {
+    std::unordered_set<T> ret;
     for (GameObject* go: gameObjects)
         if ( T elem = dynamic_cast<T>( &go ) ) // todo: check this
-           ret.push_back(elem);
+           ret.insert(elem);
 
     return ret;
 }

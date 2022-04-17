@@ -7,7 +7,10 @@ std::vector<Boid*> Boid::computeBoidNeighborhood() {
     float detectionRadiusSquared = detectionRadius * detectionRadius;
     auto position = getPosition();
 
-    //We compare distance to squared distances to avoid doing square roots.
+    // We compare distance to squared distances to avoid doing square roots.
+    // TODO: Optimize this! Move this to the world manager
+    // Option 1. Locality Sensitive Hashing or Spatial hashing
+    // Option 2. Quadtree or octree
     for (const auto& boid : world->boids) {
         if (boid != this) {
             float squareDistance = Vector2::getSquaredDistance(position, boid->getPosition());
