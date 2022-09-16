@@ -9,7 +9,7 @@ private:
 
 public:
     BoundedAreaRule(World* pWorld, int distanceFromBorder_, float weight = 1., bool isEnabled = true) :
-            FlockingRule(pWorld, Vector3::LightRed(), weight, isEnabled), desiredDistance(distanceFromBorder_)
+            FlockingRule(pWorld, Color::Red.Light(), weight, isEnabled), desiredDistance(distanceFromBorder_)
     {}
 
     BoundedAreaRule(const BoundedAreaRule& toCopy) : FlockingRule(toCopy) {

@@ -33,6 +33,7 @@ Window::Window(std::string title) {
 #endif
 
     // Setup window
+    // auto window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     auto window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE);
     sdlWindow = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,
                                  SDL_WINDOWPOS_CENTERED, width, height, window_flags);

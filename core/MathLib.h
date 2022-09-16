@@ -3,8 +3,7 @@
 
 #include <cmath>
 
-class MathLib {
-public:
+namespace Mathf {
     // Normalizes any number to an arbitrary range
     // by assuming the range wraps around when going below min or above max
     static float normalize( const float value, const float start, const float end ) {

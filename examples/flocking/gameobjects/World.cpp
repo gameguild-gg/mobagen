@@ -71,8 +71,8 @@ void World::setNumberOfBoids(int number) {
 void World::randomizeBoidPositionAndVelocity(Boid* boid) {
     auto size = engine->window->size();
     // todo: give boid a transform to store position, rotation... etc
-    boid->setPosition({Random::Range(0,size.x), Random::Range(0,size.y)});
-    boid->setVelocity(Vector2::up().Rotate(Random::Range(0,360)) * desiredSpeed); //Random dir
+    boid->setPosition({Random::Range(0.0f,size.x), Random::Range(0.0f,size.y)});
+    boid->setVelocity(Vector2::up().Rotate(Random::Range(0.0f,360.0f)) * desiredSpeed); //Random dir
 }
 
 void World::warpParticleIfOutOfBounds(Particle* particle) {
@@ -213,7 +213,7 @@ void World::Update(float deltaTime) {
         Boid* firstBoid = *getAllBoids()->begin();
         firstBoid->applyForce(engine->getInputArrow() * 20.f);
         firstBoid->drawDebugRadius = true;
-        firstBoid->circleColor = Vector3::Red();
+        firstBoid->circleColor = Color::Red;
     }
 
     // update positions

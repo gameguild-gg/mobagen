@@ -9,7 +9,7 @@ class Boid;
 class CohesionRule : public FlockingRule {
 public:
 
-    explicit CohesionRule(World* pWorld, float weight = 1., bool isEnabled = true) : FlockingRule(pWorld,Vector3::Cyan(), weight, isEnabled)  {}
+    explicit CohesionRule(World* pWorld, float weight = 1., bool isEnabled = true) : FlockingRule(pWorld,Color::Cyan, weight, isEnabled)  {}
 
     std::unique_ptr<FlockingRule> clone() override {
         // Créer un pointeur concret en utilisant le constructeur abstrait parent

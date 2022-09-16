@@ -1,5 +1,5 @@
-#ifndef MOBAGEN_VECTOR2_H
-#define MOBAGEN_VECTOR2_H
+#ifndef VECTOR2_H
+#define VECTOR2_H
 
 #include <cmath>
 #include <stdexcept>
@@ -23,6 +23,7 @@ struct Vector2 {
     static Vector2 left(){return {-1., 0.};}
     static Vector2 right(){return {1., 0.};}
     static Vector2 zero(){return {0., 0.};}
+    static Vector2 identity(){return {1., 1.};}
 
     //unary operations
     Vector2 operator- () const;
@@ -82,4 +83,4 @@ struct Vector2 {
 
 
 
-#endif //MOBAGEN_VECTOR2_H
+#endif //VECTOR2_H

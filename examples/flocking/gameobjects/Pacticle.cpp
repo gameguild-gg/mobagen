@@ -1,7 +1,7 @@
 #include "Pacticle.h"
 #include "Polygon.h"
 
-Particle::Particle(Engine *pEngine, float size, Vector3 color): GameObject(pEngine) {
+Particle::Particle(Engine *pEngine, float size, Color32 color): GameObject(pEngine) {
     circleSize = size;
     this->color = color;
     velocity = Vector2::zero();
@@ -36,9 +36,8 @@ void Particle::OnDraw(SDL_Renderer* renderer) {
     polygon.Draw(renderer, transform, color);
 
     if (drawAcceleration) {
-        Vector3 accelerationColor = Vector3::Purple();
         auto pos = getPosition();
-        Polygon::DrawLine(renderer, pos , pos + previousAcceleration * 2.f, accelerationColor);
+        Polygon::DrawLine(renderer, pos , pos + previousAcceleration * 2.f, Color::Purple);
     }
 }
 

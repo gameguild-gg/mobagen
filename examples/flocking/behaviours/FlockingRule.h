@@ -5,6 +5,7 @@
 #include <memory>
 #include "Vector2.h"
 #include "Vector3.h"
+#include "ColorT.h"
 
 class Boid;
 class World;
@@ -18,9 +19,9 @@ protected:
     Vector2 force;
 
     //if displayed
-    Vector3 debugColor;
+    Color32 debugColor;
 
-    explicit FlockingRule(World* pWorld, Vector3 debugColor_, float weight_, bool isEnabled_ = true) :
+    explicit FlockingRule(World* pWorld, Color32 debugColor_, float weight_, bool isEnabled_ = true) :
             debugColor(debugColor_),
             force(Vector2()),
             weight(weight_),

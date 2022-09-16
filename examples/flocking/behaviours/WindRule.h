@@ -10,7 +10,7 @@ private:
 
 public:
 
-    explicit WindRule(World* pWorld, float weight = 1., float angle = 0, bool isEnabled = true) : FlockingRule(pWorld, Vector3::White(), weight, isEnabled), windAngle(angle)
+    explicit WindRule(World* pWorld, float weight = 1., float angle = 0, bool isEnabled = true) : FlockingRule(pWorld, Color::White, weight, isEnabled), windAngle(angle)
     {}
 
     WindRule(const WindRule & toCopy) : FlockingRule(toCopy) {

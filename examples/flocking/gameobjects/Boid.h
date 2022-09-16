@@ -23,7 +23,7 @@ public:
     //Member
     bool drawDebugRadius = true;
     bool drawDebugRules = true;
-    Vector3 circleColor = Vector3::Purple();
+    Color32 circleColor = Color::Purple;
 
     //Constructor
     explicit Boid(Engine *pEngine, World* pWorld);

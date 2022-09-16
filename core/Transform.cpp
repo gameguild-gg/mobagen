@@ -1,7 +1,7 @@
 #include "Transform.h"
 
 Transform::Transform() {
-    this->scale = Vector2::zero();
+    this->scale = Vector2::identity();
     this->position = Vector2::zero();
     this->rotation = Vector2::zero();
 }

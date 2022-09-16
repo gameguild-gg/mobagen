@@ -39,8 +39,8 @@ void BoundedAreaRule::draw(const Boid& boid, SDL_Renderer* renderer) const {
     auto dist = (float)desiredDistance;
 
     // Draw a rectangle on the map
-    Polygon::DrawLine(renderer, Vector2(dist,dist), Vector2(size.x - dist,dist), Vector3::Gray()); // TOP
-    Polygon::DrawLine(renderer, Vector2(size.x - dist,dist), Vector2(size.x - dist,size.y - dist), Vector3::Gray()); // RIGHT
-    Polygon::DrawLine(renderer, Vector2(size.x - dist,size.y - dist), Vector2(dist,size.y - dist), Vector3::Gray()); // Bottom
-    Polygon::DrawLine(renderer, Vector2(dist,size.y - dist), Vector2(dist,dist), Vector3::Gray()); // LEFT
+    Polygon::DrawLine(renderer, Vector2(dist,dist), Vector2(size.x - dist,dist), Color::Gray); // TOP
+    Polygon::DrawLine(renderer, Vector2(size.x - dist,dist), Vector2(size.x - dist,size.y - dist), Color::Gray); // RIGHT
+    Polygon::DrawLine(renderer, Vector2(size.x - dist,size.y - dist), Vector2(dist,size.y - dist), Color::Gray); // Bottom
+    Polygon::DrawLine(renderer, Vector2(dist,size.y - dist), Vector2(dist,dist), Color::Gray); // LEFT
 }

@@ -11,7 +11,13 @@ struct Random {
         std::uniform_real_distribution<float> dist(start, end);
         return dist(mt);
     }
-};
 
+    static int Range(int start, int end){
+        std::random_device rd; // todo: random device is slow and the seed should be cached
+        std::mt19937 rng(rd());
+        std::uniform_int_distribution<int> dist(start, end);
+        return dist(rng);
+    }
+};
 
 #endif
