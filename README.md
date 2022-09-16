@@ -2,8 +2,6 @@
 
 [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![pages-build-deployment](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
 
-# [TRY IT ONLINE](https://infinibrains.github.io/mobagen/)
-
 # Motivation
 I started this game engine project because:
 - I want to sharpen my C++ skills; 
@@ -41,3 +39,7 @@ Please refer to [this doc.](docs/Architecture.md)
 - Never use any lib on the core code. The core should interact with the libs through a glue code. Ex.: core lib -> physics module -> bullet physics engine
 - Target the latest C++ version that is portable to our targets(iOS, Android, Windows, Linux, OSX, WEB). [compiller support table](https://en.cppreference.com/w/cpp/compiler_support).
 - CI should be able to build to all targets at once.
+
+# Examples
+If you want to try code some AI examples, you need to follow this guide in order undestand and do your activity. https://docs.google.com/presentation/d/1OBEY-tb_ubgoq6Mk9lEsCFaYLINni3oPwjH8iAXEQQM/edit?usp=sharing
+- [Flocking demo](https://infinibrains.com/data/flocking)
