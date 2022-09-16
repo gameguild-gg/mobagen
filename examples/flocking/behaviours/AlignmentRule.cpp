@@ -3,13 +3,10 @@
 
 Vector2 AlignmentRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
     //Try to match the heading of neighbors = Average velocity
-    Vector2 averageVelocity;
+    Vector2 averageVelocity = Vector2::zero();
 
-    if (!neighborhood.empty()) {
-        for (auto flockmate : neighborhood)
-            averageVelocity += flockmate->velocity;
-        averageVelocity /= static_cast<float>(neighborhood.size());
-    }
+    // todo: add your code here to align each boid in a neighborhood
+    // hint: iterate over the neighborhood
 
     return Vector2::normalized(averageVelocity);
 }

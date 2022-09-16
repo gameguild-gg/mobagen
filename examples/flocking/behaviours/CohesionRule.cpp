@@ -4,18 +4,8 @@
 Vector2 CohesionRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
     Vector2 cohesionForce;
 
-    if (!neighborhood.empty()) {
-        Vector2 centerOfMass;
-
-        for (auto const& flockmate : neighborhood)
-            centerOfMass += flockmate->transform.position;
-        centerOfMass /= static_cast<float>(neighborhood.size());
-
-        //Get direction toward center of mass
-        Vector2 towardCenter = centerOfMass - boid->transform.position;
-
-        cohesionForce = Vector2::normalized(towardCenter);
-    }
+    // todo: add your code here to make a force towards the center of mass
+    // hint: iterate over the neighborhood
 
     return cohesionForce;
 }

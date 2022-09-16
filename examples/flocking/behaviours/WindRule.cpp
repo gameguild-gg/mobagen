@@ -4,7 +4,9 @@
 #include "../gameobjects/World.h"
 
 Vector2 WindRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
-    return Vector2::normalized(Vector2::getVector2FromRadian(windAngle));
+    // todo: add a wind force here
+    // hint: use the windAngle variable
+    return Vector2::zero();
 }
 
 bool WindRule::drawImguiRuleExtra() {
