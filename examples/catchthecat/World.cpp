@@ -120,9 +120,13 @@ void World::OnDraw(SDL_Renderer* renderer) {
 void World::OnGui(ImGuiContext *context) {
     ImGui::SetCurrentContext(context);
     ImGui::Begin("Settings", nullptr);
-    if(ImGui::SliderInt("Side Size", &sideSize, 5, 21)){
-        sideSize = (sideSize/2)*2 + 1;
+    static auto newSize = sideSize;
+    if(ImGui::SliderInt("Side Size", &newSize, 5, 21) && sideSize != (newSize/2)*2 + 1) {
+        sideSize = (newSize/2)*2 + 1;
         clearWorld();
+    }
+    if(ImGui::Button("Randomize")){
+      clearWorld();
     }
     ImGui::End();
 }
