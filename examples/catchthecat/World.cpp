@@ -18,6 +18,7 @@ World::World(Engine *pEngine, int size): GameObject(pEngine), sideSize(size){
   if(size%2==0)
     throw;
   cat = new Cat(this);
+  catcher = new Catcher(this);
 
   clearWorld();
 }

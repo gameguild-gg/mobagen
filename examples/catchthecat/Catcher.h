@@ -4,7 +4,10 @@
 #include "Agent.h"
 
 class Catcher: public Agent {
-    explicit Catcher(World *world):Agent(world){};
+ public:
+    explicit Catcher(World *world);
+ private:
+    bool moveIsAcceptable(Point2D& p) override;
 };
 
 #endif  // CATCHER_H
