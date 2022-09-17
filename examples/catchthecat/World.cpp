@@ -93,7 +93,8 @@ void World::OnDraw(SDL_Renderer* renderer) {
     Hexagon hex;
     Transform t;
     auto windowSize = engine->window->size();
-    t.scale *= (windowSize.y / (float)sideSize)/2;
+    float minSide = std::min(windowSize.x, windowSize.y);
+    t.scale *= (minSide / sideSize)/2;
 
     t.position = {windowSize.x/2 - (sideSize)*t.scale.x, windowSize.y/2 - (sideSize-1)*t.scale.y};
     for (int i = 0; i < worldState.size();) {
