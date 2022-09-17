@@ -1,0 +1,30 @@
+{
+  "name": "mobagen",
+  "version": "0.0.1",
+  "description": "Module Based Game Engine",
+  "main": "bin-emscripten/bin/index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "test",
+    "pregenerate:windows:clang": "rimraf build",
+    "generate:windows:clang": "cmake -H. -Bbuild -G \"Visual Studio 16 2019\" -T ClangCL -DCMAKE_BUILD_TYPE=MinSizeRel",
+    "build": "cmake --build build --config MinSizeRel",
+    "run": "cmake --open build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InfiniBrains/mobagen.git"
+  },
+  "author": "InfiniBrains",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/InfiniBrains/mobagen/issues"
+  },
+  "homepage": "https://github.com/InfiniBrains/mobagen#readme",
+  "dependencies": {
+    "rimraf": "^3.0.2"
+  }
+}

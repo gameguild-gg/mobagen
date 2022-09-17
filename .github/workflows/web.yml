@@ -2,9 +2,11 @@ name: WEB-EMSCRIPTEN
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - *
   pull_request:
-    branches: [ master ]
+    branches:
+      - *
 
 env:
   BUILD_TYPE: MinSizeRel
@@ -16,7 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: recursive
+
+      - name: cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/.hunter
+          key: ${{ runner.os }}-mobagen
 
       - name: Emscripten Install
         run: ./scripts/emscripten-install.sh || true
@@ -31,7 +39,7 @@ jobs:
           GHR_COMPRESS: zip
           GHR_PATH: build/
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: GitHub Pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,7 +47,7 @@ jobs:
         # uses: crazy-max/ghaction-github-pages@a117e4aa1fb4854d021546d2abdfac95be568a3a
         uses: crazy-max/ghaction-github-pages@v2.6.0
         with:
-        # Git domain (default github.com)
+          # Git domain (default github.com)
           #domain: # optional, default is github.com
           # GitHub repository where assets will be deployed (default $GITHUB_REPOSITORY)
           #repo: # optional

@@ -2,9 +2,11 @@ name: LINUX
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - *
   pull_request:
-    branches: [ master ]
+    branches:
+      - *
 
 env:
   BUILD_TYPE: MinSizeRel
@@ -14,20 +16,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
-    - name: Configure CMake
-      run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel 
+      - name: cache
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-mobagen
+          path: |
+            /home/runner/.hunter
+            /home/runner/work/mobagen/mobagen/external/emsdk/zips/
 
-    - name: Build
-      run: cmake --build build/
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev python3-distutils libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev  
 
-    - name: Release
-      uses: fnkr/github-action-ghr@v1.3
-      if: startsWith(github.ref, 'refs/tags/')
-      env:
-        GHR_COMPRESS: zip
-        GHR_PATH: build/
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure CMake
+        run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel
+
+      - name: Build
+        run: cmake --build build/ -j20
+
+      - name: Release
+        uses: fnkr/github-action-ghr@v1.3
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GHR_COMPRESS: zip
+          GHR_PATH: build/
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

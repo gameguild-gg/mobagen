@@ -36,3 +36,12 @@ cmake-build*
 bin-emscripten/
 
 build/
+
+.DS_Store
+
+node_modules
+
+package-lock.json
+
+ide/clion/
+.vs/
