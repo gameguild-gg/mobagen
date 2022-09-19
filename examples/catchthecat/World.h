@@ -17,6 +17,7 @@ class World: GameObject {
   bool catTurn = true;
   bool isSimulating= false;
   Point2D catPosition=Point2D(0,0);
+  int64_t moveDuration=0;
 
   Cat *cat;
   Catcher *catcher;
@@ -36,6 +37,9 @@ class World: GameObject {
   // clears the world
   void clearWorld();
 
+ public:
+  explicit World(Engine* pEngine, int size=11);
+
   // directions
   static Point2D NE(const Point2D &p);
   static Point2D NW(const Point2D &p);
@@ -44,20 +48,17 @@ class World: GameObject {
   static Point2D SE(const Point2D &p);
   static Point2D SW(const Point2D &p);
 
- public:
-  explicit World(Engine* pEngine, int size=11);
-
   Point2D getCat();
 
   // the top left (x,y) is (-5,-5) the center is on (0,0);
   // get the content of a given point
-  inline bool getContent(const Point2D& p) {
+  bool getContent(const Point2D& p) {
     return worldState[(p.y+sideSize/2)*(sideSize) + p.x + sideSize/2];
   }
 
   // the top left (x,y) is (-5,-5) the center is on (0,0);
   // get the content of a given
-  inline bool getContent(const int8_t& x, const int8_t& y) {
+  bool getContent(const int8_t& x, const int8_t& y) {
     return worldState[(y+sideSize/2)*(sideSize) + x + sideSize/2];
   }
 
