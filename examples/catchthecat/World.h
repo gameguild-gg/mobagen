@@ -48,9 +48,13 @@ class World: GameObject {
   static Point2D SE(const Point2D &p);
   static Point2D SW(const Point2D &p);
 
+  // returns the cat position
   Point2D getCat();
 
-  // the top left (x,y) is (-5,-5) the center is on (0,0);
+  // returns the side of the map
+  int getWorldSideSize();
+
+  // the top left (x,y) is (-side/2,-side/2) the center is on (0,0);
   // get the content of a given point
   bool getContent(const Point2D& p) {
     return worldState[(p.y+sideSize/2)*(sideSize) + p.x + sideSize/2];
@@ -73,6 +77,8 @@ class World: GameObject {
   void OnDraw(SDL_Renderer* renderer) override;
   void OnGui(ImGuiContext *context) override;
   void Update(float deltaTime) override;
+
+  void step();
 };
 
 #endif  // WORLD_H

@@ -31,7 +31,7 @@ void World::clearWorld() {
   for(auto && i : worldState) i= false;
   for(int i=0; i<sideSize*sideSize*0.05; i++)
     worldState[Random::Range(0,(int)worldState.size()-1)]= true;
-  catPosition = SE({0,0});
+  catPosition = {0,0};
   worldState[(int)worldState.size()/2] = false; // clear cat
   isSimulating = false;
   catTurn = true;
@@ -48,7 +48,7 @@ Point2D World::W(const Point2D& p) {
 
 Point2D World::NE(const Point2D& p) {
   if(p.y%2)
-    return {p.x-1, p.y-1};
+    return {p.x+1, p.y-1};
   return {p.x, p.y-1};
 }
 
@@ -61,13 +61,13 @@ Point2D World::NW(const Point2D& p) {
 Point2D World::SE(const Point2D& p) {
   if(p.y%2)
     return {p.x, p.y+1};
-  return {p.x+1, p.y+1};
+  return {p.x-1, p.y+1};
 }
 
 Point2D World::SW(const Point2D& p) {
   if(p.y%2)
-    return {p.x, p.y+1};
-  return {p.x-1, p.y+1};
+    return {p.x+1, p.y+1};
+  return {p.x, p.y+1};
 }
 
 bool World::isValidPosition(const Point2D& p) {
@@ -142,11 +142,17 @@ void World::OnGui(ImGuiContext *context) {
       ImGui::Text("Turn: CAT");
     else
       ImGui::Text("Turn: CATCHER");
+    ImGui::Text("Move duration: %lli", moveDuration);
     ImGui::Text("Next turn in %.1f", timeForNextTick);
     if(ImGui::Button("Randomize")){
       clearWorld();
     }
     ImGui::Text("Simulation");
+    if(ImGui::Button("Step")) {
+      isSimulating = false;
+      step();
+    }
+    ImGui::SameLine();
     if(ImGui::Button("Start")) {
       isSimulating = true;
     }
@@ -154,7 +160,6 @@ void World::OnGui(ImGuiContext *context) {
     if(ImGui::Button("Pause")) {
       isSimulating = false;
     }
-    ImGui::Text("Move duration: %lli", moveDuration);
     ImGui::End();
 }
 
@@ -163,23 +168,35 @@ void World::Update(float deltaTime) {
     // update timer
     timeForNextTick -= deltaTime;
     if (timeForNextTick < 0) {
-      auto start = std::chrono::high_resolution_clock::now();
-      // run the turn
-      if (catTurn) {
-        auto move = cat->Move(this);
-        catPosition = move;
-      }
-      else {
-        auto move = catcher->Move(this);
-        worldState[move.y*(sideSize/2) + move.x + sideSize*sideSize/2]=true;
-      }
-      auto stop = std::chrono::high_resolution_clock::now();
-      moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+      step();
+
       // update turn
       timeForNextTick = timeBetweenAITicks;
-      catTurn = !catTurn;
     }
   }
 }
 
-Point2D World::getCat() { return catPosition; }
+Point2D World::getCat() {
+  return catPosition;
+}
+
+void World::step() {
+  auto start = std::chrono::high_resolution_clock::now();
+
+  // run the turn
+  if (catTurn) {
+    auto move = cat->Move(this);
+    catPosition = move;
+  }
+  else {
+    auto move = catcher->Move(this);
+    worldState[move.y*(sideSize/2) + move.x + sideSize*sideSize/2]=true;
+  }
+  auto stop = std::chrono::high_resolution_clock::now();
+  moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+  // change turn
+  catTurn = !catTurn;
+}
+int World::getWorldSideSize() {
+  return sideSize;
+}
