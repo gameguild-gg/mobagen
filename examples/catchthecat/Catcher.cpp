@@ -1,6 +1,7 @@
 #include "Catcher.h"
 #include "World.h"
 
-Catcher::Catcher(World* world) : Agent(world) {}
+Point2D Catcher::Move(const World* world) {
 
-bool Catcher::moveIsAcceptable(Point2D& p) { return false; }
+  return {0, 0};
+}

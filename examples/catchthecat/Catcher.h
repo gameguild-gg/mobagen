@@ -5,9 +5,8 @@
 
 class Catcher: public Agent {
  public:
-    explicit Catcher(World *world);
- private:
-    bool moveIsAcceptable(Point2D& p) override;
+    explicit Catcher():Agent(){};
+    Point2D Move(const World *) override;
 };
 
 #endif  // CATCHER_H
