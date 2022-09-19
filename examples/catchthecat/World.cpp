@@ -29,9 +29,9 @@ void World::clearWorld() {
   worldState.clear();
   worldState.resize(sideSize*sideSize);
   for(auto && i : worldState) i= false;
-  for(int i=0; i<sideSize*1.5; i++)
+  for(int i=0; i<sideSize*sideSize*0.05; i++)
     worldState[Random::Range(0,(int)worldState.size()-1)]= true;
-  catPosition = {0,0};
+  catPosition = SE({0,0});
   worldState[(int)worldState.size()/2] = false; // clear cat
   isSimulating = false;
   catTurn = true;
@@ -39,11 +39,11 @@ void World::clearWorld() {
 }
 
 Point2D World::E(const Point2D& p) {
-  return {p.x-1, p.y};
+  return {p.x+1, p.y};
 }
 
 Point2D World::W(const Point2D& p) {
-  return {p.x+1, p.y};
+  return {p.x-1, p.y};
 }
 
 Point2D World::NE(const Point2D& p) {
@@ -55,19 +55,19 @@ Point2D World::NE(const Point2D& p) {
 Point2D World::NW(const Point2D& p) {
   if(p.y%2)
     return {p.x, p.y-1};
-  return {p.x+1, p.y-1};
+  return {p.x-1, p.y-1};
 }
 
 Point2D World::SE(const Point2D& p) {
   if(p.y%2)
-    return {p.x-1, p.y+1};
-  return {p.x, p.y+1};
+    return {p.x, p.y+1};
+  return {p.x+1, p.y+1};
 }
 
 Point2D World::SW(const Point2D& p) {
   if(p.y%2)
     return {p.x, p.y+1};
-  return {p.x+1, p.y+1};
+  return {p.x-1, p.y+1};
 }
 
 bool World::isValidPosition(const Point2D& p) {
@@ -99,7 +99,7 @@ void World::OnDraw(SDL_Renderer* renderer) {
     t.scale *= (minSide / sideSize)/2;
 
     t.position = {windowSize.x/2 - (sideSize)*t.scale.x, windowSize.y/2 - (sideSize-1)*t.scale.y};
-    auto catposid = catPosition.y*(sideSize/2) + catPosition.x + sideSize*sideSize/2;
+    auto catposid = (catPosition.y + sideSize/2)*(sideSize) + catPosition.x + sideSize/2;
     for (int i = 0; i < worldState.size();) {
       if(catposid==i)
         hex.Draw(renderer, t, Color::Red);

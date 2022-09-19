@@ -6,7 +6,7 @@ int main(int, char**) {
   auto engine = new Engine();
   SDL_Log("Engine Created");
 
-  new World(engine,21);
+  new World(engine,5);
 
   SDL_Log("Starting Engine");
   if(engine->Start("Catch The Cat")) {
