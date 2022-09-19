@@ -20,6 +20,6 @@ Point2D Cat::Move(World* world) {
     case 5:
       return World::SE(pos);
     default:
-      throw std::exception("random out of range");
+      throw "random out of range";
   }
 }
