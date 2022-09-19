@@ -5,9 +5,8 @@
 
 class Cat: public Agent {
 public:
-    explicit Cat(World *world):Agent(world){};
-private:
-    bool moveIsAcceptable(Point2D& p) override;
+    explicit Cat():Agent(){};
+    Point2D Move(World *) override;
 };
 
 #endif  // CAT_H

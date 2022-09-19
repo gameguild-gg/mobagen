@@ -1,11 +1,12 @@
 #ifndef WORLD_H
 #define WORLD_H
 
-#include "Random.h"
-#include "Point2D.h"
-#include "GameObject.h"
 #include "Cat.h"
 #include "Catcher.h"
+#include "GameObject.h"
+#include "Point2D.h"
+#include "Random.h"
+#include <bitset>
 #include <iostream>
 #include <vector>
 
@@ -14,14 +15,17 @@ class World: GameObject {
   float timeBetweenAITicks=1;
   float timeForNextTick=1;
   bool catTurn = true;
+  bool isSimulating= false;
+  Point2D catPosition=Point2D(0,0);
+  int64_t moveDuration=0;
 
   Cat *cat;
   Catcher *catcher;
 
-  // . means empty
-  // C means cat
-  // # means blocked
-  std::vector<char>worldState;
+  // false means empty
+  // true means blocked
+  std::vector<bool> worldState;
+
   // size of the side of the map
   int sideSize=0;
   // todo: optimization make the world state only use 16 Bytes.
@@ -33,6 +37,9 @@ class World: GameObject {
   // clears the world
   void clearWorld();
 
+ public:
+  explicit World(Engine* pEngine, int size=11);
+
   // directions
   static Point2D NE(const Point2D &p);
   static Point2D NW(const Point2D &p);
@@ -41,18 +48,17 @@ class World: GameObject {
   static Point2D SE(const Point2D &p);
   static Point2D SW(const Point2D &p);
 
- public:
-  explicit World(Engine* pEngine, int size=11);
+  Point2D getCat();
 
   // the top left (x,y) is (-5,-5) the center is on (0,0);
-  // get the content of a given
-  inline char getContent(const Point2D& p) {
+  // get the content of a given point
+  bool getContent(const Point2D& p) {
     return worldState[(p.y+sideSize/2)*(sideSize) + p.x + sideSize/2];
   }
 
   // the top left (x,y) is (-5,-5) the center is on (0,0);
   // get the content of a given
-  inline char getContent(const int8_t& x, const int8_t& y) {
+  bool getContent(const int8_t& x, const int8_t& y) {
     return worldState[(y+sideSize/2)*(sideSize) + x + sideSize/2];
   }
 
@@ -60,10 +66,9 @@ class World: GameObject {
   void print();
 
   // check if point is inside the world
-  bool isValidPosition(Point2D p) const;
+  bool isValidPosition(const Point2D& p);
 
-  bool isNeighbor(const Point2D& p1, const Point2D &p2);
-  inline bool isEmpty(const Point2D &p);
+  static bool isNeighbor(const Point2D& p1, const Point2D &p2);
 
   void OnDraw(SDL_Renderer* renderer) override;
   void OnGui(ImGuiContext *context) override;
