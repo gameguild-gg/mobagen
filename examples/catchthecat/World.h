@@ -58,7 +58,6 @@ class World: GameObject {
   // get the content of a given point
   bool getContent(const Point2D& p) {
     auto id = (p.y+sideSize/2)*(sideSize) + p.x + sideSize/2;
-    std::cout << id << std::endl;
     return worldState[id];
   }
 

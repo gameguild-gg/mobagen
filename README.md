@@ -1,6 +1,6 @@
 # MoBaGEn
 
-[![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![pages-build-deployment](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
+[![Windows](/actions/workflows/windows.yml/badge.svg)](/actions/workflows/windows.yml) [![Web](/actions/workflows/web.yml/badge.svg)](/actions/workflows/web.yml) [![Linux](/actions/workflows/linux.yml/badge.svg)](/actions/workflows/linux.yml) [![OSX](/actions/workflows/osx.yml/badge.svg)](/actions/workflows/osx.yml) [![pages-build-deployment](/actions/workflows/pages/pages-build-deployment/badge.svg)](/actions/workflows/pages/pages-build-deployment)
 
 # Motivation
 I started this game engine project because:
@@ -11,7 +11,7 @@ I started this game engine project because:
 - I want a job as a Game Engine Developer.
 
 ## Hire Me!
-Did you like this project? Hire me as a Game Engine Developer! [linkedin](https://linkedin.com/in/aletolstenko)
+Did you like this project? Follow me on [social medias](https://linktree.com/tolstenko)
 
 # Why C++
 - Has many solid, well maintained, efficient and stable libs;
@@ -37,7 +37,7 @@ Please refer to [this doc.](docs/Architecture.md)
 - Start small and make small steps towards the goal.
 - Always make everything lib interaction swappable as good as we can.
 - Never use any lib on the core code. The core should interact with the libs through a glue code. Ex.: core lib -> physics module -> bullet physics engine
-- Target the latest C++ version that is portable to our targets(iOS, Android, Windows, Linux, OSX, WEB). [compiller support table](https://en.cppreference.com/w/cpp/compiler_support).
+- Target the latest C++ version that is portable to our targets(iOS, Android, Windows, Linux, OSX, WEB). [compiler support table](https://en.cppreference.com/w/cpp/compiler_support).
 - CI should be able to build to all targets at once.
 
 # Examples
