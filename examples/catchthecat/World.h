@@ -57,12 +57,14 @@ class World: GameObject {
   // the top left (x,y) is (-side/2,-side/2) the center is on (0,0);
   // get the content of a given point
   bool getContent(const Point2D& p) {
-    return worldState[(p.y+sideSize/2)*(sideSize) + p.x + sideSize/2];
+    auto id = (p.y+sideSize/2)*(sideSize) + p.x + sideSize/2;
+    std::cout << id << std::endl;
+    return worldState[id];
   }
 
   // the top left (x,y) is (-5,-5) the center is on (0,0);
   // get the content of a given
-  bool getContent(const int8_t& x, const int8_t& y) {
+  bool getContent(const int& x, const int& y) {
     return worldState[(y+sideSize/2)*(sideSize) + x + sideSize/2];
   }
 

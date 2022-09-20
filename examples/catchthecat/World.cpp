@@ -170,7 +170,6 @@ void World::Update(float deltaTime) {
     if (timeForNextTick < 0) {
       step();
 
-      // update turn
       timeForNextTick = timeBetweenAITicks;
     }
   }
@@ -190,7 +189,7 @@ void World::step() {
   }
   else {
     auto move = catcher->Move(this);
-    worldState[move.y*(sideSize/2) + move.x + sideSize*sideSize/2]=true;
+    worldState[(move.y + sideSize/2)*(sideSize) + move.x + sideSize/2]=true;
   }
   auto stop = std::chrono::high_resolution_clock::now();
   moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
