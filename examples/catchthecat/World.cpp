@@ -82,15 +82,12 @@ bool World::isValidPosition(const Point2D& p) {
 }
 
 bool World::isNeighbor(const Point2D &p1, const Point2D &p2) {
-    if(p1.y == p2.y)
-        return p1.x-p2.x==1;
-    auto delta = abs(p1.y-p2.y);
-    if(delta!=1)
-        return false;
-    if(p1.y%2==0)
-        return p1.x == p2.x || p2.x == p1.x-1;
-    else
-        return p1.x == p2.x || p2.x == p1.x+1;
+  return NE(p1) == p2 ||
+         NW(p1) == p2 ||
+         E(p1) == p2 ||
+         W(p1) == p2 ||
+         SE(p1) == p2 ||
+         SW(p1) == p2;
 }
 
 void World::OnDraw(SDL_Renderer* renderer) {
@@ -249,10 +246,10 @@ bool World::catcherWinVerification() {
          getContent(SW(catPosition));
 }
 
-bool World::catCanMoveToPosition(Point2D p) {
+bool World::catCanMoveToPosition(Point2D p) const {
   return isNeighbor(catPosition, p) && !getContent(p);
 }
-bool World::catcherCanMoveToPosition(Point2D p) {
+bool World::catcherCanMoveToPosition(Point2D p) const {
   auto sideOver2 = sideSize/2;
   return p.x!=catPosition.x &&
          p.y!=catPosition.y &&
