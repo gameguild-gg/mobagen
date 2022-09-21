@@ -36,6 +36,8 @@ void World::clearWorld() {
   isSimulating = false;
   catTurn = true;
   timeForNextTick = timeBetweenAITicks;
+  catWon = false;
+  catcherWon = false;
 }
 
 Point2D World::E(const Point2D& p) {
@@ -161,6 +163,20 @@ void World::OnGui(ImGuiContext *context) {
       isSimulating = false;
     }
     ImGui::End();
+
+    if((catcherWon || catWon)) {
+      ImGuiIO& io = ImGui::GetIO();
+      ImVec2 pos(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
+      ImGui::SetNextWindowPos(pos, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+      ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
+                               | ImGuiWindowFlags_AlwaysAutoResize
+                               | ImGuiWindowFlags_NoSavedSettings;
+      if (ImGui::Begin("Game Over", nullptr, flags)) {
+        if (ImGui::Button("OK", ImVec2(200, 0))) {
+          clearWorld();
+        }
+      }
+    }
 }
 
 void World::Update(float deltaTime) {
@@ -169,7 +185,6 @@ void World::Update(float deltaTime) {
     timeForNextTick -= deltaTime;
     if (timeForNextTick < 0) {
       step();
-
       timeForNextTick = timeBetweenAITicks;
     }
   }
@@ -180,22 +195,67 @@ Point2D World::getCat() {
 }
 
 void World::step() {
+  if(catWon || catcherWon) {
+    clearWorld();
+    return;
+  }
+
   auto start = std::chrono::high_resolution_clock::now();
 
   // run the turn
   if (catTurn) {
     auto move = cat->Move(this);
-    catPosition = move;
+    if(catCanMoveToPosition(move)) {
+      catPosition = move;
+      catWon = catWinVerification();
+    }
+    else {
+      isSimulating = false;
+      catcherWon = true; // cat made a bad move
+    }
   }
   else {
     auto move = catcher->Move(this);
-    worldState[(move.y + sideSize/2)*(sideSize) + move.x + sideSize/2]=true;
+    if(catcherCanMoveToPosition(move)) {
+      worldState[(move.y + sideSize / 2) * (sideSize) + move.x + sideSize / 2] =
+          true;
+      catcherWon = catcherWinVerification();
+    } else {
+      isSimulating = false;
+      catWon = true; // catcher made a bad move
+    }
   }
   auto stop = std::chrono::high_resolution_clock::now();
   moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
   // change turn
   catTurn = !catTurn;
 }
+
 int World::getWorldSideSize() {
   return sideSize;
+}
+
+bool World::catWinVerification() {
+  auto sideOver2 = sideSize/2;
+  return abs(catPosition.x) == sideOver2 || abs(catPosition.y) == sideOver2;
+}
+
+bool World::catcherWinVerification() {
+  return getContent(NE(catPosition)) &&
+         getContent(NW(catPosition)) &&
+         getContent(E(catPosition)) &&
+         getContent(W(catPosition)) &&
+         getContent(SE(catPosition)) &&
+         getContent(SW(catPosition));
+}
+
+bool World::catCanMoveToPosition(Point2D p) {
+  return isNeighbor(catPosition, p) && !getContent(p);
+}
+bool World::catcherCanMoveToPosition(Point2D p) {
+  auto sideOver2 = sideSize/2;
+  return p.x!=catPosition.x &&
+         p.y!=catPosition.y &&
+         abs(p.x) <= sideOver2 &&
+         abs(p.y) <= sideOver2;
 }
