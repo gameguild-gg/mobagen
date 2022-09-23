@@ -14,7 +14,7 @@ I started this game engine project because:
 - I want to have full control of all the processes from code to the delivery;
 - I want a job as a Game Engine Developer.
 
-## Hire Me!
+## Follow me!
 Did you like this project? Follow me on [social medias](https://linktree.com/tolstenko)
 
 # Why C++
