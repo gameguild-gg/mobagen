@@ -1,6 +1,7 @@
 # MoBaGEn
 
-[![Windows](/actions/workflows/windows.yml/badge.svg)](/actions/workflows/windows.yml) [![Web](/actions/workflows/web.yml/badge.svg)](/actions/workflows/web.yml) [![Linux](/actions/workflows/linux.yml/badge.svg)](/actions/workflows/linux.yml) [![OSX](/actions/workflows/osx.yml/badge.svg)](/actions/workflows/osx.yml) [![pages-build-deployment](/actions/workflows/pages/pages-build-deployment/badge.svg)](/actions/workflows/pages/pages-build-deployment)
+[![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![pages-build-deployment](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
+
 
 # Motivation
 I started this game engine project because:
