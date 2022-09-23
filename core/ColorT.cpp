@@ -51,21 +51,6 @@ uint8_t &Color32::operator[](const int &i) {
     }
 }
 
-const uint8_t &Color32::operator[](const int &i) const {
-    if (i < 0 || i > 4) throw std::out_of_range("Out of color range\n");
-    switch (i) {
-        default:
-        case 0:
-            return a;
-        case 1:
-            return r;
-        case 2:
-            return g;
-        case 3:
-            return b;
-    }
-}
-
 Color32 Color32::RandomColor(int min, int max) {
     return Color32(
             Random::Range(min,max),
