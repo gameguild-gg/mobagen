@@ -6,13 +6,7 @@
 #include "../gameobjects/Boid.h"
 #include "../gameobjects/World.h"
 
-FlockingRule::FlockingRule(const FlockingRule& toCopy){
-    weight = toCopy.weight;
-    debugColor = toCopy.debugColor;
-    force = toCopy.force;
-    isEnabled = toCopy.isEnabled;
-    world = toCopy.world;
-}
+FlockingRule::FlockingRule(const FlockingRule& toCopy): weight(toCopy.weight), debugColor(toCopy.debugColor), force(toCopy.force), isEnabled(toCopy.isEnabled), world(toCopy.world) {}
 
 Vector2 FlockingRule::computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
     //the computed force is cached in a var

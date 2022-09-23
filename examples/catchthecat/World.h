@@ -53,6 +53,7 @@ class World: GameObject {
 
  public:
   explicit World(Engine* pEngine, int size=11);
+  explicit World(Engine* pEngine, int size, bool catTurn, Point2D cat, std::vector<bool> world);
 
   // directions
   static Point2D NE(const Point2D &p);

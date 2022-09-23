@@ -256,3 +256,7 @@ bool World::catcherCanMoveToPosition(Point2D p) const {
          abs(p.x) <= sideOver2 &&
          abs(p.y) <= sideOver2;
 }
+World::World(Engine* pEngine, int size, bool catTurn, Point2D catPos, std::vector<bool> world): GameObject(pEngine), sideSize(size), catTurn(catTurn), catPosition(catPos), worldState(std::move(world))  {
+  cat = new Cat();
+  catcher = new Catcher();
+}
