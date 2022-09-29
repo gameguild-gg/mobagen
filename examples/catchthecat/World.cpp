@@ -98,7 +98,7 @@ void World::OnDraw(SDL_Renderer* renderer) {
     t.scale *= (minSide / sideSize)/2;
 
     t.position = {windowSize.x/2 - (sideSize)*t.scale.x, windowSize.y/2 - (sideSize-1)*t.scale.y};
-    if (sideSize / 2 % 2 == 1)
+    if (sideSize % 4 >= 2)
     {
         t.position.x += t.scale.x;
     }
@@ -113,11 +113,11 @@ void World::OnDraw(SDL_Renderer* renderer) {
         hex.Draw(renderer, t, Color::Gray);
       i++;
       if ((i) % (2 * sideSize) == 0) {
-        t.position.x = windowSize.x / 2 - (sideSize)*t.scale.x + (sideSize / 2 % 2 == 1 ? 1 : 0) * t.scale.x;
+        t.position.x = windowSize.x / 2 - (sideSize)*t.scale.x + (sideSize % 4 >= 2 ? 1 : 0) * t.scale.x;
         t.position.y += 2*t.scale.y;
       }
       else if (i % sideSize == 0) {
-        t.position.x = windowSize.x / 2 - (sideSize)*t.scale.x + (sideSize / 2 % 2 == 0 ? 1 : 0) * t.scale.x;
+        t.position.x = windowSize.x / 2 - (sideSize)*t.scale.x + (sideSize % 4 <= 1 ? 1 : 0) * t.scale.x;
         t.position.y += 2*t.scale.y;
       }
       else
