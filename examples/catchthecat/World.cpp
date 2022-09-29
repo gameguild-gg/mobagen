@@ -129,9 +129,12 @@ void World::OnGui(ImGuiContext *context) {
                 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
     static auto newSize = sideSize;
-    if(ImGui::SliderInt("Side Size", &newSize, 3, 21) && sideSize != (newSize/2)*2 + 1) {
-        sideSize = (newSize/2)*2 + 1;
-        clearWorld();
+    if(ImGui::SliderInt("Side Size", &newSize, 5, 29)) {
+        newSize = (newSize/4)*4 + 1;
+        if(newSize!=sideSize) {
+          sideSize = newSize;
+          clearWorld();
+        }
     }
     if(ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.1, 30) && sideSize != (newSize/2)*2 + 1) {
       sideSize = (newSize/2)*2 + 1;
