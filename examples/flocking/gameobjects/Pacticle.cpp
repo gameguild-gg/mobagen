@@ -1,11 +1,7 @@
 #include "Pacticle.h"
 #include "Polygon.h"
 
-Particle::Particle(Engine *pEngine, float size, Color32 color): GameObject(pEngine) {
-    circleSize = size;
-    this->color = color;
-    velocity = Vector2::zero();
-    acceleration = Vector2::zero();
+Particle::Particle(Engine *pEngine, float size, Color32 color): GameObject(pEngine), velocity(Vector2::zero()), circleSize(size), color(color), acceleration(Vector2::zero()) {
     polygon.points = {{0,-2}, {1,1}, {0,0}, {-1,1}};
     transform.scale = {2,2};
 }

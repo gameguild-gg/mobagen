@@ -116,7 +116,6 @@ struct Color32 {
 
     // subscript operator
     uint8_t& operator[] (const int& i);
-    const uint8_t & operator[] (const int& i) const;
 
     // random
     static Color32 RandomColor(int min=0, int max=0);
