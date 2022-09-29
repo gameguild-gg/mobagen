@@ -45,3 +45,34 @@ package-lock.json
 
 ide/clion/
 .vs/
+
+# Build directories and binary files
+out/
+cmake-build-*/
+conan-cache/
+
+# User spesific settings
+CMakeUserPresets.json
+
+# IDE files
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*~
+_ReSharper*
+*.log
+
+# OS Generated Files
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.Trash-*
+$RECYCLE.BIN/
+.TemporaryItems
+ehthumbs.db
+Thumbs.db

@@ -14,6 +14,7 @@ Engine::Engine() {
     instance = nullptr;
 #endif
     window = nullptr;
+    imGuiContext = nullptr;
 }
 
 Engine::~Engine() {
