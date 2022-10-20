@@ -12,6 +12,8 @@ class World: GameObject {
   std::vector<std::vector<bool>> data;
  public:
   explicit World(Engine* pEngine, int size);
+
+
 };
 
 #endif
