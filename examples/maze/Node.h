@@ -22,9 +22,9 @@ struct Node {
 
   // todo set
   void inline SetNorth(bool x){};
-  bool inline GetEast(){};
-  bool inline GetSouth(){};
-  bool inline GetWest(){};
+  void inline SetEast(bool x){};
+  void inline SetSouth(bool x){};
+  void inline SetWest(bool x){};
 };
 
 #endif  // MOBAGEN_NODE_H
