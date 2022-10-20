@@ -4,6 +4,7 @@
 struct Point2D {
 public:
     Point2D(int x, int y): x(x), y(y){};
+    Point2D() = default;
     int x, y;
     bool operator== (const Point2D& rhs) const;
     bool operator!= (const Point2D& rhs) const;

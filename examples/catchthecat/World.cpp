@@ -25,6 +25,18 @@ World::World(Engine *pEngine, int size): GameObject(pEngine), sideSize(size){
   clearWorld();
 }
 
+World::World(Engine* pEngine, int mapSideSize, bool isCatTurn, Point2D catPos, std::vector<bool>  map):
+     GameObject(pEngine), sideSize(mapSideSize), catPosition(catPos), catTurn(isCatTurn), worldState(std::move(map)) {
+  catcher = new Catcher();
+  cat = new Cat();
+}
+
+World::~World() {
+  delete(cat);
+  delete(catcher);
+}
+
+
 void World::clearWorld() {
   worldState.clear();
   worldState.resize(sideSize*sideSize);
