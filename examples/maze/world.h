@@ -13,7 +13,6 @@ class World: GameObject {
  public:
   explicit World(Engine* pEngine, int size);
 
-
 };
 
 #endif
