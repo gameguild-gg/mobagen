@@ -10,7 +10,7 @@ class World: GameObject {
  private:
   int sideSize;
 
-  std::vector<std::vector<bool>> data;
+  std::vector<bool> data;
  public:
   explicit World(Engine* pEngine, int size);
 

@@ -8,6 +8,7 @@ struct Node {
  public:
   Node() = default;
   Node(bool north, bool east, bool south, bool west){
+    // todo: can you umprove this?
     data=north;
     data|=east<<1;
     data|=south<<2;
@@ -16,12 +17,14 @@ struct Node {
  private:
   uint8_t data;
  public:
+  // todo: can you improve this?
   bool inline GetNorth(){return data & 0x1;};
   bool inline GetEast(){return data>>1 & 0x1;};
   bool inline GetSouth(){return data>>2 & 0x1;};
   bool inline GetWest(){return data>>3 & 0x1;};
 
   // todo set
+  // todo: can you improve this?
   void inline SetNorth(bool x){
     data = x ? data | 1U << 0 : data & ~(1U << 0);
   };
