@@ -10,6 +10,10 @@ class World: GameObject {
  private:
   int sideSize;
 
+  // .=
+  // |
+  // even indexes are top elements;
+  // odd indexes are left elements;
   std::vector<bool> data;
  public:
   explicit World(Engine* pEngine, int size);

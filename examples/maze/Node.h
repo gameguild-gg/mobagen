@@ -8,11 +8,7 @@ struct Node {
  public:
   Node() = default;
   Node(bool north, bool east, bool south, bool west){
-    // todo: can you umprove this?
-    data=north;
-    data|=east<<1;
-    data|=south<<2;
-    data|=west<<3;
+    data = north | (east<<1) | (south<<2) | (west<<3);
   }
  private:
   uint8_t data;
