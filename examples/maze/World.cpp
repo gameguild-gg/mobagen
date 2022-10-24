@@ -2,23 +2,25 @@
 #include "MazeGenerator.h"
 
 World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {}
+
 Node World::GetNode(const Point2D& point) {
-  // todo: implement this
-  return Node();
+  auto index = Point2DtoIndex(point);
+  // todo: not tested!!
+  return {data[index],data[index+3],data[index+(sideSize+1)*2],data[index+1]};
 }
 void World::SetNode(const Point2D& point, const Node& node) {
   // todo implement this
 }
-void World::SetNorth(const Point2D& point, bool state) {
+void World::SetNorth(const Point2D& point, const bool& state) {
   // todo implement this
 }
-void World::SetEast(const Point2D& point, bool state) {
+void World::SetEast(const Point2D& point, const bool& state) {
   // todo implement this
 }
-void World::SetSouth(const Point2D& point, bool state) {
+void World::SetSouth(const Point2D& point, const bool& state) {
   // todo implement this
 }
-void World::SetWest(const Point2D& point, bool state) {
+void World::SetWest(const Point2D& point, const bool& state) {
   // todo implement this
 }
 
@@ -81,6 +83,9 @@ void World::Clear() {
   data.clear();
   data.resize((size_t)(sideSize+1)*(sideSize+1)*2);
   for (int i = 0; i < data.size(); ++i) {
-    data[i] = true; // todo: remove the right and bottom borders
+    if(i%((sideSize+1)*2)==(sideSize+1)*2-2) // remove left elements on the last column
+      data[i] = false;
+    else
+      data[i] = true; // todo: remove the left elements from the bottom points
   }
 }
