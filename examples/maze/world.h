@@ -2,6 +2,7 @@
 #define MOBAGEN_WORLD_H
 
 #include "GameObject.h"
+#include "MazeGenerator.h"
 #include "Node.h"
 #include "Point2D.h"
 #include <vector>
@@ -9,6 +10,8 @@
 class World: GameObject {
  private:
   int sideSize;
+
+  MazeGenerator generator;
 
   // .=
   // |
@@ -29,6 +32,8 @@ class World: GameObject {
   void OnGui(ImGuiContext *context) override;
   void OnDraw(SDL_Renderer* renderer) override;
   void Update(float deltaTime) override;
+
+  void Clear();
 };
 
 #endif

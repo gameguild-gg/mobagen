@@ -4,8 +4,10 @@
 class World;
 
 class MazeGenerator {
-  // todo: in order to step work properly, you have to store your current exploration status in the MazeGenerator members
-  void Step(World * world);
+ public:
+  // todo: in order to step work properly, you have to store your current
+  // exploration status in the MazeGenerator members
+  void Generate(World * world);
 };
 
 #endif

@@ -1,9 +1,7 @@
 #include "World.h"
+#include "MazeGenerator.h"
 
-World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {
-  data.clear();
-  data.resize((size_t)(size+1)*(size+1)*2);
-}
+World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {}
 Node World::GetNode(const Point2D& point) {
   // todo: implement this
   return Node();
@@ -25,7 +23,7 @@ void World::SetWest(const Point2D& point, bool state) {
 }
 
 void World::Start() {
-
+  this->Clear();
 }
 
 void World::OnGui(ImGuiContext *context){
@@ -39,10 +37,50 @@ void World::OnGui(ImGuiContext *context){
               1.0f / ImGui::GetIO().DeltaTime,
               1000.0f / ImGui::GetIO().Framerate,
               ImGui::GetIO().Framerate);
-};
-void World::OnDraw(SDL_Renderer* renderer){
+  static auto newSize = sideSize;
 
+  if(ImGui::SliderInt("Side Size", &newSize, 5, 29)) {
+    newSize = (newSize/4)*4 + 1;
+    if(newSize!=sideSize) {
+      sideSize = newSize;
+      Clear();
+    }
+  }
+
+  if(ImGui::Button("Generate")){
+    generator.Generate(this);
+  }
 }
+
+void World::OnDraw(SDL_Renderer* renderer){
+  auto windowSize = engine->window->size();
+  float linesize = (std::min(windowSize.x, windowSize.y) / (float)sideSize);
+
+  Vector2 displacement = {(windowSize.x/2) - linesize*(sideSize/2), (windowSize.y/2) - linesize*(sideSize/2) - linesize/2};
+
+  SDL_SetRenderDrawColor(renderer,SDL_ALPHA_OPAQUE,SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE,SDL_ALPHA_OPAQUE);
+  for (int i = 0; i < data.size(); i+=2) {
+    Vector2 pos = {(float)((i/2)%(sideSize+1)), (float)((i/2)/(sideSize+1))};
+    pos *= linesize;
+    pos += displacement;
+
+    // top
+    if(data[i])
+      SDL_RenderDrawLine(renderer,(int) pos.x,(int) pos.y,(int) (pos.x + linesize),(int) pos.y);
+    // left
+    if(data[i+1])
+      SDL_RenderDrawLine(renderer,(int) pos.x,(int) pos.y,(int) pos.x,(int) (pos.y + linesize));
+  }
+}
+
 void World::Update(float deltaTime){
 
+}
+
+void World::Clear() {
+  data.clear();
+  data.resize((size_t)(sideSize+1)*(sideSize+1)*2);
+  for (int i = 0; i < data.size(); ++i) {
+    data[i] = true; // todo: remove the right and bottom borders
+  }
 }
