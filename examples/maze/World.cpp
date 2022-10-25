@@ -73,7 +73,7 @@ void World::OnGui(ImGuiContext *context){
 
 void World::OnDraw(SDL_Renderer* renderer){
   auto windowSize = engine->window->size();
-  float linesize = (std::min(windowSize.x, windowSize.y) / (float)sideSize);
+  float linesize = (std::min(windowSize.x, windowSize.y) / (float)sideSize)*0.9f;
 
   Vector2 displacement = {(windowSize.x/2) - linesize*(sideSize/2), (windowSize.y/2) - linesize*(sideSize/2) - linesize/2};
 
@@ -100,9 +100,10 @@ void World::Clear() {
   data.clear();
   data.resize((size_t)(sideSize+1)*(sideSize+1)*2);
   for (int i = 0; i < data.size(); ++i) {
-    if(i%((sideSize+1)*2)==(sideSize+1)*2-2) // remove left elements on the last column
+    if(i%((sideSize+1)*2)==(sideSize+1)*2-2 || // remove north elements on the last column
+       (i/((sideSize+1)*2)==sideSize && i%2==1)) // remove west elements on the last line
       data[i] = false;
     else
-      data[i] = true; // todo: remove the left elements from the bottom points
+      data[i] = true;
   }
 }

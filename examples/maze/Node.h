@@ -7,16 +7,19 @@ struct Node {
  public:
   Node() = default;
   Node(bool north, bool east, bool south, bool west){
-    data = north | (east<<1) | (south<<2) | (west<<3);
+    data = ((uint8_t)north) |
+           ((uint8_t)east<<1U) |
+           ((uint8_t)south<<2U) |
+           ((uint8_t)west<<3U);
   }
  private:
   uint8_t data;
  public:
   // todo: can you improve this?
-  bool inline GetNorth() const{return data & 0x1;};
-  bool inline GetEast() const{return data>>1 & 0x1;};
-  bool inline GetSouth() const{return data>>2 & 0x1;};
-  bool inline GetWest() const{return data>>3 & 0x1;};
+  bool inline GetNorth() const{return data & 1U;};
+  bool inline GetEast() const{return data>>1U & 1U;};
+  bool inline GetSouth() const{return data>>2U & 1U;};
+  bool inline GetWest() const{return data>>3U & 1U;};
 
   // todo set
   // todo: can you improve this?
