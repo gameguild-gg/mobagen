@@ -13,10 +13,10 @@ struct Node {
   uint8_t data;
  public:
   // todo: can you improve this?
-  bool inline GetNorth(){return data & 0x1;};
-  bool inline GetEast(){return data>>1 & 0x1;};
-  bool inline GetSouth(){return data>>2 & 0x1;};
-  bool inline GetWest(){return data>>3 & 0x1;};
+  bool inline GetNorth() const{return data & 0x1;};
+  bool inline GetEast() const{return data>>1 & 0x1;};
+  bool inline GetSouth() const{return data>>2 & 0x1;};
+  bool inline GetWest() const{return data>>3 & 0x1;};
 
   // todo set
   // todo: can you improve this?

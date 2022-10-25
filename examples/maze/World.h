@@ -27,12 +27,11 @@ class World: GameObject {
  public:
   explicit World(Engine* pEngine, int size);
 
-  inline Node GetNode(const Point2D& point);
-
-  inline void GetNorth(const Point2D& point);
-  inline void GetEast(const Point2D& point);
-  inline void GetSouth(const Point2D& point);
-  inline void GetWest(const Point2D& point);
+  Node GetNode(const Point2D& point);
+  bool GetNorth(const Point2D& point);
+  bool GetEast(const Point2D& point);
+  bool GetSouth(const Point2D& point);
+  bool GetWest(const Point2D& point);
 
   inline void SetNode(const Point2D& point, const Node& node);
   inline void SetNorth(const Point2D& point, const bool& state);

@@ -8,6 +8,23 @@ Node World::GetNode(const Point2D& point) {
   // todo: not tested!!
   return {data[index],data[index+3],data[index+(sideSize+1)*2],data[index+1]};
 }
+
+bool World::GetNorth(const Point2D& point) {
+  return data[Point2DtoIndex(point)];
+}
+
+bool World::GetEast(const Point2D& point) {
+  return data[Point2DtoIndex(point)+3];
+}
+
+bool World::GetSouth(const Point2D& point) {
+  return data[Point2DtoIndex(point)+(sideSize+1)*2];
+}
+
+bool World::GetWest(const Point2D& point) {
+  return data[Point2DtoIndex(point)+1];
+}
+
 void World::SetNode(const Point2D& point, const Node& node) {
   // todo implement this
 }
