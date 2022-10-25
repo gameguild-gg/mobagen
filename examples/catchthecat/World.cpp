@@ -277,11 +277,6 @@ bool World::catcherCanMoveToPosition(Point2D p) const {
          abs(p.y) <= sideOver2;
 }
 
-World::World(Engine* pEngine, int size, bool catTurn, Point2D catPos, std::vector<bool> world): GameObject(pEngine), sideSize(size), catTurn(catTurn), catPosition(catPos), worldState(std::move(world))  {
-  cat = new Cat();
-  catcher = new Catcher();
-}
-
 bool World::catWinsOnSpace(Point2D point)
 {
     auto sideOver2 = sideSize / 2;

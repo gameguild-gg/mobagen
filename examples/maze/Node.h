@@ -3,7 +3,6 @@
 #include <iostream>
 #include <vector>
 
-// TODO: unstable interface
 struct Node {
  public:
   Node() = default;
