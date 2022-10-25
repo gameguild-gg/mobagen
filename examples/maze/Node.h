@@ -21,16 +21,16 @@ struct Node {
   // todo set
   // todo: can you improve this?
   void inline SetNorth(bool x){
-    data = x ? data | 1U << 0 : data & ~(1U << 0);
+    data = (data & ~(1 << 0)) | x << 0;
   };
   void inline SetEast(bool x){
-    data = x ? data | 1U << 1 : data & ~(1U << 1);
+    data = (data & ~(1 << 1)) | x << 1;
   };
   void inline SetSouth(bool x){
-    data = x ? data | 1U << 2 : data & ~(1U << 2);
+    data = (data & ~(1 << 2)) | x << 2;
   };
   void inline SetWest(bool x){
-    data = x ? data | 1U << 3 : data & ~(1U << 3);
+    data = (data & ~(1 << 3)) | x << 3;
   };
 };
 
