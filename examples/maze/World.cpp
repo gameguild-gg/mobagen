@@ -97,10 +97,10 @@ void World::OnDraw(SDL_Renderer* renderer){
     pos *= linesize;
     pos += displacement;
 
-    // top
+    // north
     if(data[i])
       SDL_RenderDrawLine(renderer,(int) pos.x,(int) pos.y,(int) (pos.x + linesize),(int) pos.y);
-    // left
+    // west
     if(data[i+1])
       SDL_RenderDrawLine(renderer,(int) pos.x,(int) pos.y,(int) pos.x,(int) (pos.y + linesize));
   }
@@ -134,4 +134,7 @@ void World::step() {
   generator.Step(this);
   auto stop = std::chrono::high_resolution_clock::now();
   moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+}
+void World::SetNodeColor(const Point2D& node, const Color32& color) {
+  // todo: implement this
 }

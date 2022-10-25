@@ -1,6 +1,7 @@
 #ifndef MOBAGEN_WORLD_H
 #define MOBAGEN_WORLD_H
 
+#include "ColorT.h"
 #include "GameObject.h"
 #include "MazeGenerator.h"
 #include "Node.h"
@@ -22,6 +23,8 @@ class World: GameObject {
   // even indexes are top elements;
   // odd indexes are left elements;
   std::vector<bool> data;
+  // the boxes colors
+  std::vector<Color32> colors;
   // convert a point into the index of the left vertex of the node
   inline int Point2DtoIndex(const Point2D& point){
     // todo: test. unstable interface
@@ -49,6 +52,8 @@ class World: GameObject {
   void Update(float deltaTime) override;
 
   void Clear();
+
+  void SetNodeColor(const Point2D& node, const Color32& color);
  private:
   void step();
 };
