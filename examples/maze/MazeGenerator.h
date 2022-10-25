@@ -7,7 +7,7 @@ class MazeGenerator {
  public:
   // todo: in order to step work properly, you have to store your current
   // exploration status in the MazeGenerator members
-  void Generate(World * world);
+  void Step(World * world);
 };
 
 #endif

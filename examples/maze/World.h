@@ -12,6 +12,10 @@ class World: GameObject {
   int sideSize;
 
   MazeGenerator generator;
+  bool isSimulating = false;
+  float timeBetweenAITicks=1;
+  float timeForNextTick=1;
+  int64_t moveDuration=0;
 
   // .=
   // |
@@ -45,6 +49,8 @@ class World: GameObject {
   void Update(float deltaTime) override;
 
   void Clear();
+ private:
+  void step();
 };
 
 #endif

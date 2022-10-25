@@ -1,5 +1,6 @@
 #include "World.h"
 #include "MazeGenerator.h"
+#include <chrono>
 
 World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {}
 
@@ -66,16 +67,29 @@ void World::OnGui(ImGuiContext *context){
     }
   }
 
-  if(ImGui::Button("Generate")){
-    generator.Generate(this);
+  ImGui::Text("Simulation");
+  if(ImGui::Button("Step")) {
+    isSimulating = false;
+    step();
   }
+  ImGui::SameLine();
+  if(ImGui::Button("Start")) {
+    isSimulating = true;
+  }
+  ImGui::SameLine();
+  if(ImGui::Button("Pause")) {
+    isSimulating = false;
+  }
+  ImGui::Text("Move duration: %lli", moveDuration);
+  ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.1, 30);
+  ImGui::Text("Next turn in %.1f", timeForNextTick);
 }
 
 void World::OnDraw(SDL_Renderer* renderer){
   auto windowSize = engine->window->size();
   float linesize = (std::min(windowSize.x, windowSize.y) / (float)sideSize)*0.9f;
 
-  Vector2 displacement = {(windowSize.x/2) - linesize*(sideSize/2), (windowSize.y/2) - linesize*(sideSize/2) - linesize/2};
+  Vector2 displacement = {(windowSize.x/2) - linesize*(sideSize/2) - linesize/2, (windowSize.y/2) - linesize*(sideSize/2) - linesize/2};
 
   SDL_SetRenderDrawColor(renderer,SDL_ALPHA_OPAQUE,SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE,SDL_ALPHA_OPAQUE);
   for (int i = 0; i < data.size(); i+=2) {
@@ -93,7 +107,14 @@ void World::OnDraw(SDL_Renderer* renderer){
 }
 
 void World::Update(float deltaTime){
-
+  if(isSimulating) {
+    // update timer
+    timeForNextTick -= deltaTime;
+    if (timeForNextTick < 0) {
+      step();
+      timeForNextTick = timeBetweenAITicks;
+    }
+  }
 }
 
 void World::Clear() {
@@ -106,4 +127,11 @@ void World::Clear() {
     else
       data[i] = true;
   }
+}
+
+void World::step() {
+  auto start = std::chrono::high_resolution_clock::now();
+  generator.Step(this);
+  auto stop = std::chrono::high_resolution_clock::now();
+  moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
 }
