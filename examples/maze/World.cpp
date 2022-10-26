@@ -1,5 +1,4 @@
 #include "World.h"
-#include "MazeGenerator.h"
 #include <chrono>
 
 World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {}
@@ -136,7 +135,7 @@ void World::Update(float deltaTime){
 
 void World::Clear() {
   data.clear();
-  data.resize((size_t)(sideSize+1)*(sideSize+1)*2);
+  data.reserve((size_t)(sideSize+1)*(sideSize+1)*2);
   for (int i = 0; i < data.size(); ++i) {
     if(i%((sideSize+1)*2)==(sideSize+1)*2-2 || // remove north elements on the last column
        (i/((sideSize+1)*2)==sideSize && i%2==1)) // remove west elements on the last line
@@ -146,9 +145,9 @@ void World::Clear() {
   }
 
   colors.clear();
-  colors.resize(sideSize*sideSize);
+  colors.reserve(sideSize*sideSize);
   for(int i=0; i<sideSize*sideSize; i++)
-    colors[i] = Color::Black;
+    colors[i] = (Color::Gray).Dark();
 }
 
 void World::step() {
@@ -159,4 +158,8 @@ void World::step() {
 }
 void World::SetNodeColor(const Point2D& node, const Color32& color) {
   colors[(node.y+sideSize/2)*sideSize+node.x+sideSize/2] = color;
+}
+
+int World::GetSize() const {
+  return sideSize;
 }
