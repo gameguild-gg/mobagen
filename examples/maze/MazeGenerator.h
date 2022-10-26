@@ -8,7 +8,9 @@
 class MazeGenerator: public MazeGeneratorBase {
  public:
   // todo: in order to step work properly, you have to store your current exploration status in the MazeGenerator members
-  void Step(World * world);
+  // Steps should return true if it made changes in the world
+  bool Step(World * world);
+  // Clears and resets all data from the generator
   void Clear(World * world);
 };
 
