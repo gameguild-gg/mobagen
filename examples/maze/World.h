@@ -55,7 +55,7 @@ class World: GameObject {
 
   void SetNodeColor(const Point2D& node, const Color32& color);
 
-  int GetSize();
+  int GetSize() const;
  private:
   void step();
 };

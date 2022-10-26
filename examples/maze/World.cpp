@@ -1,5 +1,4 @@
 #include "World.h"
-#include "MazeGenerator.h"
 #include <chrono>
 
 World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {}
@@ -161,4 +160,6 @@ void World::SetNodeColor(const Point2D& node, const Color32& color) {
   colors[(node.y+sideSize/2)*sideSize+node.x+sideSize/2] = color;
 }
 
-int World::GetSize() { return sideSize; }
+int World::GetSize() const {
+  return sideSize;
+}

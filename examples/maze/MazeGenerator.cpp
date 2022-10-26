@@ -4,3 +4,4 @@
 void MazeGenerator::Step(World* world) {
 
 }
+void MazeGenerator::Clear(World* world) {}
