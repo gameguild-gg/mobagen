@@ -110,6 +110,17 @@ void World::OnDraw(SDL_Renderer* renderer){
     if(data[i+1])
       SDL_RenderDrawLine(renderer,(int) pos.x,(int) pos.y,(int) pos.x,(int) (pos.y + linesize));
   }
+
+  for(int i=0; i<sideSize*sideSize; i++) {
+    auto c = colors[i];
+    SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);
+
+    Vector2 pos = {(float)(i%sideSize), (float)(i/sideSize)};
+    pos *= linesize;
+    pos += displacement;
+    SDL_Rect rect = {(int)(pos.x+1),(int)(pos.y+1), (int)(linesize-1), (int)(linesize-1)};
+    SDL_RenderFillRect(renderer, &rect);
+  }
 }
 
 void World::Update(float deltaTime){
@@ -133,6 +144,11 @@ void World::Clear() {
     else
       data[i] = true;
   }
+
+  colors.clear();
+  colors.resize(sideSize*sideSize);
+  for(int i=0; i<sideSize*sideSize; i++)
+    colors[i] = Color::Black;
 }
 
 void World::step() {
@@ -142,5 +158,5 @@ void World::step() {
   moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
 }
 void World::SetNodeColor(const Point2D& node, const Color32& color) {
-  // todo: implement this
+  colors[(node.y+sideSize/2)*sideSize+node.x+sideSize/2] = color;
 }
