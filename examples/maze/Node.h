@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 
+// the goal of this data structure is to interface with the world
 struct Node {
  public:
   Node() = default;

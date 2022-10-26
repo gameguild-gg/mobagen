@@ -7,7 +7,10 @@ World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) 
 Node World::GetNode(const Point2D& point) {
   auto index = Point2DtoIndex(point);
   // todo: not tested!!
-  return {data[index],data[index+3],data[index+(sideSize+1)*2],data[index+1]};
+  return {data[index],
+          data[index+3],
+          data[index+(sideSize+1)*2],
+          data[index+1]};
 }
 
 bool World::GetNorth(const Point2D& point) {
@@ -27,19 +30,22 @@ bool World::GetWest(const Point2D& point) {
 }
 
 void World::SetNode(const Point2D& point, const Node& node) {
-  // todo implement this
+  data[Point2DtoIndex(point)] = node.GetNorth();
+  data[Point2DtoIndex(point)+3] = node.GetEast();
+  data[Point2DtoIndex(point)+(sideSize+1)*2] = node.GetSouth();
+  data[Point2DtoIndex(point)+1] = node.GetWest();
 }
 void World::SetNorth(const Point2D& point, const bool& state) {
-  // todo implement this
+  data[Point2DtoIndex(point)] = state;
 }
 void World::SetEast(const Point2D& point, const bool& state) {
-  // todo implement this
+  data[Point2DtoIndex(point)+3] = state;
 }
 void World::SetSouth(const Point2D& point, const bool& state) {
-  // todo implement this
+  data[Point2DtoIndex(point)+(sideSize+1)*2] = state;
 }
 void World::SetWest(const Point2D& point, const bool& state) {
-  // todo implement this
+  data[Point2DtoIndex(point)+1] = state;
 }
 
 void World::Start() {
