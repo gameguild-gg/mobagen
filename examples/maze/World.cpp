@@ -148,7 +148,7 @@ void World::Clear() {
   colors.clear();
   colors.resize(sideSize*sideSize);
   for(int i=0; i<sideSize*sideSize; i++)
-    colors[i] = Color::Black;
+    colors[i] = (Color::Gray).Dark();
 }
 
 void World::step() {
