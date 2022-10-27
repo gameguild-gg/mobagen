@@ -40,11 +40,11 @@ class World: GameObject {
   bool GetSouth(const Point2D& point);
   bool GetWest(const Point2D& point);
 
-  inline void SetNode(const Point2D& point, const Node& node);
-  inline void SetNorth(const Point2D& point, const bool& state);
-  inline void SetEast(const Point2D& point, const bool& state);
-  inline void SetSouth(const Point2D& point, const bool& state);
-  inline void SetWest(const Point2D& point, const bool& state);
+  void SetNode(const Point2D& point, const Node& node);
+  void SetNorth(const Point2D& point, const bool& state);
+  void SetEast(const Point2D& point, const bool& state);
+  void SetSouth(const Point2D& point, const bool& state);
+  void SetWest(const Point2D& point, const bool& state);
 
   void Start() override;
   void OnGui(ImGuiContext *context) override;
