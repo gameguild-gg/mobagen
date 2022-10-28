@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16.3)
+cmake_minimum_required(VERSION 3.23.2)
 include(cmake/gate/cmake/HunterGate.cmake)
 option(HUNTER_STATUS_DEBUG "Hunter debug info" ON)
 HunterGate(
