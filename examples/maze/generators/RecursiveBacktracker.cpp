@@ -2,8 +2,6 @@
 #include "../World.h"
 #include "Random.h"
 bool RecursiveBacktracker::Step(World* w) {
-  auto sideOver2 = w->GetSize()/2;
-
   // check if we need to find a new starting point
   if(stack.empty()) {
     auto point = randomStartPoint(w);
@@ -14,26 +12,36 @@ bool RecursiveBacktracker::Step(World* w) {
   }
 
   // visit the current element
-  visited[stack.back().y][stack.back().x] = true;
+  auto current = stack.back();
+  visited[current.y][current.x] = true;
+  w->SetNodeColor(current, Color::Red.Dark());
 
   // check if we should go deeper
-  std::vector<Point2D> visitables = getVisitables(w, stack.back());
+  std::vector<Point2D> visitables = getVisitables(w, current);
 
   // if we should not go deep, pop one element from the stack
-  if(visitables.size()==0) {
-    auto tail = stack.back();
+  if(visitables.empty()) {
     stack.pop_back();
-    w->SetNodeColor(tail, Color::Black);
+    w->SetNodeColor(current, Color::Black);
     return true;
   }
-  else {
+  else { // go deeper
     auto r = Random::Range(0, visitables.size()-1);
-    w->SetNodeColor(visitables[r], Color::Red.Dark());
-    stack.push_back(visitables[r]);
+    auto next = visitables[r];
+    w->SetNodeColor(next, Color::Green);
+    stack.push_back(next);
+    auto delta = next - current;
+    // remove walls
+    if(delta.y==-1) // north
+      w->SetNorth(current, false);
+    else if(delta.x==1) // east
+      w->SetEast(current, false);
+    else if(delta.y==1) // south
+      w->SetSouth(current, false);
+    else if(delta.x==-1) // west
+      w->SetWest(current, false);
     return true;
   }
-
-  return false;
 }
 void RecursiveBacktracker::Clear(World* world) {
   visited.clear();

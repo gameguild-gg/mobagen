@@ -7,6 +7,7 @@
 // I am going to rename this interface soon to be a naive implementation.
 class MazeGenerator: public MazeGeneratorBase {
  public:
+  std::string GetName() override {return "deprecated";};
   // todo: in order to step work properly, you have to store your current exploration status in the MazeGenerator members
   // Steps should return true if it made changes in the world
   bool Step(World * world);

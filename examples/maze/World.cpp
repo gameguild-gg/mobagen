@@ -1,7 +1,11 @@
 #include "World.h"
+#include "generators/RecursiveBacktracker.h"
 #include <chrono>
 
-World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {}
+World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) {
+  generators.push_back(new MazeGenerator());
+  generators.push_back(new RecursiveBacktracker());
+}
 
 Node World::GetNode(const Point2D& point) {
   auto index = Point2DtoIndex(point);
@@ -86,8 +90,23 @@ void World::OnGui(ImGuiContext *context){
     isSimulating = false;
   }
   ImGui::Text("Move duration: %lli", moveDuration);
-  ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.1, 30);
+  ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.05, 30);
   ImGui::Text("Next turn in %.1f", timeForNextTick);
+
+  ImGui::Text("Generator: %s", generators[generatorId]->GetName().c_str());
+  if (ImGui::BeginCombo("##combo", generators[generatorId]->GetName().c_str())) // The second parameter is the label previewed before opening the combo.
+  {
+    for (int n = 0; n < generators.size(); n++) {
+      bool is_selected = (generators[generatorId]->GetName() == generators[n]->GetName()); // You can store your selection however you want, outside or inside your objects
+      if (ImGui::Selectable(generators[n]->GetName().c_str(), is_selected)) {
+        generatorId = n;
+        Clear();
+      }
+      if (is_selected)
+        ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
+    }
+    ImGui::EndCombo();
+  }
 }
 
 void World::OnDraw(SDL_Renderer* renderer){
@@ -134,6 +153,9 @@ void World::Update(float deltaTime){
 }
 
 void World::Clear() {
+  isSimulating = false;
+
+  // clear all the data
   data.clear();
   data.resize((size_t)(sideSize+1)*(sideSize+1)*2);
   for (int i = 0; i < data.size(); ++i) {
@@ -144,15 +166,20 @@ void World::Clear() {
       data[i] = true;
   }
 
+  // clear the color of the boxes;
   colors.clear();
   colors.resize(sideSize*sideSize);
   for(int i=0; i<sideSize*sideSize; i++)
     colors[i] = (Color::Gray).Dark();
+
+  // clear maze generators
+  for(int i=0;i<generators.size(); i++)
+    generators[i]->Clear(this);
 }
 
 void World::step() {
   auto start = std::chrono::high_resolution_clock::now();
-  if(generator.Step(this) == false) {
+  if(!generators[generatorId]->Step(this)) {
     isSimulating = false;
   }
   auto stop = std::chrono::high_resolution_clock::now();

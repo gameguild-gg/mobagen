@@ -12,7 +12,8 @@ class World: GameObject {
  private:
   int sideSize;
 
-  MazeGenerator generator;
+  std::vector<MazeGeneratorBase*> generators;
+  int generatorId=0;
   bool isSimulating = false;
   float timeBetweenAITicks=1;
   float timeForNextTick=1;
