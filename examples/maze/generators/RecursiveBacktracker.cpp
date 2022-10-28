@@ -1,6 +1,7 @@
 #include "RecursiveBacktracker.h"
 #include "../World.h"
 #include "Random.h"
+#include <climits>
 bool RecursiveBacktracker::Step(World* w) {
   // check if we need to find a new starting point
   if(stack.empty()) {
