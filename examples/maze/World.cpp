@@ -7,6 +7,12 @@ World::World(Engine* pEngine, int size=11): GameObject(pEngine), sideSize(size) 
   generators.push_back(new RecursiveBacktracker());
 }
 
+World::~World(){
+  for(auto g : generators)
+    delete g;
+  generators.clear();
+}
+
 Node World::GetNode(const Point2D& point) {
   auto index = Point2DtoIndex(point);
   // todo: not tested!!

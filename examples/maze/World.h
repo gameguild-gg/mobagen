@@ -33,6 +33,7 @@ class World: GameObject {
     return (point.y + sizeOver2)*(sideSize+1)*2 + (point.x + sizeOver2)*2;
   }
  public:
+  ~World();
   explicit World(Engine* pEngine, int size);
 
   Node GetNode(const Point2D& point);
