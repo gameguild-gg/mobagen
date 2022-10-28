@@ -15,9 +15,10 @@ class World: GameObject {
   std::vector<MazeGeneratorBase*> generators;
   int generatorId=0;
   bool isSimulating = false;
-  float timeBetweenAITicks=1;
-  float timeForNextTick=1;
+  float timeBetweenAITicks=0.0;
+  float timeForNextTick=0;
   int64_t moveDuration=0;
+  int64_t totalTime=0;
 
   // .=
   // |

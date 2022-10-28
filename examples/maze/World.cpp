@@ -95,8 +95,13 @@ void World::OnGui(ImGuiContext *context){
   if(ImGui::Button("Pause")) {
     isSimulating = false;
   }
+  ImGui::SameLine();
+  if(ImGui::Button("RESET")) {
+    Clear();
+  }
   ImGui::Text("Move duration: %lli", moveDuration);
-  ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.05, 30);
+  ImGui::Text("Total duration: %lli", totalTime);
+  ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.00, 30);
   ImGui::Text("Next turn in %.1f", timeForNextTick);
 
   ImGui::Text("Generator: %s", generators[generatorId]->GetName().c_str());
@@ -159,6 +164,7 @@ void World::Update(float deltaTime){
 }
 
 void World::Clear() {
+  // stop simulation
   isSimulating = false;
 
   // clear all the data
@@ -181,6 +187,10 @@ void World::Clear() {
   // clear maze generators
   for(int i=0;i<generators.size(); i++)
     generators[i]->Clear(this);
+
+  // reset timers;
+  totalTime = 0;
+  moveDuration = 0;
 }
 
 void World::step() {
@@ -190,6 +200,7 @@ void World::step() {
   }
   auto stop = std::chrono::high_resolution_clock::now();
   moveDuration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+  totalTime+=moveDuration;
 }
 void World::SetNodeColor(const Point2D& node, const Color32& color) {
   colors[(node.y+sideSize/2)*sideSize+node.x+sideSize/2] = color;
