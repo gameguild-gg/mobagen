@@ -28,7 +28,8 @@ add_executable(flocking ${FLOCKING_SRC} ${FLOCKING_INC})
 
 target_include_directories(flocking PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
 IF(EMSCRIPTEN)
-    set_target_properties(flocking PROPERTIES LINK_FLAGS "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=false -s USE_SDL=0")
+    target_compile_options(flocking PUBLIC ${emscripten_options})
+    target_link_options(flocking PUBLIC ${emscripten_options})
 ENDIF()
 
 # remove SDL2 references and use only the CORE code wrapping all SDL2 code

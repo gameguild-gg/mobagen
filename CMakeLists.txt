@@ -81,6 +81,11 @@ IF(EMSCRIPTEN)
 #    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets/ -s WASM=0 -s DISABLE_EXCEPTION_CATCHING=2 --proxy-to-worker -s FETCH=1")
 #    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets/")
 
+    set(emscripten_options)
+    add_link_options("SHELL:-s WASM=0")
+    add_link_options("SHELL:-s FULL_ES2=1")
+    add_link_options("SHELL:-s AUTO_JS_LIBRARIES=false")
+    add_link_options("SHELL:-s USE_SDL=0")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 
     MESSAGE(STATUS "CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS}")
