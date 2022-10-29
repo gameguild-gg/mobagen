@@ -20,11 +20,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: cache
-        uses: actions/cache@v3
-        with:
-          path: /home/runner/.hunter
-          key: ${{ runner.os }}-mobagen
+#      - name: cache
+#        uses: actions/cache@v3
+#        with:
+#          path: /home/runner/.hunter
+#          key: ${{ runner.os }}-mobagen
 
       - name: Emscripten Install
         run: ./scripts/emscripten-install.sh || true
