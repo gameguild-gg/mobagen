@@ -95,8 +95,8 @@ ENDIF()
 set ( SDL2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/SDL/include)
 # import the generated SDL2 config dir
 
-add_subdirectory(external)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/SDL/include)
+add_subdirectory(external)
 add_subdirectory(core)
 
 
