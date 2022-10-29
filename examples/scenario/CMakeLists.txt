@@ -20,7 +20,7 @@ add_executable(scenario ${SCENARIO_SRC} ${SCENARIO_INC})
 target_include_directories(scenario PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
 IF(EMSCRIPTEN)
     target_compile_options(scenario PUBLIC "-O0")
-    target_link_options(scenario PUBLIC "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=0 -s USE_SDL=0")
+    target_link_options(scenario PUBLIC "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=0 -s USE_SDL=0 -s EXPORT_ALL=1")
 ENDIF()
 
 # remove SDL2 references and use only the CORE code wrapping all SDL2 code

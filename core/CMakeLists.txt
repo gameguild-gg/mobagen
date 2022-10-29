@@ -19,7 +19,7 @@ target_link_libraries (core PUBLIC SDL2 IMGUI)
 
 IF(EMSCRIPTEN)
     target_compile_options(core PUBLIC "-O0")
-    target_link_options(core PUBLIC "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=0 -s USE_SDL=0")
+    target_link_options(core PUBLIC "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=0 -s USE_SDL=0 -s EXPORT_ALL=1")
 ENDIF()
 #If(NOT EMSCRIPTEN AND NOT ANDROID)
 #    add_definitions(-DGLEW_STATIC)

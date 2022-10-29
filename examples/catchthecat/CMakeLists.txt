@@ -53,7 +53,7 @@ install (FILES ${CATCHTHECAT_INC} DESTINATION include/catchthecat)
 add_executable(catchthecat ${CATCHTHECAT_SRC} ${CATCHTHECAT_INC})
 IF(EMSCRIPTEN)
     target_compile_options(catchthecat PUBLIC "-O0")
-    target_link_options(catchthecat PUBLIC "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=0 -s USE_SDL=0")
+    target_link_options(catchthecat PUBLIC "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=0 -s USE_SDL=0 -s EXPORT_ALL=1")
 ENDIF()
 
 target_include_directories(catchthecat PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
