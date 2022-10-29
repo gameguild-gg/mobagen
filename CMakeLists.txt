@@ -75,17 +75,17 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs)
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs/Debug)
 
-add_subdirectory(external)
-
-add_subdirectory(core)
-
 IF(EMSCRIPTEN)
     message(STATUS "emscripten build")
     #  SET(CMAKE_CXX_FLAGS "--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets/ -s WASM=0 -s ALLOW_MEMORY_GROWTH=1 -s USE_SDL=2 -s DISABLE_EXCEPTION_CATCHING=2 -s USE_PTHREADS=1 --proxy-to-worker -s FETCH=1")
 #    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets/ -s WASM=0 -s DISABLE_EXCEPTION_CATCHING=2 --proxy-to-worker -s FETCH=1")
 #    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets/")
 
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=false -s USE_SDL=0")
+    add_link_options("-s WASM=0")
+    add_link_options("-s FULL_ES2=1")
+    add_link_options("-s AUTO_JS_LIBRARIES=false")
+    add_link_options("-s USE_SDL=0")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 
     MESSAGE(STATUS "CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS}")
 
@@ -98,6 +98,9 @@ IF(EMSCRIPTEN)
 ELSE()
     set ( SDL2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/SDL/include)
 ENDIF()
+
+add_subdirectory(external)
+add_subdirectory(core)
 
 #SET(CORE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
 
