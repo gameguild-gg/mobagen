@@ -18,8 +18,11 @@ add_library(core SHARED ${CORE_SRC} ${CORE_INC})
 target_link_libraries (core PUBLIC SDL2 IMGUI)
 
 IF(EMSCRIPTEN)
-    target_compile_options(core PUBLIC ${emscripten_options})
-    target_link_options(core PUBLIC ${emscripten_options})
+    target_compile_options(core PUBLIC "-O0 -s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=false -s USE_SDL=0")
+    target_link_options(core PUBLIC "-O0 -s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=false -s USE_SDL=0")
+
+    MESSAGE(STATUS "CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS}")
+    MESSAGE(STATUS "CMAKE_C_FLAGS ${CMAKE_C_FLAGS}")
 ENDIF()
 #If(NOT EMSCRIPTEN AND NOT ANDROID)
 #    add_definitions(-DGLEW_STATIC)

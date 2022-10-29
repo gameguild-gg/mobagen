@@ -19,8 +19,11 @@ add_executable(maze ${MAZE_SRC} ${MAZE_INC})
 
 target_include_directories(maze PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
 IF(EMSCRIPTEN)
-    target_compile_options(maze PUBLIC ${emscripten_options})
-    target_link_options(maze PUBLIC ${emscripten_options})
+    target_compile_options(maze PUBLIC "-O0 -s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=false -s USE_SDL=0")
+    target_link_options(maze PUBLIC "-O0 -s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=false -s USE_SDL=0")
+
+    MESSAGE(STATUS "CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS}")
+    MESSAGE(STATUS "CMAKE_C_FLAGS ${CMAKE_C_FLAGS}")
 ENDIF()
 
 # remove SDL2 references and use only the CORE code wrapping all SDL2 code
