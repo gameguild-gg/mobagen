@@ -33,6 +33,8 @@ add_definitions(-DHAVE_LIBC=OFF)
 
 add_subdirectory( SDL )
 
+#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/SDL/include)
+
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 add_library(IMGUI STATIC)
 
