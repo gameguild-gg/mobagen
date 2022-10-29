@@ -1,8 +1,9 @@
+#define SDL_MAIN_HANDLED true
 #include <Engine.h>
 #include "World.h"
 
-// Main code
-int main(int, char**) {
+int main()
+{
     SDL_Log("Creating Engine");
     auto engine = new Engine();
     SDL_Log("Engine Created");

@@ -1,5 +1,3 @@
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
-
 file(GLOB CATCHTHECAT_INC
         ${CMAKE_CURRENT_SOURCE_DIR}/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
@@ -51,12 +49,10 @@ install (FILES ${CATCHTHECAT_INC} DESTINATION include/catchthecat)
 # ENDIF()
 
 add_executable(catchthecat ${CATCHTHECAT_SRC} ${CATCHTHECAT_INC})
+target_link_libraries (catchthecat PUBLIC SDL2-static IMGUI core)
 IF(EMSCRIPTEN)
     target_compile_options(catchthecat PUBLIC "-O0")
     target_link_options(catchthecat PUBLIC "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=0 -s USE_SDL=0 -s EXPORT_ALL=1")
-    target_link_libraries (catchthecat PUBLIC SDL2-static IMGUI core)
-ELSE()
-    target_link_libraries (catchthecat PUBLIC SDL2 IMGUI core)
 ENDIF()
 
 target_include_directories(catchthecat PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})

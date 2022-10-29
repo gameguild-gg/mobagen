@@ -1,3 +1,4 @@
+#define SDL_MAIN_HANDLED true
 #include <Engine.h>
 
 // Main code

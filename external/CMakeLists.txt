@@ -1,4 +1,4 @@
-execute_process( COMMAND git submodule update --init --recursive )
+#execute_process( COMMAND git submodule update --init --recursive )
 #set_directory_properties( PROPERTIES CLEAN_NO_CUSTOM 1)
 
 if(COMMAND cmake_policy)
@@ -19,8 +19,8 @@ ELSE ()
     #  ELSE ()
     #    add_library (whereami SHARED ${CMAKE_CURRENT_SOURCE_DIR}/whereami/src/whereami.c ${CMAKE_CURRENT_SOURCE_DIR}/whereami/src/whereami.h)
     #  ENDIF ()
-    set( SDL_STATIC OFF CACHE BOOL "Build the static SDL library" )
-    set( SDL_SHARED ON CACHE BOOL "Build the shared SDL library" )
+#    set( SDL_STATIC OFF CACHE BOOL "Build the static SDL library" )
+#    set( SDL_SHARED ON CACHE BOOL "Build the shared SDL library" )
 
     #  set( glew-cmake_BUILD_SHARED ON CACHE BOOL "Build the shared glew library" )
     #  set( glew-cmake_BUILD_STATIC OFF CACHE BOOL "Build the static glew library" )
@@ -29,6 +29,11 @@ ELSE ()
     #
     #  add_subdirectory( glew )
 ENDIF ()
+
+set(SDL_SHARED OFF CACHE BOOL "SDL_SHARED")
+SET(SDL_STATIC ON CACHE BOOL "SDL_STATIC")
+SET(SDL_STATIC_PIC ON CACHE BOOL "SDL_STATIC_PIC")
+
 add_definitions(-DHAVE_LIBC=OFF)
 
 add_subdirectory( SDL )
@@ -57,7 +62,7 @@ target_include_directories( IMGUI
         PUBLIC ${SDL2_DIR}/include
         )
 
-target_link_libraries(IMGUI PUBLIC SDL2main SDL2 ${CMAKE_DL_LIBS})
+target_link_libraries(IMGUI PUBLIC SDL2-static ${CMAKE_DL_LIBS})
 
 #set( ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Build assimp tools" )
 #set( ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" )
