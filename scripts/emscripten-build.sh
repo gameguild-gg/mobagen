@@ -22,4 +22,6 @@ emcmake cmake --version
 
 emcmake cmake -DCMAKE_C_ABI_COMPILED=ON -DCMAKE_CXX_ABI_COMPILED=ON -DEMSCRIPTEN=1 -DCMAKE_BUILD_TYPE=MinSizeRel -H. -Bbin-emscripten
 
+git checkout -f external/SDL/include/SDL_config.h
+
 cmake --build bin-emscripten/ -j 20
