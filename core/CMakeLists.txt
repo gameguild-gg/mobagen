@@ -17,6 +17,9 @@ SET(CORE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "CORE INCLUDE SOURCE PAT
 add_library(core SHARED ${CORE_SRC} ${CORE_INC})
 target_link_libraries (core PUBLIC SDL2 IMGUI)
 
+IF(EMSCRIPTEN)
+    set_target_properties(core PROPERTIES LINK_FLAGS "-s WASM=0 -s FULL_ES2=1 -s AUTO_JS_LIBRARIES=false -s USE_SDL=0")
+ENDIF()
 #If(NOT EMSCRIPTEN AND NOT ANDROID)
 #    add_definitions(-DGLEW_STATIC)
 #    #  add_definitions(-DGLEW_BUILD)
