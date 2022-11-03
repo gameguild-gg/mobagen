@@ -1,8 +1,5 @@
-//
-// Created by atolstenko on 11/3/2022.
-//
-
 #include "Noise.h"
+
 Noise::Noise(int64_t seed, int64_t maxSamples, double minValue, double maxValue) {
   generator = std::mt19937_64(seed);
   distribution = std::uniform_real_distribution(minValue, maxValue);
@@ -11,18 +8,22 @@ Noise::Noise(int64_t seed, int64_t maxSamples, double minValue, double maxValue)
     samples.push_back(distribution(generator));
 }
 double Noise::noise(double x, double y, double z) {
-  // clamped indexes
+  // hasher
   // todo: improve spacing for each axis se each one do not follow the same behavior
-  int64_t ix, iy, iz;
-  ix = static_cast<int64_t>(std::floor(x)) % samples.size();
-  iy = static_cast<int64_t>(std::floor(y)) % samples.size() ;
-  iz = static_cast<int64_t>(std::floor(z)) % samples.size();
+  // todo: hashing is enough?
+  auto hasher = std::hash<double>{};
+
+  // clamped indexes
+  uint64_t ix, iy, iz;
+  ix = hasher(std::floor(x)) % samples.size();
+  iy = hasher(std::floor(y)) % samples.size() ;
+  iz = hasher(std::floor(z)) % samples.size();
 
   // clamped next indexes
-  int64_t nix, niy, niz;
-  nix = (static_cast<int64_t>(std::floor(x))+1) % samples.size();
-  niy = (static_cast<int64_t>(std::floor(y))+1) % samples.size() ;
-  niz = (static_cast<int64_t>(std::floor(z))+1) % samples.size();
+  uint64_t nix, niy, niz;
+  nix = (hasher(std::floor(x))+1) % samples.size();
+  niy = (hasher(std::floor(y))+1) % samples.size() ;
+  niz = (hasher(std::floor(z))+1) % samples.size();
 
   // what is after the . from the indexes
   double fx, fy, fz;
@@ -37,7 +38,8 @@ double Noise::noise(double x, double y, double z) {
   vz = samples[iz]*(1-fz) + samples[niz]*(fz);
 
   // merge
-  // todo: improve. it gonna give spherical behaviours
+  // todo: improve. it gonna give spherical behaviours.
+  //  this will effectivelly clamp and reduce the amplitude
   return (vx + vy + vz) / 3;
 }
 double Noise::octave(int octaves, double persistence, double x, double y, double z) {
