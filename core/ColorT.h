@@ -118,7 +118,7 @@ struct Color32 {
     uint8_t& operator[] (const int& i);
 
     // random
-    static Color32 RandomColor(int min=0, int max=0);
+    static Color32 RandomColor(int min=0, int max=255);
     static Color32 RandomColor(int rmin, int rmax, int gmin, int gmax, int bmin, int bmax, int amin=0, int amax=0);
 
     // intensity

@@ -3,12 +3,16 @@
 
 #include "ColorT.h"
 #include "GameObject.h"
+#include "GeneratorBase.h"
 #include <SDL.h>
 
 class Manager: public GameObject {
  private:
-  int sideSize;
+  int sideSize=512;
   SDL_Texture *texture;
+
+  std::vector<ScenarioGeneratorBase*> generators;
+  int generatorId=0;
 
  public:
   ~Manager();

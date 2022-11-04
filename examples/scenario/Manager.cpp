@@ -1,8 +1,11 @@
 #include "Manager.h"
+#include "generators/RandomGenerator.h"
 Manager::Manager(Engine* engine, int size)
     : GameObject(engine) {
-
+  // todo: add your generator here
+  generators.push_back(new RandomScenarioGenerator());
 }
+
 void Manager::SetPixels(std::vector<Color32> &input) {
   Uint32* output = nullptr;
   int pitch = 0;
@@ -17,7 +20,7 @@ void Manager::SetPixels(std::vector<Color32> &input) {
   {
     auto error = SDL_GetError();
     SDL_Log(error);
-    throw error;
+    return;
     // If the locking fails, you might want to handle it somehow. SDL_GetError(); or something here.
   }
 
@@ -28,6 +31,7 @@ void Manager::SetPixels(std::vector<Color32> &input) {
       auto lc = line*column;
       // Now you want to format the color to a correct format that SDL can use.
       // Basically we convert our RGB color to a hex-like BGR color.
+
       auto color = SDL_MapRGB(&pixelFormat, input[lc].r,
                               input[lc].g, input[lc].b);
       // Before setting the color, we need to know where we have to place it.
@@ -40,7 +44,8 @@ void Manager::SetPixels(std::vector<Color32> &input) {
   SDL_UnlockTexture(texture);
 }
 void Manager::OnDraw(SDL_Renderer* renderer) {
-  const SDL_Rect r = {0,0, 512,512};
+  auto windowSize = engine->window->size();
+  const SDL_Rect r = {0,0, sideSize,sideSize};
 
   SDL_RenderCopy(renderer, texture, NULL, &r);
 }
@@ -48,12 +53,62 @@ Manager::~Manager() {}
 void Manager::Start() {
   texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 512, 512);
   std::vector<Color32> colors;
-  colors.resize(512*512);
-  for(int i=0;i<512*512;i++)
-    colors[i]=Color::Green;
+  colors.resize(sideSize*sideSize);
+  for(int i=0;i<sideSize*sideSize;i++)
+    colors[i]=Color::Red;
   SetPixels(colors);
 }
-void Manager::OnGui(ImGuiContext* context) { GameObject::OnGui(context); }
-void Manager::Update(float deltaTime) { GameObject::Update(deltaTime); }
-void Manager::Clear() {}
-int Manager::GetSize() const { return sideSize; }
+void Manager::OnGui(ImGuiContext* context) {
+  ImGui::SetCurrentContext(context);
+  float deltaTime = ImGui::GetIO().DeltaTime;
+
+  ImGui::SetCurrentContext(context);
+  ImGui::Begin("Settings", nullptr);
+  ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
+              ImGui::GetIO().DeltaTime * 1000,
+              1.0f / ImGui::GetIO().DeltaTime,
+              1000.0f / ImGui::GetIO().Framerate,
+              ImGui::GetIO().Framerate);
+  static auto newSize = sideSize;
+
+  if(ImGui::SliderInt("Side Size", &newSize, 5, 29)) {
+    newSize = (newSize/4)*4 + 1;
+    if(newSize!=sideSize) {
+      sideSize = newSize;
+      Clear();
+    }
+  }
+
+  ImGui::Text("Generator: %s", generators[generatorId]->GetName().c_str());
+  if (ImGui::BeginCombo("##combo", generators[generatorId]->GetName().c_str())) // The second parameter is the label previewed before opening the combo.
+  {
+    for (int n = 0; n < generators.size(); n++) {
+      bool is_selected =
+          (generators[generatorId]->GetName() ==
+           generators[n]
+               ->GetName());  // You can store your selection however you want, outside or inside your objects
+      if (ImGui::Selectable(generators[n]->GetName().c_str(), is_selected)) {
+        generatorId = n;
+        Clear();
+      }
+      if (is_selected)
+        ImGui::SetItemDefaultFocus();  // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
+    }
+    ImGui::EndCombo();
+  }
+
+  if(ImGui::Button("Generate")) {
+    // not working yet
+//    auto pixels = generators[generatorId]->Generate(sideSize);
+//    SetPixels(pixels);
+  }
+}
+void Manager::Update(float deltaTime) {
+  GameObject::Update(deltaTime);
+}
+void Manager::Clear() {
+
+}
+int Manager::GetSize() const {
+  return sideSize;
+}
