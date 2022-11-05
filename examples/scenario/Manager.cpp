@@ -32,8 +32,7 @@ void Manager::SetPixels(std::vector<Color32> &input) {
       // Now you want to format the color to a correct format that SDL can use.
       // Basically we convert our RGB color to a hex-like BGR color.
 
-      auto color = SDL_MapRGB(&pixelFormat, input[lc].r,
-                              input[lc].g, input[lc].b);
+      auto color = input[lc].GetPacked();
       // Before setting the color, we need to know where we have to place it.
       Uint32 pixelPosition = line * (pitch / sizeof(unsigned int)) + column;
       // Now we can set the pixel(s) we want.
@@ -51,11 +50,11 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
 }
 Manager::~Manager() {}
 void Manager::Start() {
-  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 512, 512);
+  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 512, 512);
   std::vector<Color32> colors;
   colors.resize(sideSize*sideSize);
   for(int i=0;i<sideSize*sideSize;i++)
-    colors[i]=Color::Red;
+    colors[i]=Color::Cyan;
   SetPixels(colors);
 }
 void Manager::OnGui(ImGuiContext* context) {
@@ -99,8 +98,8 @@ void Manager::OnGui(ImGuiContext* context) {
 
   if(ImGui::Button("Generate")) {
     // not working yet
-//    auto pixels = generators[generatorId]->Generate(sideSize);
-//    SetPixels(pixels);
+    auto pixels = generators[generatorId]->Generate(sideSize);
+    SetPixels(pixels);
   }
 }
 void Manager::Update(float deltaTime) {

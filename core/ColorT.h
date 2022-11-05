@@ -88,6 +88,8 @@ struct Color32 {
     explicit Color32(uint32_t packed);
     explicit Color32(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
 
+    uint32_t GetPacked();
+
     // unary operations
     Color32 operator- () const;
     Color32 operator+ () const;

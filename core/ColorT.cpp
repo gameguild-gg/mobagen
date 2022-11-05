@@ -65,6 +65,10 @@ Color32 Color32::RandomColor(int rmin, int rmax, int gmin, int gmax, int bmin, i
 
 Color32::Color32() {r=0;g=0;b=0,a=255;}
 
+uint32_t Color32::GetPacked() {
+  return a << 24 | b << 16 | g << 8 | r;
+}
+
 Colorf::Colorf(uint32_t packed) {
     this->a = ((float)(packed >> 24))/255;
     this->r = ((float)((packed << 8) >> 24))/255;
