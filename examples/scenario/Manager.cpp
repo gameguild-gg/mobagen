@@ -1,5 +1,7 @@
 #include "Manager.h"
 #include "generators/RandomGenerator.h"
+#include <chrono>
+#include <iostream>
 Manager::Manager(Engine* engine, int size)
     : GameObject(engine) {
   // todo: add your generator here
@@ -97,9 +99,12 @@ void Manager::OnGui(ImGuiContext* context) {
   }
 
   if(ImGui::Button("Generate")) {
-    // not working yet
+    auto start = std::chrono::high_resolution_clock::now();
     auto pixels = generators[generatorId]->Generate(sideSize);
+    auto step = std::chrono::high_resolution_clock::now();
     SetPixels(pixels);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout <<  std::chrono::duration_cast<std::chrono::microseconds>(step - start).count() << " " << std::chrono::duration_cast<std::chrono::microseconds>(end - step).count() << std::endl;
   }
 }
 void Manager::Update(float deltaTime) {
