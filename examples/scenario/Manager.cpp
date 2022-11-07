@@ -53,7 +53,10 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
 
   SDL_RenderCopy(renderer, texture, NULL, &r);
 }
-Manager::~Manager() {}
+Manager::~Manager() {
+  SDL_DestroyTexture(texture);
+  texture=nullptr;
+}
 void Manager::Start() {
   texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 512, 512);
   std::vector<Color32> colors;
