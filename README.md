@@ -11,7 +11,6 @@ I started this game engine project because:
 - I love game engine architecture;
 - I don't want to recreate all game engine stuff, I want to glue them all. "Life es too short to build a game engine from scratch"  
 - I want to have full control of all the processes from code to the delivery;
-- I want a job as a Game Engine Developer.
 
 ## Follow me!
 Did you like this project? Follow me on [social medias](https://linktree.com/tolstenko)
