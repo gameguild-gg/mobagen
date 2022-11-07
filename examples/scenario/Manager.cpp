@@ -1,4 +1,5 @@
 #include "Manager.h"
+#include "Point2D.h"
 #include "generators/RandomGenerator.h"
 #include <chrono>
 #include <iostream>
@@ -46,7 +47,9 @@ void Manager::SetPixels(std::vector<Color32> &input) {
 }
 void Manager::OnDraw(SDL_Renderer* renderer) {
   auto windowSize = engine->window->size();
-  const SDL_Rect r = {0,0, sideSize,sideSize};
+  auto center = Point2D(windowSize.x/2, windowSize.y/2);
+  int minDimension = std::min(windowSize.x, windowSize.y);
+  const SDL_Rect r = {center.x-minDimension/2,center.y-minDimension/2, minDimension,minDimension};
 
   SDL_RenderCopy(renderer, texture, NULL, &r);
 }
