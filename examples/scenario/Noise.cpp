@@ -1,4 +1,3 @@
-/*
 #include "Noise.h"
 
 Noise::Noise(int64_t seed, int64_t maxSamples, double minValue, double maxValue) {
@@ -39,9 +38,7 @@ double Noise::noise(double x, double y, double z) {
   vy = samples[iy]*(1-fy) + samples[niy]*(fy);
   vz = samples[iz]*(1-fz) + samples[niz]*(fz);
 
-  // merge
-  // todo: improve. it gonna give spherical behaviours.
-  //  this will effectivelly clamp and reduce the amplitude
+  // todo: improve. it gonna give line behaviours. you have to combine the values
   return (vx + vy + vz) / 3;
 }
 double Noise::octave(int octaves, double persistence, double x, double y, double z) {
@@ -60,4 +57,3 @@ double Noise::octave(int octaves, double persistence, double x, double y, double
   // todo: fix it wont obey the limits of max and min value of the distribution
   return result;
 }
-*/
