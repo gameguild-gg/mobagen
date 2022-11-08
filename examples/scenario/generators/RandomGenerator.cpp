@@ -1,5 +1,6 @@
 #include "RandomGenerator.h"
 #include "../PerlinNoise.hpp"
+#include <iostream>
 std::vector<Color32> RandomScenarioGenerator::Generate(int sideSize) {
   std::vector<Color32> colors;
   siv::BasicPerlinNoise<float> noise;
@@ -10,6 +11,7 @@ std::vector<Color32> RandomScenarioGenerator::Generate(int sideSize) {
       colors.emplace_back(rgb, rgb, rgb);
     }
   }
+  std::cout<<colors.size() << std::endl;
   return colors;
 }
 std::string RandomScenarioGenerator::GetName() { return "EXAMPLE"; }

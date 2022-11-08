@@ -35,7 +35,7 @@ void Manager::SetPixels(std::vector<Color32> &input) {
       // Basically we convert our RGB color to a hex-like BGR color.
       auto color = input[line * w + column].GetPacked();
       // Before setting the color, we need to know where we have to place it.
-      Uint32 pixelPosition = line * w + column;
+      Uint32 pixelPosition = (line * w + column);
       // Now we can set the pixel(s) we want.
       output[pixelPosition] = color;
     }
@@ -56,7 +56,7 @@ Manager::~Manager() {
   texture=nullptr;
 }
 void Manager::Start() {
-  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 256, 256);
+  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 512, 512);
   std::vector<Color32> colors;
   colors.resize(sideSize*sideSize);
   for(int i=0;i<sideSize*sideSize;i++)
