@@ -1,5 +1,6 @@
 #ifndef POINT2D_H
 #define POINT2D_H
+#include <string>
 
 struct Point2D {
 	public:
@@ -16,7 +17,7 @@ struct Point2D {
 	const static Point2D DOWN;
 	const static Point2D LEFT;
 	const static Point2D RIGHT;
-
+  std::string to_string();
 };
 
 #endif //POINT2D_H

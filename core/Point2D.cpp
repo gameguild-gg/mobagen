@@ -31,3 +31,6 @@ Point2D Point2D::operator+(const Point2D& rhs) const {
 Point2D Point2D::operator-(const Point2D& rhs) const {
 	return { x - rhs.x, y - rhs.y };
 }
+std::string Point2D::to_string() {
+  return "{" + std::to_string(x) + ", " + std::to_string(y) + "}";
+}
