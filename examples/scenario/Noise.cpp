@@ -1,3 +1,4 @@
+/*
 #include "Noise.h"
 
 Noise::Noise(int64_t seed, int64_t maxSamples, double minValue, double maxValue) {
@@ -58,3 +59,4 @@ double Noise::octave(int octaves, double persistence, double x, double y, double
   // todo: fix it wont obey the limits of max and min value of the distribution
   return result;
 }
+*/

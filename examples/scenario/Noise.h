@@ -1,3 +1,4 @@
+/*
 #ifndef MOBAGEN_NOISE_H
 #define MOBAGEN_NOISE_H
 
@@ -21,3 +22,4 @@ class Noise {
 };
 
 #endif  // MOBAGEN_NOISE_H
+*/
