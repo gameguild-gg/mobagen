@@ -8,12 +8,15 @@
 
 class Manager: public GameObject {
  private:
+  float accumulatedTime = 0;
   int sideSize=512;
   SDL_Texture *texture;
+  bool isSimulating = false;
 
   std::vector<ScenarioGeneratorBase*> generators;
   int generatorId=0;
 
+  void step();
  public:
   ~Manager();
   explicit Manager(Engine* engine, int size);

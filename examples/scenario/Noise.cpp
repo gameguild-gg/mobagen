@@ -16,9 +16,9 @@ double Noise::noise(double x, double y, double z) {
 
   // clamped indexes
   uint64_t ix, iy, iz;
-  ix = uint64_t(std::floor(x)) % samples.size(); // right
-  iy = uint64_t(std::floor(y)) % samples.size(); // forward
-  iz = uint64_t(std::floor(z)) % samples.size(); // up
+  ix = uint64_t(std::floor(x)) % samples.size();
+  iy = uint64_t(std::floor(y)) % samples.size();
+  iz = uint64_t(std::floor(z)) % samples.size();
 
   // what is after the . from the indexes
   double fx, fy, fz;
@@ -26,6 +26,7 @@ double Noise::noise(double x, double y, double z) {
   fy = y - std::floor(y);
   fz = z - std::floor(z);
 
+  // todo: gradient implementation goes here
   // todo: improve the dispersion and merging algorithm
   // lerp
   auto lx = samples[ix]*(1-fx) + samples[ix+1]*(fx);

@@ -103,20 +103,40 @@ void Manager::OnGui(ImGuiContext* context) {
   }
 
   if(ImGui::Button("Generate")) {
-    auto start = std::chrono::high_resolution_clock::now();
-    auto pixels = generators[generatorId]->Generate(sideSize);
-    auto step = std::chrono::high_resolution_clock::now();
-    SetPixels(pixels);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::cout <<  std::chrono::duration_cast<std::chrono::microseconds>(step - start).count() << " " << std::chrono::duration_cast<std::chrono::microseconds>(end - step).count() << std::endl;
+    step();
+  }
+
+  ImGui::Text("Simulation");
+  if(ImGui::Button("Step")) {
+    isSimulating = false;
+    step();
+  }
+  ImGui::SameLine();
+  if(ImGui::Button("Start")) {
+    isSimulating = true;
+  }
+  ImGui::SameLine();
+  if(ImGui::Button("Pause")) {
+    isSimulating = false;
   }
 }
 void Manager::Update(float deltaTime) {
-  GameObject::Update(deltaTime);
+  if(isSimulating) {
+    accumulatedTime += deltaTime;
+    step();
+  }
 }
 void Manager::Clear() {
 
 }
 int Manager::GetSize() const {
   return sideSize;
+}
+void Manager::step() {
+  auto start = std::chrono::high_resolution_clock::now();
+  auto pixels = generators[generatorId]->Generate(sideSize, accumulatedTime);
+  auto step = std::chrono::high_resolution_clock::now();
+  SetPixels(pixels);
+  auto end = std::chrono::high_resolution_clock::now();
+  std::cout <<  std::chrono::duration_cast<std::chrono::microseconds>(step - start).count() << " " << std::chrono::duration_cast<std::chrono::microseconds>(end - step).count() << std::endl;
 }
