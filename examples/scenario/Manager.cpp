@@ -30,14 +30,12 @@ void Manager::SetPixels(std::vector<Color32> &input) {
   SDL_PixelFormat pixelFormat;
   pixelFormat.format = format;
   for(uint64_t line=0; line<h; line++){
-    for(uint64_t column=0; column<h; column++) {
-      auto lc = line*column;
+    for(uint64_t column=0; column<w; column++) {
       // Now you want to format the color to a correct format that SDL can use.
       // Basically we convert our RGB color to a hex-like BGR color.
-
-      auto color = input[lc].GetPacked();
+      auto color = input[line * w + column].GetPacked();
       // Before setting the color, we need to know where we have to place it.
-      Uint32 pixelPosition = line * (pitch / sizeof(unsigned int)) + column;
+      Uint32 pixelPosition = line * w + column;
       // Now we can set the pixel(s) we want.
       output[pixelPosition] = color;
     }
@@ -58,7 +56,7 @@ Manager::~Manager() {
   texture=nullptr;
 }
 void Manager::Start() {
-  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 512, 512);
+  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 256, 256);
   std::vector<Color32> colors;
   colors.resize(sideSize*sideSize);
   for(int i=0;i<sideSize*sideSize;i++)
