@@ -11,7 +11,7 @@ std::vector<Color32> RandomScenarioGenerator::Generate(int sideSize, float displ
 //  Noise noise(1337, 1024,0,255);
   for(int l=0; l<sideSize; l++){
     for(int c=0;c<sideSize; c++){
-      float rgb = abs(noise.noise3D(c/50.0,l/50.0, displacement)*255);
+      float rgb = abs(noise.octave3D(c/50.0,l/50.0, displacement, 2)*255);
       colors.emplace_back(rgb, rgb, rgb);
 //      double color = noise.noise(c/50.0,l/50.0);
 //      colors.emplace_back(color,color,color);
