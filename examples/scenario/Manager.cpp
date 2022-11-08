@@ -76,8 +76,8 @@ void Manager::OnGui(ImGuiContext* context) {
               ImGui::GetIO().Framerate);
   static auto newSize = sideSize;
 
-  if(ImGui::SliderInt("Side Size", &newSize, 5, 29)) {
-    newSize = (newSize/4)*4 + 1;
+  if(ImGui::SliderInt("Side Size", &newSize, 5, 2048)) {
+    //newSize = (newSize/4)*4 + 1;
     if(newSize!=sideSize) {
       sideSize = newSize;
       Clear();
@@ -127,6 +127,9 @@ void Manager::Update(float deltaTime) {
   }
 }
 void Manager::Clear() {
+    if (texture != nullptr)
+        SDL_DestroyTexture(texture);
+    texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, sideSize, sideSize);
 
 }
 int Manager::GetSize() const {
