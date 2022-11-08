@@ -16,15 +16,9 @@ double Noise::noise(double x, double y, double z) {
 
   // clamped indexes
   uint64_t ix, iy, iz;
-  ix = hasher(std::floor(x)) % samples.size();
-  iy = hasher(std::floor(y)) % samples.size() ;
-  iz = hasher(std::floor(z)) % samples.size();
-
-  // clamped next indexes
-  uint64_t nix, niy, niz;
-  nix = (hasher(std::floor(x))+1) % samples.size();
-  niy = (hasher(std::floor(y))+1) % samples.size() ;
-  niz = (hasher(std::floor(z))+1) % samples.size();
+  ix = uint64_t(std::floor(x)) % samples.size(); // right
+  iy = uint64_t(std::floor(y)) % samples.size(); // forward
+  iz = uint64_t(std::floor(z)) % samples.size(); // up
 
   // what is after the . from the indexes
   double fx, fy, fz;
@@ -32,14 +26,14 @@ double Noise::noise(double x, double y, double z) {
   fy = y - std::floor(y);
   fz = z - std::floor(z);
 
-  // interpolated values
-  double vx, vy, vz;
-  vx = samples[ix]*(1-fx) + samples[nix]*(fx);
-  vy = samples[iy]*(1-fy) + samples[niy]*(fy);
-  vz = samples[iz]*(1-fz) + samples[niz]*(fz);
+  // todo: improve the dispersion and merging algorithm
+  // lerp
+  auto lx = samples[ix]*(1-fx) + samples[ix+1]*(fx);
+  auto ly = samples[iy]*(1-fy) + samples[iy+1]*(fy);
+  auto lz = samples[iz]*(1-fz) + samples[iz+1]*(fz);
 
-  // todo: improve. it gonna give line behaviours. you have to combine the values
-  return (vx + vy + vz) / 3;
+  // todo: improve this merger function and dispersion
+  return (lx+ly+lz)/3;
 }
 double Noise::octave(int octaves, double persistence, double x, double y, double z) {
   double result = 0;

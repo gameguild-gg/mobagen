@@ -2,6 +2,7 @@
 #include "../Noise.h"
 #include "../PerlinNoise.hpp"
 #include <iostream>
+// do not use this one to your assignment. this is my sample generator
 std::vector<Color32> RandomScenarioGenerator::Generate(int sideSize) {
   std::vector<Color32> colors;
   // create your own function for noise generation
@@ -12,7 +13,7 @@ std::vector<Color32> RandomScenarioGenerator::Generate(int sideSize) {
     for(int c=0;c<sideSize; c++){
 //      float rgb = abs(noise.noise2D(c/50.0,l/50.0)*255);
 //      colors.emplace_back(rgb, rgb, rgb);
-      double color = noise.noise(l*50,c*50);
+      double color = noise.noise(c/50.0,l/50.0);
       colors.emplace_back(color,color,color);
     }
   }
