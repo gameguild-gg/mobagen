@@ -8,6 +8,7 @@ Noise::Noise(int64_t seed, int64_t maxSamples, double minValue, double maxValue)
   for(auto i=0; i<maxSamples;i++)
     samples.push_back(distribution(generator));
 }
+// todo: this function is not production ready yet. Needs lots of improvements
 double Noise::noise(double x, double y, double z) {
   // hasher
   // todo: improve spacing for each axis se each one do not follow the same behavior
