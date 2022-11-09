@@ -60,12 +60,10 @@ if (SDL2_ADDED)
     # And add the directory where headers have been copied as an interface include dir
     target_include_directories(SDL2 INTERFACE "${CMAKE_BINARY_DIR}/SDLHeaders")
 
-    MESSAGE(DEBUG "TOLSTAAAAAAAAAAAAAAAA")
     set (SDL2_INCLUDE_DIR ${SDL2_SOURCE_DIR}/include)
 endif()
 
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/SDL/include)
+include_directories(${SDL2_INCLUDE_DIR})
 
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 add_library(IMGUI STATIC)
