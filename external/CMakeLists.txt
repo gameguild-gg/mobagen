@@ -44,7 +44,6 @@ CPMAddPackage(
         OPTIONS "SDL2_DISABLE_INSTALL TRUE"
 )
 find_package(SDL2 REQUIRED)
-
 if (SDL2_ADDED)
     file(GLOB SDL_HEADERS "${SDL_SOURCE_DIR}/include/*.h")
 
@@ -63,28 +62,36 @@ if (SDL2_ADDED)
 endif()
 include_directories(${SDL2_INCLUDE_DIR})
 
-set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
-add_library(IMGUI STATIC)
-target_sources( IMGUI
-        PRIVATE
-        ${IMGUI_DIR}/imgui_demo.cpp
-        ${IMGUI_DIR}/imgui_draw.cpp
-        ${IMGUI_DIR}/imgui_tables.cpp
-        ${IMGUI_DIR}/imgui_widgets.cpp
-        ${IMGUI_DIR}/imgui.cpp
+#ImGui
+CPMAddPackage(
+        NAME IMGUI
+        VERSION 1.88
+        URL "https://github.com/ocornut/imgui/archive/refs/tags/v1.88.zip"
+)
+IF(IMGUI_ADDED)
+    set(IMGUI_DIR ${IMGUI_SOURCE_DIR}) #todo do not use IMGUI_DIR anymore
+    add_library(IMGUI STATIC)
 
-        PRIVATE
-        ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer.cpp
-        ${IMGUI_DIR}/backends/imgui_impl_sdl.cpp
-        )
+    target_sources( IMGUI
+            PRIVATE
+            ${IMGUI_DIR}/imgui_demo.cpp
+            ${IMGUI_DIR}/imgui_draw.cpp
+            ${IMGUI_DIR}/imgui_tables.cpp
+            ${IMGUI_DIR}/imgui_widgets.cpp
+            ${IMGUI_DIR}/imgui.cpp
 
-target_include_directories( IMGUI
-        PUBLIC ${IMGUI_DIR}
-        PUBLIC ${IMGUI_DIR}/backends
-        PUBLIC ${SDL2_DIR}/include
-        )
+            PRIVATE
+            ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer.cpp
+            ${IMGUI_DIR}/backends/imgui_impl_sdl.cpp
+            )
+    target_include_directories( IMGUI
+            PUBLIC ${IMGUI_DIR}
+            PUBLIC ${IMGUI_DIR}/backends
+            PUBLIC ${SDL2_DIR}/include
+            )
 
-target_link_libraries(IMGUI PUBLIC SDL2-static ${CMAKE_DL_LIBS})
+    target_link_libraries(IMGUI PUBLIC SDL2-static ${CMAKE_DL_LIBS})
+ENDIF()
 
 #set( ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Build assimp tools" )
 #set( ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" )
