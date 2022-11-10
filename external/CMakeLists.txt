@@ -35,7 +35,6 @@ SET(SDL_STATIC ON CACHE BOOL "SDL_STATIC")
 SET(SDL_STATIC_PIC ON CACHE BOOL "SDL_STATIC_PIC")
 
 add_definitions(-DHAVE_LIBC=OFF)
-#add_subdirectory( SDL )
 
 # SDL2
 CPMAddPackage(
@@ -62,12 +61,10 @@ if (SDL2_ADDED)
 
     set (SDL2_INCLUDE_DIR ${SDL2_SOURCE_DIR}/include)
 endif()
-
 include_directories(${SDL2_INCLUDE_DIR})
 
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 add_library(IMGUI STATIC)
-
 target_sources( IMGUI
         PRIVATE
         ${IMGUI_DIR}/imgui_demo.cpp

@@ -64,8 +64,6 @@ void World::Start() {
 void World::OnGui(ImGuiContext *context){
   ImGui::SetCurrentContext(context);
   float deltaTime = ImGui::GetIO().DeltaTime;
-
-  ImGui::SetCurrentContext(context);
   ImGui::Begin("Settings", nullptr);
   ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
               ImGui::GetIO().DeltaTime * 1000,
@@ -118,6 +116,7 @@ void World::OnGui(ImGuiContext *context){
     }
     ImGui::EndCombo();
   }
+  ImGui::End();
 }
 
 void World::OnDraw(SDL_Renderer* renderer){
