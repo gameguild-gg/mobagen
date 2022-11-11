@@ -1,8 +1,8 @@
-#include "RecursiveBacktracker.h"
+#include "HuntAndKillExample.h"
 #include "../World.h"
 #include "Random.h"
 #include <climits>
-bool RecursiveBacktracker::Step(World* w) {
+bool HuntAndKillExample::Step(World* w) {
   // check if we need to find a new starting point
   if(stack.empty()) {
     auto point = randomStartPoint(w);
@@ -10,6 +10,10 @@ bool RecursiveBacktracker::Step(World* w) {
       return false; // no empty space no fill
     stack.push_back(point);
     w->SetNodeColor(point, Color::Red.Dark());
+    // bootstrap state
+    if(point.x==-w->GetSize()/2 && point.y==-w->GetSize()/2)
+      return true;
+
   }
 
   // visit the current element
@@ -22,8 +26,9 @@ bool RecursiveBacktracker::Step(World* w) {
 
   // if we should not go deep, pop one element from the stack
   if(visitables.empty()) {
-    stack.pop_back();
-    w->SetNodeColor(current, Color::Black);
+    for(auto v: stack)
+      w->SetNodeColor(v, Color::Black);
+    stack.clear();
     return true;
   }
   else { // go deeper
@@ -44,7 +49,7 @@ bool RecursiveBacktracker::Step(World* w) {
     return true;
   }
 }
-void RecursiveBacktracker::Clear(World* world) {
+void HuntAndKillExample::Clear(World* world) {
   visited.clear();
   stack.clear();
   auto sideOver2 = world->GetSize()/2;
@@ -55,7 +60,7 @@ void RecursiveBacktracker::Clear(World* world) {
     }
   }
 }
-Point2D RecursiveBacktracker::randomStartPoint(World* world) {
+Point2D HuntAndKillExample::randomStartPoint(World* world) {
   auto sideOver2 = world->GetSize()/2;
 
   for(int y=-sideOver2; y<=sideOver2; y++)
@@ -65,15 +70,15 @@ Point2D RecursiveBacktracker::randomStartPoint(World* world) {
   return {INT_MAX, INT_MAX};
 }
 
-std::vector<Point2D> RecursiveBacktracker::getVisitables(World* w, const Point2D& p) {
+std::vector<Point2D> HuntAndKillExample::getVisitables(World* w, const Point2D& p) {
   auto sideOver2 = w->GetSize()/2;
   std::vector<Point2D> visitables;
 
   // north
   if((abs(p.x)<=sideOver2 && abs(p.y-1)<=sideOver2) && // should be inside the board
-      !visited[p.y-1][p.x] && // not visited yet
-      w->GetNorth({p.x, p.y-1})) // has wall
-    visitables.emplace_back(p.x, p.y-1);
+    !visited[p.y-1][p.x] && // not visited yet
+    w->GetNorth({p.x, p.y-1})) // has wall
+      visitables.emplace_back(p.x, p.y-1);
   // east
   if((abs(p.x+1)<=sideOver2 && abs(p.y)<=sideOver2) && // should be inside the board
       !visited[p.y][p.x+1] && // not visited yet
