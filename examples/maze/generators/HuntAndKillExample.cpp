@@ -9,7 +9,7 @@ bool HuntAndKillExample::Step(World* w) {
     if(point.x==INT_MAX && point.y==INT_MAX)
       return false; // no empty space no fill
     stack.push_back(point);
-//    w->SetNodeColor(point, Color::Red.Dark());
+
     // not the bootstrap state
     if(point.x!=-w->GetSize()/2 || point.y!=-w->GetSize()/2) {
       // remove wall in the first node if it it starts to go deep again
@@ -29,7 +29,7 @@ bool HuntAndKillExample::Step(World* w) {
       else if (delta.x == -1)  // west
         w->SetWest(point, false);
       else
-        return false;  // this should never happen;
+        return false;  // this should never happen. if we are in this state, the code is wrong
     }
   }
 
