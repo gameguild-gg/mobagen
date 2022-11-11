@@ -9,11 +9,28 @@ bool HuntAndKillExample::Step(World* w) {
     if(point.x==INT_MAX && point.y==INT_MAX)
       return false; // no empty space no fill
     stack.push_back(point);
-    w->SetNodeColor(point, Color::Red.Dark());
-    // bootstrap state
-    if(point.x==-w->GetSize()/2 && point.y==-w->GetSize()/2)
-      return true;
-
+//    w->SetNodeColor(point, Color::Red.Dark());
+    // not the bootstrap state
+    if(point.x!=-w->GetSize()/2 || point.y!=-w->GetSize()/2) {
+      // remove wall in the first node if it it starts to go deep again
+      auto visitedNeighbors = getVisitedNeighbors(w, point);
+      if (visitedNeighbors.empty())
+        return false;  // this should never happen. if we are in this state, the code is wrong
+      auto next =
+          visitedNeighbors[Random::Range(0, visitedNeighbors.size() - 1)];
+      auto delta = next - point;
+      // remove walls
+      if (delta.y == -1)  // north
+        w->SetNorth(point, false);
+      else if (delta.x == 1)  // east
+        w->SetEast(point, false);
+      else if (delta.y == 1)  // south
+        w->SetSouth(point, false);
+      else if (delta.x == -1)  // west
+        w->SetWest(point, false);
+      else
+        return false;  // this should never happen;
+    }
   }
 
   // visit the current element
@@ -96,4 +113,35 @@ std::vector<Point2D> HuntAndKillExample::getVisitables(World* w, const Point2D& 
     visitables.emplace_back(p.x-1, p.y);
 
   return visitables;
+}
+std::vector<Point2D>
+    HuntAndKillExample::getVisitedNeighbors
+    (World* w,const Point2D& p) {
+  std::vector<Point2D> deltas = {{-1,0}, {0,-1}, {1,0}, {0,1}};
+  auto sideOver2 = w->GetSize()/2;
+  std::vector<Point2D> neighbors;
+
+  for(auto delta: deltas){
+    auto neigh = p+delta;
+    if((abs(neigh.x)<=sideOver2 && abs(neigh.y)<=sideOver2) && // should be inside the board
+        visited[neigh.y][neigh.x]) // visited
+    {
+      bool wall;
+      if(delta.y==-1) // north
+        wall = w->GetNorth(p);
+      else if(delta.x==1) // east
+        wall = w->GetEast(p);
+      else if(delta.y==1) // south
+        wall = w->GetSouth(p);
+      else if(delta.x==-1) // west
+        wall = w->GetWest(p);
+      else
+        wall = false; // this should never happens
+
+      if(wall) // it should have wall
+        neighbors.emplace_back(neigh);
+    }
+  }
+
+  return neighbors;
 }

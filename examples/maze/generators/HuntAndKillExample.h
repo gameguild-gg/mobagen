@@ -12,6 +12,7 @@ class HuntAndKillExample : public MazeGeneratorBase {
   std::map<int, std::map<int, bool>> visited; // naive. not optimal
   Point2D randomStartPoint(World* world);
   std::vector<Point2D> getVisitables(World* w, const Point2D& p);
+  std::vector<Point2D> getVisitedNeighbors(World* w, const Point2D& p);
  public:
   HuntAndKillExample() = default;
   std::string GetName() override {return "HuntAndKill";};

@@ -1,8 +1,8 @@
-#include "RecursiveBacktracker.h"
 #include "../World.h"
 #include "Random.h"
+#include "RecursiveBacktrackerExample.h"
 #include <climits>
-bool RecursiveBacktracker::Step(World* w) {
+bool RecursiveBacktrackerExample::Step(World* w) {
   // check if we need to find a new starting point
   if(stack.empty()) {
     auto point = randomStartPoint(w);
@@ -44,7 +44,7 @@ bool RecursiveBacktracker::Step(World* w) {
     return true;
   }
 }
-void RecursiveBacktracker::Clear(World* world) {
+void RecursiveBacktrackerExample::Clear(World* world) {
   visited.clear();
   stack.clear();
   auto sideOver2 = world->GetSize()/2;
@@ -55,7 +55,7 @@ void RecursiveBacktracker::Clear(World* world) {
     }
   }
 }
-Point2D RecursiveBacktracker::randomStartPoint(World* world) {
+Point2D RecursiveBacktrackerExample::randomStartPoint(World* world) {
   auto sideOver2 = world->GetSize()/2;
 
   for(int y=-sideOver2; y<=sideOver2; y++)
@@ -65,7 +65,7 @@ Point2D RecursiveBacktracker::randomStartPoint(World* world) {
   return {INT_MAX, INT_MAX};
 }
 
-std::vector<Point2D> RecursiveBacktracker::getVisitables(World* w, const Point2D& p) {
+std::vector<Point2D> RecursiveBacktrackerExample::getVisitables(World* w, const Point2D& p) {
   auto sideOver2 = w->GetSize()/2;
   std::vector<Point2D> visitables;
 
