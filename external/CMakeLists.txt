@@ -28,7 +28,18 @@ ELSE ()
     #  set( glew-cmake_BUILD_MULTI_CONTEXT OFF CACHE BOOL "Build the multi context glew library" )
     #
     #  add_subdirectory( glew )
-ENDIF ()
+ENDIF()
+
+SET(CPM_SOURCE_CACHE ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "CPM_SOURCE_CACHE")
+
+# filament
+#CPMAddPackage(
+#        NAME FILAMENT
+#        VERSION 1.28.3
+#        URL "https://github.com/google/filament/archive/refs/tags/v1.28.3.zip"
+#)
+
+#add_subdirectory( filament )
 
 set(SDL_SHARED OFF CACHE BOOL "SDL_SHARED")
 SET(SDL_STATIC ON CACHE BOOL "SDL_STATIC")
@@ -86,11 +97,12 @@ IF(IMGUI_ADDED)
     target_include_directories( IMGUI
             PUBLIC ${IMGUI_SOURCE_DIR}
             PUBLIC ${IMGUI_SOURCE_DIR}/backends
-            PUBLIC ${SDL2_DIR}/include
             )
 
     target_link_libraries(IMGUI PUBLIC SDL2-static ${CMAKE_DL_LIBS})
 ENDIF()
+
+
 
 #set( ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Build assimp tools" )
 #set( ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" )
