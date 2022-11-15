@@ -7,6 +7,3 @@
 [submodule "cmake/polly"]
 	path = cmake/polly
 	url = https://github.com/cpp-pm/polly.git
-[submodule "external/filament"]
-	path = external/filament
-	url = https://github.com/google/filament.git
