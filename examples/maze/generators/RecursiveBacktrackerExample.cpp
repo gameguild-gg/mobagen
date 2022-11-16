@@ -72,22 +72,22 @@ std::vector<Point2D> RecursiveBacktrackerExample::getVisitables(World* w, const 
   // north
   if((abs(p.x)<=sideOver2 && abs(p.y-1)<=sideOver2) && // should be inside the board
       !visited[p.y-1][p.x] && // not visited yet
-      w->GetNorth({p.x, p.y-1})) // has wall
+      w->GetNorth(p)) // has wall
     visitables.emplace_back(p.x, p.y-1);
   // east
   if((abs(p.x+1)<=sideOver2 && abs(p.y)<=sideOver2) && // should be inside the board
       !visited[p.y][p.x+1] && // not visited yet
-      w->GetEast({p.x, p.y})) // has wall
+      w->GetEast(p)) // has wall
     visitables.emplace_back(p.x+1, p.y);
   // south
   if((abs(p.x)<=sideOver2 && abs(p.y+1)<=sideOver2) && // should be inside the board
       !visited[p.y+1][p.x] && // not visited yet
-      w->GetSouth({p.x, p.y})) // has wall
+      w->GetSouth(p)) // has wall
     visitables.emplace_back(p.x, p.y+1);
   // west
   if((abs(p.x-1)<=sideOver2 && abs(p.y)<=sideOver2) && // should be inside the board
       !visited[p.y][p.x-1] && // not visited yet
-      w->GetWest({p.x, p.y})) // has wall
+      w->GetWest(p)) // has wall
     visitables.emplace_back(p.x-1, p.y);
 
   return visitables;

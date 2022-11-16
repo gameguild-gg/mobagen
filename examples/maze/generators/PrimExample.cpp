@@ -4,12 +4,16 @@
 
 bool PrimExample::Step(World *w) {
   int sideOver2 = w->GetSize()/2;
-  // bootstrap case
+
+  auto visitedColor = Color::Black;
+  auto queuedColor = Color::DarkRed;
+  auto clearColor = Color::DarkGray;
+
   if(!initialized){
     initialized = true;
     auto current = Point2D(-sideOver2, -sideOver2);
     toBeVisited.push_back(current);
-    w->SetNodeColor(current, Color::Red.Dark());
+    w->SetNodeColor(current, queuedColor);
     return true;
   }
 
@@ -18,23 +22,39 @@ bool PrimExample::Step(World *w) {
     return false;
 
   // visit a random element
-  auto current = toBeVisited[Random::Range(0, toBeVisited.size()-1)];
-  visited[current.y][current.x] = true;
-  w->SetNodeColor(current, Color::Black);
+  auto randomId = Random::Range(0, toBeVisited.size()-1);
+  auto current = toBeVisited[randomId];
+  toBeVisited.erase(toBeVisited.begin() + randomId);
+  w->SetNodeColor(current, visitedColor);
 
-  // wip
-  auto visitables = getVisitables(w,current);
-  return false;
+  // add visitables of the current element to BeVisited list
+  auto visitables = getVisitables(w, current);
+  for(auto v: visitables){
+    toBeVisited.push_back(v);
+    w->SetNodeColor(v,queuedColor);
+  }
+
+  // remove the wall between the current and a random visited neighbor
+  auto visited = getVisitedNeighbors(w,current);
+  if(!visited.empty()){
+    auto next =
+        visited[Random::Range(0, visited.size() - 1)];
+    auto delta = next - current;
+    // remove walls
+    if (delta.y == -1)  // north
+      w->SetNorth(current, false);
+    else if (delta.x == 1)  // east
+      w->SetEast(current, false);
+    else if (delta.y == 1)  // south
+      w->SetSouth(current, false);
+    else if (delta.x == -1)  // west
+      w->SetWest(current, false);
+  }
+  return true;
 }
 void PrimExample::Clear(World *world) {
   toBeVisited.clear();
   initialized = false;
-  auto sideOver2 = world->GetSize()/2;
-  for(int i=-sideOver2;i<=sideOver2;i++){
-    for(int j=-sideOver2;j<=sideOver2;j++){
-      visited[i][j] = false;
-    }
-  }
 }
 
 std::vector<Point2D> PrimExample::getVisitables(World* w, const Point2D& p) {
@@ -43,23 +63,19 @@ std::vector<Point2D> PrimExample::getVisitables(World* w, const Point2D& p) {
 
   // north
   if((abs(p.x)<=sideOver2 && abs(p.y-1)<=sideOver2) && // should be inside the board
-      !visited[p.y-1][p.x] && // not visited yet
-      w->GetNorth({p.x, p.y-1})) // has wall
+      w->GetNodeColor(p+Point2D::UP) == Color::DarkGray) // not visited yet
     visitables.emplace_back(p.x, p.y-1);
   // east
   if((abs(p.x+1)<=sideOver2 && abs(p.y)<=sideOver2) && // should be inside the board
-      !visited[p.y][p.x+1] && // not visited yet
-      w->GetEast({p.x, p.y})) // has wall
+      w->GetNodeColor(p+Point2D::RIGHT) == Color::DarkGray) // not visited yet
     visitables.emplace_back(p.x+1, p.y);
   // south
   if((abs(p.x)<=sideOver2 && abs(p.y+1)<=sideOver2) && // should be inside the board
-      !visited[p.y+1][p.x] && // not visited yet
-      w->GetSouth({p.x, p.y})) // has wall
+      w->GetNodeColor(p+Point2D::DOWN) == Color::DarkGray) // not visited yet
     visitables.emplace_back(p.x, p.y+1);
   // west
   if((abs(p.x-1)<=sideOver2 && abs(p.y)<=sideOver2) && // should be inside the board
-      !visited[p.y][p.x-1] && // not visited yet
-      w->GetWest({p.x, p.y})) // has wall
+      w->GetNodeColor(p+Point2D::LEFT) == Color::DarkGray) // not visited yet
     visitables.emplace_back(p.x-1, p.y);
 
   return visitables;
@@ -68,14 +84,14 @@ std::vector<Point2D> PrimExample::getVisitables(World* w, const Point2D& p) {
 std::vector<Point2D>
 PrimExample::getVisitedNeighbors
     (World* w,const Point2D& p) {
-  std::vector<Point2D> deltas = {{-1,0}, {0,-1}, {1,0}, {0,1}};
+  std::vector<Point2D> deltas = {Point2D::UP, Point2D::DOWN, Point2D::LEFT, Point2D::RIGHT};
   auto sideOver2 = w->GetSize()/2;
   std::vector<Point2D> neighbors;
 
   for(auto delta: deltas){
     auto neigh = p+delta;
     if((abs(neigh.x)<=sideOver2 && abs(neigh.y)<=sideOver2) && // should be inside the board
-        visited[neigh.y][neigh.x]) // visited
+        w->GetNodeColor(neigh) == Color::Black) // visited
     {
       bool wall;
       if(delta.y==-1) // north

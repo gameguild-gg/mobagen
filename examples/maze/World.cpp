@@ -185,7 +185,7 @@ void World::Clear() {
   colors.clear();
   colors.resize(sideSize*sideSize);
   for(int i=0; i<sideSize*sideSize; i++)
-    colors[i] = (Color::Gray).Dark();
+    colors[i] = Color::DarkGray;
 
   // clear maze generators
   for(int i=0;i<generators.size(); i++)
@@ -209,6 +209,12 @@ void World::SetNodeColor(const Point2D& node, const Color32& color) {
   colors[(node.y+sideSize/2)*sideSize+node.x+sideSize/2] = color;
 }
 
+Color32 World::GetNodeColor(const Point2D& node) {
+  return colors[(node.y+sideSize/2)*sideSize+node.x+sideSize/2];
+}
+
 int World::GetSize() const {
   return sideSize;
 }
+
+
