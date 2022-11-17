@@ -123,6 +123,8 @@ struct Color32 {
     static Color32 RandomColor(int min=0, int max=255);
     static Color32 RandomColor(int rmin, int rmax, int gmin, int gmax, int bmin, int bmax, int amin=0, int amax=0);
 
+    static Color32 LerpColor(Color32 c1, Color32 c2, float a);
+
     // intensity
     Color32 Shade(float);
     Color32 Shade100();

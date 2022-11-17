@@ -68,6 +68,13 @@ Color32::Color32() {r=0;g=0;b=0,a=255;}
 uint32_t Color32::GetPacked() {
   return a << 24 | b << 16 | g << 8 | r;
 }
+Color32 Color32::LerpColor(Color32 c1, Color32 c2, float a) {
+  return Color32(
+      a + c1.r * (c2.r - a),
+      a + c1.g * (c2.g - a),
+      a + c1.b * (c2.b - a)
+  );
+}
 
 Colorf::Colorf(uint32_t packed) {
     this->a = ((float)(packed >> 24))/255;

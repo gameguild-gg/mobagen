@@ -33,7 +33,6 @@ SET(SDL_STATIC_PIC ON CACHE BOOL "SDL_STATIC_PIC")
 
 add_definitions(-DHAVE_LIBC=OFF)
 # emsdk
-SET(CPM_SOURCE_CACHE ${CMAKE_CURRENT_SOURCE_DIR}/external CACHE STRING "CPM_SOURCE_CACHE")
 CPMAddPackage("gh:emscripten-core/emsdk#3.1.25")
 
 # SDL2
