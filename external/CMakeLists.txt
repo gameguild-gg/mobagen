@@ -1,6 +1,3 @@
-#execute_process( COMMAND git submodule update --init --recursive )
-#set_directory_properties( PROPERTIES CLEAN_NO_CUSTOM 1)
-
 if(COMMAND cmake_policy)
     cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
@@ -30,22 +27,14 @@ ELSE ()
     #  add_subdirectory( glew )
 ENDIF()
 
-SET(CPM_SOURCE_CACHE ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "CPM_SOURCE_CACHE")
-
-# filament
-#CPMAddPackage(
-#        NAME FILAMENT
-#        VERSION 1.28.3
-#        URL "https://github.com/google/filament/archive/refs/tags/v1.28.3.zip"
-#)
-
-#add_subdirectory( filament )
-
 set(SDL_SHARED OFF CACHE BOOL "SDL_SHARED")
 SET(SDL_STATIC ON CACHE BOOL "SDL_STATIC")
 SET(SDL_STATIC_PIC ON CACHE BOOL "SDL_STATIC_PIC")
 
 add_definitions(-DHAVE_LIBC=OFF)
+# emsdk
+SET(CPM_SOURCE_CACHE ${CMAKE_CURRENT_SOURCE_DIR}/external CACHE STRING "CPM_SOURCE_CACHE")
+CPMAddPackage("gh:emscripten-core/emsdk#3.1.25")
 
 # SDL2
 CPMAddPackage(

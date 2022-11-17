@@ -1,30 +1,25 @@
 cmake_minimum_required(VERSION 3.23.2)
 
 # CPM REGION
+set(CPM_DOWNLOAD_VERSION 0.36.0)
 if(CPM_SOURCE_CACHE)
-    set(CPM_DOWNLOAD_LOCATION "${CPM_SOURCE_CACHE}/cpm/CPM.cmake")
+    set(CPM_DOWNLOAD_LOCATION "${CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 elseif(DEFINED ENV{CPM_SOURCE_CACHE})
-    set(CPM_DOWNLOAD_LOCATION "$ENV{CPM_SOURCE_CACHE}/cpm/CPM.cmake")
+    set(CPM_DOWNLOAD_LOCATION "$ENV{CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 else()
-    set(CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/cmake/CPM.cmake")
+    set(CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/cmake/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 endif()
+get_filename_component(CPM_DOWNLOAD_LOCATION ${CPM_DOWNLOAD_LOCATION} ABSOLUTE)
 if(NOT (EXISTS ${CPM_DOWNLOAD_LOCATION}))
-    message(STATUS "Downloading CPM version json to ${CMAKE_BINARY_DIR}/cpm.json")
-    file(DOWNLOAD
-            https://api.github.com/repos/cpm-cmake/CPM.cmake/releases/latest
-            ${CMAKE_BINARY_DIR}/cpm.json
-            )
-    file(READ ${CMAKE_BINARY_DIR}/cpm.json CPMJSON)
-    string(JSON CPMZIPADDRESS GET ${CPMJSON} assets 0 browser_download_url)
-    message(STATUS "CPMZIPADDRESS: ${CPMZIPADDRESS}")
     message(STATUS "Downloading CPM.cmake to ${CPM_DOWNLOAD_LOCATION}")
     file(DOWNLOAD
-            ${CPMZIPADDRESS}
+            https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM.cmake
             ${CPM_DOWNLOAD_LOCATION}
             )
 endif()
 include(${CPM_DOWNLOAD_LOCATION})
 
+#project
 project(mobagen)
 
 set(CMAKE_CXX_STANDARD 17)
