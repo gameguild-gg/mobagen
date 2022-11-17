@@ -1,6 +1,3 @@
 [submodule "external/emsdk"]
 	path = external/emsdk
 	url = https://github.com/emscripten-core/emsdk.git
-[submodule "cmake/polly"]
-	path = cmake/polly
-	url = https://github.com/cpp-pm/polly.git
