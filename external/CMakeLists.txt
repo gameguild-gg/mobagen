@@ -33,7 +33,7 @@ SET(SDL_STATIC_PIC ON CACHE BOOL "SDL_STATIC_PIC")
 
 add_definitions(-DHAVE_LIBC=OFF)
 # emsdk
-CPMAddPackage("gh:emscripten-core/emsdk#3.1.25")
+#CPMAddPackage("gh:emscripten-core/emsdk#3.1.25")
 
 # SDL2
 CPMAddPackage(
