@@ -1,4 +1,5 @@
 file(GLOB SCENARIO_INC
+        CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/generators/*.h
@@ -6,6 +7,7 @@ file(GLOB SCENARIO_INC
         )
 
 file(GLOB SCENARIO_SRC
+        CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*.c
         ${CMAKE_CURRENT_SOURCE_DIR}/generators/*.cpp

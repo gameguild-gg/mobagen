@@ -1,5 +1,6 @@
 
 file(GLOB FLOCKING_INC
+        CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/behaviours/*.h
@@ -11,6 +12,7 @@ file(GLOB FLOCKING_INC
         )
 
 file(GLOB FLOCKING_SRC
+        CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*.c
         ${CMAKE_CURRENT_SOURCE_DIR}/behaviours/*.cpp
