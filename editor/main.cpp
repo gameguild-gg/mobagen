@@ -1,5 +1,6 @@
 #define SDL_MAIN_HANDLED true
 #include <Engine.h>
+#include <GLEWManager.h>
 
 // Main code
 int main(int, char**) {
@@ -18,4 +19,3 @@ int main(int, char**) {
     SDL_Log("Engine Exited");
     return 0;
 }
-

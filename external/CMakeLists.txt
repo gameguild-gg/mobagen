@@ -30,6 +30,7 @@ ENDIF()
 add_definitions(-DHAVE_LIBC=OFF)
 
 include(sdl.cmake)
+include(glew.cmake)
 include(imgui.cmake)
 include(assimp.cmake)
 include(bullet.cmake)

@@ -51,14 +51,12 @@ install (FILES ${EDITOR_INC} DESTINATION include/editor)
 # ENDIF()
 
 add_executable(editor ${EDITOR_SRC} ${EDITOR_INC})
-
-target_include_directories(editor PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
-target_link_libraries (editor PUBLIC SDL2-static IMGUI core)
-
+target_link_libraries (editor PUBLIC SDL2-static IMGUI engine core)
 IF(EMSCRIPTEN)
     target_compile_options(editor PUBLIC "-O0")
     target_link_options(editor PUBLIC "-s WASM=0 -s FULL_ES2=1 -s USE_SDL=0 -s EXPORT_ALL=1")
 ENDIF()
 
-#target_sources(editor PUBLIC ${TARGET_SRC} )
+target_include_directories(editor PUBLIC ${SDL2_INCLUDE_DIR} ${ENGINE_INC_DIR} ${CORE_INC_DIR})
 
+#target_sources(editor PUBLIC ${TARGET_SRC} )

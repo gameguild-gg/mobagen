@@ -62,4 +62,4 @@ install (FILES ${CORE_INC} DESTINATION include/core)
 #   add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 # ENDIF()
 
-include_directories(${SDL2_INCLUDE_DIR} core)
+#include_directories(${SDL2_INCLUDE_DIR} core)

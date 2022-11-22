@@ -1,0 +1,34 @@
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+set(BUILD_SHARED_LIBS FALSE)
+
+file(GLOB ENGINE_INC ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+file(GLOB ENGINE_INC_COMPONENTS ${CMAKE_CURRENT_SOURCE_DIR}/components/*.h)
+
+file(GLOB ENGINE_SRC
+        ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/*.c
+        )
+
+file(GLOB ENGINE_SRC_COMPONENTS
+        ${CMAKE_CURRENT_SOURCE_DIR}/components/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/components/*.c
+        )
+
+SET(ENGINE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "ENGINE INCLUDE SOURCE PATH")
+
+#SET(ENGINE_SRC ${ENGINE_SRC} ${ENGINE_SRC_COMPONENTS} ${ENGINE_INC} ${ENGINE_INC_COMPONENTS})
+
+add_library (engine STATIC ${ENGINE_SRC} ${ENGINE_SRC_COMPONENTS} ${ENGINE_INC} ${ENGINE_INC_COMPONENTS})
+
+target_link_libraries(engine libglew_static)
+
+IF(EMSCRIPTEN)
+    target_compile_options(engine PUBLIC "-O0")
+    target_link_options(engine PUBLIC "-s WASM=0 -s FULL_ES2=1 -s USE_SDL=0 -s EXPORT_ALL=1")
+ENDIF()
+
+install (TARGETS engine DESTINATION lib)
+install (FILES ${ENGINE_INC} DESTINATION include/engine)
+install (FILES ${ENGINE_INC_COMPONENTS} DESTINATION include/engine/components)
+
+include_directories(${ENGINE_INC_DIR})
