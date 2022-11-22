@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.23.2)
 
 # CPM REGION
-#SET(FETCHCONTENT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external CACHE STRING "FETCHCONTENT_BASE_DIR")
 set(CPM_DOWNLOAD_VERSION 0.36.0)
 if(CPM_SOURCE_CACHE)
     set(CPM_DOWNLOAD_LOCATION "${CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
@@ -24,11 +23,7 @@ include(${CPM_DOWNLOAD_LOCATION})
 project(mobagen)
 
 set(CMAKE_CXX_STANDARD 17)
-#set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 set(CMAKE_C_STANDARD 17)
-#set(CMAKE_C_STANDARD_REQUIRED ON)
-
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 #CHECK MINGW
@@ -37,28 +32,19 @@ IF(NOT DEFINED MINGW)
 ENDIF()
 
 # check if mingw
-#IF("${CMAKE_GENERATOR}" MATCHES "(M|m?)in(G|g?)(W|w?)")
-#    SET(MINGW ON)
-#    MESSAGE(STATUS "MinGW Detected")
-#    MESSAGE(STATUS "${CMAKE_GENERATOR}")
-#ELSE()
-#    SET(MINGW OFF CACHE BOOL "MINGW")
-#ENDIF()
-
-## make this only for VS and not WIN32
-#if(DEFINED WIN32 AND NOT DEFINED MINGW)
-#    SET(CMAKE_CXX_FLAGS "/w /EHsc")
-#endif()
-
-#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+IF("${CMAKE_GENERATOR}" MATCHES "(M|m?)in(G|g?)(W|w?)")
+    SET(MINGW ON)
+    MESSAGE(STATUS "MinGW Detected")
+    MESSAGE(STATUS "${CMAKE_GENERATOR}")
+ELSE()
+    SET(MINGW OFF CACHE BOOL "MINGW")
+ENDIF()
 
 # CHECK OR APPLE MACHINE
 IF(NOT DEFINED APPLE)
     set(APPLE OFF)
     MESSAGE(STATUS "NOT APPLE MACHINE")
 ENDIF()
-
 
 find_program(LSB_RELEASE_EXEC lsb_release)
 if(LSB_RELEASE_EXEC)
@@ -121,10 +107,6 @@ add_subdirectory(core)
 
 #SET(CORE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
 
-add_subdirectory(editor)
+#add_subdirectory(editor)
 add_subdirectory(examples)
-
-#add_library(main SHARED main.cpp)
-#target_sources(main PRIVATE main.cpp)
-#target_link_libraries(main SDL2 ${SDL2_LIBRARY})
 

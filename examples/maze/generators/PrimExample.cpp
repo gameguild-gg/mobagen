@@ -7,7 +7,6 @@ bool PrimExample::Step(World *w) {
 
   auto visitedColor = Color::Black;
   auto queuedColor = Color::DarkRed;
-  auto clearColor = Color::DarkGray;
 
   if(!initialized){
     initialized = true;
@@ -60,22 +59,23 @@ void PrimExample::Clear(World *world) {
 std::vector<Point2D> PrimExample::getVisitables(World* w, const Point2D& p) {
   auto sideOver2 = w->GetSize()/2;
   std::vector<Point2D> visitables;
+  auto clearColor = Color::DarkGray;
 
   // north
   if((abs(p.x)<=sideOver2 && abs(p.y-1)<=sideOver2) && // should be inside the board
-      w->GetNodeColor(p+Point2D::UP) == Color::DarkGray) // not visited yet
+      w->GetNodeColor(p+Point2D::UP) == clearColor) // not visited yet
     visitables.emplace_back(p.x, p.y-1);
   // east
   if((abs(p.x+1)<=sideOver2 && abs(p.y)<=sideOver2) && // should be inside the board
-      w->GetNodeColor(p+Point2D::RIGHT) == Color::DarkGray) // not visited yet
+      w->GetNodeColor(p+Point2D::RIGHT) == clearColor) // not visited yet
     visitables.emplace_back(p.x+1, p.y);
   // south
   if((abs(p.x)<=sideOver2 && abs(p.y+1)<=sideOver2) && // should be inside the board
-      w->GetNodeColor(p+Point2D::DOWN) == Color::DarkGray) // not visited yet
+      w->GetNodeColor(p+Point2D::DOWN) == clearColor) // not visited yet
     visitables.emplace_back(p.x, p.y+1);
   // west
   if((abs(p.x-1)<=sideOver2 && abs(p.y)<=sideOver2) && // should be inside the board
-      w->GetNodeColor(p+Point2D::LEFT) == Color::DarkGray) // not visited yet
+      w->GetNodeColor(p+Point2D::LEFT) == clearColor) // not visited yet
     visitables.emplace_back(p.x-1, p.y);
 
   return visitables;
