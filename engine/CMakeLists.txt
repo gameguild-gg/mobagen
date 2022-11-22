@@ -20,7 +20,7 @@ SET(ENGINE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "ENGINE INCLUDE SOURCE
 
 add_library (engine STATIC ${ENGINE_SRC} ${ENGINE_SRC_COMPONENTS} ${ENGINE_INC} ${ENGINE_INC_COMPONENTS})
 
-target_link_libraries(engine libglew_static)
+#target_link_libraries(engine libglew_static)
 
 IF(EMSCRIPTEN)
     target_compile_options(engine PUBLIC "-O0")
