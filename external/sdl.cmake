@@ -2,15 +2,17 @@ set(SDL_SHARED OFF CACHE BOOL "SDL_SHARED")
 SET(SDL_STATIC ON CACHE BOOL "SDL_STATIC")
 SET(SDL_STATIC_PIC ON CACHE BOOL "SDL_STATIC_PIC")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong") # required for opus
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong") # required for opus
+IF(NOT DEFINED EMSCRIPTEN)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong") # required for opus
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong") # required for opus
+ENDIF()
 
 # SDL2
 string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
         NAME SDL2
-        VERSION 2.24.2
-        URL "https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.24.2.zip"
+        GITHUB_REPOSITORY libsdl-org/SDL
+        GIT_TAG release-2.26.0
         OPTIONS "SDL2_DISABLE_INSTALL TRUE"
 )
 find_package(SDL2 REQUIRED)
