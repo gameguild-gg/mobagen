@@ -2,15 +2,17 @@ set(SDL_SHARED OFF CACHE BOOL "SDL_SHARED")
 SET(SDL_STATIC ON CACHE BOOL "SDL_STATIC")
 SET(SDL_STATIC_PIC ON CACHE BOOL "SDL_STATIC_PIC")
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong") # required for opus
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong") # required for opus
+
 # SDL2
+string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
-        NAME SDL2
-        VERSION 2.24.2
-        URL "https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.24.2.zip"
-        OPTIONS "SDL2_DISABLE_INSTALL TRUE"
-)
-find_package(SDL2 REQUIRED)
-if (SDL2_ADDED)
+        GITHUB_REPOSITORY libsdl-org/SDL
+        GIT_TAG release-2.26.0
+        OPTIONS "SDL2_DISABLE_INSTALL TRUE")
+find_package(SDL REQUIRED)
+if (SDL_ADDED)
     file(GLOB SDL_HEADERS "${SDL_SOURCE_DIR}/include/*.h")
 
     # Create a target that copies headers at build time, when they change
@@ -26,4 +28,5 @@ if (SDL2_ADDED)
 
     set (SDL2_INCLUDE_DIR ${SDL2_SOURCE_DIR}/include)
 endif()
+
 include_directories(${SDL2_INCLUDE_DIR})

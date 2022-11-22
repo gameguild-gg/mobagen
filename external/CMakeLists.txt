@@ -27,7 +27,6 @@ ELSE ()
     #  add_subdirectory( glew )
 ENDIF()
 
-
 add_definitions(-DHAVE_LIBC=OFF)
 
 include(sdl.cmake)
