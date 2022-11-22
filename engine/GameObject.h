@@ -1,0 +1,8 @@
+#ifndef MOBAGEN_ENGINE_GAMEOBJECT_H_
+#define MOBAGEN_ENGINE_GAMEOBJECT_H_
+
+class GameObject {
+
+};
+
+#endif //MOBAGEN_ENGINE_GAMEOBJECT_H_
