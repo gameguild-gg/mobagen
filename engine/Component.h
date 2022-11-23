@@ -13,6 +13,9 @@ class Component: public Object {
   virtual void OnDraw(){};
   virtual void Update(){};
   // todo: get the transform and game object associated
+
+//  template<typename T>
+//      requires std::derived_from<T, Component>
 };
 
 #endif //MOBAGEN_ENGINE_COMPONENT_H_

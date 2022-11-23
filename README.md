@@ -1,5 +1,7 @@
 # MoBaGEn
 
+MoBaGEn - Module Based Game Engine - Educational tool to teach game programming concepts
+
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/1d95c33e061442e39d7e1a697b28cb10)](https://www.codacy.com/gh/InfiniBrains/mobagen/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=InfiniBrains/mobagen&amp;utm_campaign=Badge_Grade) ![GitHub language count](https://img.shields.io/github/languages/count/InfiniBrains/mobagen) ![GitHub search hit counter](https://img.shields.io/github/search/InfiniBrains/mobagen/todo) ![Lines of code](https://img.shields.io/tokei/lines/github.com/InfiniBrains/mobagen) ![GitHub all releases](https://img.shields.io/github/downloads/InfiniBrains/mobagen/total) ![GitHub contributors](https://img.shields.io/github/contributors/InfiniBrains/mobagen)
 
 [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![pages](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
@@ -46,3 +48,34 @@ Please refer to [this doc.](docs/Architecture.md)
 - Never use any lib on the core code. The core should interact with the libs through a glue code. Ex.: core lib -> physics module -> bullet physics engine
 - Target the latest C++ version that is portable to our targets(iOS, Android, Windows, Linux, OSX, WEB). [compiler support table](https://en.cppreference.com/w/cpp/compiler_support).
 - CI should be able to build to all targets at once.
+
+# Essential Modules
+- [ ] Core
+- [ ] Job/Task Module
+- [ ] Resources Manager
+
+# Optional modules
+- [ ] Graphics
+  - [x] 2D - Needs to not rely on SDL_Renderer anymore
+  - [ ] 3D
+- [ ] Physics
+- [ ] Sound
+- [ ] Networking
+- [ ] Scripting
+- [ ] GUI
+  - [x] ImGUI via 2D renderer - needs to become agnostic
+- [ ] Input
+- [ ] Game Components
+- [ ] Scene
+- [ ] Logger
+
+# Todo List
+- [ ] Image Editor Application
+    - [ ] Design Editor similar to Slicer3D
+    - [ ] DICOM loader
+    - [ ] 3 viewports synced with exam data
+- [ ] Game Editor Applications
+    - [ ] Compilation of scripts
+    - [ ] Execution of scripts within their respective contexts
+    - [ ] Manipulation of variables within script contexts
+    - [ ] Support importing and exporting compiled scripts
