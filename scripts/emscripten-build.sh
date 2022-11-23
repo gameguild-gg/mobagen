@@ -4,11 +4,15 @@ DIRECTORY="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 mkdir -p "${DIRECTORY}"/../bin-emscripten/bin/
 
-cd $DIRECTORY/../external/emsdk
-
-source ./emsdk_env.sh
-
-export EMSCRIPTEN=${EMSDK}/upstream/emscripten
+if which emcmake >/dev/null; then
+    echo emsdk exists in path
+else
+    echo installing emsdk
+    ./emscripten-install.sh
+    cd $DIRECTORY/../external/emsdk
+    source ./emsdk_env.sh
+    export EMSCRIPTEN=${EMSDK}/upstream/emscripten
+fi
 
 cd $DIRECTORY/../
 
