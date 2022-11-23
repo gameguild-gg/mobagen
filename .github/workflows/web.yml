@@ -13,7 +13,7 @@ env:
 
 jobs:
   linux-emscripten:
-    runs-on: ubuntu-latest
+    runs-on: emscripten/emsdk
 
     steps:
       - uses: actions/checkout@v2
@@ -26,8 +26,8 @@ jobs:
 #          path: /home/runner/.hunter
 #          key: ${{ runner.os }}-mobagen
 
-      - name: Emscripten Install
-        run: ./scripts/emscripten-install.sh || true
+#      - name: Emscripten Install
+#        run: ./scripts/emscripten-install.sh || true
 
       - name: Emscripten Build
         run: ./scripts/emscripten-build.sh
