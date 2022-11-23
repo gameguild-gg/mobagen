@@ -4,13 +4,18 @@
 
 [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![pages](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
 
+# Try online
+Before checking it online, some demos are intended to be implemented by you. So most of the demos would looks like empty;
+
+- [Empty demos](https://infinibrains.github.io/mobagen/).
+- [Flocking demo](https://infinibrains.com/data/flocking) for [this AI class](https://docs.google.com/presentation/d/1OBEY-tb_ubgoq6Mk9lEsCFaYLINni3oPwjH8iAXEQQM/edit?usp=sharing).
+
+Want to showcase your work here? [Create a pull request](https://github.com/InfiniBrains/mobagen/pulls).
 
 # Motivation
-I started this game engine project because:
-- I want to sharpen my C++ skills; 
-- I love game engine architecture;
-- I don't want to recreate all game engine stuff, I want to glue them all. "Life es too short to build a game engine from scratch"  
-- I want to have full control of all the processes from code to the delivery;
+- Act as functional game engine to teach and use as base for presentations;
+- Don't want to recreate all game engine stuff, glue them all. "Life es too short to build a game engine from scratch";  
+- Have full control of all the processes from code to the delivery;
 
 ## Follow me!
 Did you like this project? Follow me on [social medias](https://linktree.com/tolstenko)
@@ -27,7 +32,7 @@ It is the best all-around solution to:
 - Build complex projects in easy way
 - Most relevant libs supports it 
 
-# Why CPP-PM
+# Why CPM
 - Best package manager to import and use third party libs from source code with low maintenance code.
 
 # Architecture
@@ -41,17 +46,3 @@ Please refer to [this doc.](docs/Architecture.md)
 - Never use any lib on the core code. The core should interact with the libs through a glue code. Ex.: core lib -> physics module -> bullet physics engine
 - Target the latest C++ version that is portable to our targets(iOS, Android, Windows, Linux, OSX, WEB). [compiler support table](https://en.cppreference.com/w/cpp/compiler_support).
 - CI should be able to build to all targets at once.
-
-# Examples
-If you want to try code some AI examples, you need to follow this guide in order undestand and do your activity. https://docs.google.com/presentation/d/1OBEY-tb_ubgoq6Mk9lEsCFaYLINni3oPwjH8iAXEQQM/edit?usp=sharing
-- [Flocking demo](https://infinibrains.com/data/flocking)
-
-
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
