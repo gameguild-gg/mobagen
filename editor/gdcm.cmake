@@ -5,7 +5,17 @@ CPMAddPackage(
         NAME GDCM
         GITHUB_REPOSITORY malaterre/GDCM
         GIT_TAG v2.8.9
-        OPTIONS "GDCM_BUILD_SHARED_LIBS OFF" "GDCM_INSTALL_NO_DOCUMENTATION OFF" "GDCM_DOCUMENTATION OFF"
+        OPTIONS
+            "GDCM_BUILD_SHARED_LIBS OFF"
+            "GDCM_DOCUMENTATION OFF"
+            "GDCM_BUILD_DOCBOOK_MANPAGES OFF"
+            "GDCM_BUILD_TESTING OFF"
+            "GDCM_BUILD_APPLICATIONS OFF"
+            "GDCM_BUILD_EXAMPLES OFF"
+            "GDCM_WRAP_CSHARP OFF"
+            "GDCM_WRAP_JAVA OFF"
+            "GDCM_WRAP_PYTHON OFF"
+            "GDCM_USE_PVRG ON"
 )
 include_directories(
         ${CMAKE_BINARY_DIR}/_deps/gdcm-build/Source/Common

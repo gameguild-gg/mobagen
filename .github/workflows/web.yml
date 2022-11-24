@@ -21,8 +21,8 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install docs generation files
-        run: apt install doxygen plantuml graphviz
+#      - name: Install docs generation files
+#        run: apt install doxygen plantuml graphviz
 
       - name: Emscripten Build
         run: ./scripts/emscripten-build.sh
