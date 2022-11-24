@@ -1,0 +1,10 @@
+string(TIMESTAMP BEFORE "%s")
+CPMAddPackage(
+        NAME VTK
+        GITHUB_REPOSITORY Kitware/VTK
+        GIT_TAG v9.2.2
+        OPTIONS "BUILD_SHARED_LIBS OFF"
+)
+string(TIMESTAMP AFTER "%s")
+math(EXPR DELTAVTK "${AFTER} - ${BEFORE}")
+MESSAGE(STATUS "VTK TIME: ${DELTAVTK}s")

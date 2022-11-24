@@ -53,10 +53,9 @@ install (FILES ${EDITOR_INC} DESTINATION include/editor)
 #   add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 # ENDIF()
 
-include(gdcm.cmake)
-# zlib & openssl
+#include(vtk.cmake)
 add_executable(editor ${EDITOR_SRC} ${EDITOR_INC})
-target_link_libraries (editor PUBLIC SDL2-static IMGUI engine core gdcmCommon gdcmDSED)
+target_link_libraries (editor PUBLIC SDL2-static IMGUI engine core)
 IF(EMSCRIPTEN)
     target_compile_options(editor PUBLIC "-O0")
     target_link_options(editor PUBLIC "-s WASM=0 -s FULL_ES2=1 -s USE_SDL=0 -s EXPORT_ALL=1")
