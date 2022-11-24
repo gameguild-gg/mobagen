@@ -24,6 +24,6 @@ cmake --version
 
 emcmake cmake --version
 
-emcmake cmake -DCMAKE_C_ABI_COMPILED=ON -DCMAKE_CXX_ABI_COMPILED=ON -DEMSCRIPTEN=1 -DCMAKE_BUILD_TYPE=MinSizeRel -H. -Bbin-emscripten
+emcmake cmake -DCMAKE_C_ABI_COMPILED=ON -DCMAKE_CXX_ABI_COMPILED=ON -DEMSCRIPTEN=1 -DCMAKE_BUILD_TYPE=MinSizeRel -H. -Bbin-emscripten -DBUILD_EDITOR=ON
 
 cmake --build bin-emscripten/ -j 20

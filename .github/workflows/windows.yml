@@ -28,7 +28,7 @@ jobs:
 
       - name: Configure CMake
         shell: cmd
-        run: cmake -H. -Bbuild -G "Visual Studio 16 2019" -T ClangCL -DCMAKE_BUILD_TYPE=MinSizeRel
+        run: cmake -H. -Bbuild -G "Visual Studio 16 2019" -T ClangCL -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_EDITOR=ON
 
       - name: Build
         shell: cmd

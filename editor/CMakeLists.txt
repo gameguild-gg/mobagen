@@ -1,3 +1,6 @@
+OPTION(BUILD_EDITOR "BUILD_EDITOR" OFF)
+
+if(BUILD_EDITOR)
 file(GLOB EDITOR_INC
         CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*.h
@@ -66,3 +69,4 @@ target_include_directories(editor PUBLIC
 )
 
 #target_sources(editor PUBLIC ${TARGET_SRC} )
+ENDIF()

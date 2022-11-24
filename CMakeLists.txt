@@ -12,8 +12,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 # todo: fix this error if the c standard is required
 # error: EM_ASM does not work in -std=c* modes, use -std=gnu* modes instead
-#set(CMAKE_C_STANDARD 17)
-#set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_EXTENSIONS OFF)
 
 # set output dirs
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
