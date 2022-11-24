@@ -28,8 +28,6 @@ ELSE ()
     #  add_subdirectory( glew )
 ENDIF()
 
-add_definitions(-DHAVE_LIBC=OFF)
-
 #include(filament.cmake)
 include(sdl.cmake)
 include(glm.cmake)
