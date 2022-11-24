@@ -15,7 +15,7 @@ CPMAddPackage(
             "GDCM_WRAP_CSHARP OFF"
             "GDCM_WRAP_JAVA OFF"
             "GDCM_WRAP_PYTHON OFF"
-            "GDCM_USE_PVRG ON"
+            "GDCM_USE_PVRG OFF"
 )
 include_directories(
         ${CMAKE_BINARY_DIR}/_deps/gdcm-build/Source/Common
