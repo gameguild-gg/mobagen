@@ -1,4 +1,5 @@
 #ImGui
+string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
         NAME IMGUI
         VERSION 1.88
@@ -27,3 +28,6 @@ IF(IMGUI_ADDED)
 
     target_link_libraries(IMGUI PUBLIC SDL2-static ${CMAKE_DL_LIBS})
 ENDIF()
+string(TIMESTAMP AFTER "%s")
+math(EXPR DELTAIMGUI "${AFTER} - ${BEFORE}")
+MESSAGE(STATUS "IMGUI TIME: ${DELTAIMGUI}s")
