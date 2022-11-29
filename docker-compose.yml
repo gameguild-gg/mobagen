@@ -1,0 +1,11 @@
+version: "3"
+services:
+  emsdk:
+    container_name: mobagen-emsdk
+    image: emscripten/emsdk
+    working_dir: /usr/src/mobagen
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/usr/src/mobagen
+    command: ./scripts/emscripten-build-and-run.sh

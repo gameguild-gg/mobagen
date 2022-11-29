@@ -21,7 +21,3 @@ add_executable(scenario ${SCENARIO_SRC} ${SCENARIO_INC})
 
 target_include_directories(scenario PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
 target_link_libraries (scenario PUBLIC SDL2-static IMGUI core)
-IF(EMSCRIPTEN)
-    target_compile_options(scenario PUBLIC "-O0")
-    target_link_options(scenario PUBLIC "-s WASM=0 -s FULL_ES2=1 -s USE_SDL=0 -s EXPORT_ALL=1")
-ENDIF()

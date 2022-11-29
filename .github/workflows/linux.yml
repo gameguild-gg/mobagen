@@ -34,7 +34,7 @@ jobs:
           sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev python3-distutils libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev  
 
       - name: Configure CMake
-        run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel
+        run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_EDITOR=ON
 
       - name: Build
         run: cmake --build build/ -j20

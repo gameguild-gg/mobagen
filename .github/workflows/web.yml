@@ -14,20 +14,15 @@ env:
 jobs:
   linux-emscripten:
     runs-on: ubuntu-latest
+    container: emscripten/emsdk
 
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
 
-#      - name: cache
-#        uses: actions/cache@v3
-#        with:
-#          path: /home/runner/.hunter
-#          key: ${{ runner.os }}-mobagen
-
-      - name: Emscripten Install
-        run: ./scripts/emscripten-install.sh || true
+#      - name: Install docs generation files
+#        run: apt install doxygen plantuml graphviz
 
       - name: Emscripten Build
         run: ./scripts/emscripten-build.sh

@@ -1,3 +1,4 @@
+
 if(COMMAND cmake_policy)
     cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
@@ -27,8 +28,7 @@ ELSE ()
     #  add_subdirectory( glew )
 ENDIF()
 
-add_definitions(-DHAVE_LIBC=OFF)
-
+#include(filament.cmake)
 include(sdl.cmake)
 include(glm.cmake)
 #include(glew.cmake)

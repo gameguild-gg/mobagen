@@ -12,6 +12,6 @@ cd $DIRECTORY
 
 cd $DIRECTORY/../bin-emscripten/bin
 
-open "http://localhost:8000"
+echo hosting build at http://localhost:8000
 
 python3 -m http.server
