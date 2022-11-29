@@ -11,9 +11,9 @@
 #include <vector>
 #include <unordered_set>
 
-#ifdef EMSCRIPTEN
-#include <emscripten.h>
-#endif
+//#ifdef __EMSCRIPTEN__
+//#include <emscripten.h>
+//#endif
 
 class GameObject;
 
@@ -42,9 +42,9 @@ private:
     // todo: better ordering
     std::vector<GameObject*> toDestroy;
 public:
-#ifdef EMSCRIPTEN
-    static void loop();
-#endif
+//#ifdef __EMSCRIPTEN__
+//    static void loop();
+//#endif
     Engine();
     ~Engine();
     int Start(std::string title);
