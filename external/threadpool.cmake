@@ -5,4 +5,5 @@ CPMAddPackage(
         OPTIONS "TP_BUILD_TESTS OFF" "TP_BUILD_EXAMPLES OFF" "TP_BUILD_BENCHMARKS OFF"
 )
 #find_package(dp::thread-pool REQUIRED)
+# todo: test https://github.com/Ahajha/LMRTFY
 # todo: test thread pool functionality
