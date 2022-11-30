@@ -48,7 +48,7 @@ ide/clion/
 
 # Build directories and binary files
 out/
-cmake-build-*/
+cmake-*/
 conan-cache/
 
 # User spesific settings
