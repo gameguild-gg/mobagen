@@ -53,12 +53,13 @@ install (FILES ${EDITOR_INC} DESTINATION include/editor)
 #   add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 # ENDIF()
 
-#include(vtk.cmake)
+include(itk.cmake)
 add_executable(editor ${EDITOR_SRC} ${EDITOR_INC})
-target_link_libraries (editor PUBLIC SDL2-static IMGUI engine core)
+#target_include_directories(editor PUBLIC ${ITKGDCM_INCLUDE_DIRS})
+target_link_libraries (editor PUBLIC SDL2-static IMGUI engine core itkgdcmDSED-5.3 itkgdcmCommon-5.3 itkzlib-5.3)
 IF(EMSCRIPTEN)
-    target_compile_options(editor PUBLIC "-O0")
-    target_link_options(editor PUBLIC "-s WASM=0 -s FULL_ES2=1 -s USE_SDL=0 -s EXPORT_ALL=1")
+    target_compile_options(editor PUBLIC "-Oz")
+    target_link_options(editor PUBLIC "-s WASM=2 -s USE_SDL=0 -s EXPORT_ALL=1")
 ENDIF()
 
 target_include_directories(editor PUBLIC

@@ -1,18 +1,21 @@
 #include "Engine.h"
 #include "SDL.h"
 #include "Polygon.h"
-
-#ifdef EMSCRIPTEN
-static Engine *instance = nullptr;
-void Engine::loop(void){
-  instance->Tick();
-}
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
 #endif
+
+//#ifdef __EMSCRIPTEN__
+//static Engine *instance = nullptr;
+//void Engine::loop(void){
+//  instance->Tick();
+//}
+//#endif
 
 Engine::Engine() {
-#ifdef EMSCRIPTEN
-    instance = nullptr;
-#endif
+//#ifdef __EMSCRIPTEN__
+//    instance = nullptr;
+//#endif
     window = nullptr;
     imGuiContext = nullptr;
 }
@@ -33,10 +36,10 @@ Engine::~Engine() {
 
 void Engine::Run() {
     // Main loop
-#ifndef EMSCRIPTEN
+//#ifndef __EMSCRIPTEN__
     while (!done) { Tick(); }
     Exit();
-#endif
+//#endif
 }
 
 int Engine::Start(std::string title) {
@@ -52,12 +55,12 @@ int Engine::Start(std::string title) {
     // start all gameobjects
     for(auto go : gameObjects)
         go->Start();
-#ifdef EMSCRIPTEN
-    SDL_Log("Setting main loop for emscripten");
-    instance = this;
-    emscripten_set_main_loop(Engine::loop, 0, 1); // should be called only after sldrenderinit
-    SDL_Log("Main loop set");
-#endif
+//#ifdef __EMSCRIPTEN__
+//    SDL_Log("Setting main loop for emscripten");
+//    instance = this;
+//    emscripten_set_main_loop(Engine::loop, 0, 1); // should be called only after sldrenderinit
+//    SDL_Log("Main loop set");
+//#endif
     return true;
 }
 
@@ -107,7 +110,11 @@ void Engine::Tick() {
 
     ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
     SDL_RenderPresent(window->sdlRenderer);
+#ifdef __EMSCRIPTEN__
+    emscripten_sleep(0);
+#else
     SDL_Delay(0);
+#endif
 }
 
 void Engine::Exit() {
