@@ -29,9 +29,13 @@ ELSE ()
 ENDIF()
 
 #include(filament.cmake)
+include(threadpool.cmake)
 include(sdl.cmake)
 include(glm.cmake)
 #include(glew.cmake)
 include(imgui.cmake)
 include(assimp.cmake)
 include(bullet.cmake)
+
+# PackageProject.cmake will be used to make our target installable
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.10.0")

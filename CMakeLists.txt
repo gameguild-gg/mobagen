@@ -4,27 +4,19 @@ cmake_minimum_required(VERSION 3.16.3 FATAL_ERROR)
 include(external/cpm.cmake)
 
 # project declaration
-project(
-        MoBaGEn
+project(MoBaGEn
         VERSION 0.0.1
-        LANGUAGES CXX
+        HOMEPAGE_URL "https://infinbrains.com"
+        DESCRIPTION "Module Based Game Engine"
 )
 
 # Include guards
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
-    message(
-            FATAL_ERROR
-            "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there."
-    )
+    message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there.")
 endif()
 
-# standands
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-# todo: fix this error if the c standard is required
-#set(CMAKE_C_STANDARD 11) # todo: make it be 17
-#set(CMAKE_C_EXTENSIONS OFF)
+# compiler checks
+include(external/compilerchecks.cmake)
 
 # set output dirs
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
@@ -33,7 +25,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # set linkage
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs)
-LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs/Debug)
+#LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs/Debug)
 
 IF(EMSCRIPTEN)
     message(STATUS "emscripten build")
@@ -76,3 +68,4 @@ add_subdirectory(examples)
 #    message("Doxygen need to be installed to generate the doxygen documentation")
 #endif (DOXYGEN_FOUND)
 
+# todo: follow https://github.com/TheLartians/ModernCppStarter
