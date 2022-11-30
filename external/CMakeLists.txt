@@ -36,6 +36,3 @@ include(glm.cmake)
 include(imgui.cmake)
 include(assimp.cmake)
 include(bullet.cmake)
-
-# PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.10.0")
