@@ -1,10 +1,13 @@
 # MoBaGEn
 
-MoBaGEn - Module Based Game Engine - Educational tool to teach game programming concepts
+MoBaGEn - Module Based Game Engine - Educational tool to teach game programming concepts.
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/1d95c33e061442e39d7e1a697b28cb10)](https://www.codacy.com/gh/InfiniBrains/mobagen/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=InfiniBrains/mobagen&amp;utm_campaign=Badge_Grade) ![GitHub language count](https://img.shields.io/github/languages/count/InfiniBrains/mobagen) ![GitHub search hit counter](https://img.shields.io/github/search/InfiniBrains/mobagen/todo) ![Lines of code](https://img.shields.io/tokei/lines/github.com/InfiniBrains/mobagen) ![GitHub all releases](https://img.shields.io/github/downloads/InfiniBrains/mobagen/total) ![GitHub contributors](https://img.shields.io/github/contributors/InfiniBrains/mobagen)
 
-[![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![pages](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
+Join us: [![say thanks](https://img.shields.io/badge/Say%20Thanks-👍-1EAEDB.svg)](https://github.com/InfiniBrains/mobagen/stargazers) [![Discord](https://img.shields.io/discord/956922983727915078)](https://discord.gg/9CdJeQ2XKB)
+
+Metrics: [![Codacy Badge](https://app.codacy.com/project/badge/Grade/1d95c33e061442e39d7e1a697b28cb10)](https://www.codacy.com/gh/InfiniBrains/mobagen/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=InfiniBrains/mobagen&amp;utm_campaign=Badge_Grade) ![GitHub language count](https://img.shields.io/github/languages/count/InfiniBrains/mobagen) ![GitHub search hit counter](https://img.shields.io/github/search/InfiniBrains/mobagen/todo) ![Lines of code](https://img.shields.io/tokei/lines/github.com/InfiniBrains/mobagen) ![GitHub all releases](https://img.shields.io/github/downloads/InfiniBrains/mobagen/total) ![GitHub contributors](https://img.shields.io/github/contributors/InfiniBrains/mobagen)
+
+CI: [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![pages](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
 
 # Try online
 Before checking it online, some demos are intended to be implemented by you. So most of the demos would looks like empty;
@@ -13,6 +16,8 @@ Before checking it online, some demos are intended to be implemented by you. So 
 - [Flocking demo](https://infinibrains.com/data/flocking) for [this AI class](https://docs.google.com/presentation/d/1OBEY-tb_ubgoq6Mk9lEsCFaYLINni3oPwjH8iAXEQQM/edit?usp=sharing).
 
 Want to showcase your work here? [Create a pull request](https://github.com/InfiniBrains/mobagen/pulls).
+
+Do you like it?
 
 # Motivation
 - Act as functional game engine to teach and use as base for presentations;

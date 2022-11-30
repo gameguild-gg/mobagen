@@ -7,7 +7,7 @@ include(external/cpm.cmake)
 project(MoBaGEn)
 
 # standands
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 # todo: fix this error if the c standard is required
