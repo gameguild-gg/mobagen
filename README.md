@@ -23,7 +23,7 @@ Do you like it?
 - Don't want to recreate all game engine stuff, glue them all. "Life es too short to build a game engine from scratch";  
 - Have full control of all the processes from code to the delivery;
 
-## Follow me!
+## Follow us!
 Did you like this project? Follow me on [social medias](https://linktree.com/tolstenko)
 
 # Why C++
@@ -42,7 +42,8 @@ It is the best all-around solution to:
 - Best package manager to import and use third party libs from source code with low maintenance code.
 
 # Architecture
-Please refer to [this doc.](docs/Architecture.md)
+- Please refer to [this doc.](docs/Architecture.md)
+- [C++ core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
 
 # Restrictions
 - If a library do not easily compile on all supported platforms, we won't use it.
@@ -83,3 +84,5 @@ Please refer to [this doc.](docs/Architecture.md)
     - [ ] Execution of scripts within their respective contexts
     - [ ] Manipulation of variables within script contexts
     - [ ] Support importing and exporting compiled scripts
+
+[![Anurag's GitHub stats](https://github-readme-stats.vercel.app/api?username=tolstenko)](https://github.com/anuraghazra/github-readme-stats)
