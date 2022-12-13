@@ -8,11 +8,14 @@ https://medium.com/geekculture/how-to-make-your-own-game-engine-and-why-ddf0acbc
 https://github.com/YvesBoyadjian/Scenario4j
 
 Basic Steps
+Setup environment
+Basic demo on SDL2 usage
 Window Manager - SDL to manage it
-Render context manager - Glue to OpenGL,
-Draw simple 3d polygons - Use OpenGL correctly,
-Input Manager - Use SDL and combine with IMGUI
-Event event/messaging system - Avoid polling data, use event based subscrition
+Render context manager - Glue to OpenGL
+Draw simple 3d polygons - Use OpenGL correctly
+ImGUI glue for debug tools
+Input Manager - Use SDL as common ground
+Event / messaging system - Avoid polling data, use event based subscrition
 Main loop - to be super seeded by the job system task manager
 Asset manager (model file loaders, animation files, texture files, shader files, etc. or use existing libraries like assimp, stb which save a lot of trouble).
 Scene manager and scenegraph data structure to manage the objects that exist in your game.
@@ -46,3 +49,7 @@ engine rendering hd models with low poly model using dynamic tessellation+vertex
 lights and bones: https://youtu.be/Bx7TL1iD6dA
 
 displacement mapping + tessellation + normal mapping + depth of field: https://youtu.be/WcqPSTDquBk
+
+
+About colors:
+- An interesting demo: an equivalent geogessr for colors

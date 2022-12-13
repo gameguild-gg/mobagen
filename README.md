@@ -19,8 +19,8 @@ Want to showcase your work here? [Create a pull request](https://github.com/Infi
 Do you like it?
 
 # Motivation
-- Act as functional game engine to teach and use as base for presentations;
-- Don't want to recreate all game engine stuff, glue them all. "Life es too short to build a game engine from scratch";  
+- Act as a central point to teach basic game dev concepts;
+- Build a regional community around game dev to bring attention to our people;
 - Have full control of all the processes from code to the delivery;
 
 ## Follow us!
@@ -46,6 +46,7 @@ It is the best all-around solution to:
 - [C++ core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
 
 # Restrictions
+- Don't recreate all game engine stuff, glue them all. "Life es too short to build a game engine from scratch";
 - If a library do not easily compile on all supported platforms, we won't use it.
 - Use consolidated libs and do not reinvent the wheel (only if is strictly needed)
 - Start small and make small steps towards the goal.
