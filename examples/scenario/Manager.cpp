@@ -2,8 +2,8 @@
 #include "Point2D.h"
 #include "generators/ParticleGenerator.h"
 #include "generators/RandomGenerator.h"
+
 #include <chrono>
-#include <iostream>
 
 Manager::Manager(Engine* engine, int size)
     : GameObject(engine) {
@@ -102,6 +102,7 @@ void Manager::OnGui(ImGuiContext* context) {
   }
 
   if(ImGui::Button("Generate")) {
+    accumulatedTime+=deltaTime;
     step();
   }
 

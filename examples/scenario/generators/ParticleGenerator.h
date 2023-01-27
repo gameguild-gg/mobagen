@@ -7,7 +7,7 @@
 #include <glm/gtx/normal.hpp>
 class ParticleGenerator: public ScenarioGeneratorBase {
  private:
-  float heights[512][512];
+  float heights[2048][2048];
   int sideSizeCached=0;
   glm::vec3 surfaceNormal(int i, int j);
   std::vector<Color32> heightsToColor();

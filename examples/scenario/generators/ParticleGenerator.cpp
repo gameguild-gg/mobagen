@@ -2,6 +2,7 @@
 #include "../FastNoiseLite.h"
 #include "Random.h"
 #include <iostream>
+#include <iomanip>
 std::vector<Color32> ParticleGenerator::Generate(int sideSize, float time) {
   // bootstrap condition
   if(sideSize!=sideSizeCached){
@@ -23,7 +24,7 @@ std::vector<Color32> ParticleGenerator::heightsToColor() {
   std::vector<Color32> colors;
   for(int y=0; y<sideSizeCached; y++)
     for(int x=0; x<sideSizeCached; x++) {
-      auto h = 1-heights[y][x];
+      auto h = heights[y][x];
       if(h<0.3)
         colors.push_back(Color32::LerpColor(Color::DarkBlue, Color::Blue, h/0.3f));
       else if(h < 0.4)
@@ -55,7 +56,7 @@ void ParticleGenerator::generateRandomHeights() {
       // island generation
       float const posY = (float)((y-(float)sideSizeCached/2))/((float)sideSizeCached/2);
       float const posX = (float)((x-(float)sideSizeCached/2))/((float)sideSizeCached/2);
-      float const islandInfluence = 1- (1-posX*posX)*(1-posY*posY);
+      float const islandInfluence = (1-posX*posX)*(1-posY*posY);
 
       // noise
       float const noiseInfluence = (1 + noise.GetNoise((float)y, (float)x, displacement*50))/2;
@@ -66,7 +67,8 @@ void ParticleGenerator::generateRandomHeights() {
   }
 }
 glm::vec3 ParticleGenerator::surfaceNormal(int i, int j) {
-  float scale = 20;
+//  float scale = 0.1;
+  float scale = 1;
   /*
     Note: Surface normal is computed in this way, because the square-grid surface is meshed using triangles.
     To avoid spatial artifacts, you need to weight properly with all neighbors.
@@ -84,10 +86,10 @@ glm::vec3 ParticleGenerator::surfaceNormal(int i, int j) {
   n += glm::vec3(0.1) * glm::normalize(glm::vec3(scale*(heights[i][j]- heights[i-1][j+1])/sqrt2, sqrt2, scale*(heights[i][j]- heights[i-1][j+1])/sqrt2));    //Positive Y
   n += glm::vec3(0.1) * glm::normalize(glm::vec3(scale*(heights[i][j]- heights[i-1][j-1])/sqrt2, sqrt2, scale*(heights[i][j]- heights[i-1][j-1])/sqrt2));    //Positive Y
 
+  // we can still see clearly as asterisk pattern. needs improvement
   return n;
 }
 void ParticleGenerator::Erode(float dt) {
-  dt*=10;
   // the quality of this dt is awful pf...
   static int cycles = 1;
   if(dt>0.500) {
@@ -96,12 +98,13 @@ void ParticleGenerator::Erode(float dt) {
   else
     cycles++;
 
+  dt*=2; // speedup it
+
   //Do a series of iterations! (5 Particles)
   for(int i = 0; i < cycles; i++){
     //Spawn New Particle
-    glm::vec2 newpos = glm::vec2(Random::Range(0,(int)sideSizeCached),Random::Range(0,(int)sideSizeCached));
-    Particle drop(newpos);
-    std::cout << "[" << drop.pos.x << "," <<  drop.pos.y << "]";
+    glm::vec2 startPos = glm::vec2(Random::Range(1,(int)sideSizeCached-2),Random::Range(1,(int)sideSizeCached-2));
+    Particle drop(startPos);
 
     glm::vec2 dim = glm::vec2(sideSizeCached,sideSizeCached);
     //As long as the droplet exists...
@@ -113,7 +116,7 @@ void ParticleGenerator::Erode(float dt) {
 
       glm::ivec2 ipos = drop.pos;                   //Floored Droplet Initial Position
 
-      if(ipos.x<=0||ipos.y<=0||ipos.x>=sideSizeCached||ipos.y>=sideSizeCached)
+      if(ipos.x<=0||ipos.y<=0||ipos.x>=sideSizeCached-1||ipos.y>=sideSizeCached-1)
         break;
 
       glm::vec3 n = surfaceNormal(ipos.x, ipos.y);  //Surface Normal at Position
@@ -143,7 +146,8 @@ void ParticleGenerator::Erode(float dt) {
       //Evaporate the Droplet (Note: Proportional to Volume! Better: Use shape factor to make proportional to the area instead.)
       drop.volume *= (1.0f-dt*evapRate);
     }
-    std::cout << "->[" << (int)drop.pos.x << "," <<  (int)drop.pos.y << "]" << std::endl;
+    auto delta = drop.pos - startPos;
+    std::cout << "[" << startPos.x << "," <<  startPos.y << "]" << "->[" << (int)drop.pos.x << "," <<  (int)drop.pos.y << "] angle: " << std::fixed << std::setprecision(2) << atan2(delta.y, delta.x)*(180 / 3.1415) << " dist: " << glm::length(delta) << std::endl;
   }
   std::cout << "Cycles: " << cycles << "dt: " << (int)(dt*1000)<<"ms" << std::endl;
 }

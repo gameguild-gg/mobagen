@@ -1,5 +1,5 @@
-#ifndef MANAGER_H
-#define MANAGER_H
+#ifndef SCENARIO_MANAGER_H
+#define SCENARIO_MANAGER_H
 
 #include "ColorT.h"
 #include "GameObject.h"
@@ -32,4 +32,4 @@ class Manager: public GameObject {
   void SetPixels(std::vector<Color32> &pixels);
 };
 
-#endif  // MANAGER_H
+#endif
