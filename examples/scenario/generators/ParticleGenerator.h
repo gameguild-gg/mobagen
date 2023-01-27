@@ -11,7 +11,7 @@ class ParticleGenerator: public ScenarioGeneratorBase {
   int sideSizeCached=0;
   glm::vec3 surfaceNormal(int i, int j);
   std::vector<Color32> heightsToColor();
-  void generateRandomHeights(float displacement);
+  void generateRandomHeights();
   void Erode(float dt);
   float minVol = 0.01;
   float density = 1;

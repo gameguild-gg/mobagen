@@ -1,11 +1,12 @@
 #include "ParticleGenerator.h"
 #include "../FastNoiseLite.h"
+#include "Random.h"
 #include <iostream>
 std::vector<Color32> ParticleGenerator::Generate(int sideSize, float time) {
   // bootstrap condition
   if(sideSize!=sideSizeCached){
     sideSizeCached = sideSize;
-    generateRandomHeights(time);
+    generateRandomHeights();
     lastUpdate=time;
   }
   else {
@@ -22,7 +23,7 @@ std::vector<Color32> ParticleGenerator::heightsToColor() {
   std::vector<Color32> colors;
   for(int y=0; y<sideSizeCached; y++)
     for(int x=0; x<sideSizeCached; x++) {
-      auto h = heights[y][x];
+      auto h = 1-heights[y][x];
       if(h<0.3)
         colors.push_back(Color32::LerpColor(Color::DarkBlue, Color::Blue, h/0.3f));
       else if(h < 0.4)
@@ -39,7 +40,10 @@ std::vector<Color32> ParticleGenerator::heightsToColor() {
     }
   return colors;
 }
-void ParticleGenerator::generateRandomHeights(float displacement) {
+void ParticleGenerator::generateRandomHeights() {
+
+  float displacement = Random::Range(0,sideSizeCached);
+
   // noise
   FastNoiseLite noise;
   noise.SetFractalOctaves(4);
@@ -51,8 +55,9 @@ void ParticleGenerator::generateRandomHeights(float displacement) {
       // island generation
       float const posY = (float)((y-(float)sideSizeCached/2))/((float)sideSizeCached/2);
       float const posX = (float)((x-(float)sideSizeCached/2))/((float)sideSizeCached/2);
+      float const islandInfluence = 1- (1-posX*posX)*(1-posY*posY);
 
-      float const islandInfluence = 1-sqrtf(posX*posX + posY*posY)/sqrt2;
+      // noise
       float const noiseInfluence = (1 + noise.GetNoise((float)y, (float)x, displacement*50))/2;
 
       heights[y][x] = islandInfluence*.3f + noiseInfluence*.7f;
@@ -94,7 +99,7 @@ void ParticleGenerator::Erode(float dt) {
   //Do a series of iterations! (5 Particles)
   for(int i = 0; i < cycles; i++){
     //Spawn New Particle
-    glm::vec2 newpos = glm::vec2(rand()%(int)sideSizeCached, rand()%(int)sideSizeCached);
+    glm::vec2 newpos = glm::vec2(Random::Range(0,(int)sideSizeCached),Random::Range(0,(int)sideSizeCached));
     Particle drop(newpos);
     std::cout << "[" << drop.pos.x << "," <<  drop.pos.y << "]";
 
