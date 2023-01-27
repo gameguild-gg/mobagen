@@ -69,10 +69,11 @@ uint32_t Color32::GetPacked() {
   return a << 24 | b << 16 | g << 8 | r;
 }
 Color32 Color32::LerpColor(Color32 c1, Color32 c2, float a) {
+  // todo: use hsv to properly interpolate
   return Color32(
-      a + c1.r * (c2.r - a),
-      a + c1.g * (c2.g - a),
-      a + c1.b * (c2.b - a)
+      std::lerp(c1.r,c2.r,a),
+      std::lerp(c1.g,c2.g,a),
+      std::lerp(c1.b,c2.b,a)
   );
 }
 
