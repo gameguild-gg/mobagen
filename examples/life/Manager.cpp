@@ -92,7 +92,6 @@ void Manager::OnDraw(SDL_Renderer* renderer){
   auto windowSize = engine->window->size();
   auto center = Point2D(windowSize.x/2, windowSize.y/2);
   float minDimension = std::min(windowSize.x, windowSize.y)*0.99f;
-  auto lineColor = Color::LightGray;
   auto squareSide = minDimension/sideSize;
   auto sideSideOver2 = sideSize/2.0f;
 
@@ -117,7 +116,8 @@ void Manager::OnDraw(SDL_Renderer* renderer){
   }
 
   // Draw line matrix
-  SDL_SetRenderDrawColor(renderer,lineColor.r,lineColor.g, lineColor.b, 200);
+  auto lineColor = Color32(50,50,50,50);
+  SDL_SetRenderDrawColor(renderer,lineColor.r,lineColor.g, lineColor.b, 10);
   for(int i = 0; i<=sideSize;i++){
     SDL_RenderDrawLine(renderer,
                        (int) (center.x - minDimension/2),
