@@ -20,7 +20,8 @@ struct World {
   // todo: make it follow the standard at() function that returns the exactly element
   inline bool Get(Point2D point){return currentBuffer()[(sideSize*sideSize + point.y*sideSize + point.x)%(sideSize*sideSize)];};
   // todo: make it follow the standard at() function that returns the exactly element
-  inline void Set(Point2D point, bool value){ nextBuffer()[(sideSize*sideSize + point.y*sideSize + point.x)%(sideSize*sideSize)]=value;};
+  inline void SetNext(Point2D point, bool value){ nextBuffer()[(sideSize*sideSize + point.y*sideSize + point.x)%(sideSize*sideSize)]=value;};
+  inline void SetCurrent(Point2D point, bool value){ currentBuffer()[(sideSize*sideSize + point.y*sideSize + point.x)%(sideSize*sideSize)]=value;};
 };
 
 #endif  // MOBAGEN_WORLD_H

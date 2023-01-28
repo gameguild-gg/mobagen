@@ -1,6 +1,7 @@
 #include "Manager.h"
 #include "ColorT.h"
 #include "rules/JohnConway.h"
+#include <iostream>
 
 Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
   world.Resize(sideSize);
@@ -70,7 +71,18 @@ void Manager::OnGui(ImGuiContext *context){
   }
 
   ImGui::End(); // end settings
+
+  if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)){
+    auto mousePos = ImGui::GetMousePos();
+    auto index = mousePositionToIndex(mousePos);
+    std::cout << "MatrixPos: " << index.to_string() << std::endl;
+    if(index.x >= 0 && index.x < sideSize && index.y >= 0 && index.y < sideSize){
+      world.SetCurrent(index, !world.Get(index)); // to be visible
+      world.SetNext(index, !world.Get(index)); // to be used next time
+    }
+  }
 }
+
 void Manager::OnDraw(SDL_Renderer* renderer){
   auto windowSize = engine->window->size();
   auto center = Point2D(windowSize.x/2, windowSize.y/2);
@@ -84,7 +96,7 @@ void Manager::OnDraw(SDL_Renderer* renderer){
   auto emptyCell = Color::DarkGray.Dark().Dark().Dark();
   for(int l = 0; l<sideSize; l++){
     for(int c = 0; c<sideSize; c++){
-      auto state = world.Get({l,c});
+      auto state = world.Get({c,l});
       if(state)
         SDL_SetRenderDrawColor(renderer,liveCell.r,liveCell.g, liveCell.b,SDL_ALPHA_OPAQUE);
       else
@@ -138,4 +150,20 @@ Manager::~Manager() {
 void Manager::clear() {
   isSimulating = false;
   world.Resize(sideSize);
+}
+Point2D Manager::mousePositionToIndex(ImVec2& mousePos) {
+  auto windowSize = engine->window->size();
+  auto center = Point2D(windowSize.x/2, windowSize.y/2);
+  float minDimension = std::min(windowSize.x, windowSize.y)*0.99f;
+  auto lineColor = Color::LightGray;
+  auto squareSide = minDimension/sideSize;
+  auto sideSideOver2 = sideSize/2.0f;
+
+  Vector2 relativePosFloat(mousePos.x - center.x, mousePos.y-center.y);
+
+  relativePosFloat*=0.99f;
+  relativePosFloat+=Vector2{minDimension/2, minDimension/2};
+  relativePosFloat/=squareSide;
+
+  return Point2D(relativePosFloat.x, relativePosFloat.y);
 }

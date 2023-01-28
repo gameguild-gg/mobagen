@@ -9,12 +9,12 @@ void JohnConway::Step(World& world) {
       auto isAlive = world.Get(point);
       if(isAlive) {
         if(neighs==2 || neighs==3)
-          continue;
+          world.SetNext(point, true);
         else
-          world.Set(point, false);
+          world.SetNext(point, false);
       }
       else if(neighs==3)
-        world.Set(point,true);
+        world.SetNext(point, true);
     }
   }
 }

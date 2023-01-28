@@ -16,6 +16,7 @@ class Manager: GameObject {
   void clear();
   std::vector<RuleBase*> rules;
   int ruleId = 0;
+  Point2D mousePositionToIndex(ImVec2& pos);
 
  public:
   explicit Manager(Engine* pEngine);
