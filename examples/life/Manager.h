@@ -2,14 +2,24 @@
 #define LIFE_MANAGER_H
 
 #include "GameObject.h"
+#include "RuleBase.h"
 #include "World.h"
 
 class Manager: GameObject {
-  int sideSize=128;
+ private:
+  int sideSize=32;
   World world;
+  bool isSimulating = false;
+  float accumulatedTime = 0;
+  float timeBetweenSteps = 0.1;
+  void step();
+  void clear();
+  std::vector<RuleBase*> rules;
+  int ruleId = 0;
 
  public:
   explicit Manager(Engine* pEngine);
+  ~Manager();
 
   void Start() override;
   void OnGui(ImGuiContext *context) override;

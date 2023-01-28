@@ -3,7 +3,7 @@
 
 #include "ColorT.h"
 #include "GameObject.h"
-#include "MazeGenerator.h"
+#include "MazeGeneratorBase.h"
 #include "Node.h"
 #include "Point2D.h"
 #include <vector>

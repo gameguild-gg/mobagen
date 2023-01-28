@@ -66,7 +66,6 @@ void Manager::OnGui(ImGuiContext* context) {
   ImGui::SetCurrentContext(context);
   float deltaTime = ImGui::GetIO().DeltaTime;
 
-  ImGui::SetCurrentContext(context);
   ImGui::Begin("Settings", nullptr);
   ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS",
               ImGui::GetIO().DeltaTime * 1000,

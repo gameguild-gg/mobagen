@@ -67,8 +67,8 @@ void ParticleGenerator::generateRandomHeights() {
   }
 }
 glm::vec3 ParticleGenerator::surfaceNormal(int i, int j) {
-//  float scale = 0.1;
-  float scale = 1;
+  float scale = 0.1;
+
   /*
     Note: Surface normal is computed in this way, because the square-grid surface is meshed using triangles.
     To avoid spatial artifacts, you need to weight properly with all neighbors.
@@ -97,8 +97,6 @@ void ParticleGenerator::Erode(float dt) {
   }
   else
     cycles++;
-
-  dt*=2; // speedup it
 
   //Do a series of iterations! (5 Particles)
   for(int i = 0; i < cycles; i++){

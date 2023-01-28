@@ -2,12 +2,16 @@ file(GLOB LIFE_INC
         CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rules/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/rules/*.hpp
         )
 
 file(GLOB LIFE_SRC
         CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/rules/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rules/*.c
         )
 
 
