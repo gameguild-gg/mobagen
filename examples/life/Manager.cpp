@@ -22,8 +22,7 @@ void Manager::OnGui(ImGuiContext *context){
               ImGui::GetIO().Framerate);
 
   static auto newSize = sideSize;
-
-  if(ImGui::SliderInt("Side Size", &newSize, 32, 256)) {
+  if(ImGui::SliderInt("Side Size", &newSize, 16, 256)) {
     if(newSize!=sideSize) {
       sideSize = newSize;
       world.Resize(newSize);
@@ -64,6 +63,11 @@ void Manager::OnGui(ImGuiContext *context){
   }
 
   ImGui::Text("TimeToNextStep: %.3f", (timeBetweenSteps - accumulatedTime));
+  static auto newTime = timeBetweenSteps;
+  if(ImGui::SliderFloat("Time Between Steps", &newTime, 0.0001f, 1.0f)) {
+    if(newTime!=timeBetweenSteps)
+      timeBetweenSteps = newTime;
+  }
 
   ImGui::End(); // end settings
 }
@@ -76,8 +80,8 @@ void Manager::OnDraw(SDL_Renderer* renderer){
   auto sideSideOver2 = sideSize/2.0f;
 
   // draw cells
-  auto liveCell = Color::Red;
-  auto emptyCell = Color::DarkGray.Dark();
+  auto liveCell = Color::Yellow.Dark();
+  auto emptyCell = Color::DarkGray.Dark().Dark().Dark();
   for(int l = 0; l<sideSize; l++){
     for(int c = 0; c<sideSize; c++){
       auto state = world.Get({l,c});

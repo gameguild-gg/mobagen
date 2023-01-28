@@ -7,11 +7,11 @@
 
 class Manager: GameObject {
  private:
-  int sideSize=32;
+  int sideSize=16;
   World world;
   bool isSimulating = false;
   float accumulatedTime = 0;
-  float timeBetweenSteps = 0.1;
+  float timeBetweenSteps = 0.2f;
   void step();
   void clear();
   std::vector<RuleBase*> rules;
