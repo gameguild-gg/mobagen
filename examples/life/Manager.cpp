@@ -70,6 +70,11 @@ void Manager::OnGui(ImGuiContext *context){
       timeBetweenSteps = newTime;
   }
 
+  if(ImGui::Button("Randomize")) {
+    isSimulating = false;
+    world.Randomize();
+  }
+
   ImGui::End(); // end settings
 
   if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)){

@@ -18,10 +18,11 @@ struct World {
   // to be called at the end of the frame
   void SwapBuffers();
   // todo: make it follow the standard at() function that returns the exactly element
-  inline bool Get(Point2D point){return currentBuffer()[(sideSize*sideSize + point.y*sideSize + point.x)%(sideSize*sideSize)];};
+  bool Get(Point2D point);
   // todo: make it follow the standard at() function that returns the exactly element
-  inline void SetNext(Point2D point, bool value){ nextBuffer()[(sideSize*sideSize + point.y*sideSize + point.x)%(sideSize*sideSize)]=value;};
-  inline void SetCurrent(Point2D point, bool value){ currentBuffer()[(sideSize*sideSize + point.y*sideSize + point.x)%(sideSize*sideSize)]=value;};
+  void SetNext(Point2D point, bool value);
+  void SetCurrent(Point2D point, bool value);
+  void Randomize();
 };
 
 #endif  // MOBAGEN_WORLD_H
