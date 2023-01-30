@@ -77,14 +77,20 @@ void Manager::OnGui(ImGuiContext *context){
 
   ImGui::End(); // end settings
 
-  if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)){
+  static Point2D lastIndexClicked = {INT32_MAX, INT32_MAX};
+  if(ImGui::IsMouseDown(ImGuiMouseButton_Left)){
     auto mousePos = ImGui::GetMousePos();
     auto index = mousePositionToIndex(mousePos);
-    std::cout << "MatrixPos: " << index.to_string() << std::endl;
-    if(index.x >= 0 && index.x < sideSize && index.y >= 0 && index.y < sideSize){
-      world.SetCurrent(index, !world.Get(index)); // to be visible
-      world.SetNext(index, !world.Get(index)); // to be used next time
+    if(lastIndexClicked!=index) {
+      lastIndexClicked = index;
+      std::cout << "MatrixPos: " << index.to_string() << std::endl;
+      if (index.x >= 0 && index.x < sideSize && index.y >= 0 && index.y < sideSize) {
+        world.SetCurrent(index, !world.Get(index)); // to be visible
+        world.SetNext(index, !world.Get(index)); // to be used next time
+      }
     }
+  } if(ImGui::IsMouseReleased(ImGuiMouseButton_Left)){
+    lastIndexClicked = {INT32_MAX, INT32_MAX};
   }
 }
 
@@ -119,16 +125,18 @@ void Manager::OnDraw(SDL_Renderer* renderer){
   auto lineColor = Color32(50,50,50,50);
   SDL_SetRenderDrawColor(renderer,lineColor.r,lineColor.g, lineColor.b, 10);
   for(int i = 0; i<=sideSize;i++){
-    SDL_RenderDrawLine(renderer,
-                       (int) (center.x - minDimension/2),
-                       (int) (center.y - (i-sideSideOver2)*squareSide),
-                       (int) (center.x + minDimension/2),
-                       (int) (center.y - (i-sideSideOver2)*squareSide));
-    SDL_RenderDrawLine(renderer,
-                       (int) (center.x - (i-sideSideOver2)*squareSide),
-                       (int) (center.y - minDimension/2),
-                       (int) (center.x - (i-sideSideOver2)*squareSide),
-                       (int) (center.y +  minDimension/2));
+    if(sideSize<50 || i==0 || i==sideSize) {
+      SDL_RenderDrawLine(renderer,
+                         (int) (center.x - minDimension / 2),
+                         (int) (center.y - (i - sideSideOver2) * squareSide),
+                         (int) (center.x + minDimension / 2),
+                         (int) (center.y - (i - sideSideOver2) * squareSide));
+      SDL_RenderDrawLine(renderer,
+                         (int) (center.x - (i - sideSideOver2) * squareSide),
+                         (int) (center.y - minDimension / 2),
+                         (int) (center.x - (i - sideSideOver2) * squareSide),
+                         (int) (center.y + minDimension / 2));
+    }
   }
 }
 
