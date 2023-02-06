@@ -95,48 +95,59 @@ void Manager::OnGui(ImGuiContext *context){
 }
 
 void Manager::OnDraw(SDL_Renderer* renderer){
-  auto windowSize = engine->window->size();
-  auto center = Point2D(windowSize.x/2, windowSize.y/2);
-  float minDimension = std::min(windowSize.x, windowSize.y)*0.99f;
-  auto squareSide = minDimension/sideSize;
-  auto sideSideOver2 = sideSize/2.0f;
+  if(rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::None) {
+    std::cout << "your rule should explicitly say which board you want to use";
+    return;
+  }
+  if(rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Square) {
 
-  // draw cells
-  auto liveCell = Color::Yellow.Dark();
-  auto emptyCell = Color::DarkGray.Dark().Dark().Dark();
-  for(int l = 0; l<sideSize; l++){
-    for(int c = 0; c<sideSize; c++){
-      auto state = world.Get({c,l});
-      if(state)
-        SDL_SetRenderDrawColor(renderer,liveCell.r,liveCell.g, liveCell.b,SDL_ALPHA_OPAQUE);
-      else
-        SDL_SetRenderDrawColor(renderer,emptyCell.r,emptyCell.g, emptyCell.b,SDL_ALPHA_OPAQUE);
+    auto windowSize = engine->window->size();
+    auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
+    float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
+    auto squareSide = minDimension / sideSize;
+    auto sideSideOver2 = sideSize / 2.0f;
 
-      SDL_Rect rect = {
-          static_cast<int>(ceil(center.x + (c-sideSideOver2)*squareSide)),
-          static_cast<int>(ceil(center.y + (l-sideSideOver2)*squareSide)),
-          static_cast<int>(squareSide),
-          static_cast<int>(squareSide)};
-      SDL_RenderFillRect(renderer, &rect);
+    // draw cells
+    auto liveCell = Color::Yellow.Dark();
+    auto emptyCell = Color::DarkGray.Dark().Dark().Dark();
+    for (int l = 0; l < sideSize; l++) {
+      for (int c = 0; c < sideSize; c++) {
+        auto state = world.Get({c, l});
+        if (state)
+          SDL_SetRenderDrawColor(renderer, liveCell.r, liveCell.g, liveCell.b, SDL_ALPHA_OPAQUE);
+        else
+          SDL_SetRenderDrawColor(renderer, emptyCell.r, emptyCell.g, emptyCell.b, SDL_ALPHA_OPAQUE);
+
+        SDL_Rect rect = {
+            static_cast<int>(ceil(center.x + (c - sideSideOver2) * squareSide)),
+            static_cast<int>(ceil(center.y + (l - sideSideOver2) * squareSide)),
+            static_cast<int>(squareSide),
+            static_cast<int>(squareSide)};
+        SDL_RenderFillRect(renderer, &rect);
+      }
+    }
+
+    // Draw line matrix
+    auto lineColor = Color32(50, 50, 50, 50);
+    SDL_SetRenderDrawColor(renderer, lineColor.r, lineColor.g, lineColor.b, 10);
+    for (int i = 0; i <= sideSize; i++) {
+      if (sideSize < 50 || i == 0 || i == sideSize) {
+        SDL_RenderDrawLine(renderer,
+                           (int) (center.x - minDimension / 2),
+                           (int) (center.y - (i - sideSideOver2) * squareSide),
+                           (int) (center.x + minDimension / 2),
+                           (int) (center.y - (i - sideSideOver2) * squareSide));
+        SDL_RenderDrawLine(renderer,
+                           (int) (center.x - (i - sideSideOver2) * squareSide),
+                           (int) (center.y - minDimension / 2),
+                           (int) (center.x - (i - sideSideOver2) * squareSide),
+                           (int) (center.y + minDimension / 2));
+      }
     }
   }
-
-  // Draw line matrix
-  auto lineColor = Color32(50,50,50,50);
-  SDL_SetRenderDrawColor(renderer,lineColor.r,lineColor.g, lineColor.b, 10);
-  for(int i = 0; i<=sideSize;i++){
-    if(sideSize<50 || i==0 || i==sideSize) {
-      SDL_RenderDrawLine(renderer,
-                         (int) (center.x - minDimension / 2),
-                         (int) (center.y - (i - sideSideOver2) * squareSide),
-                         (int) (center.x + minDimension / 2),
-                         (int) (center.y - (i - sideSideOver2) * squareSide));
-      SDL_RenderDrawLine(renderer,
-                         (int) (center.x - (i - sideSideOver2) * squareSide),
-                         (int) (center.y - minDimension / 2),
-                         (int) (center.x - (i - sideSideOver2) * squareSide),
-                         (int) (center.y + minDimension / 2));
-    }
+  else if (rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Hexagon){
+    std::cout << "hexagon tileset not implemented yet";
+    return;
   }
 }
 
