@@ -67,7 +67,7 @@ void ParticleGenerator::generateRandomHeights() {
   }
 }
 glm::vec3 ParticleGenerator::surfaceNormal(int i, int j) {
-  float scale = 0.1;
+  float scale = 5;
 
   /*
     Note: Surface normal is computed in this way, because the square-grid surface is meshed using triangles.
