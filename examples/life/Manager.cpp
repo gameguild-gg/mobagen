@@ -1,10 +1,12 @@
 #include "Manager.h"
 #include "ColorT.h"
 #include "rules/JohnConway.h"
+#include "rules/HexagonGameOfLife.h"
 #include <iostream>
 
 Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
   world.Resize(sideSize);
+  rules.push_back(new HexagonGameOfLife());
   rules.push_back(new JohnConway());
 }
 
@@ -100,7 +102,6 @@ void Manager::OnDraw(SDL_Renderer* renderer){
     return;
   }
   if(rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Square) {
-
     auto windowSize = engine->window->size();
     auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
     float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
@@ -146,8 +147,50 @@ void Manager::OnDraw(SDL_Renderer* renderer){
     }
   }
   else if (rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Hexagon){
-    std::cout << "hexagon tileset not implemented yet";
-    return;
+    auto windowSize = engine->window->size();
+    auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
+    float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
+    auto squareSide = minDimension / sideSize;
+    auto sideSideOver2 = sideSize / 2.0f;
+
+    // draw cells
+    auto liveCell = Color::Yellow.Dark();
+    auto emptyCell = Color::DarkGray.Dark().Dark().Dark();
+    for (int l = 0; l < sideSize; l++) {
+      float displacement = abs(l-(int)sideSideOver2)%2 == 1 ? squareSide/2 : 0;
+      for (int c = 0; c < sideSize; c++) {
+        auto state = world.Get({c, l});
+        if (state)
+          SDL_SetRenderDrawColor(renderer, liveCell.r, liveCell.g, liveCell.b, SDL_ALPHA_OPAQUE);
+        else
+          SDL_SetRenderDrawColor(renderer, emptyCell.r, emptyCell.g, emptyCell.b, SDL_ALPHA_OPAQUE);
+
+        SDL_Rect rect = {
+            static_cast<int>(ceil(center.x + displacement + (c - sideSideOver2) * squareSide)),
+            static_cast<int>(ceil(center.y + (l - sideSideOver2) * squareSide)),
+            static_cast<int>(squareSide),
+            static_cast<int>(squareSide)};
+        SDL_RenderFillRect(renderer, &rect);
+      }
+    }
+
+    // Draw line matrix
+    auto lineColor = Color32(50, 50, 50, 50);
+    SDL_SetRenderDrawColor(renderer, lineColor.r, lineColor.g, lineColor.b, 10);
+    for (int i = 0; i <= sideSize; i++) {
+      if (sideSize < 50 || i == 0 || i == sideSize) {
+        SDL_RenderDrawLine(renderer,
+                           (int) (center.x - minDimension / 2),
+                           (int) (center.y - (i - sideSideOver2) * squareSide),
+                           (int) (center.x + minDimension / 2),
+                           (int) (center.y - (i - sideSideOver2) * squareSide));
+        SDL_RenderDrawLine(renderer,
+                           (int) (center.x - (i - sideSideOver2) * squareSide),
+                           (int) (center.y - minDimension / 2),
+                           (int) (center.x - (i - sideSideOver2) * squareSide),
+                           (int) (center.y + minDimension / 2));
+      }
+    }
   }
 }
 
