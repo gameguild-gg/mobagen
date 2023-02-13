@@ -97,6 +97,9 @@ void Manager::OnGui(ImGuiContext *context){
       mousePos.x-=displacement;
       index = mousePositionToIndex(mousePos);
     }
+
+    std::cout << index.to_string() << std::endl;
+
     if(lastIndexClicked!=index) {
       lastIndexClicked = index;
       std::cout << "MatrixPos: " << index.to_string() << std::endl;
