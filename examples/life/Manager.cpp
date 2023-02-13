@@ -83,7 +83,20 @@ void Manager::OnGui(ImGuiContext *context){
   static Point2D lastIndexClicked = {INT32_MAX, INT32_MAX};
   if(ImGui::IsMouseDown(ImGuiMouseButton_Left)){
     auto mousePos = ImGui::GetMousePos();
-    auto index = mousePositionToIndex(mousePos);
+    Point2D index;
+    if(rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Square)
+      index = mousePositionToIndex(mousePos);
+    else if(rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Hexagon) {
+      auto windowSize = engine->window->size();
+      auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
+      float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
+      auto squareSide = minDimension / sideSize;
+      auto sideSideOver2 = sideSize / 2.0f;
+      index = mousePositionToIndex(mousePos);
+      float displacement = abs(index.y-(int)sideSideOver2)%2 == 1 ? squareSide/2 : 0;
+      mousePos.x-=displacement;
+      index = mousePositionToIndex(mousePos);
+    }
     if(lastIndexClicked!=index) {
       lastIndexClicked = index;
       std::cout << "MatrixPos: " << index.to_string() << std::endl;
