@@ -25,7 +25,8 @@ void Manager::OnGui(ImGuiContext *context){
               ImGui::GetIO().Framerate);
 
   static auto newSize = sideSize;
-  if(ImGui::SliderInt("Side Size", &newSize, 16, 256)) {
+  if(ImGui::SliderInt("Side Size", &newSize, 5, 256)) {
+    newSize = (newSize/4)*4 + 1;
     if(newSize!=sideSize) {
       sideSize = newSize;
       world.Resize(newSize);
@@ -171,24 +172,6 @@ void Manager::OnDraw(SDL_Renderer* renderer){
             static_cast<int>(squareSide),
             static_cast<int>(squareSide)};
         SDL_RenderFillRect(renderer, &rect);
-      }
-    }
-
-    // Draw line matrix
-    auto lineColor = Color32(50, 50, 50, 50);
-    SDL_SetRenderDrawColor(renderer, lineColor.r, lineColor.g, lineColor.b, 10);
-    for (int i = 0; i <= sideSize; i++) {
-      if (sideSize < 50 || i == 0 || i == sideSize) {
-        SDL_RenderDrawLine(renderer,
-                           (int) (center.x - minDimension / 2),
-                           (int) (center.y - (i - sideSideOver2) * squareSide),
-                           (int) (center.x + minDimension / 2),
-                           (int) (center.y - (i - sideSideOver2) * squareSide));
-        SDL_RenderDrawLine(renderer,
-                           (int) (center.x - (i - sideSideOver2) * squareSide),
-                           (int) (center.y - minDimension / 2),
-                           (int) (center.x - (i - sideSideOver2) * squareSide),
-                           (int) (center.y + minDimension / 2));
       }
     }
   }

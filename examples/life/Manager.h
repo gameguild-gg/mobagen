@@ -7,7 +7,7 @@
 
 class Manager: GameObject {
  private:
-  int sideSize=16;
+  int sideSize=13;
   World world;
   bool isSimulating = false;
   float accumulatedTime = 0;
