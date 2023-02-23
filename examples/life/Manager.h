@@ -19,7 +19,7 @@ class Manager: GameObject {
   Point2D mousePositionToIndex(ImVec2& pos);
 
  public:
-  explicit Manager(Engine* pEngine);
+  explicit Manager(Engine* pEngine1, Engine* pEngine);
   ~Manager();
 
   void Start() override;
