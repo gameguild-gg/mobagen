@@ -5,48 +5,48 @@
 #include <vector>
 using namespace std;
 
-enum class PieceType: char {
-  None = 0, // debug purposes
-  King = 1,
-  Queen = 2,
-  Bishop = 3,
-  Knight = 4,
-  Tower = 5,
-  Pawn = 6,
+enum class PieceType: uint8_t {
+  NONE =      0b0000, // debug purposes
+  King =      0b0001,
+  Queen =     0b0010,
+  Bishop =    0b0011,
+  Knight =    0b0100,
+  Tower =     0b0101,
+  Pawn =      0b0110,
+  PIECEMASK = 0b0111 // debug purposes
 };
 
-enum class Liveness: char {
-  None = 0, // debug purposes
-  Alive = 1,
-  Dead = 2,
+enum class PieceColor: uint8_t { // chess color to avoid colliding with namespace from engine
+  Black =     0b0000,
+  White =     0b1000,
+  COLORMASK = 0b1000,
+  NONE =      0b0000
 };
 
-enum class CColor: char { // chess color to avoid colliding with namespace from engine
-  None = 0, // debug purposes
-  Black = 1,
-  White = 2,
+struct PieceData {
+  PieceData(PieceType type, PieceColor color): color(color), piece(type){}
+
+  PieceType piece;
+  PieceColor color;
+
+  static inline PieceData Empty() {return {PieceType::NONE, PieceColor::NONE};}
+  static inline uint8_t   Pack(PieceData piece){return (uint8_t)piece.piece | (uint8_t)piece.color;};
+  static inline PieceData UnPack(uint8_t data){return {(PieceType)(data & (uint8_t)PieceType::PIECEMASK), (PieceColor)(data & (uint8_t)PieceColor::COLORMASK)};};
+  char toChar();
 };
 
-struct PieceState {
-  PieceState(PieceType type, Liveness liveness, CColor color, Point2D position):
-      type(type), color(color), position(position), liveness(liveness){}
-
-  PieceType type;
-  CColor color;
-  Point2D position;
-  Liveness liveness;
-};
-
-struct WorldState{
+struct WorldState {
  private:
-  bool isWhiteTurn; // true is white
-  float score; // to store evaluation heuristics to be used in AI branch and cut algorithms
-  vector<PieceState> board;
+  PieceColor turn;
+  uint16_t score; // to store evaluation heuristics to be used in AI branch and cut algorithms
+//  vector<PieceState> board;
+  uint8_t state[32];
 
  public:
-  // bool inline IsWhiteTurn(){return isWhiteTurn;}
-  // get the current turn king. Pass false to get the enemy king
-  PieceState* PieceAtPosition(Point2D pos);
+  PieceData PieceAtPosition(Point2D pos);
+  void SetPieceAtPosition(PieceData piece, Point2D pos);
+  void Reset();
+  string toString();
 };
 
 #endif  // CHESS_WORLDSTATE_H
