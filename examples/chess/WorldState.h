@@ -13,7 +13,8 @@ enum class PieceType: uint8_t {
   Knight =    0b0100,
   Tower =     0b0101,
   Pawn =      0b0110,
-  PIECEMASK = 0b0111 // debug purposes
+  PIECEMASK = 0b0111, // debug purposes
+  WRONG     = 0b0111
 };
 
 enum class PieceColor: uint8_t { // chess color to avoid colliding with namespace from engine
@@ -43,6 +44,7 @@ struct WorldState {
   uint8_t state[32];
 
  public:
+  PieceColor GetTurn(){return turn;};
   PieceData PieceAtPosition(Point2D pos);
   void SetPieceAtPosition(PieceData piece, Point2D pos);
   void Reset();

@@ -1,5 +1,8 @@
 #include "WorldState.h"
 PieceData WorldState::PieceAtPosition(Point2D pos) {
+  if(pos.x<0 || pos.x>7 || pos.y<0 || pos.y>7)
+    return {PieceType::WRONG, PieceColor::NONE};
+
   auto index = (pos.y*8+pos.x)/2;
   auto value = state[index];
   if(pos.x%2==0)
