@@ -14,41 +14,45 @@ void Manager::OnGui(ImGuiContext* context) {
 
   ImGui::End(); // end settings
 
-//  static Point2D lastIndexClicked = {INT32_MAX, INT32_MAX};
-//  if(ImGui::IsMouseDown(ImGuiMouseButton_Left)){
-//    auto mousePos = ImGui::GetMousePos();
-//    Point2D index;
-//    if(rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Square)
-//      index = mousePositionToIndex(mousePos);
-//    else if(rules[ruleId]->GetTileSet()==GameOfLifeTileSetEnum::Hexagon) {
-//      auto windowSize = engine->window->size();
-//      auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
-//      float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
-//      auto squareSide = minDimension / sideSize;
-//      auto sideSideOver2 = sideSize / 2.0f;
-//      index = mousePositionToIndex(mousePos);
-//      float displacement = abs(index.y-(int)sideSideOver2)%2 == 1 ? squareSide/2 : 0;
-//      mousePos.x-=displacement;
-//      index = mousePositionToIndex(mousePos);
-//    }
-//
-//    std::cout << index.to_string() << std::endl;
-//
-//    if(lastIndexClicked!=index) {
-//      lastIndexClicked = index;
-//      std::cout << "MatrixPos: " << index.to_string() << std::endl;
-//      if (index.x >= 0 && index.x < sideSize && index.y >= 0 && index.y < sideSize) {
-//        world.SetCurrent(index, !world.Get(index)); // to be visible
-//        world.SetNext(index, !world.Get(index)); // to be used next time
-//      }
-//    }
-//  } if(ImGui::IsMouseReleased(ImGuiMouseButton_Left)){
-//    lastIndexClicked = {INT32_MAX, INT32_MAX};
-//  }
+  static Point2D lastIndexClicked = {INT32_MIN, INT32_MIN};
+  if(ImGui::IsMouseDown(ImGuiMouseButton_Left)){
+    auto mousePos = ImGui::GetMousePos();
+    Point2D index = mousePositionToIndex(mousePos);
+
+    if(lastIndexClicked!=index) {
+      lastIndexClicked = index;
+      std::cout << "MatrixPos: " << index.to_string() << std::endl;
+      selected = index;
+
+      validMoves =
+
+      // if the user clicks on a valid move, move it!
+      // if the user clicks on the current element, or other element not valid, unselect it
+    }
+  } if(ImGui::IsMouseReleased(ImGuiMouseButton_Left)){
+    lastIndexClicked = {INT32_MIN, INT32_MIN};
+  }
+}
+
+Point2D Manager::mousePositionToIndex(ImVec2& pos) {
+  auto windowSize = engine->window->size();
+  auto center = Point2D(windowSize.x/2, windowSize.y/2);
+  float minDimension = std::min(windowSize.x, windowSize.y)*0.99f;
+  auto lineColor = Color::LightGray;
+  auto squareSide = minDimension/8;
+  auto sideSideOver2 = 8/2.0f;
+
+  Vector2 relativePosFloat(pos.x - center.x, pos.y-center.y);
+
+  relativePosFloat*=0.99f;
+  relativePosFloat+=Vector2{minDimension/2, minDimension/2};
+  relativePosFloat/=squareSide;
+
+  return Point2D(relativePosFloat.x, 8-relativePosFloat.y);
 }
 
 void Manager::OnDraw(SDL_Renderer* renderer){
-auto windowSize = engine->window->size();
+  auto windowSize = engine->window->size();
   auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
   float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
   auto squareSide = minDimension / 8;

@@ -1,5 +1,5 @@
 #include "WorldState.h"
-PieceData WorldState::PieceAtPosition(Point2D pos) {
+PieceBase WorldState::PieceAtPosition(Point2D pos) {
   if(pos.x<0 || pos.x>7 || pos.y<0 || pos.y>7)
     return {PieceType::WRONG, PieceColor::NONE};
 
@@ -10,7 +10,7 @@ PieceData WorldState::PieceAtPosition(Point2D pos) {
   else
     value = value >> 4;
 
-  return PieceData::UnPack(value);
+  return PieceBase::UnPack(value);
 }
 
 void WorldState::Reset() {
@@ -53,8 +53,8 @@ void WorldState::Reset() {
   SetPieceAtPosition({PieceType::Knight, PieceColor::Black} , {6,7});
   SetPieceAtPosition({PieceType::Tower, PieceColor::Black} , {7,7});
 }
-void WorldState::SetPieceAtPosition(PieceData piece, Point2D pos) {
-  auto packed = PieceData::Pack(piece);
+void WorldState::SetPieceAtPosition(PieceBase piece, Point2D pos) {
+  auto packed = PieceBase::Pack(piece);
 
   auto index = (pos.y*8+pos.x)/2;
   auto value = state[index];
@@ -80,7 +80,7 @@ string WorldState::toString() {
   return str;
 }
 
-char PieceData::toChar() {
+char PieceBase::toChar() {
   char c='.';
   switch(piece) {
     case PieceType::Pawn:

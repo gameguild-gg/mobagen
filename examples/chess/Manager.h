@@ -10,6 +10,8 @@ class Manager: GameObject  {
  private:
   WorldState state;
   vector<WorldState> previousStates;
+  Point2D selected={INT32_MIN,INT32_MIN};
+  vector<Point2D> validMoves;
 
  public:
   explicit Manager(Engine* pEngine) : GameObject(pEngine) {
@@ -18,6 +20,9 @@ class Manager: GameObject  {
   }
   void OnGui(ImGuiContext* context) override;
   void OnDraw(SDL_Renderer* renderer) override;
+
+ private:
+  Point2D mousePositionToIndex(ImVec2& pos);
 };
 
 #endif  // CHESS_MANAGER_H
