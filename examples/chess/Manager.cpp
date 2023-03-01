@@ -24,7 +24,7 @@ void Manager::OnGui(ImGuiContext* context) {
       std::cout << "MatrixPos: " << index.to_string() << std::endl;
       selected = index;
 
-      validMoves =
+//      validMoves =
 
       // if the user clicks on a valid move, move it!
       // if the user clicks on the current element, or other element not valid, unselect it
