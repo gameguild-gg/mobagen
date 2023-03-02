@@ -20,7 +20,7 @@ class GameObject;
 class Engine{
 public:
     Window *window;
-    ImGuiContext *imGuiContext;
+//    ImGuiContext *imGuiContext;
 
     // todo: move this to a scene manager and make this private
     std::unordered_set<GameObject*> gameObjects;

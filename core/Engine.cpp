@@ -17,7 +17,7 @@ Engine::Engine() {
 //    instance = nullptr;
 //#endif
     window = nullptr;
-    imGuiContext = nullptr;
+//    imGuiContext = nullptr;
 }
 
 Engine::~Engine() {
@@ -50,7 +50,7 @@ int Engine::Start(std::string title) {
     else
         exit(0);
 
-    imGuiContext = ImGui::GetCurrentContext(); // todo: make this work on all game objects
+//    imGuiContext = ImGui::GetCurrentContext(); // todo: make this work on all game objects
 
     // start all gameobjects
     for(auto go : gameObjects)
@@ -65,10 +65,14 @@ int Engine::Start(std::string title) {
 }
 
 void Engine::Tick() {
+    window->Update();
+
     // Start the Dear ImGui frame
     ImGui_ImplSDLRenderer_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+
+
 
     SDL_SetRenderDrawColor(
             window->sdlRenderer,
@@ -87,10 +91,9 @@ void Engine::Tick() {
         go->Update(deltaTime);
 
     // iterate over all game objects ui
-    imGuiContext = ImGui::GetCurrentContext();
     auto gos = gameObjects; // clone to prevent out of bounds access
     for(auto go : gos)
-        go->OnGui(imGuiContext); // todo: find a better way to pass imgui context
+        go->OnGui(window->imGuiContext); // todo: find a better way to pass imgui context
 
     // Rendering
     ImGui::Render();

@@ -1,9 +1,10 @@
 #pragma once
-
-#include <string>
-#include "SDL_video.h"
+#include "Point2D.h"
 #include "SDL_render.h"
+#include "SDL_video.h"
 #include "Vector2.h"
+#include <imgui.h>
+#include <string>
 
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
@@ -52,8 +53,10 @@ public:
 
     SDL_Window *sdlWindow;
     SDL_Renderer *sdlRenderer;
+    ImGuiContext *imGuiContext;
 
-    Vector2 size() const;
+    Point2D size() const;
+    void Update();
 
     ~Window();
 

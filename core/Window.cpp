@@ -1,8 +1,10 @@
 #include "Window.h"
 #include "imgui.h"
+#include "imgui_internal.h" // TODO: this should not be included here
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_sdlrenderer.h"
 #include <stdexcept>
+#include <cmath>
 
 #include <SDL.h>
 #ifdef EMSCRIPTEN
@@ -51,7 +53,7 @@ Window::Window(std::string title) {
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
+    this->imGuiContext = ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     (void) io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
@@ -89,8 +91,21 @@ Window::~Window() {
 
 // todo: cache this per frame to avoid call SDL_GetWindowSize every single call
 // todo: this should be integer return
-Vector2 Window::size() const {
+Point2D Window::size() const {
     int x,y;
     SDL_GetWindowSize(this->sdlWindow,&x, &y);
-    return {(float)x,(float)y};
+    return {x,y};
+}
+void Window::Update() {
+    auto size = this->size();
+    float SCALE = 2.0f;
+    ImFontConfig cfg;
+    cfg.SizePixels = 13 * SCALE;
+
+//    ImGui::GetIO().Fonts->AddFontDefault(&cfg)->FontSize = SCALE;
+//    ImGui::GetIO().Fonts->Build();
+    //im
+
+    
+//    imGuiContext->FontSize = std::min(size.y, size.x)/10;
 }
