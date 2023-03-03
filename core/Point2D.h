@@ -23,6 +23,26 @@ struct Point2D {
   const static Point2D LEFT;
   const static Point2D RIGHT;
   std::string to_string();
+
+  // for unordered set
+  size_t operator()(const Point2D& p) const noexcept {
+    return ((uint64_t)p.x)<<32 | (uint64_t)p.y;
+  };
+
+  uint64_t hash(Point2D const & p) const noexcept
+  {
+    return ((uint64_t)p.x)<<32 | (uint64_t)p.y;
+  }
 };
+
+namespace std {
+template<> struct hash<Point2D>
+{
+  std::size_t operator()(const Point2D& p) const noexcept
+  {
+    return p(p);
+  }
+};
+}
 
 #endif //POINT2D_H

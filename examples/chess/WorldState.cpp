@@ -1,5 +1,5 @@
 #include "WorldState.h"
-PieceBase WorldState::PieceAtPosition(Point2D pos) {
+PieceData WorldState::PieceAtPosition(Point2D pos) {
   if(pos.x<0 || pos.x>7 || pos.y<0 || pos.y>7)
     return {PieceType::WRONG, PieceColor::NONE};
 
@@ -10,21 +10,23 @@ PieceBase WorldState::PieceAtPosition(Point2D pos) {
   else
     value = value >> 4;
 
-  return PieceBase::UnPack(value);
+  return PieceData::UnPack(value);
 }
 
 void WorldState::Reset() {
+  turn = PieceColor::White;
+
   for(int i=0; i<32; i++) // probably memset is better
     state[i]=0;
 
-  SetPieceAtPosition({PieceType::Tower, PieceColor::White} , {0,0});
+  SetPieceAtPosition({PieceType::Rook, PieceColor::White} , {0,0});
   SetPieceAtPosition({PieceType::Knight, PieceColor::White} , {1,0});
   SetPieceAtPosition({PieceType::Bishop, PieceColor::White} , {2,0});
   SetPieceAtPosition({PieceType::Queen, PieceColor::White} , {3,0});
   SetPieceAtPosition({PieceType::King, PieceColor::White} , {4,0});
   SetPieceAtPosition({PieceType::Bishop, PieceColor::White} , {5,0});
   SetPieceAtPosition({PieceType::Knight, PieceColor::White} , {6,0});
-  SetPieceAtPosition({PieceType::Tower, PieceColor::White} , {7,0});
+  SetPieceAtPosition({PieceType::Rook, PieceColor::White} , {7,0});
 
   SetPieceAtPosition({PieceType::Pawn, PieceColor::White} , {0,1});
   SetPieceAtPosition({PieceType::Pawn, PieceColor::White} , {1,1});
@@ -44,17 +46,17 @@ void WorldState::Reset() {
   SetPieceAtPosition({PieceType::Pawn, PieceColor::Black} , {6,6});
   SetPieceAtPosition({PieceType::Pawn, PieceColor::Black} , {7,6});
 
-  SetPieceAtPosition({PieceType::Tower, PieceColor::Black} , {0,7});
+  SetPieceAtPosition({PieceType::Rook, PieceColor::Black} , {0,7});
   SetPieceAtPosition({PieceType::Knight, PieceColor::Black} , {1,7});
   SetPieceAtPosition({PieceType::Bishop, PieceColor::Black} , {2,7});
   SetPieceAtPosition({PieceType::Queen, PieceColor::Black} , {3,7});
   SetPieceAtPosition({PieceType::King, PieceColor::Black} , {4,7});
   SetPieceAtPosition({PieceType::Bishop, PieceColor::Black} , {5,7});
   SetPieceAtPosition({PieceType::Knight, PieceColor::Black} , {6,7});
-  SetPieceAtPosition({PieceType::Tower, PieceColor::Black} , {7,7});
+  SetPieceAtPosition({PieceType::Rook, PieceColor::Black} , {7,7});
 }
-void WorldState::SetPieceAtPosition(PieceBase piece, Point2D pos) {
-  auto packed = PieceBase::Pack(piece);
+void WorldState::SetPieceAtPosition(PieceData piece, Point2D pos) {
+  auto packed = PieceData::Pack(piece);
 
   auto index = (pos.y*8+pos.x)/2;
   auto value = state[index];
@@ -80,17 +82,17 @@ string WorldState::toString() {
   return str;
 }
 
-char PieceBase::toChar() {
+char PieceData::toChar() {
   char c='.';
   switch(piece) {
     case PieceType::Pawn:
       c = 'p';
       break;
-    case PieceType::Tower:
-      c = 't';
+    case PieceType::Rook:
+      c = 'r';
       break;
     case PieceType::Knight:
-      c = 'k';
+      c = 'n';
       break;
     case PieceType::Bishop:
       c = 'b';

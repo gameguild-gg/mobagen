@@ -2,9 +2,10 @@
 #define CHESS_KNIGHT_H
 
 #include "../WorldState.h"
-struct Knight: public PieceBase {
-  vector<Point2D> PossibleMoves(WorldState* world, const Point2D& origin) override;
-  vector<WorldState> GenerateStates(WorldState* world, const Point2D& origin) override;
+#include <unordered_set>
+struct Knight {
+  static unordered_set<Point2D> PossibleMoves(WorldState& world, const Point2D& origin) {return {};};
+  static vector<WorldState> GenerateStates(WorldState& world, const Point2D& origin) {return {};};
 };
 
 #endif  // CHESS_KNIGHT_H

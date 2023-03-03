@@ -1,6 +1,13 @@
 #include "Manager.h"
 #include "ColorT.h"
 #include "Point2D.h"
+#include "pieces/Bishop.h"
+#include "pieces/King.h"
+#include "pieces/Knight.h"
+#include "pieces/Pawn.h"
+#include "pieces/Queen.h"
+#include "pieces/Rook.h"
+#include <unordered_map>
 
 void Manager::OnGui(ImGuiContext* context) {
   ImGui::SetCurrentContext(context);
@@ -24,7 +31,16 @@ void Manager::OnGui(ImGuiContext* context) {
       std::cout << "MatrixPos: " << index.to_string() << std::endl;
       selected = index;
 
-//      validMoves =
+      auto piece = state.PieceAtPosition(index);
+      if(piece.piece!=PieceType::NONE || piece.color == state.GetTurn()) {
+        auto moves = getMoves(piece.piece, index);
+        if(moves.size()!=0)
+          validMoves = moves;
+        else
+          validMoves = {};
+      }
+      else
+        validMoves = {};
 
       // if the user clicks on a valid move, move it!
       // if the user clicks on the current element, or other element not valid, unselect it
@@ -51,7 +67,7 @@ Point2D Manager::mousePositionToIndex(ImVec2& pos) {
   return Point2D(relativePosFloat.x, 8-relativePosFloat.y);
 }
 
-void Manager::OnDraw(SDL_Renderer* renderer){
+void Manager::OnDraw(SDL_Renderer* renderer) {
   auto windowSize = engine->window->size();
   auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
   float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
@@ -60,19 +76,51 @@ void Manager::OnDraw(SDL_Renderer* renderer){
 
   auto whiteCell = Color::LightBlue.Light();
   auto blackCell = Color::DarkBlue.Dark();
-  for(int line=0;line<8; line++) {
-    for(int column=0; column<8; column++) {
-      if((line+column)%2==0)
-        SDL_SetRenderDrawColor(renderer, blackCell.r, blackCell.g, blackCell.b, SDL_ALPHA_OPAQUE);
-      else
-        SDL_SetRenderDrawColor(renderer, whiteCell.r, whiteCell.g, whiteCell.b, SDL_ALPHA_OPAQUE);
-
+  auto movesCell = Color::Yellow.Dark();
+  auto selectedCell = Color::Yellow.Light();
+  for (int line = 0; line < 8; line++) {
+    for (int column = 0; column < 8; column++) {
       SDL_Rect rect = {
-            static_cast<int>(ceil(center.x + (column - sideSideOver2) * squareSide)),
-            static_cast<int>(ceil(center.y + (-line -1 + sideSideOver2) * squareSide)),
-            static_cast<int>(squareSide),
-            static_cast<int>(squareSide)};
-        SDL_RenderFillRect(renderer, &rect);
+        (int)(ceil(center.x + (column - sideSideOver2) * squareSide)),
+        (int)(ceil(center.y + (-line - 1 + sideSideOver2) * squareSide)),
+        (int)(squareSide), (int)(squareSide)};
+
+      if(selected.y==line && selected.x==column)
+        drawSquare(renderer, selectedCell, rect);
+      else if(validMoves.contains(Point2D(column,line)))
+        drawSquare(renderer, movesCell, rect);
+      else if ((line + column) % 2 == 0)
+        drawSquare(renderer, blackCell, rect);
+      else
+          drawSquare(renderer, whiteCell, rect);
     }
   }
+
+
+
+
+}
+
+unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
+  switch (t) {
+    case PieceType::Pawn:
+      return Pawn::PossibleMoves(state, point);
+    case PieceType::Rook:
+      return Rook::PossibleMoves(state, point);
+    case PieceType::Knight:
+      return Knight::PossibleMoves(state, point);
+    case PieceType::Bishop:
+      return Bishop::PossibleMoves(state, point);
+    case PieceType::Queen:
+      return Queen::PossibleMoves(state, point);
+    case PieceType::King:
+      return King::PossibleMoves(state, point);
+    default:
+      return {};
+  }
+}
+void Manager::drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect) {
+  SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b,
+                         SDL_ALPHA_OPAQUE);
+  SDL_RenderFillRect(renderer, &rect);
 }
