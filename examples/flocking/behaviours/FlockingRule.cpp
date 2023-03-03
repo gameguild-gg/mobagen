@@ -23,7 +23,7 @@ Vector2 FlockingRule::computeWeightedForce(const std::vector<Boid*>& neighborhoo
 }
 
 bool FlockingRule::drawImguiRule() {
-    ImGui::SetCurrentContext(world->engine->imGuiContext);
+    ImGui::SetCurrentContext(world->engine->window->imGuiContext);
     bool valueHasChanged = false;
 
     ImGui::SetNextItemOpen(isEnabled, ImGuiCond_Once); //Opened by default if rule active

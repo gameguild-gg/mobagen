@@ -31,7 +31,7 @@ void World::initializeRules() {
     for (const auto& rule : boidsRules)
         defaultWeights.push_back(rule->weight);
 
-    ImGui::SetCurrentContext(engine->imGuiContext);
+    ImGui::SetCurrentContext(engine->window->imGuiContext);
     SetupImGuiStyle();
 }
 

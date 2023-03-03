@@ -3,7 +3,7 @@
 #include "../gameobjects/World.h"
 
 Vector2 MouseInfluenceRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
-    ImGui::SetCurrentContext(world->engine->imGuiContext);
+    ImGui::SetCurrentContext(world->engine->window->imGuiContext);
 //    ImGuiIO& io = ImGui::GetIO();
 //    if (ImGui::IsMousePosValid() && io.MouseDown[0]) {
 //        Vector2 mousePos(io.MousePos.x, io.MousePos.y); // todo: use this

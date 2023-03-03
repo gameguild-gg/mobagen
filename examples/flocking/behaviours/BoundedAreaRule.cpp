@@ -13,7 +13,7 @@ Vector2 BoundedAreaRule::computeForce(const std::vector<Boid*>& neighborhood, Bo
 }
 
 bool BoundedAreaRule::drawImguiRuleExtra() {
-    ImGui::SetCurrentContext(world->engine->imGuiContext);
+    ImGui::SetCurrentContext(world->engine->window->imGuiContext);
     auto size = this->world->engine->window->size();
     auto widthWindows = size.x;
     auto heightWindows = size.y;
