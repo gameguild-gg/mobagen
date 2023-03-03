@@ -30,7 +30,7 @@ jobs:
         run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_EDITOR=ON
 
       - name: Build
-        run: cmake --build build/
+        run: cmake --build build/ --parallel
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3

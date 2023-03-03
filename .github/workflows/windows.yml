@@ -32,7 +32,7 @@ jobs:
 
       - name: Build
         shell: cmd
-        run: cmake --build build --config MinSizeRel
+        run: cmake --build build --config MinSizeRel --parallel
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3
