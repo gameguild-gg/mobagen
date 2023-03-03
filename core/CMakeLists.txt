@@ -13,10 +13,8 @@ file(GLOB CORE_SRC
 
 SET(CORE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "CORE INCLUDE SOURCE PATH")
 
-#SET(CORE_SRC ${CORE_SRC} ${CORE_INC})
-
 add_library(core STATIC ${CORE_SRC} ${CORE_INC})
-target_link_libraries (core PUBLIC SDL2-static IMGUI)
+target_link_libraries (core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI)
 
 #If(NOT EMSCRIPTEN AND NOT ANDROID)
 #    add_definitions(-DGLEW_STATIC)

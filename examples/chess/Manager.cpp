@@ -109,13 +109,8 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
                 state.PieceAtPosition({column,line}),
                 {rect.x+squareSideOver2,rect.y+squareSideOver2},
                 Vector2::identity()*squareSideOver2);
-      drawPiece(renderer,
-                state.PieceAtPosition({column,line}),
-                {rect.x+squareSideOver2,rect.y+squareSideOver2},
-                Vector2::identity()*squareSideOver2*0.95);
     }
   }
-
 }
 
 unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
