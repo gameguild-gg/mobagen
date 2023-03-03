@@ -1,7 +1,7 @@
 #include "Window.h"
 #include "imgui.h"
 #include "imgui_internal.h" // TODO: this should not be included here
-#include "imgui_impl_sdl.h"
+#include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer.h"
 #include <stdexcept>
 #include <cmath>

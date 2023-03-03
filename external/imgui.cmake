@@ -2,8 +2,8 @@
 string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
         NAME IMGUI
-        VERSION 1.88
-        URL "https://github.com/ocornut/imgui/archive/refs/tags/v1.88.zip"
+        VERSION 1.89.3
+        URL "https://github.com/ocornut/imgui/archive/refs/tags/v1.89.3.zip"
 )
 IF(IMGUI_ADDED)
     add_library(IMGUI STATIC)
@@ -18,7 +18,7 @@ IF(IMGUI_ADDED)
 
             PRIVATE
             ${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdlrenderer.cpp
-            ${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdl.cpp
+            ${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
             ${IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
             )
     target_include_directories( IMGUI

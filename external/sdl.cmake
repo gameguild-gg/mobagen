@@ -12,12 +12,13 @@ string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
         NAME SDL2
         GITHUB_REPOSITORY libsdl-org/SDL
-        GIT_TAG release-2.26.2
+        GIT_TAG release-2.26.3
         "SDL2_DISABLE_INSTALL ON"
         "SDL_SHARED OFF"
         "SDL_STATIC ON"
         "SDL_STATIC_PIC ON"
         "SDL_WERROR OFF"
+        "SDL_TEST OFF"
 )
 find_package(SDL2 REQUIRED)
 if (SDL2_ADDED)
