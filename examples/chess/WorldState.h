@@ -35,6 +35,7 @@ struct WorldState {
 
  public:
   PieceColor GetTurn(){return turn;};
+  void EndTurn(){turn = (PieceColor) ((uint8_t)PieceColor::COLORMASK^(uint8_t)turn);};
   PieceData PieceAtPosition(Point2D pos);
   void SetPieceAtPosition(PieceData piece, Point2D pos);
   void Reset();

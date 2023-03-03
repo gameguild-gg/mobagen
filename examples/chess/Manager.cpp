@@ -28,22 +28,32 @@ void Manager::OnGui(ImGuiContext* context) {
 
     if(lastIndexClicked!=index) {
       lastIndexClicked = index;
-      std::cout << "MatrixPos: " << index.to_string() << std::endl;
-      selected = index;
 
       auto piece = state.PieceAtPosition(index);
-      if(piece.piece!=PieceType::NONE || piece.color == state.GetTurn()) {
-        auto moves = getMoves(piece.piece, index);
-        if(moves.size()!=0)
-          validMoves = moves;
-        else
-          validMoves = {};
-      }
-      else
-        validMoves = {};
 
-      // if the user clicks on a valid move, move it!
-      // if the user clicks on the current element, or other element not valid, unselect it
+      if(selected.x == INT32_MIN || !validMoves.contains(index)) {  // if not selected
+        selected = index;
+        if (piece.piece != PieceType::NONE || piece.color == state.GetTurn())
+          validMoves = getMoves(piece.piece, index);
+        else {
+          validMoves = {};
+          selected = {INT32_MIN,INT32_MIN};
+        }
+      }
+      else if(validMoves.contains(index)) {
+        // move!
+        cout << "move!" << endl;
+        state.SetPieceAtPosition(state.PieceAtPosition(selected), index);
+        state.SetPieceAtPosition({PieceType::NONE, PieceColor::NONE}, selected);
+        state.EndTurn();
+        cout << state.toString() << endl;
+        validMoves = {};
+        selected = {INT32_MIN, INT32_MIN};
+      }
+      else {
+        validMoves = {};
+        selected = {INT32_MIN, INT32_MIN};
+      }
     }
   } if(ImGui::IsMouseReleased(ImGuiMouseButton_Left)){
     lastIndexClicked = {INT32_MIN, INT32_MIN};
@@ -95,9 +105,6 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
           drawSquare(renderer, whiteCell, rect);
     }
   }
-
-
-
 
 }
 
