@@ -33,7 +33,7 @@ void Manager::OnGui(ImGuiContext* context) {
 
       if(selected.x == INT32_MIN || !validMoves.contains(index)) {  // if not selected
         selected = index;
-        if (piece.piece != PieceType::NONE || piece.color == state.GetTurn())
+        if (piece.piece != PieceType::NONE && piece.color == state.GetTurn())
           validMoves = getMoves(piece.piece, index);
         else {
           validMoves = {};
