@@ -10,7 +10,7 @@ Vector2 WindRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boi
 }
 
 bool WindRule::drawImguiRuleExtra() {
-    ImGui::SetCurrentContext(world->engine->imGuiContext);
+    ImGui::SetCurrentContext(world->engine->window->imGuiContext);
     bool valueHasChanged = false;
 
     if (ImGui::SliderAngle("Wind Direction", &windAngle, 0)) {
