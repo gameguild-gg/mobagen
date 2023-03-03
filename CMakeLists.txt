@@ -39,7 +39,7 @@ ENDIF()
 include(external/external.cmake)
 add_subdirectory(core)
 #add_subdirectory(engine)
-add_subdirectory(editor)
+#add_subdirectory(editor)
 add_subdirectory(examples)
 
 # first we can indicate the documentation build as an option and set it to ON by default

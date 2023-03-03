@@ -2,8 +2,8 @@
 #include "SDL_image.h"
 #include "SDL_surface.h"
 
-std::shared_ptr<Texture> Texture::LoadSVGFromString(SDL_Renderer* renderer, const std::string& svgtxt) {
-  auto tex = std::make_shared<Texture>();
+Texture* Texture::LoadSVGFromString(SDL_Renderer* renderer, const std::string& svgtxt) {
+  auto tex = new Texture();
 
   SDL_RWops *rw = SDL_RWFromConstMem(svgtxt.c_str(), svgtxt.size());
   //todo: check if it is correct
