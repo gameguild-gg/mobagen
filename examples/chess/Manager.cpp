@@ -147,7 +147,7 @@ void Manager::drawPiece(SDL_Renderer* renderer, PieceData piece,
   static auto whiteColor = Color::DarkMagenta;
   switch (piece.piece) {
     case PieceType::Pawn:
-      return Pawn::polygon.Draw(renderer,location,scale,Vector2::zero(), piece.color==PieceColor::White?whiteColor:blackColor);
+      return Pawn::polygon.Draw(renderer,location,scale,piece.color==PieceColor::White?Vector2::zero():Vector2::up(), piece.color==PieceColor::White?whiteColor:blackColor);
 //    case PieceType::Rook:
 //      return Rook::PossibleMoves(state, point);
 //    case PieceType::Knight:
