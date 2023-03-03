@@ -52,6 +52,7 @@ class PieceData {
 
   static inline PieceData Empty() {return {PieceType::NONE, PieceColor::NONE};}
   static inline uint8_t   Pack(PieceData piece){return (uint8_t)piece.piece | (uint8_t)piece.color;};
+  inline uint8_t Pack(){return (uint8_t)piece | (uint8_t)color;};
   static inline PieceData UnPack(uint8_t data){return {(PieceType)(data & (uint8_t)PieceType::PIECEMASK), (PieceColor)(data & (uint8_t)PieceColor::COLORMASK)};};
   char toChar();
 };

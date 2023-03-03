@@ -82,6 +82,7 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
   auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
   float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
   auto squareSide = minDimension / 8;
+  auto squareSideOver2 = squareSide/2;
   auto sideSideOver2 = 8 / 2.0f;
 
   auto whiteCell = Color::LightBlue.Light();
@@ -102,7 +103,16 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
       else if ((line + column) % 2 == 0)
         drawSquare(renderer, blackCell, rect);
       else
-          drawSquare(renderer, whiteCell, rect);
+        drawSquare(renderer, whiteCell, rect);
+
+      drawPiece(renderer,
+                state.PieceAtPosition({column,line}),
+                {rect.x+squareSideOver2,rect.y+squareSideOver2},
+                Vector2::identity()*squareSideOver2);
+      drawPiece(renderer,
+                state.PieceAtPosition({column,line}),
+                {rect.x+squareSideOver2,rect.y+squareSideOver2},
+                Vector2::identity()*squareSideOver2*0.95);
     }
   }
 
@@ -130,4 +140,23 @@ void Manager::drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect)
   SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b,
                          SDL_ALPHA_OPAQUE);
   SDL_RenderFillRect(renderer, &rect);
+}
+void Manager::drawPiece(SDL_Renderer* renderer, PieceData piece,
+                        Vector2 location, Vector2 scale) {
+  static auto blackColor = Color::DarkGreen;
+  static auto whiteColor = Color::DarkMagenta;
+  switch (piece.piece) {
+    case PieceType::Pawn:
+      return Pawn::polygon.Draw(renderer,location,scale,Vector2::zero(), piece.color==PieceColor::White?whiteColor:blackColor);
+//    case PieceType::Rook:
+//      return Rook::PossibleMoves(state, point);
+//    case PieceType::Knight:
+//      return Knight::PossibleMoves(state, point);
+//    case PieceType::Bishop:
+//      return Bishop::PossibleMoves(state, point);
+//    case PieceType::Queen:
+//      return Queen::PossibleMoves(state, point);
+//    case PieceType::King:
+//      return King::PossibleMoves(state, point);
+  }
 }
