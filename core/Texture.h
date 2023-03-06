@@ -22,6 +22,7 @@ class Texture {
   void Draw(SDL_Renderer * renderer, Vector2 position, Vector2 scale);
 
   // todo: hide or wrap this sdl_renderer type
+  // todo: use asset loader in order do not use strings here!
   static Texture* LoadSVGFromString(SDL_Renderer * renderer, const std::string& svgtxt);
 };
 

@@ -149,11 +149,36 @@ void Manager::drawPiece(SDL_Renderer* renderer, PieceData piece,
 Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
   state.Reset();
   cout << state.toString() << endl;
-
+  // todo: use asset subsystem loading!
   piecePackedToTexture[(uint8_t) PieceType::Pawn | (uint8_t) PieceColor::White]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgWhite);
   piecePackedToTexture[(uint8_t) PieceType::Pawn | (uint8_t) PieceColor::Black]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgBlack);
+
+  piecePackedToTexture[(uint8_t) PieceType::Knight | (uint8_t) PieceColor::White]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, KnightSvgWhite);
+  piecePackedToTexture[(uint8_t) PieceType::Knight | (uint8_t) PieceColor::Black]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, KnightSvgBlack);
+
+  piecePackedToTexture[(uint8_t) PieceType::Bishop | (uint8_t) PieceColor::White]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, BishopSvgWhite);
+  piecePackedToTexture[(uint8_t) PieceType::Bishop | (uint8_t) PieceColor::Black]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, BishopSvgBlack);
+
+  piecePackedToTexture[(uint8_t) PieceType::Rook | (uint8_t) PieceColor::White]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgWhite);
+  piecePackedToTexture[(uint8_t) PieceType::Rook | (uint8_t) PieceColor::Black]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgBlack);
+
+  piecePackedToTexture[(uint8_t) PieceType::Queen | (uint8_t) PieceColor::White]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, QueenSvgWhite);
+  piecePackedToTexture[(uint8_t) PieceType::Queen | (uint8_t) PieceColor::Black]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, QueenSvgBlack);
+
+  piecePackedToTexture[(uint8_t) PieceType::King | (uint8_t) PieceColor::White]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgWhite);
+  piecePackedToTexture[(uint8_t) PieceType::King | (uint8_t) PieceColor::Black]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgBlack);
 }
 
 Manager::~Manager() {
