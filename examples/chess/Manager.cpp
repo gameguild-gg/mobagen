@@ -87,7 +87,7 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
   auto sideSideOver2 = 8 / 2.0f;
 
   auto whiteCell = Color::LightBlue.Light();
-  auto blackCell = Color::DarkBlue.Dark();
+  auto blackCell = Color::Brown.Light();
   auto movesCell = Color::Yellow.Dark();
   auto selectedCell = Color::Yellow.Light();
   for (int line = 0; line < 8; line++) {
