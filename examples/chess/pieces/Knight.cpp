@@ -10,10 +10,12 @@ unordered_set<Point2D> Knight::PossibleMoves(WorldState& world,
 
   vector<Point2D> const deltas = {{-1,2}, {1,2}, {-2,1}, {-2,1}, {-2,-1}, {-2,-1}, {-1,-2}, {1,-2}};
   for(auto delta : deltas){
-    auto other = world.PieceAtPosition(delta + origin);
-    if(other.piece == PieceType::WRONG || other.color == piece.color)
+    auto sum = delta + origin;
+    auto other = world.PieceAtPosition(sum);
+    if(other.piece == PieceType::WRONG || // outside board
+        ((uint8_t)other.piece < (uint8_t)PieceType::WRONG && other.piece!=PieceType::NONE && other.color == piece.color)) // same side piece
       continue;
-    moves.insert(delta);
+    moves.insert(sum);
   }
   return moves;
 }
