@@ -1,11 +1,13 @@
 #ifndef CHESS_MANAGER_H
 #define CHESS_MANAGER_H
 
+#include "Texture.h"
 #include "WorldState.h"
+#include <ColorT.h>
 #include <Engine.h>
 #include <GameObject.h>
 #include <iostream>
-#include <ColorT.h>
+#include <map>
 #include <unordered_set>
 
 class Manager: GameObject  {
@@ -14,12 +16,12 @@ class Manager: GameObject  {
   vector<WorldState> previousStates;
   Point2D selected={INT32_MIN,INT32_MIN};
   unordered_set<Point2D> validMoves;
+  map<uint8_t, Texture*> piecePackedToTexture;
 
  public:
-  explicit Manager(Engine* pEngine) : GameObject(pEngine) {
-    state.Reset();
-    cout << state.toString() << endl;
-  }
+  explicit Manager(Engine* pEngine);
+  void Start() override;
+  ~Manager();
   void OnGui(ImGuiContext* context) override;
   void OnDraw(SDL_Renderer* renderer) override;
 

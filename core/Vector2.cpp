@@ -193,4 +193,6 @@ Vector2 Vector2::normalized() const {
     else
         return {x,y};
 }
-
+Vector2 Vector2::operator/(const Vector2& rhs) const {
+    return {x / rhs.x, y / rhs.y};
+}

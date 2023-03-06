@@ -35,6 +35,7 @@ struct Vector2 {
     Vector2 operator* (const float& rhs) const;
     friend Vector2 operator* (const float& lhs, const Vector2& rhs);
     Vector2 operator/ (const float& rhs) const;
+    Vector2 operator/ (const Vector2& rhs) const;
     bool operator!= (const Vector2& rhs) const;
     bool operator== (const Vector2& rhs) const;
 

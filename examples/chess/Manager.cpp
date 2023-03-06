@@ -5,6 +5,7 @@
 #include "pieces/King.h"
 #include "pieces/Knight.h"
 #include "pieces/Pawn.h"
+#include "pieces/PieceSvg.h"
 #include "pieces/Queen.h"
 #include "pieces/Rook.h"
 #include <unordered_map>
@@ -108,7 +109,7 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
       drawPiece(renderer,
                 state.PieceAtPosition({column,line}),
                 {rect.x+squareSideOver2,rect.y+squareSideOver2},
-                Vector2::identity()*squareSideOver2);
+                Vector2::identity()*squareSide);
     }
   }
 }
@@ -138,20 +139,28 @@ void Manager::drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect)
 }
 void Manager::drawPiece(SDL_Renderer* renderer, PieceData piece,
                         Vector2 location, Vector2 scale) {
-  static auto blackColor = Color::DarkGreen;
-  static auto whiteColor = Color::DarkMagenta;
-  switch (piece.piece) {
-    case PieceType::Pawn:
-      return Pawn::polygon.Draw(renderer,location,scale,piece.color==PieceColor::White?Vector2::zero():Vector2::up(), piece.color==PieceColor::White?whiteColor:blackColor);
-    case PieceType::Rook:
-      return Rook::polygon.Draw(renderer,location,scale,piece.color==PieceColor::White?Vector2::zero():Vector2::up(), piece.color==PieceColor::White?whiteColor:blackColor);
-//    case PieceType::Knight:
-//      return Knight::PossibleMoves(state, point);
-//    case PieceType::Bishop:
-//      return Bishop::PossibleMoves(state, point);
-//    case PieceType::Queen:
-//      return Queen::PossibleMoves(state, point);
-//    case PieceType::King:
-//      return King::PossibleMoves(state, point);
+  if(piecePackedToTexture.contains(piece.Pack())) {
+    auto tex = piecePackedToTexture[piece.Pack()];
+    tex->Draw(renderer, location,
+              scale / Vector2(tex->dimensions.x, tex->dimensions.y));
   }
+}
+
+Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
+  state.Reset();
+  cout << state.toString() << endl;
+
+  piecePackedToTexture[(uint8_t) PieceType::Pawn | (uint8_t) PieceColor::White]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgWhite);
+  piecePackedToTexture[(uint8_t) PieceType::Pawn | (uint8_t) PieceColor::Black]
+      = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgBlack);
+}
+
+Manager::~Manager() {
+  for(auto e : piecePackedToTexture)
+    delete e.second;
+}
+
+void Manager::Start() {
+
 }
