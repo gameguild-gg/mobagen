@@ -25,26 +25,7 @@ enum class PieceColor: uint8_t { // chess color to avoid colliding with namespac
   NONE =      0b0000
 };
 
-struct PieceData;
-
-struct WorldState {
- private:
-  PieceColor turn = PieceColor::White;
-  uint16_t score; // to store evaluation heuristics to be used in AI branch and cut algorithms
-//  vector<PieceState> board;
-  uint8_t state[32];
-
- public:
-  PieceColor GetTurn(){return turn;};
-  void EndTurn(){turn = (PieceColor) ((uint8_t)PieceColor::COLORMASK^(uint8_t)turn);};
-  PieceData PieceAtPosition(Point2D pos);
-  void SetPieceAtPosition(PieceData piece, Point2D pos);
-  void Reset();
-  string toString();
-};
-
-
-class PieceData {
+struct PieceData {
  public:
   PieceData():color(PieceColor::NONE), piece(PieceType::NONE){};
   PieceData(PieceType type, PieceColor color): color(color), piece(type){}
@@ -57,6 +38,48 @@ class PieceData {
   inline uint8_t Pack(){return (uint8_t)piece | (uint8_t)color;};
   static inline PieceData UnPack(uint8_t data){return {(PieceType)(data & (uint8_t)PieceType::PIECEMASK), (PieceColor)(data & (uint8_t)PieceColor::COLORMASK)};};
   char toChar();
+};
+
+struct Move {
+ private:
+  // from.x 0x1110000000000000
+  // from.y 0x0001110000000000
+  // to.x   0x0000001110000000
+  // to.y   0x0000000001110000
+  // color  0x0000000000001000
+  // type   0x0000000000000111
+  uint16_t data;
+ public:
+  explicit Move(uint16_t data):data(data){}
+  Move(Point2D from, Point2D to, PieceData piece) : data(Pack(from,to,piece)){}
+  Point2D From() {return {data>>13U, (data<<3U)>>13U};}
+  Point2D To(){return {(data<<6U)>>13U, (data<<9U)>>13U};}
+  PieceData Piece(){return PieceData::UnPack(data&0b1111U);};
+  static uint16_t Pack(Point2D from, Point2D to, PieceData piece){
+    return (unsigned)piece.Pack() |
+        (unsigned)to.y << 4U |
+        (unsigned)to.x << 7U |
+        (unsigned)from.y << 10U |
+        (unsigned)from.x << 13U;
+  }
+  uint16_t Pack() const {return data;}
+  static Move UnPack(uint16_t data){return Move(data);}
+};
+
+struct WorldState {
+ private:
+  PieceColor turn = PieceColor::White;
+  uint16_t score; // to store evaluation heuristics to be used in AI branch and cut algorithms
+                   //  vector<PieceState> board;
+  uint8_t state[32];
+
+ public:
+  PieceColor GetTurn(){return turn;};
+  void EndTurn(){turn = (PieceColor) ((uint8_t)PieceColor::COLORMASK^(uint8_t)turn);};
+  PieceData PieceAtPosition(Point2D pos);
+  void SetPieceAtPosition(PieceData piece, Point2D pos);
+  void Reset();
+  string toString();
 };
 
 struct PieceBehavior {

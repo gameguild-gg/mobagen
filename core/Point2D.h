@@ -38,13 +38,11 @@ struct Point2D {
 };
 
 namespace std {
-template<> struct hash<Point2D>
-{
-  std::size_t operator()(const Point2D& p) const noexcept
-  {
-    return p(p);
-  }
-};
+  template<> struct hash<Point2D> {
+    std::size_t operator()(const Point2D& p) const noexcept {
+      return p(p);
+    }
+  };
 }
 
 #endif //POINT2D_H
