@@ -37,35 +37,22 @@ IF(EMSCRIPTEN)
 ENDIF()
 
 include(external/external.cmake)
-add_subdirectory(core)
-#add_subdirectory(engine)
-#add_subdirectory(editor)
-add_subdirectory(examples)
 
-# first we can indicate the documentation build as an option and set it to ON by default
-#option(BUILD_DOC "Build documentation" ON)
-#IF(BUILD_DOC)
-#    add_subdirectory(docs)
-#ENDIF()
-## check if Doxygen is installed
-#find_package(Doxygen)
-#if (DOXYGEN_FOUND)
-#    # set input and output files
-#    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/../docs/Doxyfile.in)
-#    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
-#
-#    # request to configure the file
-#    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-#    message("Doxygen build started")
-#
-#    # note the option ALL which allows to build the docs together with the application
-#    add_custom_target( doc_doxygen ALL
-#            COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-#            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-#            COMMENT "Generating API documentation with Doxygen"
-#            VERBATIM )
-#else (DOXYGEN_FOUND)
-#    message("Doxygen need to be installed to generate the doxygen documentation")
-#endif (DOXYGEN_FOUND)
+add_subdirectory(core)
+
+option(ENABLE_TEST_COVERAGE "ENABLE_TEST_COVERAGE" ON)
+if(ENABLE_TEST_COVERAGE)
+  add_subdirectory(test)
+endif()
+
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+if(BUILD_EXAMPLES)
+  add_subdirectory(examples)
+endif()
+
+option(ENABLE_DOCUMENTATION "ENABLE_DOCUMENTATION" OFF)
+if(ENABLE_DOCUMENTATION)
+  add_subdirectory(documentation)
+endif()
 
 # todo: follow https://github.com/TheLartians/ModernCppStarter
