@@ -4,7 +4,6 @@
 #include <cmath>
 #include <stdexcept>
 #include "SDL.h"
-#include "MathLib.h"
 
 // #TODO: create a math lib more efficient than this
 #define DEG2RAD (float)((M_PI * 2) / 360)

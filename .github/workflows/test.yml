@@ -1,0 +1,59 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+
+env:
+  CTEST_OUTPUT_ON_FAILURE: 1
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            "**/cpm_modules"
+            "**/_deps"
+          key: ${{ matrix.os }}-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Install dependencies
+        if: startsWith(matrix.os,'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev python3-distutils libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+#      - name: Upload coverage reports to Codecov
+#        uses: codecov/codecov-action@v3
+
+      - name: configure
+        run: cmake -S. -Bbuild -DENABLE_TEST_COVERAGE=ON -DENABLE_STANDALONE=OFF -DENABLE_DOCUMENTATION=OFF  -DCMAKE_BUILD_TYPE=Debug
+
+      - name: build
+        run: cmake --build build --parallel --target CoreTests
+
+      - name: test
+        run: |
+          cd build
+          cd test
+          ctest --build-config Debug
+
+      - name: collect code coverage on ubuntu
+        if: startsWith(matrix.os,'ubuntu')
+        run: bash <(curl -s https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
