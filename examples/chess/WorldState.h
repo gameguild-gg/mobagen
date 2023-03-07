@@ -3,6 +3,7 @@
 
 #include "Point2D.h"
 #include <vector>
+#include <unordered_set>
 using namespace std;
 
 enum class PieceType: uint8_t {

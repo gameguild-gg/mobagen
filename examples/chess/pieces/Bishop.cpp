@@ -7,7 +7,7 @@ unordered_set<Point2D> Bishop::PossibleMoves(WorldState& world, const Point2D& o
 
   unordered_set<Point2D> moves;
 
-  vector<Point2D> directions = {{1,1}, {-1,1}, {1,-1}, {-1,-1}};
+  vector<Point2D> const directions = {{1,1}, {-1,1}, {1,-1}, {-1,-1}};
 
   for(auto direction : directions) {
     Point2D currentPosition;

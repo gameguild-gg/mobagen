@@ -1,5 +1,6 @@
 
 #include "Rook.h"
+// todo: castling behavior
 unordered_set<Point2D> Rook::PossibleMoves(WorldState& world,
                                            const Point2D& origin) {
   auto turn = world.GetTurn();
@@ -9,7 +10,7 @@ unordered_set<Point2D> Rook::PossibleMoves(WorldState& world,
 
   unordered_set<Point2D> moves;
 
-  vector<Point2D> directions = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+  vector<Point2D> const directions = {{0,1}, {0,-1}, {1,0}, {-1,0}};
 
   for(auto direction : directions) {
     Point2D currentPosition;

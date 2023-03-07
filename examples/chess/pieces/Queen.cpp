@@ -8,7 +8,7 @@ unordered_set<Point2D> Queen::PossibleMoves(WorldState& world,
 
   unordered_set<Point2D> moves;
 
-  vector<Point2D> directions = {{0,1}, {0,-1}, {1,0}, {-1,0}, {1,1}, {-1,1}, {1,-1}, {-1,-1}};
+  vector<Point2D> const directions = {{0,1}, {0,-1}, {1,0}, {-1,0}, {1,1}, {-1,1}, {1,-1}, {-1,-1}};
 
   for(auto direction : directions) {
     Point2D currentPosition;

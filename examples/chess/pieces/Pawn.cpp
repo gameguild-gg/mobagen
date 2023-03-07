@@ -1,9 +1,6 @@
-//
-// Created by tolstenko on 2/28/23.
-//
-
 #include "Pawn.h"
 #include <unordered_set>
+// todo: en-passant move. store state to restrict only one en-passant per pawn
 unordered_set<Point2D> Pawn::PossibleMoves(WorldState& world, const Point2D& pos) {
   auto turn = world.GetTurn();
   auto piece = world.PieceAtPosition(pos);

@@ -9,11 +9,12 @@
 #include <iostream>
 #include <map>
 #include <unordered_set>
+#include <stack>
 
 class Manager: GameObject  {
  private:
   WorldState state;
-  vector<WorldState> previousStates;
+  stack<WorldState> previousStates;
   Point2D selected={INT32_MIN,INT32_MIN};
   unordered_set<Point2D> validMoves;
   map<uint8_t, Texture*> piecePackedToTexture;

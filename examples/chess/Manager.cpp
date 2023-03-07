@@ -20,6 +20,16 @@ void Manager::OnGui(ImGuiContext* context) {
               1000.0f / ImGui::GetIO().Framerate,
               ImGui::GetIO().Framerate);
 
+  if(ImGui::Button("Reset"))
+    this->state.Reset();
+
+  if(ImGui::Button("Undo") && !previousStates.empty()) {
+    validMoves = {};
+    selected = {INT32_MIN,INT32_MIN};
+    state = previousStates.top();
+    previousStates.pop();
+  }
+
   ImGui::End(); // end settings
 
   static Point2D lastIndexClicked = {INT32_MIN, INT32_MIN};
@@ -51,6 +61,7 @@ void Manager::OnGui(ImGuiContext* context) {
         }
       }
       else if(validMoves.contains(index)) {
+        previousStates.push(state);
         // move!
         cout << "move!" << endl;
         state.SetPieceAtPosition(state.PieceAtPosition(selected), index);
