@@ -34,3 +34,13 @@ Point2D Point2D::operator-(const Point2D& rhs) const {
 std::string Point2D::to_string() {
   return "{" + std::to_string(x) + ", " + std::to_string(y) + "}";
 }
+Point2D& Point2D::operator+=(const Point2D& rhs) {
+  this->x += rhs.x;
+  this->y += rhs.y;
+  return *this;
+}
+Point2D& Point2D::operator-=(const Point2D& rhs) {
+  this->x -= rhs.x;
+  this->y -= rhs.y;
+  return *this;
+}

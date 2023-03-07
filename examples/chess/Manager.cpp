@@ -23,19 +23,28 @@ void Manager::OnGui(ImGuiContext* context) {
   ImGui::End(); // end settings
 
   static Point2D lastIndexClicked = {INT32_MIN, INT32_MIN};
-  if(ImGui::IsMouseDown(ImGuiMouseButton_Left)){
+  if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)){
     auto mousePos = ImGui::GetMousePos();
     Point2D index = mousePositionToIndex(mousePos);
 
-    if(lastIndexClicked!=index) {
+    if(index == selected) {
+      validMoves = {};
+      selected = {INT32_MIN,INT32_MIN};
+    }
+    else if(lastIndexClicked!=index) {
       lastIndexClicked = index;
 
       auto piece = state.PieceAtPosition(index);
 
       if(selected.x == INT32_MIN || !validMoves.contains(index)) {  // if not selected
         selected = index;
-        if (piece.piece != PieceType::NONE && piece.color == state.GetTurn())
+        if (piece.piece != PieceType::NONE && piece.color == state.GetTurn()) {
           validMoves = getMoves(piece.piece, index);
+          if(validMoves.empty()) {
+            validMoves = {};
+            selected = {INT32_MIN,INT32_MIN};
+          }
+        }
         else {
           validMoves = {};
           selected = {INT32_MIN,INT32_MIN};

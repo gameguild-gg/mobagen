@@ -11,7 +11,9 @@ struct Point2D {
   bool operator!= (const Point2D& rhs) const;
   Point2D& operator= (const Point2D& rhs);
   Point2D operator+ (const Point2D& rhs) const;
+  Point2D& operator+= (const Point2D& rhs);
   Point2D operator- (const Point2D& rhs) const;
+  Point2D& operator-= (const Point2D& rhs);
 
   inline Point2D Up() const{return *this + UP;};
   inline Point2D Left() const{return *this + LEFT;};
