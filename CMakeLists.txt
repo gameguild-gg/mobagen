@@ -34,6 +34,8 @@ IF(EMSCRIPTEN)
 
     file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/html/*")
     file(COPY ${HTML} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
+
+    SET(ENABLE_TEST_COVERAGE OFF)
 ENDIF()
 
 include(external/external.cmake)
