@@ -58,8 +58,7 @@ void WorldState::Reset() {
 void WorldState::SetPieceAtPosition(PieceData piece, Point2D pos) {
   auto packed = PieceData::Pack(piece);
 
-  auto index = (pos.y*8+pos.x)/2;
-  auto value = state[index];
+  auto index = (pos.y*8+pos.x)/2; auto value = state[index];
 
   if(pos.x%2==0)
     value = (value & 0b11110000) | packed;

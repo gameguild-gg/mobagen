@@ -4,6 +4,7 @@
 #include "Point2D.h"
 #include <vector>
 #include <unordered_set>
+#include "WorldStateFwd.h"
 using namespace std;
 
 enum class PieceType: uint8_t {
@@ -48,8 +49,9 @@ struct Move {
   // to.y   0x0000000001110000
   // color  0x0000000000001000
   // type   0x0000000000000111
-  uint16_t data;
+  uint16_t data=0;
  public:
+  Move()= default;
   explicit Move(uint16_t data):data(data){}
   Move(Point2D from, Point2D to, PieceData piece) : data(Pack(from,to,piece)){}
   Point2D From() {return {data>>13U, (data<<3U)>>13U};}
