@@ -115,7 +115,7 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
       SDL_Rect rect = {
         (int)(ceil(center.x + (column - sideSideOver2) * squareSide)),
         (int)(ceil(center.y + (-line - 1 + sideSideOver2) * squareSide)),
-        (int)(squareSide), (int)(squareSide)};
+        (int)(ceil(squareSide)), (int)(ceil(squareSide))};
 
       if(selected.y==line && selected.x==column)
         drawSquare(renderer, selectedCell, rect);
