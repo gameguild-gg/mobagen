@@ -24,15 +24,15 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../core/)
 set_target_properties(CoreTests PROPERTIES CXX_STANDARD 20)
 
 # enable compiler warnings
-if(NOT TEST_INSTALLED_VERSION)
-  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(core PUBLIC -Wall -Wpedantic -Wextra)
-#    target_compile_options(core PUBLIC -Wall -Wpedantic -Wextra -Werror)
-  elseif(MSVC)
-    target_compile_options(core PUBLIC /W4 /WX)
-    target_compile_definitions(CoreTests PUBLIC DOCTEST_CONFIG_USE_STD_HEADERS)
-  endif()
-endif()
+#if(NOT TEST_INSTALLED_VERSION)
+#  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+#    target_compile_options(core PUBLIC -Wall -Wpedantic -Wextra)
+##    target_compile_options(core PUBLIC -Wall -Wpedantic -Wextra -Werror)
+#  elseif(MSVC)
+#    target_compile_options(core PUBLIC /W4 /WX)
+#    target_compile_definitions(CoreTests PUBLIC DOCTEST_CONFIG_USE_STD_HEADERS)
+#  endif()
+#endif()
 
 # ---- Add CoreTests ----
 
