@@ -69,13 +69,13 @@ jobs:
         with:
           type: zip
           filename: ${{ matrix.os }}-${{ steps.date.outputs.date }}.zip
-          directory: build/out/
+          directory: build/bin/
 
       - uses: ncipollo/release-action@v1
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
         with:
           allowUpdates: true
-          artifacts: build/out/${{ matrix.os }}-${{ steps.date.outputs.date }}.zip
+          artifacts: build/bin/${{ matrix.os }}-${{ steps.date.outputs.date }}.zip
           tag: ${{ steps.date.outputs.date }}
 
   nightly-release-emscripten:
@@ -91,11 +91,14 @@ jobs:
           path: "**/cpm_modules"
           key: emscripten-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
-      - name: configure
-        run: emcmake cmake -DCMAKE_C_ABI_COMPILED=ON -DCMAKE_CXX_ABI_COMPILED=ON -DEMSCRIPTEN=1 -DCMAKE_BUILD_TYPE=MinSizeRel -S. -Bbuild -DENABLE_TEST_COVERAGE=OFF -DENABLE_STANDALONE=ON -DENABLE_DOCUMENTATION=OFF -DCMAKE_EXECUTABLE_SUFFIX=".html"
+#      - name: configure
+#        run: emcmake cmake -DCMAKE_C_ABI_COMPILED=ON -DCMAKE_CXX_ABI_COMPILED=ON -DEMSCRIPTEN=1 -DCMAKE_BUILD_TYPE=MinSizeRel -S. -Bbuild -DENABLE_TEST_COVERAGE=OFF -DENABLE_STANDALONE=ON -DENABLE_DOCUMENTATION=OFF -DCMAKE_EXECUTABLE_SUFFIX=".html"
+#
+#      - name: build
+#        run: cmake --build build -j4 --config Release
 
-      - name: build
-        run: cmake --build build -j4 --config Release
+      - name: Emscripten Build
+        run: ./scripts/emscripten-build.sh
 
       - name: Get current date
         id: date
@@ -106,11 +109,11 @@ jobs:
         with:
           type: zip
           filename: emscripten-${{ steps.date.outputs.date }}.zip
-          directory: build/out/
+          directory: bin-emscripten/bin/
 
       - uses: ncipollo/release-action@v1
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
         with:
           allowUpdates: true
-          artifacts: build/out/emscripten-${{ steps.date.outputs.date }}.zip
+          artifacts: bin-emscripten/bin/emscripten-${{ steps.date.outputs.date }}.zip
           tag: ${{ steps.date.outputs.date }}
