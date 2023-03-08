@@ -28,7 +28,7 @@ jobs:
 
       - name: Configure CMake
         shell: cmd
-        run: cmake -H. -Bbuild -G "Visual Studio 17 2022" -T ClangCL -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_EDITOR=ON
+        run: cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=MinSizeRel -DENABLE_TEST_COVERAGE=OFF
 
       - name: Build
         shell: cmd

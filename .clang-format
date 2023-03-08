@@ -9,7 +9,7 @@ AlwaysBreakTemplateDeclarations: No
 BreakBeforeBraces: Attach
 ColumnLimit: 100
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
-IncludeBlocks: Regroup
+IncludeBlocks: Merge
 IndentPPDirectives: AfterHash
 IndentWidth: 2
 NamespaceIndentation: All

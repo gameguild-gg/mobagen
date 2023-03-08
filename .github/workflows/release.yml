@@ -52,7 +52,7 @@ jobs:
           sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev python3-distutils libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
 
       - name: configure
-        run: cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DENABLE_TEST_COVERAGE=ON
+        run: cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DENABLE_TEST_COVERAGE=OFF
 
       - name: build
         run: cmake --build build --parallel --config MinSizeRel
