@@ -10,6 +10,7 @@ on:
 
 env:
   BUILD_TYPE: MinSizeRel
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
 
 jobs:
   linux-emscripten:
@@ -21,8 +22,10 @@ jobs:
         with:
           submodules: recursive
 
-#      - name: Install docs generation files
-#        run: apt install doxygen plantuml graphviz
+      - uses: actions/cache@v2
+        with:
+          path: "**/cpm_modules"
+          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       - name: Emscripten Build
         run: ./scripts/emscripten-build.sh

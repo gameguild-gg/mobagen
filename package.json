@@ -5,14 +5,20 @@
   "main": "bin-emscripten/bin/index.js",
   "directories": {
     "doc": "docs",
-    "example": "examples"
+    "example": "examples",
+    "engine": "engine"
   },
   "scripts": {
     "test": "test",
     "pregenerate:windows:clang": "rimraf build",
     "generate:windows:clang": "cmake -H. -Bbuild -G \"Visual Studio 16 2019\" -T ClangCL -DCMAKE_BUILD_TYPE=MinSizeRel",
     "build": "cmake --build build --config MinSizeRel",
-    "run": "cmake --open build"
+    "run": "cmake --open build",
+    "release": "npx -y semantic-release",
+    "prestyle": "cmake -S. -BbuildStyle -DENABLE_TEST_COVERAGE=ON -DENABLE_DOCUMENTATION=OFF",
+    "style": "cmake --build buildStyle --target fix-format",
+    "prebuildall": "cmake -S. -Bbuild -DENABLE_TEST_COVERAGE=OFF -DENABLE_DOCUMENTATION=OFF",
+    "buildall": "cmake --build build --parallel"
   },
   "repository": {
     "type": "git",
@@ -26,5 +32,30 @@
   "homepage": "https://github.com/InfiniBrains/mobagen#readme",
   "dependencies": {
     "rimraf": "^3.0.2"
+  },
+  "release": {
+    "branches": [
+      "master",
+      "main"
+    ],
+    "repositoryUrl": "https://github.com/InfiniBrains/concurrency",
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md"
+        }
+      ],
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "CHANGELOG.md"
+          ]
+        }
+      ]
+    ]
   }
 }

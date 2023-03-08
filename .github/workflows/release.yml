@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    #    tags:
+    #      - '*'
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
+
+jobs:
+  semantic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - name: npm install
+        run: npm install
+      - name: semantic
+        run: npm run release
+
+  nightly-release:
+    runs-on: ${{ matrix.os }}
+    needs: semantic
+
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: cache
+        uses: actions/cache@v2
+        with:
+          path: "**/cpm_modules"
+          key: ${{ matrix.os }}-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: configure
+        run: cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release
+
+      - name: build
+        run: cmake --build build --parallel --config MinSizeRel
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - name: test var
+        run: echo "${{ steps.date.outputs.date }}"
+
+      - name: zip
+        uses: thedoctor0/zip-release@main
+        with:
+          type: zip
+          filename: ${{ matrix.os }}-${{ steps.date.outputs.date }}.zip
+          directory: build/out/
+
+      - uses: ncipollo/release-action@v1
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
+        with:
+          allowUpdates: true
+          artifacts: build/out/${{ matrix.os }}-${{ steps.date.outputs.date }}.zip
+          tag: ${{ steps.date.outputs.date }}
+
+  nightly-release-emscripten:
+    runs-on: ubuntu-latest
+    container: emscripten/emsdk
+    needs: semantic
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/cache@v2
+        with:
+          path: "**/cpm_modules"
+          key: emscripten-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: configure
+        run: emcmake cmake -DCMAKE_C_ABI_COMPILED=ON -DCMAKE_CXX_ABI_COMPILED=ON -DEMSCRIPTEN=1 -DCMAKE_BUILD_TYPE=MinSizeRel -S. -Bbuild -DENABLE_TEST_COVERAGE=OFF -DENABLE_STANDALONE=ON -DENABLE_DOCUMENTATION=OFF -DCMAKE_EXECUTABLE_SUFFIX=".html"
+
+      - name: build
+        run: cmake --build build -j4 --config Release
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - name: zip
+        uses: thedoctor0/zip-release@main
+        with:
+          type: zip
+          filename: emscripten-${{ steps.date.outputs.date }}.zip
+          directory: build/out/
+
+      - uses: ncipollo/release-action@v1
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
+        with:
+          allowUpdates: true
+          artifacts: build/out/emscripten-${{ steps.date.outputs.date }}.zip
+          tag: ${{ steps.date.outputs.date }}

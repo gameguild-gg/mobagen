@@ -28,9 +28,7 @@ jobs:
 
       - uses: actions/cache@v2
         with:
-          path: |
-            "**/cpm_modules"
-            "**/_deps"
+          path: "**/cpm_modules"
           key: ${{ matrix.os }}-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       - name: Install dependencies
@@ -43,7 +41,7 @@ jobs:
 #        uses: codecov/codecov-action@v3
 
       - name: configure
-        run: cmake -S. -Bbuild -DENABLE_TEST_COVERAGE=ON -DENABLE_STANDALONE=OFF -DENABLE_DOCUMENTATION=OFF  -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S. -Bbuild -DENABLE_TEST_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
 
       - name: build
         run: cmake --build build --parallel --target CoreTests

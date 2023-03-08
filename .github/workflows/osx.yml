@@ -10,6 +10,7 @@ on:
 
 env:
   BUILD_TYPE: MinSizeRel
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
 
 jobs:
   osx-native:
@@ -21,10 +22,10 @@ jobs:
           submodules: recursive
 
       - name: cache
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         with:
-          path: /home/runner/.hunter
-          key: ${{ runner.os }}-mobagen
+          path: "**/cpm_modules"
+          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       - name: Configure CMake
         run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_EDITOR=ON
