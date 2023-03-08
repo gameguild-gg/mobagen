@@ -8,17 +8,17 @@
 #include "Point2D.h"
 #include <vector>
 
-class World: GameObject {
- private:
+class World : GameObject {
+private:
   int sideSize;
 
   std::vector<MazeGeneratorBase*> generators;
-  int generatorId=0;
+  int generatorId = 0;
   bool isSimulating = false;
-  float timeBetweenAITicks=0.0;
-  float timeForNextTick=0;
-  int64_t moveDuration=0;
-  int64_t totalTime=0;
+  float timeBetweenAITicks = 0.0;
+  float timeForNextTick = 0;
+  int64_t moveDuration = 0;
+  int64_t totalTime = 0;
 
   // .=
   // |
@@ -28,12 +28,13 @@ class World: GameObject {
   // the boxes colors
   std::vector<Color32> colors;
   // convert a point into the index of the left vertex of the node
-  inline int Point2DtoIndex(const Point2D& point){
+  inline int Point2DtoIndex(const Point2D& point) {
     // todo: test. unstable interface
-    auto sizeOver2 = sideSize/2;
-    return (point.y + sizeOver2)*(sideSize+1)*2 + (point.x + sizeOver2)*2;
+    auto sizeOver2 = sideSize / 2;
+    return (point.y + sizeOver2) * (sideSize + 1) * 2 + (point.x + sizeOver2) * 2;
   }
- public:
+
+public:
   ~World();
   explicit World(Engine* pEngine, int size);
 
@@ -50,7 +51,7 @@ class World: GameObject {
   void SetWest(const Point2D& point, const bool& state);
 
   void Start() override;
-  void OnGui(ImGuiContext *context) override;
+  void OnGui(ImGuiContext* context) override;
   void OnDraw(SDL_Renderer* renderer) override;
   void Update(float deltaTime) override;
 
@@ -60,7 +61,8 @@ class World: GameObject {
   Color32 GetNodeColor(const Point2D& node);
 
   int GetSize() const;
- private:
+
+private:
   void step();
 };
 

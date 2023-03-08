@@ -3,40 +3,27 @@
 
 #include "FlockingRule.h"
 
-class WindRule : public FlockingRule
-{
+class WindRule : public FlockingRule {
 private:
-    float windAngle;
+  float windAngle;
 
 public:
+  explicit WindRule(World* pWorld, float weight = 1., float angle = 0, bool isEnabled = true)
+      : FlockingRule(pWorld, Color::White, weight, isEnabled), windAngle(angle) {}
 
-    explicit WindRule(World* pWorld, float weight = 1., float angle = 0, bool isEnabled = true) : FlockingRule(pWorld, Color::White, weight, isEnabled), windAngle(angle)
-    {}
+  WindRule(const WindRule& toCopy) : FlockingRule(toCopy) { windAngle = toCopy.windAngle; }
 
-    WindRule(const WindRule & toCopy) : FlockingRule(toCopy) {
-        windAngle = toCopy.windAngle;
-    }
+  std::unique_ptr<FlockingRule> clone() override { return std::make_unique<WindRule>(*this); }
 
-    std::unique_ptr<FlockingRule> clone() override {
-        return std::make_unique<WindRule>(*this);
-    }
+  const char* getRuleName() override { return "Wind Force"; }
 
-    const char* getRuleName() override {
-        return "Wind Force";
-    }
+  const char* getRuleExplanation() override { return "Apply a constant force to all boids."; }
 
-    const char* getRuleExplanation() override {
-        return "Apply a constant force to all boids.";
-    }
+  virtual float getBaseWeightMultiplier() override { return 0.5; }
 
-    virtual float getBaseWeightMultiplier() override {
-        return 0.5;
-    }
+  Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) override;
 
-    Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) override;
-
-    bool drawImguiRuleExtra() override;
+  bool drawImguiRuleExtra() override;
 };
-
 
 #endif

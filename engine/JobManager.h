@@ -2,8 +2,8 @@
 #define MOBAGEN_ENGINE_JOBMANAGER_H_
 
 class JobManager {
- public:
+public:
   static bool IsRunningInMainThread();
 };
 
-#endif //MOBAGEN_ENGINE_JOBMANAGER_H_
+#endif  // MOBAGEN_ENGINE_JOBMANAGER_H_

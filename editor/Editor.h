@@ -3,8 +3,8 @@
 //
 //#include "GameObject.h"
 //
-//class Editor: GameObject {
-//public:
+// class Editor: GameObject {
+// public:
 //    explicit Editor(Engine *pEngine);
 //    void OnGui(ImGuiContext *context) override;
 //};

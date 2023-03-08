@@ -8,7 +8,7 @@
 //
 //#include "Logger.h"
 //
-//GLEWManager::GLEWManager(void)
+// GLEWManager::GLEWManager(void)
 //{
 //#ifndef ANDROID
 //  glewExperimental = GL_TRUE;
@@ -24,6 +24,6 @@
 //#endif
 //}
 //
-//GLEWManager::~GLEWManager(void)
+// GLEWManager::~GLEWManager(void)
 //{
 //}

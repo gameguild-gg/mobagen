@@ -2,7 +2,7 @@
 //#include "imgui.h"
 //#include "Engine.h"
 //
-//void Editor::OnGui(ImGuiContext *context) {
+// void Editor::OnGui(ImGuiContext *context) {
 //    ImGui::SetCurrentContext(context);
 //    if (ImGui::BeginMainMenuBar())
 //    {
@@ -51,4 +51,4 @@
 //    }
 //}
 //
-//Editor::Editor(Engine *pEngine) : GameObject(pEngine) {}
+// Editor::Editor(Engine *pEngine) : GameObject(pEngine) {}

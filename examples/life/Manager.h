@@ -5,9 +5,9 @@
 #include "RuleBase.h"
 #include "World.h"
 
-class Manager: GameObject {
- private:
-  int sideSize=13;
+class Manager : GameObject {
+private:
+  int sideSize = 13;
   World world;
   bool isSimulating = false;
   float accumulatedTime = 0;
@@ -18,12 +18,12 @@ class Manager: GameObject {
   int ruleId = 0;
   Point2D mousePositionToIndex(ImVec2& pos);
 
- public:
+public:
   explicit Manager(Engine* pEngine1, Engine* pEngine);
   ~Manager();
 
   void Start() override;
-  void OnGui(ImGuiContext *context) override;
+  void OnGui(ImGuiContext* context) override;
   void OnDraw(SDL_Renderer* renderer) override;
   void Update(float deltaTime) override;
 };

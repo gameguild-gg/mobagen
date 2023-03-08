@@ -3,10 +3,10 @@
 
 #include "Agent.h"
 
-class Cat: public Agent {
+class Cat : public Agent {
 public:
-    explicit Cat():Agent(){};
-    Point2D Move(World *) override;
+  explicit Cat() : Agent(){};
+  Point2D Move(World*) override;
 };
 
 #endif  // CAT_H

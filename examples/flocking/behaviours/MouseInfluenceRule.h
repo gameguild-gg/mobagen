@@ -5,37 +5,26 @@
 
 class MouseInfluenceRule : public FlockingRule {
 private:
-    //If not avoiding, is attracted
-    bool isRepulsive;
+  // If not avoiding, is attracted
+  bool isRepulsive;
 
 public:
+  explicit MouseInfluenceRule(World* pWorld, float weight = 1., bool isRepulsive_ = false, bool isEnabled = true)
+      : FlockingRule(pWorld, Color::Magenta, weight, isEnabled), isRepulsive(isRepulsive_) {}
 
-    explicit MouseInfluenceRule(World* pWorld, float weight = 1., bool isRepulsive_ = false, bool isEnabled = true) : FlockingRule(pWorld, Color::Magenta, weight, isEnabled), isRepulsive(isRepulsive_)
-    {}
+  MouseInfluenceRule(const MouseInfluenceRule& toCopy) : FlockingRule(toCopy) { isRepulsive = toCopy.isRepulsive; }
 
-    MouseInfluenceRule(const MouseInfluenceRule& toCopy) : FlockingRule(toCopy) {
-        isRepulsive = toCopy.isRepulsive;
-    }
+  std::unique_ptr<FlockingRule> clone() override { return std::make_unique<MouseInfluenceRule>(*this); }
 
-    std::unique_ptr<FlockingRule> clone() override {
-        return std::make_unique<MouseInfluenceRule>(*this);
-    }
+  const char* getRuleName() override { return "Mouse Click Influence"; }
 
-    const char* getRuleName() override{
-        return "Mouse Click Influence";
-    }
+  const char* getRuleExplanation() override { return "Steer toward or away the mouse when clicked."; }
 
-    const char* getRuleExplanation() override {
-        return "Steer toward or away the mouse when clicked.";
-    }
+  virtual float getBaseWeightMultiplier() override { return 0.1; }
 
-    virtual float getBaseWeightMultiplier() override {
-        return 0.1;
-    }
+  Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) override;
 
-    Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) override;
-
-    bool drawImguiRuleExtra() override;
+  bool drawImguiRuleExtra() override;
 };
 
 #endif

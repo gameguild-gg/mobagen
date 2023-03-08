@@ -1,16 +1,20 @@
-MACRO(SUBDIRLIST result curdir)
-    FILE(GLOB children CONFIGURE_DEPENDS RELATIVE ${curdir} ${curdir}/*)
-    SET(dirlist "")
-    FOREACH(child ${children})
-        IF(IS_DIRECTORY ${curdir}/${child})
-            LIST(APPEND dirlist ${child})
-        ENDIF()
-    ENDFOREACH()
-    SET(${result} ${dirlist})
-ENDMACRO()
+macro(SUBDIRLIST result curdir)
+  file(
+    GLOB children CONFIGURE_DEPENDS
+    RELATIVE ${curdir}
+    ${curdir}/*
+  )
+  set(dirlist "")
+  foreach(child ${children})
+    if(IS_DIRECTORY ${curdir}/${child})
+      list(APPEND dirlist ${child})
+    endif()
+  endforeach()
+  set(${result} ${dirlist})
+endmacro()
 
-SUBDIRLIST(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR})
+subdirlist(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR})
 
-FOREACH(subdir ${SUBDIRS})
-    ADD_SUBDIRECTORY(${subdir})
-ENDFOREACH()
+foreach(subdir ${SUBDIRS})
+  add_subdirectory(${subdir})
+endforeach()

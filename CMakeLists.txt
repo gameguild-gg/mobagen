@@ -4,15 +4,19 @@ cmake_minimum_required(VERSION 3.16.3 FATAL_ERROR)
 include(external/cpm.cmake)
 
 # project declaration
-project(MoBaGEn
-        VERSION 0.0.1
-        HOMEPAGE_URL "https://infinbrains.com"
-        DESCRIPTION "Module Based Game Engine"
+project(
+  MoBaGEn
+  VERSION 0.0.1
+  HOMEPAGE_URL "https://infinbrains.com"
+  DESCRIPTION "Module Based Game Engine"
 )
 
 # Include guards
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
-    message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there.")
+  message(
+    FATAL_ERROR
+      "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there."
+  )
 endif()
 
 # compiler checks
@@ -24,19 +28,23 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # set linkage
-LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs)
-#LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs/Debug)
+link_directories(${CMAKE_BINARY_DIR}/libs)
+# LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/libs/Debug)
 
-IF(EMSCRIPTEN)
-    message(STATUS "emscripten build")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1")
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1")
+if(EMSCRIPTEN)
+  message(STATUS "emscripten build")
+  set(CMAKE_CXX_FLAGS
+      "${CMAKE_CXX_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+  )
+  set(CMAKE_C_FLAGS
+      "${CMAKE_C_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+  )
 
-    file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/html/*")
-    file(COPY ${HTML} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
+  file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/html/*")
+  file(COPY ${HTML} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
 
-    SET(ENABLE_TEST_COVERAGE OFF)
-ENDIF()
+  set(ENABLE_TEST_COVERAGE OFF)
+endif()
 
 include(external/external.cmake)
 

@@ -3,7 +3,7 @@
 #include "Manager.h"
 
 // Main code
-int main(int, char**)  {
+int main(int, char**) {
   SDL_Log("Creating Engine");
   auto engine = new Engine();
   SDL_Log("Engine Created");
@@ -13,7 +13,7 @@ int main(int, char**)  {
   SDL_Log("World Created");
 
   SDL_Log("Starting Engine");
-  if(engine->Start("Scenario")) {
+  if (engine->Start("Scenario")) {
     SDL_Log("Engine Started");
 
     SDL_Log("Running Engine");
@@ -27,4 +27,3 @@ int main(int, char**)  {
   SDL_Log("Engine Exited");
   return 0;
 }
-

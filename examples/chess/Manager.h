@@ -11,22 +11,22 @@
 #include <unordered_set>
 #include <stack>
 
-class Manager: GameObject  {
- private:
+class Manager : GameObject {
+private:
   WorldState state;
   stack<WorldState> previousStates;
-  Point2D selected={INT32_MIN,INT32_MIN};
+  Point2D selected = {INT32_MIN, INT32_MIN};
   unordered_set<Point2D> validMoves;
   map<uint8_t, Texture*> piecePackedToTexture;
 
- public:
+public:
   explicit Manager(Engine* pEngine);
   void Start() override;
   ~Manager();
   void OnGui(ImGuiContext* context) override;
   void OnDraw(SDL_Renderer* renderer) override;
 
- private:
+private:
   Point2D mousePositionToIndex(ImVec2& pos);
   unordered_set<Point2D> getMoves(PieceType t, Point2D point);
   void drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect);

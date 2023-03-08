@@ -17,45 +17,43 @@
 
 class GameObject;
 
-class Engine{
+class Engine {
 public:
-    Window *window;
-//    ImGuiContext *imGuiContext;
+  Window* window;
+  //    ImGuiContext *imGuiContext;
 
-    // todo: move this to a scene manager and make this private
-    std::unordered_set<GameObject*> gameObjects;
-    Vector2 getInputArrow() const;
+  // todo: move this to a scene manager and make this private
+  std::unordered_set<GameObject*> gameObjects;
+  Vector2 getInputArrow() const;
 
 private:
-    bool done = false;
+  bool done = false;
 
-    // Our state
-    bool show_demo_window = true;
-    bool show_another_window = false;
-    ImVec4 clear_color = ImVec4(0, 0, 0, 1);
+  // Our state
+  bool show_demo_window = true;
+  bool show_another_window = false;
+  ImVec4 clear_color = ImVec4(0, 0, 0, 1);
 
+  // todo: move this to input class
+  void processInput();
+  Vector2 arrowInput;
 
-    // todo: move this to input class
-    void processInput();
-    Vector2 arrowInput;
+  // todo: better ordering
+  std::vector<GameObject*> toDestroy;
 
-    // todo: better ordering
-    std::vector<GameObject*> toDestroy;
 public:
-//#ifdef __EMSCRIPTEN__
-//    static void loop();
-//#endif
-    Engine();
-    ~Engine();
-    int Start(std::string title);
-    void Run();
-    void Tick();
-    void Exit();
+  //#ifdef __EMSCRIPTEN__
+  //    static void loop();
+  //#endif
+  Engine();
+  ~Engine();
+  int Start(std::string title);
+  void Run();
+  void Tick();
+  void Exit();
 
+  template <class T> std::unordered_set<T> FindObjectsOfType();
 
-    template<class T>
-    std::unordered_set<T> FindObjectsOfType();
-
-    void Destroy(GameObject* go);
+  void Destroy(GameObject* go);
 };
 #endif

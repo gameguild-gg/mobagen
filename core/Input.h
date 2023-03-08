@@ -3,9 +3,6 @@
 
 #include "Vector2.h"
 
-class Input {
-
-};
-
+class Input {};
 
 #endif
