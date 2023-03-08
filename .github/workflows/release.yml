@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
       - name: npm install
         run: npm install
       - name: semantic
@@ -44,6 +44,12 @@ jobs:
         with:
           path: "**/cpm_modules"
           key: ${{ matrix.os }}-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Install dependencies on ubuntu
+        if: startsWith(matrix.os,'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev python3-distutils libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
 
       - name: configure
         run: cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release
