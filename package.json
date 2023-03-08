@@ -51,7 +51,7 @@
       "master",
       "main"
     ],
-    "repositoryUrl": "https://github.com/InfiniBrains/concurrency",
+    "repositoryUrl": "https://github.com/InfiniBrains/mobagen",
     "plugins": [
       "@semantic-release/commit-analyzer",
       "@semantic-release/release-notes-generator",
