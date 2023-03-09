@@ -19,6 +19,7 @@ private:
   unordered_set<Point2D> validMoves;
   map<uint8_t, Texture*> piecePackedToTexture;
   PieceColor aiColor = PieceColor::Black;
+  bool aiEnabled = false;
 
 public:
   explicit Manager(Engine* pEngine);

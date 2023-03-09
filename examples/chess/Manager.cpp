@@ -28,15 +28,14 @@ void Manager::OnGui(ImGuiContext* context) {
   }
 
   ImGui::Separator();
-  static bool aiEnabledStatic = false;
-  if(ImGui::Checkbox("AI Enabled", &aiEnabledStatic))
-    if(aiEnabledStatic==true)
+  if(ImGui::Checkbox("AI Enabled", &aiEnabled))
+    if(aiEnabled==true)
       aiColor = PieceColor::Black;
     else
       aiColor = PieceColor::NONE;
 
   static bool aiIsBlackStatic= true;
-  if(aiEnabledStatic){
+  if(aiEnabled){
     if(ImGui::Checkbox("AI is Black", &aiIsBlackStatic)){
       if(aiIsBlackStatic)
         aiColor = PieceColor::Black;
@@ -206,7 +205,7 @@ Manager::~Manager() {
 void Manager::Start() {}
 
 void Manager::Update(float deltaTime) {
-  if (aiColor == state.GetTurn()) {
+  if (aiEnabled && aiColor == state.GetTurn()) {
     auto move = Search::NextMove(state);
     state.Move(move.From(), move.To());
   }
