@@ -1,4 +1,4 @@
-name: WEB-EMSCRIPTEN
+name: WebGL
 
 on:
   push:
