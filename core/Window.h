@@ -54,13 +54,14 @@ public:
   SDL_Renderer* sdlRenderer;
   ImGuiContext* imGuiContext;
 
-  Point2D size() const;
+  Point2D size();
   void Update();
 
   ~Window();
 
 private:
   SDL_GLContext m_glContext;
+  Point2D windowSize;
   //    std::unique_ptr<GuiManager> m_guiManager;
 
   //    int m_width, m_height;

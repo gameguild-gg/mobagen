@@ -65,12 +65,11 @@ int Engine::Start(std::string title) {
 }
 
 void Engine::Tick() {
-  window->Update();
-
   // Start the Dear ImGui frame
   ImGui_ImplSDLRenderer_NewFrame();
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
+  window->Update();
 
   SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255),
                          (Uint8)(clear_color.w * 255));
