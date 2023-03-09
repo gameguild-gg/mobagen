@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/InfiniBrains/mobagen/compare/v1.1.1...v1.2.0) (2023-03-09)
+
+
+### Features
+
+* **window:** make font proportional to screen size ([c195303](https://github.com/InfiniBrains/mobagen/commit/c19530335ca4fbb7ff9d6572f9c7c571b54ac394))
+
 ## [1.1.1](https://github.com/InfiniBrains/mobagen/compare/v1.1.0...v1.1.1) (2023-03-09)
 
 
