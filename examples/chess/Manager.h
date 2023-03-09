@@ -18,6 +18,7 @@ private:
   Point2D selected = {INT32_MIN, INT32_MIN};
   unordered_set<Point2D> validMoves;
   map<uint8_t, Texture*> piecePackedToTexture;
+  PieceColor aiColor = PieceColor::Black;
 
 public:
   explicit Manager(Engine* pEngine);
@@ -25,6 +26,7 @@ public:
   ~Manager();
   void OnGui(ImGuiContext* context) override;
   void OnDraw(SDL_Renderer* renderer) override;
+  void Update(float deltaTime) override;
 
 private:
   Point2D mousePositionToIndex(ImVec2& pos);

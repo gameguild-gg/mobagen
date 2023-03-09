@@ -9,6 +9,7 @@
 #include "pieces/Queen.h"
 #include "pieces/Rook.h"
 #include <unordered_map>
+#include "Search.h"
 
 void Manager::OnGui(ImGuiContext* context) {
   ImGui::SetCurrentContext(context);
@@ -16,15 +17,34 @@ void Manager::OnGui(ImGuiContext* context) {
   ImGui::Begin("Settings", nullptr);
   ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime,
               1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
+  ImGui::Separator();
   if (ImGui::Button("Reset")) this->state.Reset();
-
+  ImGui::SameLine();
   if (ImGui::Button("Undo") && !previousStates.empty()) {
     validMoves = {};
     selected = {INT32_MIN, INT32_MIN};
     state = previousStates.top();
     previousStates.pop();
   }
+
+  ImGui::Separator();
+  static bool aiEnabledStatic = false;
+  if(ImGui::Checkbox("AI Enabled", &aiEnabledStatic))
+    if(aiEnabledStatic==true)
+      aiColor = PieceColor::Black;
+    else
+      aiColor = PieceColor::NONE;
+
+  static bool aiIsBlackStatic= true;
+  if(aiEnabledStatic){
+    if(ImGui::Checkbox("AI is Black", &aiIsBlackStatic)){
+      if(aiIsBlackStatic)
+        aiColor = PieceColor::Black;
+      else
+        aiColor = PieceColor::White;
+    }
+  }
+  ImGui::LabelText(state.GetTurn()==PieceColor::White?"White":"Black", "Turn:");
 
   ImGui::End();  // end settings
 
@@ -55,11 +75,9 @@ void Manager::OnGui(ImGuiContext* context) {
         }
       } else if (validMoves.contains(index)) {
         previousStates.push(state);
-        // move!
-        cout << "move!" << endl;
-        state.SetPieceAtPosition(state.PieceAtPosition(selected), index);
-        state.SetPieceAtPosition({PieceType::NONE, PieceColor::NONE}, selected);
-        state.EndTurn();
+
+        state.Move(selected,index);
+
         cout << state.toString() << endl;
         validMoves = {};
         selected = {INT32_MIN, INT32_MIN};
@@ -186,3 +204,10 @@ Manager::~Manager() {
 }
 
 void Manager::Start() {}
+
+void Manager::Update(float deltaTime) {
+  if (aiColor == state.GetTurn()) {
+    auto move = Search::NextMove(state);
+    state.Move(move.From(), move.To());
+  }
+}

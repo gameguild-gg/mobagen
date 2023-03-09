@@ -1,3 +1,4 @@
+#include <iostream>
 #include "WorldState.h"
 PieceData WorldState::PieceAtPosition(Point2D pos) {
   if (pos.x < 0 || pos.x > 7 || pos.y < 0 || pos.y > 7) return {PieceType::WRONG, PieceColor::NONE};
@@ -79,6 +80,29 @@ string WorldState::toString() {
   }
   str += "  A B C D E F G H\n";
   return str;
+}
+void WorldState::Move(Point2D from, Point2D to) {
+  auto pieceFrom = PieceAtPosition(from);
+  auto pieceTo = PieceAtPosition(to);
+
+  if(pieceFrom.piece==PieceType::WRONG) {
+    std::cout << "Wrong FROM piece at position: " << from.to_string() << endl;
+    return;
+  }
+
+  if(pieceFrom.color != turn) {
+    std::cout << "Piece color does not match the turn at position: " << from.to_string() << endl;
+    return;
+  }
+
+  if(pieceTo.piece == PieceType::NONE || (pieceFrom.color != pieceTo.color)){
+    this->SetPieceAtPosition(pieceFrom, to);
+    this->SetPieceAtPosition({PieceType::NONE, PieceColor::NONE}, from);
+    EndTurn();
+    return;
+  }
+
+  std::cout << "WRONG piece at position: " << from.to_string() << endl;
 }
 
 char PieceData::toChar() {

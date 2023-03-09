@@ -79,6 +79,7 @@ public:
   void EndTurn() { turn = (PieceColor)((uint8_t)PieceColor::COLORMASK ^ (uint8_t)turn); };
   PieceData PieceAtPosition(Point2D pos);
   void SetPieceAtPosition(PieceData piece, Point2D pos);
+  void Move(Point2D from, Point2D to);
   void Reset();
   string toString();
 };
