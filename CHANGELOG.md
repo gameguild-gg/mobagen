@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/InfiniBrains/mobagen/compare/v1.1.0...v1.1.1) (2023-03-09)
+
+
+### Bug Fixes
+
+* **chess:** ai turn call ([c37643f](https://github.com/InfiniBrains/mobagen/commit/c37643f4213cc4d5a15119a7e1880fc8d3a89941))
+
 # [1.1.0](https://github.com/InfiniBrains/mobagen/compare/v1.0.0...v1.1.0) (2023-03-09)
 
 
