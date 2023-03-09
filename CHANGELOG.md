@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/InfiniBrains/mobagen/compare/v1.0.0...v1.1.0) (2023-03-09)
+
+
+### Features
+
+* **chess:** AI GUI ([a3a2716](https://github.com/InfiniBrains/mobagen/commit/a3a2716580fca899bd5ec97a03b4ff28098b784b))
+
 # 1.0.0 (2023-03-09)
 
 
