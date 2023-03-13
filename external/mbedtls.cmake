@@ -1,0 +1,11 @@
+# mbedtls
+string(TIMESTAMP BEFORE "%s")
+CPMAddPackage("gh:Mbed-TLS/mbedtls#v3.3.0")
+string(TIMESTAMP AFTER "%s")
+math(EXPR DELTAmbedtls "${AFTER} - ${BEFORE}")
+message(STATUS "mbedtls TIME: ${DELTAmbedtls}s")
+if(mbedtls_ADDED)
+  include_directories(${mbedtls_SOURCE_DIR}/include)
+else()
+  message(FATAL_ERROR "mbedtls not configured correctly")
+endif()

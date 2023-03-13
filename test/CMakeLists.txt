@@ -19,7 +19,7 @@ CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
 
 file(GLOB sourcestest CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 add_executable(CoreTests ${sourcestest})
-target_link_libraries(CoreTests doctest::doctest core)
+target_link_libraries(CoreTests doctest::doctest core cpr)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../core/)
 set_target_properties(CoreTests PROPERTIES CXX_STANDARD 20)
 

@@ -1,0 +1,11 @@
+# zlib
+string(TIMESTAMP BEFORE "%s")
+CPMAddPackage("gh:madler/zlib#v1.2.13")
+string(TIMESTAMP AFTER "%s")
+math(EXPR DELTAzlib "${AFTER} - ${BEFORE}")
+message(STATUS "zlib TIME: ${DELTAzlib}s")
+if(zlib_ADDED)
+  include_directories(${zlib_SOURCE_DIR}/include)
+else()
+  message(FATAL_ERROR "zlib not configured correctly")
+endif()

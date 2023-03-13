@@ -14,7 +14,21 @@ set(CORE_INC_DIR
 )
 
 add_library(core STATIC ${CORE_SRC} ${CORE_INC})
-target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI)
+
+if(EMSCRIPTEN)
+  target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI)
+else()
+  target_link_libraries(
+    core
+    PUBLIC SDL2::SDL2
+           SDL2_image::SDL2_image-static
+           IMGUI
+           MbedTLS::mbedtls
+           MbedTLS::mbedcrypto
+           MbedTLS::mbedx509
+           cpr::cpr
+  )
+endif()
 
 # If(NOT EMSCRIPTEN AND NOT ANDROID) add_definitions(-DGLEW_STATIC) #  add_definitions(-DGLEW_BUILD)
 # set(GLEW_USE_STATIC_LIBS ON CACHE BOOL "bla") set(BUILD_SHARED_LIBS OFF CACHE BOOL "bla") set(
@@ -44,3 +58,8 @@ install(FILES ${CORE_INC} DESTINATION include/core)
 # "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake") ENDIF()
 
 # include_directories(${SDL2_INCLUDE_DIR} core)
+
+option(ENABLE_CURL "ENABLE_WEB" ON)
+if(ENABLE_CURL)
+
+endif()

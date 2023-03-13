@@ -89,16 +89,14 @@ Window::~Window() {
 
 // todo: cache this per frame to avoid call SDL_GetWindowSize every single call
 // todo: this should be integer return
-Point2D Window::size() {
-  return windowSize;
-}
+Point2D Window::size() { return windowSize; }
 
 void Window::Update() {
   Point2D p;
   SDL_GetWindowSize(this->sdlWindow, &p.x, &p.y);
-  if(windowSize != p) {
+  if (windowSize != p) {
     windowSize = p;
-    auto minDimension = windowSize.x>windowSize.y?windowSize.y:windowSize.x;
-    imGuiContext->Font->Scale = minDimension/500.f;
+    auto minDimension = windowSize.x > windowSize.y ? windowSize.y : windowSize.x;
+    imGuiContext->Font->Scale = minDimension / 500.f;
   }
 }
