@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/InfiniBrains/mobagen/compare/v1.3.1...v1.3.2) (2023-03-14)
+
+
+### Bug Fixes
+
+* disable webrequest api ([6786964](https://github.com/InfiniBrains/mobagen/commit/6786964bae3361c14da1a17df541bb18f2be42c5))
+
 ## [1.3.1](https://github.com/InfiniBrains/mobagen/compare/v1.3.0...v1.3.1) (2023-03-14)
 
 
