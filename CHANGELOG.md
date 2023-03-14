@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/InfiniBrains/mobagen/compare/v1.3.0...v1.3.1) (2023-03-14)
+
+
+### Bug Fixes
+
+* downgrade curl version ([89070f7](https://github.com/InfiniBrains/mobagen/commit/89070f723d5da6780cb1fdcd1f77cf123ccb6e3d))
+
 # [1.3.0](https://github.com/InfiniBrains/mobagen/compare/v1.2.0...v1.3.0) (2023-03-14)
 
 
