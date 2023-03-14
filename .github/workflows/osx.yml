@@ -27,6 +27,14 @@ jobs:
           path: "**/cpm_modules"
           key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: install dependencies
+        run: |
+          pip install jsonschema
+
       - name: Configure CMake
         run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel
 
