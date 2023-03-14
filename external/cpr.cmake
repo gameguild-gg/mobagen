@@ -1,6 +1,6 @@
 # cpr
 string(TIMESTAMP BEFORE "%s")
-
+set(CURL_CA_FALLBACK ON CACHE INTERNAL " " FORCE) # Workaround for failing SSL requests
 CPMAddPackage(
   GITHUB_REPOSITORY libcpr/cpr
   GIT_TAG 1.10.1
