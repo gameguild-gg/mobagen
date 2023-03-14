@@ -85,17 +85,17 @@ void WorldState::Move(Point2D from, Point2D to) {
   auto pieceFrom = PieceAtPosition(from);
   auto pieceTo = PieceAtPosition(to);
 
-  if(pieceFrom.piece==PieceType::WRONG) {
+  if (pieceFrom.piece == PieceType::WRONG) {
     std::cout << "Wrong FROM piece at position: " << from.to_string() << endl;
     return;
   }
 
-  if(pieceFrom.color != turn) {
+  if (pieceFrom.color != turn) {
     std::cout << "Piece color does not match the turn at position: " << from.to_string() << endl;
     return;
   }
 
-  if(pieceTo.piece == PieceType::NONE || (pieceFrom.color != pieceTo.color)){
+  if (pieceTo.piece == PieceType::NONE || (pieceFrom.color != pieceTo.color)) {
     this->SetPieceAtPosition(pieceFrom, to);
     this->SetPieceAtPosition({PieceType::NONE, PieceColor::NONE}, from);
     EndTurn();

@@ -28,22 +28,22 @@ void Manager::OnGui(ImGuiContext* context) {
   }
 
   ImGui::Separator();
-  if(ImGui::Checkbox("AI Enabled", &aiEnabled))
-    if(aiEnabled==true)
+  if (ImGui::Checkbox("AI Enabled", &aiEnabled))
+    if (aiEnabled == true)
       aiColor = PieceColor::Black;
     else
       aiColor = PieceColor::NONE;
 
-  static bool aiIsBlackStatic= true;
-  if(aiEnabled){
-    if(ImGui::Checkbox("AI is Black", &aiIsBlackStatic)){
-      if(aiIsBlackStatic)
+  static bool aiIsBlackStatic = true;
+  if (aiEnabled) {
+    if (ImGui::Checkbox("AI is Black", &aiIsBlackStatic)) {
+      if (aiIsBlackStatic)
         aiColor = PieceColor::Black;
       else
         aiColor = PieceColor::White;
     }
   }
-  ImGui::LabelText(state.GetTurn()==PieceColor::White?"White":"Black", "Turn:");
+  ImGui::LabelText(state.GetTurn() == PieceColor::White ? "White" : "Black", "Turn:");
 
   ImGui::End();  // end settings
 
@@ -75,7 +75,7 @@ void Manager::OnGui(ImGuiContext* context) {
       } else if (validMoves.contains(index)) {
         previousStates.push(state);
 
-        state.Move(selected,index);
+        state.Move(selected, index);
 
         cout << state.toString() << endl;
         validMoves = {};
