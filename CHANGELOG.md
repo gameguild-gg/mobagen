@@ -5,6 +5,13 @@
 
 * **webrequest:** added curl, mbed and cpr libs as dependencies ([5582143](https://github.com/InfiniBrains/mobagen/commit/5582143a0db2cb6102b12ad11a29343abe8d4461))
 
+# [1.3.0](https://github.com/InfiniBrains/mobagen/compare/v1.2.0...v1.3.0) (2023-03-14)
+
+
+### Features
+
+* **webrequest:** added curl, mbed and cpr libs as dependencies ([5582143](https://github.com/InfiniBrains/mobagen/commit/5582143a0db2cb6102b12ad11a29343abe8d4461))
+
 # [1.2.0](https://github.com/InfiniBrains/mobagen/compare/v1.1.1...v1.2.0) (2023-03-09)
 
 
