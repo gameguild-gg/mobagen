@@ -10,6 +10,7 @@
 #include <SDL.h>
 #include <vector>
 #include <unordered_set>
+#include <chrono>
 
 //#ifdef __EMSCRIPTEN__
 //#include <emscripten.h>
@@ -18,6 +19,11 @@
 class GameObject;
 
 class Engine {
+private:
+  std::chrono::high_resolution_clock::time_point lastFrameTime;
+  float deltaTime;
+  double targetFPS = 60;
+  int64_t accumulatedTime=0;
 public:
   Window* window;
   //    ImGuiContext *imGuiContext;
@@ -47,7 +53,7 @@ public:
   //#endif
   Engine();
   ~Engine();
-  int Start(std::string title);
+  bool Start(std::string title);
   void Run();
   void Tick();
   void Exit();
