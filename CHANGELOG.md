@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/InfiniBrains/mobagen/compare/v1.3.3...v1.3.4) (2023-03-15)
+
+
+### Bug Fixes
+
+* lint ([e9b5761](https://github.com/InfiniBrains/mobagen/commit/e9b57610dcbcb5b2929a8d3045a51c65f96a6400))
+
 ## [1.3.3](https://github.com/InfiniBrains/mobagen/compare/v1.3.2...v1.3.3) (2023-03-15)
 
 
