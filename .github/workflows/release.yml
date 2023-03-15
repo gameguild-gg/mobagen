@@ -21,13 +21,13 @@ jobs:
 
     outputs:
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
-      new_release_major_version: ${{ steps.semantic.outputs.new_release_major_version }}
-      new_release_minor_version: ${{ steps.semantic.outputs.new_release_minor_version }}
-      new_release_patch_version: ${{ steps.semantic.outputs.new_release_patch_version }}
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v3
         with:
@@ -47,6 +47,38 @@ jobs:
             @semantic-release/release-notes-generator
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: version
+        id: version
+        run: |
+          export commit=`git rev-list --tags --max-count=1`
+          echo $commit
+          export last_release_version=`git describe --abbrev=0 --tags $tag`
+          echo $last_release_version
+          export new_release_version=${{ steps.semantic.outputs.new_release_version }}
+          echo $new_release_version
+          export version=${new_release_version:-$last_release_version}
+          echo $version
+          echo "version=${version}"
+          echo "version=${version}" >> $GITHUB_OUTPUT
+
+      - name: delete node_modules
+        run: |
+          rm -rf node_modules .git
+
+      - name: zip
+        uses: thedoctor0/zip-release@main
+        with:
+          type: zip
+          filename: sources.zip
+          directory: .
+
+      - uses: ncipollo/release-action@v1
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
+        with:
+          allowUpdates: true
+          artifacts: sources.zip
+          tag: ${{ steps.version.outputs.version }}
 #          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 #      - uses: actions/checkout@v3
 #
@@ -69,6 +101,10 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
 
     steps:
+      - env:
+          version: ${{needs.semantic.outputs.version}}
+        run: echo "$version"
+
       - uses: actions/checkout@v3
 
       - name: cache
@@ -100,15 +136,15 @@ jobs:
         uses: thedoctor0/zip-release@main
         with:
           type: zip
-          filename: ${{ matrix.os }}-${{ needs.semantic.outputs.new_release_version }}.zip
+          filename: ${{ matrix.os }}-${{ needs.semantic.outputs.version }}.zip
           directory: build/bin/
 
       - uses: ncipollo/release-action@v1
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
         with:
           allowUpdates: true
-          artifacts: build/bin/${{ matrix.os }}-${{ needs.semantic.outputs.new_release_version }}.zip
-          tag: ${{ needs.semantic.outputs.new_release_version }}
+          artifacts: build/bin/${{ matrix.os }}-${{ needs.semantic.outputs.version }}.zip
+          tag: ${{ needs.semantic.outputs.version }}
 
   nightly-release-emscripten:
     runs-on: ubuntu-latest
@@ -140,12 +176,12 @@ jobs:
         uses: thedoctor0/zip-release@main
         with:
           type: zip
-          filename: emscripten-${{ needs.semantic.outputs.new_release_version }}.zip
+          filename: emscripten-${{ needs.semantic.outputs.version }}.zip
           directory: bin-emscripten/bin/
 
       - uses: ncipollo/release-action@v1
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
         with:
           allowUpdates: true
-          artifacts: bin-emscripten/bin/emscripten-${{ needs.semantic.outputs.new_release_version }}.zip
-          tag: ${{ needs.semantic.outputs.new_release_version }}
+          artifacts: bin-emscripten/bin/emscripten-${{ needs.semantic.outputs.version }}.zip
+          tag: ${{ needs.semantic.outputs.version }}
