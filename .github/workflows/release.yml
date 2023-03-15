@@ -2,8 +2,6 @@ name: Release
 
 on:
   push:
-    #    tags:
-    #      - '*'
     branches:
       - master
       - main
@@ -52,14 +50,9 @@ jobs:
         id: version
         run: |
           export commit=`git rev-list --tags --max-count=1`
-          echo $commit
           export last_release_version=`git describe --abbrev=0 --tags $tag`
-          echo $last_release_version
           export new_release_version=${{ steps.semantic.outputs.new_release_version }}
-          echo $new_release_version
           export version=${new_release_version:-$last_release_version}
-          echo $version
-          echo "version=${version}"
           echo "version=${version}" >> $GITHUB_OUTPUT
 
       - name: delete node_modules
@@ -77,20 +70,8 @@ jobs:
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' #|| startsWith(github.ref, 'refs/tags')
         with:
           allowUpdates: true
-          artifacts: sources.zip
+          artifacts: ${{ steps.version.outputs.version }}.zip
           tag: ${{ steps.version.outputs.version }}
-#          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-#      - uses: actions/checkout@v3
-#
-#      - uses: actions/setup-node@v3
-#        with:
-#          node-version: 18
-#
-#      - name: npm install
-#        run: npm install
-#
-#      - name: semantic
-#        run: npm run release
 
   nightly-release:
     runs-on: ${{ matrix.os }}
@@ -125,13 +106,6 @@ jobs:
       - name: build
         run: cmake --build build --parallel --config MinSizeRel
 
-#      - name: Get current date
-#        id: date
-#        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
-#
-#      - name: test var
-#        run: echo "${{ steps.date.outputs.date }}"
-
       - name: zip
         uses: thedoctor0/zip-release@main
         with:
@@ -159,18 +133,9 @@ jobs:
           path: "**/cpm_modules"
           key: emscripten-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
-#      - name: configure
-#        run: emcmake cmake -DCMAKE_C_ABI_COMPILED=ON -DCMAKE_CXX_ABI_COMPILED=ON -DEMSCRIPTEN=1 -DCMAKE_BUILD_TYPE=MinSizeRel -S. -Bbuild -DENABLE_TEST_COVERAGE=OFF -DENABLE_STANDALONE=ON -DENABLE_DOCUMENTATION=OFF -DCMAKE_EXECUTABLE_SUFFIX=".html"
-#
-#      - name: build
-#        run: cmake --build build -j4 --config Release
 
       - name: Emscripten Build
         run: ./scripts/emscripten-build.sh
-
-#      - name: Get current date
-#        id: date
-#        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
       - name: zip
         uses: thedoctor0/zip-release@main
