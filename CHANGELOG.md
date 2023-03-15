@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/InfiniBrains/mobagen/compare/v1.3.2...v1.3.3) (2023-03-15)
+
+
+### Performance Improvements
+
+* **core:** better time management to targeted fps ([5723085](https://github.com/InfiniBrains/mobagen/commit/5723085ff643d85dc9a2b775451081816adb06f2))
+
 ## [1.3.2](https://github.com/InfiniBrains/mobagen/compare/v1.3.1...v1.3.2) (2023-03-14)
 
 
