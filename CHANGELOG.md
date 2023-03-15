@@ -1,3 +1,10 @@
+## [1.3.7](https://github.com/InfiniBrains/mobagen/compare/v1.3.6...v1.3.7) (2023-03-15)
+
+
+### Bug Fixes
+
+* semantic-release ci wont be publishing files anymore ([e73a014](https://github.com/InfiniBrains/mobagen/commit/e73a0148df192570b880dda659222655dc98ed8f))
+
 ## [1.3.6](https://github.com/InfiniBrains/mobagen/compare/v1.3.5...v1.3.6) (2023-03-15)
 
 
