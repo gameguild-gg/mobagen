@@ -37,7 +37,7 @@ Window::Window(std::string title) {
   SDL_Log("SDL CREATED");
 
   // Setup SDL_Renderer instance
-  sdlRenderer = SDL_CreateRenderer(sdlWindow, -1, SDL_RENDERER_ACCELERATED); //| SDL_RENDERER_PRESENTVSYNC);
+  sdlRenderer = SDL_CreateRenderer(sdlWindow, -1, SDL_RENDERER_ACCELERATED);  //| SDL_RENDERER_PRESENTVSYNC);
   if (sdlRenderer == nullptr) {
     SDL_Log("Error creating SDL_Renderer!");
     throw std::runtime_error("Error creating SDL_Renderer!");

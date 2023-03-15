@@ -7,9 +7,7 @@
 
 using namespace std::chrono_literals;
 
-Engine::Engine() {
-  window = nullptr;
-}
+Engine::Engine() { window = nullptr; }
 
 Engine::~Engine() {
   if (window) {
@@ -22,32 +20,32 @@ Engine::~Engine() {
 
   for (auto go : gameObjects) delete (go);  // clear all remaining game objects
   gameObjects.clear();
+  SDL_Log("Game Objects Cleared");
 }
 // https://gafferongames.com/post/fix_your_timestep/
 void Engine::Run() {
   // Main loop
   for (;;) {
     auto currentTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(currentTime-lastFrameTime).count();
-    deltaTime = duration/1000000.0f;
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - lastFrameTime).count();
+    deltaTime = duration / 1000000.0f;
     accumulatedTime += duration;
     lastFrameTime = currentTime;
 
-    int64_t targetTimeToSleep = 1000000/targetFPS;
-    for(;accumulatedTime>=targetTimeToSleep; accumulatedTime -=targetTimeToSleep) {
+    int64_t targetTimeToSleep = 1000000 / targetFPS;
+    for (; accumulatedTime >= targetTimeToSleep; accumulatedTime -= targetTimeToSleep) {
       Tick();
-      if(done)
-        return;
+      if (done) return;
     }
-    if(targetTimeToSleep >= accumulatedTime)
-      targetTimeToSleep-=accumulatedTime;
+    if (targetTimeToSleep >= accumulatedTime)
+      targetTimeToSleep -= accumulatedTime;
     else
       targetTimeToSleep = 0;
 #ifdef __EMSCRIPTEN__
-    emscripten_sleep(targetTimeToSleep/1000);
+    emscripten_sleep(targetTimeToSleep / 1000);
 #else
-    //std::this_thread::sleep_for(targetTimeToSleep * 1ms/1000);
-    SDL_Delay(targetTimeToSleep/1000);
+    // std::this_thread::sleep_for(targetTimeToSleep * 1ms/1000);
+    SDL_Delay(targetTimeToSleep / 1000);
 #endif
   }
 }
@@ -64,7 +62,7 @@ bool Engine::Start(std::string title) {
   for (auto go : gameObjects) go->Start();
 
   lastFrameTime = std::chrono::high_resolution_clock::now();
-  SDL_Delay(1000/targetFPS);
+  SDL_Delay(1000 / targetFPS);
   deltaTime = 0;
 
   return true;
@@ -113,7 +111,6 @@ void Engine::Tick() {
 void Engine::Exit() {
   SDL_Log("Exit called");
   done = true;
-  SDL_Log("Game Objects Cleared");
 }
 
 void Engine::processInput() {

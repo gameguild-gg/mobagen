@@ -23,7 +23,8 @@ private:
   std::chrono::high_resolution_clock::time_point lastFrameTime;
   float deltaTime;
   double targetFPS = 60;
-  int64_t accumulatedTime=0;
+  int64_t accumulatedTime = 0;
+
 public:
   Window* window;
   //    ImGuiContext *imGuiContext;
