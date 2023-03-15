@@ -1,3 +1,10 @@
+## [1.3.6](https://github.com/InfiniBrains/mobagen/compare/v1.3.5...v1.3.6) (2023-03-15)
+
+
+### Bug Fixes
+
+* release version name to add v on front of the version ([1c234f1](https://github.com/InfiniBrains/mobagen/commit/1c234f1341b9a57c4c984f1fbc3cb2052ca0e490))
+
 ## [1.3.5](https://github.com/InfiniBrains/mobagen/compare/v1.3.4...v1.3.5) (2023-03-15)
 
 
