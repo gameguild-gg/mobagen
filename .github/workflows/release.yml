@@ -51,7 +51,7 @@ jobs:
         run: |
           export commit=`git rev-list --tags --max-count=1`
           export last_release_version=`git describe --abbrev=0 --tags $tag`
-          export new_release_version=${{ steps.semantic.outputs.new_release_version }}
+          export new_release_version=v${{ steps.semantic.outputs.new_release_version }}
           export version=${new_release_version:-$last_release_version}
           echo "version=${version}" >> $GITHUB_OUTPUT
 
