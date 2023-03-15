@@ -1,3 +1,10 @@
+## [1.3.5](https://github.com/InfiniBrains/mobagen/compare/v1.3.4...v1.3.5) (2023-03-15)
+
+
+### Bug Fixes
+
+* remove debug and comments on release workflow ([dbfb08d](https://github.com/InfiniBrains/mobagen/commit/dbfb08d00ab6cf480b2bd47c0c6c92a007ee76e9))
+
 ## [1.3.4](https://github.com/InfiniBrains/mobagen/compare/v1.3.3...v1.3.4) (2023-03-15)
 
 
