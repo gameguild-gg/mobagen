@@ -1,3 +1,11 @@
+# [1.4.0](https://github.com/InfiniBrains/mobagen/compare/v1.3.7...v1.4.0) (2023-03-16)
+
+
+### Features
+
+* **chess:** add now king respects pawn attacked places ([b828177](https://github.com/InfiniBrains/mobagen/commit/b828177c1fe190f33c9e3e419de492a2602b2622))
+* **chess:** king now respects the enemy king ([731da64](https://github.com/InfiniBrains/mobagen/commit/731da642ff3d4bdfaa7619f84005f7d6bda2fced))
+
 ## [1.3.7](https://github.com/InfiniBrains/mobagen/compare/v1.3.6...v1.3.7) (2023-03-15)
 
 
