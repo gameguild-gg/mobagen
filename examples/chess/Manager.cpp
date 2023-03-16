@@ -63,6 +63,7 @@ void Manager::OnGui(ImGuiContext* context) {
       if (selected.x == INT32_MIN || !validMoves.contains(index)) {  // if not selected
         selected = index;
         if (piece.piece != PieceType::NONE && piece.color == state.GetTurn()) {
+          // todo: create isincheck behavior and reject valid moves that maintain king in check
           validMoves = getMoves(piece.piece, index);
           if (validMoves.empty()) {
             validMoves = {};
@@ -105,7 +106,7 @@ Point2D Manager::mousePositionToIndex(ImVec2& pos) {
   relativePosFloat += Vector2{minDimension / 2, minDimension / 2};
   relativePosFloat /= squareSide;
 
-  return Point2D(relativePosFloat.x, 8 - relativePosFloat.y);
+  return {static_cast<int>(relativePosFloat.x), static_cast<int>(8 - relativePosFloat.y)};
 }
 
 void Manager::OnDraw(SDL_Renderer* renderer) {

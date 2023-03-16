@@ -2,7 +2,7 @@
 unordered_set<Point2D> Knight::PossibleMoves(WorldState& world, const Point2D& origin) {
   auto turn = world.GetTurn();
   auto piece = world.PieceAtPosition(origin);
-  if (piece.piece != PieceType::Knight || piece.color != turn) return {};
+  if (piece.piece != PieceType::Knight) return {};
 
   unordered_set<Point2D> moves;
 

@@ -2,9 +2,8 @@
 #include "Rook.h"
 // todo: castling behavior
 unordered_set<Point2D> Rook::PossibleMoves(WorldState& world, const Point2D& origin) {
-  auto turn = world.GetTurn();
   auto piece = world.PieceAtPosition(origin);
-  if (piece.piece != PieceType::Rook || piece.color != turn) return {};
+  if (piece.piece != PieceType::Rook) return {};
 
   unordered_set<Point2D> moves;
 
