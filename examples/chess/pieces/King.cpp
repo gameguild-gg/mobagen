@@ -5,6 +5,7 @@
 unordered_set<Point2D> King::PossibleMoves(WorldState& world, const Point2D& origin) {
   auto attackedSquares = Search::ListPlacesKingCannotGo(world,true);
   auto piece = world.PieceAtPosition(origin);
+
   if (piece.piece != PieceType::King) return {};
 
   unordered_set<Point2D> moves;
@@ -15,8 +16,23 @@ unordered_set<Point2D> King::PossibleMoves(WorldState& world, const Point2D& ori
     auto currentPosition = origin + direction;
     auto otherPiece = world.PieceAtPosition(currentPosition);
     // add if it is empty and continue
-    if ((otherPiece.piece == PieceType::NONE || otherPiece.color != piece.color) && !attackedSquares.contains(currentPosition))
+    if ((otherPiece.piece == PieceType::NONE || otherPiece.color != piece.color)
+        && !attackedSquares.contains(currentPosition))
       moves.insert(currentPosition);
   }
   return moves;
+}
+
+auto King::FindKing(WorldState& state, bool currentPlayer) -> Point2D {
+  for(auto line=0; line<8;line++) {
+    for (auto column = 0; column < 8; column++) {
+      Point2D location = {column,line};
+      auto p = state.PieceAtPosition(location);
+      if((currentPlayer && p.color != state.GetTurn()) || (!currentPlayer && p.color == state.GetTurn()) )
+        continue;
+      if(p.piece==PieceType::King)
+        return location;
+    }
+  }
+  return {};
 }

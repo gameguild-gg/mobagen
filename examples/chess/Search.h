@@ -14,7 +14,6 @@ struct Search {
   static auto ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> unordered_set<Point2D>;
   static auto ListMovesExceptKing(WorldState& state, bool currentPlayer) -> std::vector<Move>;
   static auto ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Move>;
-  static auto FindKing(WorldState& state, bool currentPlayer) -> Point2D;
   static std::vector<Move> ListMoves(const WorldState& state);
 };
 

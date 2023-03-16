@@ -52,24 +52,12 @@ auto Search::ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Mov
   auto currentMoves = ListMovesExceptKing(state, currentPlayer);
   auto enemyMoves = ListMovesExceptKing(state, !currentPlayer);
 
-  auto currentKing = FindKing(state,currentPlayer);
-  auto otherKing = FindKing(state,!currentPlayer);
+  auto currentKing = King::FindKing(state,currentPlayer);
+  auto otherKing = King::FindKing(state,!currentPlayer);
 
   return {};
 }
-auto Search::FindKing(WorldState& state, bool currentPlayer) -> Point2D {
-  for(auto line=0; line<8;line++) {
-    for (auto column = 0; column < 8; column++) {
-      Point2D location = {column,line};
-      auto p = state.PieceAtPosition(location);
-      if((currentPlayer && p.color != state.GetTurn()) || (!currentPlayer && p.color == state.GetTurn()) )
-        continue;
-      if(p.piece==PieceType::King)
-        return location;
-    }
-  }
-  return {};
-}
+
 auto Search::ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> unordered_set<Point2D> {
   unordered_set<Point2D> moves;
   auto const turn = state.GetTurn();
@@ -82,7 +70,6 @@ auto Search::ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> un
         continue;
       if((turn==p.color && currentPlayer) || (turn!=p.color && !currentPlayer))
         continue;
-      vector<Move>toAdd;
       // todo: improve this switch
       switch (p.piece) {
         case PieceType::Rook:
@@ -105,5 +92,13 @@ auto Search::ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> un
       }
     }
   }
+
+  auto otherKing = King::FindKing(state,!currentPlayer);
+  unordered_set<Point2D> otherKingVicinity = {
+      otherKing + Point2D::UP + Point2D::LEFT, otherKing+Point2D::UP, otherKing+Point2D::UP + Point2D::RIGHT,
+      otherKing + Point2D::DOWN + Point2D::LEFT, otherKing+Point2D::DOWN, otherKing+Point2D::DOWN + Point2D::RIGHT,
+      otherKing + Point2D::RIGHT, otherKing + Point2D::LEFT
+  };
+  moves.merge(otherKingVicinity);
   return moves;
 }
