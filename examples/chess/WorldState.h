@@ -65,6 +65,7 @@ public:
   }
   uint16_t Pack() const { return data; }
   static Move UnPack(uint16_t data) { return Move(data); }
+  static vector<Move> GenerateListOfMoves(PieceData piece, Point2D from, unordered_set<Point2D> to);
 };
 
 struct WorldState {
@@ -77,7 +78,7 @@ private:
 public:
   PieceColor GetTurn() { return turn; };
   void EndTurn() { turn = (PieceColor)((uint8_t)PieceColor::COLORMASK ^ (uint8_t)turn); };
-  PieceData PieceAtPosition(Point2D pos);
+  auto PieceAtPosition(Point2D pos) -> PieceData;
   void SetPieceAtPosition(PieceData piece, Point2D pos);
   void Move(Point2D from, Point2D to);
   void Reset();

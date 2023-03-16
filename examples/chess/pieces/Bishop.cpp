@@ -1,8 +1,7 @@
 #include "Bishop.h"
 unordered_set<Point2D> Bishop::PossibleMoves(WorldState& world, const Point2D& origin) {
-  auto turn = world.GetTurn();
   auto piece = world.PieceAtPosition(origin);
-  if (piece.piece != PieceType::Bishop || piece.color != turn) return {};
+  if (piece.piece != PieceType::Bishop) return {};
 
   unordered_set<Point2D> moves;
 

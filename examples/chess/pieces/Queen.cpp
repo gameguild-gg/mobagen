@@ -1,8 +1,8 @@
 #include "Queen.h"
 unordered_set<Point2D> Queen::PossibleMoves(WorldState& world, const Point2D& origin) {
-  auto turn = world.GetTurn();
+
   auto piece = world.PieceAtPosition(origin);
-  if (piece.piece != PieceType::Queen || piece.color != turn) return {};
+  if (piece.piece != PieceType::Queen) return {};
 
   unordered_set<Point2D> moves;
 
