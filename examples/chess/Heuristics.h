@@ -3,15 +3,18 @@
 
 #include <cstdint>
 #include "WorldStateFwd.h"  // forward is needed here to avoid collisions
+#include "Point2D.h"
 
 struct Heuristics {
 public:
-  inline uint16_t White() const { return white; };
-  inline uint16_t Black() const { return black; };
+  inline float Score() const { return score; };
 
 private:
-  uint16_t white = 0;
-  uint16_t black = 0;
+  // positive score means white is winning
+  float score;
+
+  static int materialScore(WorldState* state);
+  static int distanceToCenter(Point2D location);
 
 public:
   static Heuristics BoardAnalysis(WorldState* state);

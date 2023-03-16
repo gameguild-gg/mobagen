@@ -57,3 +57,35 @@ unordered_set<Point2D> Pawn::AttackMoves(WorldState& world, const Point2D& pos) 
   }
   return points;
 }
+int Pawn::CountDoubles(WorldState& world, const Point2D& origin) {
+  auto piece = world.PieceAtPosition(origin);
+  if (piece.piece != PieceType::Pawn) return 0;
+  int doubles=0;
+
+  for(auto y=0; y<8; y++){
+    auto other = world.PieceAtPosition(Point2D(origin.x, y));
+    if(other.piece==PieceType::Pawn && other.color==piece.color)
+      doubles++;
+  }
+  return doubles-1;
+}
+bool Pawn::IsIsolated(WorldState& world, const Point2D& origin) {
+  auto piece = world.PieceAtPosition(origin);
+  if (piece.piece != PieceType::Pawn) return true; // todo: communicate errors better
+  const vector<Point2D> adjacency = {
+      origin.Right(),
+      origin.Left(),
+      origin.Up().Left(),
+      origin.Up().Right(),
+      origin.Down().Left(),
+      origin.Down().Right(),
+      origin.Up(),
+      origin.Down()};
+
+  for(auto pos: adjacency) {
+    auto other = world.PieceAtPosition(pos);
+    if(other==piece)
+      return false;
+  }
+  return true;
+}

@@ -41,6 +41,7 @@ public:
     return {(PieceType)(data & (uint8_t)PieceType::PIECEMASK), (PieceColor)(data & (uint8_t)PieceColor::COLORMASK)};
   };
   char toChar();
+  bool operator==(const PieceData& rhs) const;
 };
 
 struct Move {
