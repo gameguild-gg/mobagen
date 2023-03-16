@@ -137,7 +137,6 @@ char PieceData::toChar() {
 }
 vector<Move> Move::GenerateListOfMoves(PieceData piece, Point2D from, unordered_set<Point2D> to) {
   vector<Move> moves;
-  for(auto t: to)
-    moves.emplace_back(from,t,piece);
+  for (auto t : to) moves.emplace_back(from, t, piece);
   return moves;
 }

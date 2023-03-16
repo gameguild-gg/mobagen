@@ -12,9 +12,7 @@ struct Search {
    * @return
    */
   static auto ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> unordered_set<Point2D>;
-  static auto ListMovesExceptKing(WorldState& state, bool currentPlayer) -> std::vector<Move>;
   static auto ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Move>;
-  static std::vector<Move> ListMoves(const WorldState& state);
 };
 
 #endif  // MOBAGEN_SEARCH_H

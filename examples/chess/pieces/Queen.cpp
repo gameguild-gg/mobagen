@@ -1,6 +1,5 @@
 #include "Queen.h"
 unordered_set<Point2D> Queen::PossibleMoves(WorldState& world, const Point2D& origin) {
-
   auto piece = world.PieceAtPosition(origin);
   if (piece.piece != PieceType::Queen) return {};
 
