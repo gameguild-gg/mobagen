@@ -18,53 +18,53 @@ Heuristics Heuristics::BoardAnalysis(WorldState* state) {
   return {};
 }
 int Heuristics::materialScore(WorldState* state) {
-  int score=0;
-  for(auto line = 0; line < 8; line++){
-    for(auto column = 0; column < 8; column++){
-      auto location = Point2D(column,line);
+  int score = 0;
+  for (auto line = 0; line < 8; line++) {
+    for (auto column = 0; column < 8; column++) {
+      auto location = Point2D(column, line);
       auto piece = state->PieceAtPosition(location);
-      auto pieceScore=0;
-      auto moves =0;
+      auto pieceScore = 0;
+      auto moves = 0;
       switch (piece.Piece()) {
         case PieceType::King:
-          pieceScore += 1000; // piece value
-          pieceScore += King::PossibleMoves(*state,location).size(); // mobility
+          pieceScore += 1000;                                          // piece value
+          pieceScore += King::PossibleMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           // todo: king safety, check, draw and mate
           break;
         case PieceType::Queen:
-          pieceScore += 90; // piece value
-          pieceScore += Queen::PossibleMoves(*state,location).size(); // mobility
+          pieceScore += 90;                                             // piece value
+          pieceScore += Queen::PossibleMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Rook:
-          pieceScore += 50; // piece value
-          pieceScore += Rook::PossibleMoves(*state,location).size(); // mobility
+          pieceScore += 50;                                            // piece value
+          pieceScore += Rook::PossibleMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Knight:
-          pieceScore += 35; // piece value
-          pieceScore += Knight::PossibleMoves(*state,location).size(); // mobility
+          pieceScore += 35;                                              // piece value
+          pieceScore += Knight::PossibleMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Bishop:
-          pieceScore += 30; // piece value
-          pieceScore += Bishop::PossibleMoves(*state,location).size(); // mobility
+          pieceScore += 30;                                              // piece value
+          pieceScore += Bishop::PossibleMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Pawn:
-          pieceScore += 10; // piece value
-          moves = Pawn::PossibleMoves(*state,location).size(); // mobility
+          pieceScore += 10;                                      // piece value
+          moves = Pawn::PossibleMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           pieceScore += moves;
-          if(moves==0) pieceScore -= 5; // blocked
-          pieceScore -= 2*Pawn::CountDoubles(*state,location); // doubled
-          if(Pawn::IsIsolated(*state,location)) pieceScore -=5; // isolation
+          if (moves == 0) pieceScore -= 5;                          // blocked
+          pieceScore -= 2 * Pawn::CountDoubles(*state, location);   // doubled
+          if (Pawn::IsIsolated(*state, location)) pieceScore -= 5;  // isolation
           break;
         default:
           continue;
       }
-      if (piece.Color()==PieceColor::Black)
+      if (piece.Color() == PieceColor::Black)
         score -= pieceScore;
       else
         score += pieceScore;
@@ -74,7 +74,7 @@ int Heuristics::materialScore(WorldState* state) {
 }
 int Heuristics::distanceToCenter(Point2D location) {
   // todo: improve. I am unsure if this is the best way. I am doubling because I am targeting the center.
-  auto doubled = Point2D(location.x*2-7,location.y*2-7);
-  auto maxed = 3-(std::min(std::abs(doubled.x), std::abs(doubled.y))-1)/2;
+  auto doubled = Point2D(location.x * 2 - 7, location.y * 2 - 7);
+  auto maxed = 3 - (std::min(std::abs(doubled.x), std::abs(doubled.y)) - 1) / 2;
   return maxed;
 }

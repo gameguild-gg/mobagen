@@ -42,10 +42,8 @@ public:
   PieceData(PieceColor color, PieceType type) : color(color), piece(type) {}
 
 private:
-  // color 0b0001
-  // piece 0b1110
-  PieceColor color : 1;
-  PieceType piece : 3;
+  PieceColor color : 1;  // 0b0001
+  PieceType piece : 3;   // 0b1110
   uint8_t empty : 4 = 0;
 
 public:
@@ -54,8 +52,8 @@ public:
 
   static inline PieceData Empty() { return {PieceColor::White, PieceType::NONE}; }
   static inline uint8_t Pack(PieceData piece) { return *(uint8_t*)(&piece); };  // unsafe but fast
-  inline uint8_t Pack() { return (uint8_t)piece << 1 | (uint8_t)((uint8_t)color); };
-  static inline PieceData UnPack(int8_t data) { return {(PieceColor)((data & 0b1)), (PieceType)((data & 0b1110) >> 1)}; };
+  inline uint8_t Pack() { return *(uint8_t*)(this); };
+  static inline PieceData UnPack(uint8_t data) { return *(PieceData*)(&data); };
   char toChar();
   bool operator==(const PieceData& rhs) const;
   static inline PieceData Wrong() { return {PieceColor::White, PieceType::WRONG}; };
@@ -67,7 +65,7 @@ private:
   uint8_t from_y : 3;
   uint8_t to_x : 3;
   uint8_t to_y : 3;
-  bool color : 1;
+  PieceColor color : 1;
   PieceType piece : 3;
   MoveType move : 3;
 
@@ -75,10 +73,13 @@ public:
   Move() = default;
   //  explicit Move(uint16_t data) : data(data) {}
   Move(Point2D from, Point2D to, PieceData piece, MoveType move)
-      : from_x(from.x), from_y(from.y), to_x(to.x), to_y(to.y), color((bool)piece.Color()), piece(piece.Piece()), move(move) {}
+      : from_x(from.x), from_y(from.y), to_x(to.x), to_y(to.y), color(piece.Color()), piece(piece.Piece()), move(move) {}
   Point2D From() { return {from_x, from_y}; }
   Point2D To() { return {to_x, to_y}; }
-  PieceData Piece() { return PieceData((PieceColor)color, piece); };
+  PieceColor Color() { return color; }
+  PieceType Piece() { return piece; }
+  PieceData Piecedata() { return {color, piece}; }
+  MoveType Movetype() { return move; }
 
   static vector<Move> GenerateListOfMoves(PieceData piece, Point2D from, unordered_set<Point2D> to);
 };
