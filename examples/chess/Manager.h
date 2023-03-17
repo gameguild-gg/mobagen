@@ -22,6 +22,7 @@ private:
   bool aiEnabled = false;
 
 public:
+  double score;
   explicit Manager(Engine* pEngine);
   void Start() override;
   ~Manager();

@@ -8,12 +8,12 @@
 struct Heuristics {
 public:
   inline float Score() const { return score; };
+  static int MaterialScore(WorldState* state);
 
 private:
   // positive score means white is winning
   float score;
 
-  static int materialScore(WorldState* state);
   static int distanceToCenter(Point2D location);
 
 public:

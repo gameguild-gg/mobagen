@@ -10,6 +10,7 @@
 #include "pieces/Rook.h"
 #include <unordered_map>
 #include "Search.h"
+#include "Heuristics.h"
 
 void Manager::OnGui(ImGuiContext* context) {
   ImGui::SetCurrentContext(context);
@@ -26,8 +27,11 @@ void Manager::OnGui(ImGuiContext* context) {
     state = previousStates.top();
     previousStates.pop();
   }
-
   ImGui::Separator();
+
+  ImGui::LabelText("Score", "%.1f", score);
+  ImGui::Separator();
+
   if (ImGui::Checkbox("AI Enabled", &aiEnabled))
     if (aiEnabled == true) aiColor = PieceColor::Black;
 
@@ -74,6 +78,7 @@ void Manager::OnGui(ImGuiContext* context) {
         previousStates.push(state);
 
         state.Move(selected, index);
+        score = Heuristics::MaterialScore(&state);
 
         cout << state.toString() << endl;
         validMoves = {};
@@ -194,6 +199,8 @@ Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
 
   piecePackedToTexture[PieceData(PieceColor::White, PieceType::King).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgWhite);
   piecePackedToTexture[PieceData(PieceColor::Black, PieceType::King).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgBlack);
+
+  score = Heuristics::MaterialScore(&state);
 }
 
 Manager::~Manager() {
@@ -206,5 +213,6 @@ void Manager::Update(float deltaTime) {
   if (aiEnabled && aiColor == state.GetTurn()) {
     auto move = Search::NextMove(state);
     state.Move(move.From(), move.To());
+    score = Heuristics::MaterialScore(&state);
   }
 }
