@@ -7,6 +7,18 @@
 #include "WorldStateFwd.h"
 using namespace std;
 
+// todo: make it match the PieceType and optimize
+enum class MoveType : uint8_t {
+  Normal = 0b000,
+  Capture = 0b001,
+  EnPassant = 0b010,
+  Castling = 0b011,
+  PromoteToBishop = 0b100,
+  PromoteToKnight = 0b101,
+  PromoteToRook = 0b110,
+  PromoteToQueen = 0b111,
+};
+
 enum class PieceType : uint8_t {
   NONE = 0b0000,  // debug purposes
   King = 0b0001,
@@ -19,53 +31,55 @@ enum class PieceType : uint8_t {
   PIECEMASK = 0b0111
 };
 
-enum class PieceColor : uint8_t {  // chess color to avoid colliding with namespace from engine
-  Black = 0b0000,
-  White = 0b1000,
-  COLORMASK = 0b1000,
-  NONE = 0b0000
+enum class PieceColor : bool {  // chess color to avoid colliding with namespace from engine
+  Black = false,
+  White = true,
 };
 
 struct PieceData {
 public:
-  PieceData() : color(PieceColor::NONE), piece(PieceType::NONE){};
-  PieceData(PieceType type, PieceColor color) : color(color), piece(type) {}
+  PieceData() : color(PieceColor::White), piece(PieceType::NONE){};
+  PieceData(PieceColor color, PieceType type) : color(color), piece(type) {}
 
-  PieceType piece;
-  PieceColor color;
+private:
+  // color 0b0001
+  // piece 0b1110
+  PieceColor color : 1;
+  PieceType piece : 3;
+  uint8_t empty : 4 = 0;
 
-  static inline PieceData Empty() { return {PieceType::NONE, PieceColor::NONE}; }
-  static inline uint8_t Pack(PieceData piece) { return (uint8_t)piece.piece | (uint8_t)piece.color; };
-  inline uint8_t Pack() { return (uint8_t)piece | (uint8_t)color; };
-  static inline PieceData UnPack(uint8_t data) {
-    return {(PieceType)(data & (uint8_t)PieceType::PIECEMASK), (PieceColor)(data & (uint8_t)PieceColor::COLORMASK)};
-  };
+public:
+  inline PieceColor Color() { return color; };
+  inline PieceType Piece() { return piece; };
+
+  static inline PieceData Empty() { return {PieceColor::White, PieceType::NONE}; }
+  static inline uint8_t Pack(PieceData piece) { return *(uint8_t*)(&piece); };  // unsafe but fast
+  inline uint8_t Pack() { return (uint8_t)piece << 1 | (uint8_t)((uint8_t)color); };
+  static inline PieceData UnPack(int8_t data) { return {(PieceColor)((data & 0b1)), (PieceType)((data & 0b1110) >> 1)}; };
   char toChar();
   bool operator==(const PieceData& rhs) const;
+  static inline PieceData Wrong() { return {PieceColor::White, PieceType::WRONG}; };
 };
 
 struct Move {
 private:
-  // from.x 0x1110000000000000
-  // from.y 0x0001110000000000
-  // to.x   0x0000001110000000
-  // to.y   0x0000000001110000
-  // color  0x0000000000001000
-  // type   0x0000000000000111
-  uint16_t data = 0;
+  uint8_t from_x : 3;
+  uint8_t from_y : 3;
+  uint8_t to_x : 3;
+  uint8_t to_y : 3;
+  bool color : 1;
+  PieceType piece : 3;
+  MoveType move : 3;
 
 public:
   Move() = default;
-  explicit Move(uint16_t data) : data(data) {}
-  Move(Point2D from, Point2D to, PieceData piece) : data(Pack(from, to, piece)) {}
-  Point2D From() { return {data >> 13U, (data << 3U) >> 13U}; }
-  Point2D To() { return {(data << 6U) >> 13U, (data << 9U) >> 13U}; }
-  PieceData Piece() { return PieceData::UnPack(data & 0b1111U); };
-  static uint16_t Pack(Point2D from, Point2D to, PieceData piece) {
-    return (unsigned)piece.Pack() | (unsigned)to.y << 4U | (unsigned)to.x << 7U | (unsigned)from.y << 10U | (unsigned)from.x << 13U;
-  }
-  uint16_t Pack() const { return data; }
-  static Move UnPack(uint16_t data) { return Move(data); }
+  //  explicit Move(uint16_t data) : data(data) {}
+  Move(Point2D from, Point2D to, PieceData piece, MoveType move)
+      : from_x(from.x), from_y(from.y), to_x(to.x), to_y(to.y), color((bool)piece.Color()), piece(piece.Piece()), move(move) {}
+  Point2D From() { return {from_x, from_y}; }
+  Point2D To() { return {to_x, to_y}; }
+  PieceData Piece() { return PieceData((PieceColor)color, piece); };
+
   static vector<Move> GenerateListOfMoves(PieceData piece, Point2D from, unordered_set<Point2D> to);
 };
 
@@ -78,7 +92,7 @@ private:
 
 public:
   PieceColor GetTurn() { return turn; };
-  void EndTurn() { turn = (PieceColor)((uint8_t)PieceColor::COLORMASK ^ (uint8_t)turn); };
+  void EndTurn() { turn = (PieceColor)(!((bool)turn)); };
   auto PieceAtPosition(Point2D pos) -> PieceData;
   void SetPieceAtPosition(PieceData piece, Point2D pos);
   void Move(Point2D from, Point2D to);

@@ -1,7 +1,7 @@
 #include <iostream>
 #include "WorldState.h"
 PieceData WorldState::PieceAtPosition(Point2D pos) {
-  if (pos.x < 0 || pos.x > 7 || pos.y < 0 || pos.y > 7) return {PieceType::WRONG, PieceColor::NONE};
+  if (pos.x < 0 || pos.x > 7 || pos.y < 0 || pos.y > 7) return PieceData::Wrong();
 
   auto index = (pos.y * 8 + pos.x) / 2;
   auto value = state[index];
@@ -19,41 +19,41 @@ void WorldState::Reset() {
   for (int i = 0; i < 32; i++)  // probably memset is better
     state[i] = 0;
 
-  SetPieceAtPosition({PieceType::Rook, PieceColor::White}, {0, 0});
-  SetPieceAtPosition({PieceType::Knight, PieceColor::White}, {1, 0});
-  SetPieceAtPosition({PieceType::Bishop, PieceColor::White}, {2, 0});
-  SetPieceAtPosition({PieceType::Queen, PieceColor::White}, {3, 0});
-  SetPieceAtPosition({PieceType::King, PieceColor::White}, {4, 0});
-  SetPieceAtPosition({PieceType::Bishop, PieceColor::White}, {5, 0});
-  SetPieceAtPosition({PieceType::Knight, PieceColor::White}, {6, 0});
-  SetPieceAtPosition({PieceType::Rook, PieceColor::White}, {7, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::Rook}, {0, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::Knight}, {1, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::Bishop}, {2, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::Queen}, {3, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::King}, {4, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::Bishop}, {5, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::Knight}, {6, 0});
+  SetPieceAtPosition({PieceColor::White, PieceType::Rook}, {7, 0});
 
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {0, 1});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {1, 1});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {2, 1});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {3, 1});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {4, 1});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {5, 1});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {6, 1});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::White}, {7, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {0, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {1, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {2, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {3, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {4, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {5, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {6, 1});
+  SetPieceAtPosition({PieceColor::White, PieceType::Pawn}, {7, 1});
 
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {0, 6});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {1, 6});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {2, 6});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {3, 6});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {4, 6});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {5, 6});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {6, 6});
-  SetPieceAtPosition({PieceType::Pawn, PieceColor::Black}, {7, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {0, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {1, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {2, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {3, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {4, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {5, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {6, 6});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Pawn}, {7, 6});
 
-  SetPieceAtPosition({PieceType::Rook, PieceColor::Black}, {0, 7});
-  SetPieceAtPosition({PieceType::Knight, PieceColor::Black}, {1, 7});
-  SetPieceAtPosition({PieceType::Bishop, PieceColor::Black}, {2, 7});
-  SetPieceAtPosition({PieceType::Queen, PieceColor::Black}, {3, 7});
-  SetPieceAtPosition({PieceType::King, PieceColor::Black}, {4, 7});
-  SetPieceAtPosition({PieceType::Bishop, PieceColor::Black}, {5, 7});
-  SetPieceAtPosition({PieceType::Knight, PieceColor::Black}, {6, 7});
-  SetPieceAtPosition({PieceType::Rook, PieceColor::Black}, {7, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Rook}, {0, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Knight}, {1, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Bishop}, {2, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Queen}, {3, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::King}, {4, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Bishop}, {5, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Knight}, {6, 7});
+  SetPieceAtPosition({PieceColor::Black, PieceType::Rook}, {7, 7});
 }
 void WorldState::SetPieceAtPosition(PieceData piece, Point2D pos) {
   auto packed = PieceData::Pack(piece);
@@ -85,19 +85,19 @@ void WorldState::Move(Point2D from, Point2D to) {
   auto pieceFrom = PieceAtPosition(from);
   auto pieceTo = PieceAtPosition(to);
 
-  if (pieceFrom.piece == PieceType::WRONG) {
+  if (pieceFrom.Piece() == PieceType::WRONG) {
     std::cout << "Wrong FROM piece at position: " << from.to_string() << endl;
     return;
   }
 
-  if (pieceFrom.color != turn) {
+  if (pieceFrom.Color() != turn) {
     std::cout << "Piece color does not match the turn at position: " << from.to_string() << endl;
     return;
   }
 
-  if (pieceTo.piece == PieceType::NONE || (pieceFrom.color != pieceTo.color)) {
+  if (pieceTo.Piece() == PieceType::NONE || (pieceFrom.Color() != pieceTo.Color())) {
     this->SetPieceAtPosition(pieceFrom, to);
-    this->SetPieceAtPosition({PieceType::NONE, PieceColor::NONE}, from);
+    this->SetPieceAtPosition(PieceData::Empty(), from);
     EndTurn();
     return;
   }
@@ -135,11 +135,10 @@ char PieceData::toChar() {
   else
     return c;
 }
-bool PieceData::operator==(const PieceData& rhs) const {
-  return this->color == rhs.color && this->piece==rhs.piece;
-}
+bool PieceData::operator==(const PieceData& rhs) const { return this->color == rhs.color && this->piece == rhs.piece; }
+
 vector<Move> Move::GenerateListOfMoves(PieceData piece, Point2D from, unordered_set<Point2D> to) {
   vector<Move> moves;
-  for (auto t : to) moves.emplace_back(from, t, piece);
+  for (auto t : to) moves.emplace_back(from, t, piece, MoveType::Normal);
   return moves;
 }

@@ -3,7 +3,7 @@
 // todo: castling behavior
 unordered_set<Point2D> Rook::PossibleMoves(WorldState& world, const Point2D& origin) {
   auto piece = world.PieceAtPosition(origin);
-  if (piece.piece != PieceType::Rook) return {};
+  if (piece.Piece() != PieceType::Rook) return {};
 
   unordered_set<Point2D> moves;
 
@@ -12,12 +12,12 @@ unordered_set<Point2D> Rook::PossibleMoves(WorldState& world, const Point2D& ori
   for (auto direction : directions) {
     Point2D currentPosition;
     PieceData otherPiece;
-    for (currentPosition = origin + direction, otherPiece = world.PieceAtPosition(currentPosition); otherPiece.piece != PieceType::WRONG;
+    for (currentPosition = origin + direction, otherPiece = world.PieceAtPosition(currentPosition); otherPiece.Piece() != PieceType::WRONG;
          currentPosition += direction, otherPiece = world.PieceAtPosition(currentPosition)) {
       // add if it is empty and continue
-      if (otherPiece.piece == PieceType::NONE) moves.insert(currentPosition);
+      if (otherPiece.Piece() == PieceType::NONE) moves.insert(currentPosition);
       // add if it is the opposite color and break
-      else if (otherPiece.color != piece.color) {
+      else if (otherPiece.Color() != piece.Color()) {
         moves.insert(currentPosition);
         break;
       } else

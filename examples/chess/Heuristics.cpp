@@ -25,7 +25,7 @@ int Heuristics::materialScore(WorldState* state) {
       auto piece = state->PieceAtPosition(location);
       auto pieceScore=0;
       auto moves =0;
-      switch (piece.piece) {
+      switch (piece.Piece()) {
         case PieceType::King:
           pieceScore += 1000; // piece value
           pieceScore += King::PossibleMoves(*state,location).size(); // mobility
@@ -64,7 +64,7 @@ int Heuristics::materialScore(WorldState* state) {
         default:
           continue;
       }
-      if (piece.color==PieceColor::Black)
+      if (piece.Color()==PieceColor::Black)
         score -= pieceScore;
       else
         score += pieceScore;

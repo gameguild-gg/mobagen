@@ -14,12 +14,12 @@ auto Search::ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Mov
       Point2D const location = {column, line};
       auto p = state.PieceAtPosition(location);
       // continue if it is not a valid piece
-      if (p.piece == PieceType::NONE || p.piece != PieceType::WRONG || (currentPlayer && p.color != state.GetTurn())
-          || (!currentPlayer && p.color == state.GetTurn()))
+      if (p.Piece() == PieceType::NONE || p.Piece() != PieceType::WRONG || (currentPlayer && p.Color() != state.GetTurn())
+          || (!currentPlayer && p.Color() == state.GetTurn()))
         continue;
       vector<Move> toAdd;
       // todo: improve this switch
-      switch (p.piece) {
+      switch (p.Piece()) {
         case PieceType::Rook:
           toAdd = Move::GenerateListOfMoves(p, location, Rook::PossibleMoves(state, location));
           moves.insert(moves.end(), toAdd.begin(), toAdd.end());
@@ -59,10 +59,10 @@ auto Search::ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> un
       Point2D const location = {column, line};
       auto p = state.PieceAtPosition(location);
       // continue if it is not a valid piece
-      if (p.piece == PieceType::NONE || p.piece == PieceType::WRONG) continue;
-      if ((turn == p.color && currentPlayer) || (turn != p.color && !currentPlayer)) continue;
+      if (p.Piece() == PieceType::NONE || p.Piece() == PieceType::WRONG) continue;
+      if ((turn == p.Color() && currentPlayer) || (turn != p.Color() && !currentPlayer)) continue;
       // todo: improve this switch
-      switch (p.piece) {
+      switch (p.Piece()) {
         case PieceType::Rook:
           moves.merge(Rook::PossibleMoves(state, location));
           break;
