@@ -19,7 +19,10 @@ void Manager::OnGui(ImGuiContext* context) {
   ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime,
               1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
   ImGui::Separator();
-  if (ImGui::Button("Reset")) this->state.Reset();
+  if (ImGui::Button("Reset")) {
+    this->state.Reset();
+    score = Heuristics::MaterialScore(&state);
+  };
   ImGui::SameLine();
   if (ImGui::Button("Undo") && !previousStates.empty()) {
     validMoves = {};
@@ -148,15 +151,15 @@ unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
     case PieceType::Pawn:
       return Pawn::PossibleMoves(state, point);
     case PieceType::Rook:
-      return Rook::PossibleMoves(state, point);
+      return Rook::AttackMoves(state, point);
     case PieceType::Knight:
-      return Knight::PossibleMoves(state, point);
+      return Knight::AttackMoves(state, point);
     case PieceType::Bishop:
-      return Bishop::PossibleMoves(state, point);
+      return Bishop::AttackMoves(state, point);
     case PieceType::Queen:
-      return Queen::PossibleMoves(state, point);
+      return Queen::AttackMoves(state, point);
     case PieceType::King:
-      return King::PossibleMoves(state, point);
+      return King::AttackMoves(state, point);
     default:
       return {};
   }

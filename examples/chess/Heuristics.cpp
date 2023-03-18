@@ -2,7 +2,6 @@
 #include "WorldState.h"
 #include "pieces/Pieces.h"
 
-
 // Material. The easiest one to evaluate: just count up the value of your pieces vs. the value of your opponent's pieces. Pawn = 1, bishop/knight = 3,
 //rook = 5, and queen = 9 is generally a good rule.
 // Pawn structure. Isolated, passed, chained, backward, doubled, tripled, quadrupled (I have seen this happen): identify them in both your position and in your opponent's. Check also for any open files or half-open files either of you may have as a result of the pawn structure. You can also determine, using the pawn structure, the nature of the position: is it a closed position (the center is blocked by pawns) or an open position (the center is relatively free of pawns, with open files and diagonals)?
@@ -24,32 +23,32 @@ int Heuristics::MaterialScore(WorldState* state) {
       auto location = Point2D(column, line);
       auto piece = state->PieceAtPosition(location);
       auto pieceScore = 0;
-      auto moves = 0;
+      int moves;
       switch (piece.Piece()) {
         case PieceType::King:
-          pieceScore += 1000;                                          // piece value
-          pieceScore += King::PossibleMoves(*state, location).size();  // mobility
+          pieceScore += 1000;                                        // piece value
+          pieceScore += King::AttackMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           // todo: king safety, check, draw and mate
           break;
         case PieceType::Queen:
-          pieceScore += 90;                                             // piece value
-          pieceScore += Queen::PossibleMoves(*state, location).size();  // mobility
+          pieceScore += 90;                                           // piece value
+          pieceScore += Queen::AttackMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Rook:
-          pieceScore += 50;                                            // piece value
-          pieceScore += Rook::PossibleMoves(*state, location).size();  // mobility
+          pieceScore += 50;                                          // piece value
+          pieceScore += Rook::AttackMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Knight:
-          pieceScore += 35;                                              // piece value
-          pieceScore += Knight::PossibleMoves(*state, location).size();  // mobility
+          pieceScore += 35;                                            // piece value
+          pieceScore += Knight::AttackMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Bishop:
-          pieceScore += 30;                                              // piece value
-          pieceScore += Bishop::PossibleMoves(*state, location).size();  // mobility
+          pieceScore += 30;                                            // piece value
+          pieceScore += Bishop::AttackMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
           break;
         case PieceType::Pawn:

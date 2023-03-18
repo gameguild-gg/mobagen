@@ -35,25 +35,25 @@ unordered_set<Point2D> Pawn::PossibleMoves(WorldState& world, const Point2D& pos
   }
   return points;
 }
-unordered_set<Point2D> Pawn::AttackMoves(WorldState& world, const Point2D& pos) {
-  auto piece = world.PieceAtPosition(pos);
+unordered_set<Point2D> Pawn::AttackMoves(WorldState& world, const Point2D& origin) {
+  auto piece = world.PieceAtPosition(origin);
   if (piece.Piece() != PieceType::Pawn) return {};
 
   unordered_set<Point2D> points;
   if (piece.Color() == PieceColor::White) {
-    auto northEastPiece = world.PieceAtPosition({pos.x + 1, pos.y + 1});
+    auto northEastPiece = world.PieceAtPosition({origin.x + 1, origin.y + 1});
     if (northEastPiece.Piece() == PieceType::NONE || (northEastPiece.Piece() != PieceType::WRONG && northEastPiece.Color() == PieceColor::Black))
-      points.emplace(pos.x + 1, pos.y + 1);
-    auto northWestPiece = world.PieceAtPosition({pos.x - 1, pos.y + 1});
+      points.emplace(origin.x + 1, origin.y + 1);
+    auto northWestPiece = world.PieceAtPosition({origin.x - 1, origin.y + 1});
     if (northWestPiece.Piece() == PieceType::NONE || (northWestPiece.Piece() != PieceType::WRONG && northWestPiece.Color() == PieceColor::Black))
-      points.emplace(pos.x - 1, pos.y + 1);
+      points.emplace(origin.x - 1, origin.y + 1);
   } else if (piece.Color() == PieceColor::Black) {
-    auto northEastPiece = world.PieceAtPosition({pos.x + 1, pos.y - 1});
+    auto northEastPiece = world.PieceAtPosition({origin.x + 1, origin.y - 1});
     if (northEastPiece.Piece() == PieceType::NONE || (northEastPiece.Piece() != PieceType::WRONG && northEastPiece.Color() == PieceColor::White))
-      points.emplace(pos.x + 1, pos.y - 1);
-    auto northWestPiece = world.PieceAtPosition({pos.x - 1, pos.y - 1});
+      points.emplace(origin.x + 1, origin.y - 1);
+    auto northWestPiece = world.PieceAtPosition({origin.x - 1, origin.y - 1});
     if (northWestPiece.Piece() == PieceType::NONE || (northWestPiece.Piece() != PieceType::WRONG && northWestPiece.Color() == PieceColor::White))
-      points.emplace(pos.x - 1, pos.y - 1);
+      points.emplace(origin.x - 1, origin.y - 1);
   }
   return points;
 }
@@ -79,4 +79,26 @@ bool Pawn::IsIsolated(WorldState& world, const Point2D& origin) {
     if (other == piece) return false;
   }
   return true;
+}
+unordered_set<Point2D> Pawn::CoverMoves(WorldState& world, const Point2D& origin) {
+  auto piece = world.PieceAtPosition(origin);
+  if (piece.Piece() != PieceType::Pawn) return {};
+
+  unordered_set<Point2D> points;
+  if (piece.Color() == PieceColor::White) {
+    auto northEastPiece = world.PieceAtPosition({origin.x + 1, origin.y + 1});
+    if (northEastPiece.Piece() == PieceType::NONE || (northEastPiece.Piece() != PieceType::WRONG && northEastPiece.Color() == PieceColor::White))
+      points.emplace(origin.x + 1, origin.y + 1);
+    auto northWestPiece = world.PieceAtPosition({origin.x - 1, origin.y + 1});
+    if (northWestPiece.Piece() == PieceType::NONE || (northWestPiece.Piece() != PieceType::WRONG && northWestPiece.Color() == PieceColor::White))
+      points.emplace(origin.x - 1, origin.y + 1);
+  } else if (piece.Color() == PieceColor::Black) {
+    auto northEastPiece = world.PieceAtPosition({origin.x + 1, origin.y - 1});
+    if (northEastPiece.Piece() == PieceType::NONE || (northEastPiece.Piece() != PieceType::WRONG && northEastPiece.Color() == PieceColor::Black))
+      points.emplace(origin.x + 1, origin.y - 1);
+    auto northWestPiece = world.PieceAtPosition({origin.x - 1, origin.y - 1});
+    if (northWestPiece.Piece() == PieceType::NONE || (northWestPiece.Piece() != PieceType::WRONG && northWestPiece.Color() == PieceColor::Black))
+      points.emplace(origin.x - 1, origin.y - 1);
+  }
+  return points;
 }
