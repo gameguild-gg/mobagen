@@ -1,3 +1,22 @@
+# [1.5.0](https://github.com/InfiniBrains/mobagen/compare/v1.4.0...v1.5.0) (2023-03-20)
+
+
+### Bug Fixes
+
+* conversions via casting ([fe37e59](https://github.com/InfiniBrains/mobagen/commit/fe37e5941d64a0cb89ffaa06603ea798b64a948c))
+
+
+### Features
+
+* **chess:** naive heuristics ([9573935](https://github.com/InfiniBrains/mobagen/commit/9573935bf0ae6cd7df38d6ef2ce976610050de89))
+* show state score ([8ef874d](https://github.com/InfiniBrains/mobagen/commit/8ef874df3abc851dbaaf868ae8dbc9b9335a0c3b))
+* simplified heuristics ([fb42040](https://github.com/InfiniBrains/mobagen/commit/fb42040bb5bf1bb9dfb8d3f98cc7a28780b35b63))
+
+
+### Performance Improvements
+
+* improve bit packing ([3bdf750](https://github.com/InfiniBrains/mobagen/commit/3bdf75083a45ccf192b8c703f64487ecb3468a99))
+
 # [1.4.0](https://github.com/InfiniBrains/mobagen/compare/v1.3.7...v1.4.0) (2023-03-16)
 
 
