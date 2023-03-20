@@ -11,7 +11,7 @@ struct Search {
    * @param currentPlayer calculate the current turn possible moves
    * @return
    */
-  static auto ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> unordered_set<Point2D>;
+  static auto ListPlacesKingCannotGo(WorldState& state, PieceColor turn) -> unordered_set<Point2D>;
   static auto ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Move>;
 };
 

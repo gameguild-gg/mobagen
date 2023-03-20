@@ -10,6 +10,7 @@
 #include "pieces/Rook.h"
 #include <unordered_map>
 #include "Search.h"
+#include "Heuristics.h"
 
 void Manager::OnGui(ImGuiContext* context) {
   ImGui::SetCurrentContext(context);
@@ -18,7 +19,10 @@ void Manager::OnGui(ImGuiContext* context) {
   ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime,
               1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
   ImGui::Separator();
-  if (ImGui::Button("Reset")) this->state.Reset();
+  if (ImGui::Button("Reset")) {
+    this->state.Reset();
+    score = Heuristics::MaterialScore(&state);
+  };
   ImGui::SameLine();
   if (ImGui::Button("Undo") && !previousStates.empty()) {
     validMoves = {};
@@ -26,13 +30,13 @@ void Manager::OnGui(ImGuiContext* context) {
     state = previousStates.top();
     previousStates.pop();
   }
-
   ImGui::Separator();
+
+  ImGui::LabelText("Score", "%.1f", score);
+  ImGui::Separator();
+
   if (ImGui::Checkbox("AI Enabled", &aiEnabled))
-    if (aiEnabled == true)
-      aiColor = PieceColor::Black;
-    else
-      aiColor = PieceColor::NONE;
+    if (aiEnabled == true) aiColor = PieceColor::Black;
 
   static bool aiIsBlackStatic = true;
   if (aiEnabled) {
@@ -62,9 +66,9 @@ void Manager::OnGui(ImGuiContext* context) {
 
       if (selected.x == INT32_MIN || !validMoves.contains(index)) {  // if not selected
         selected = index;
-        if (piece.piece != PieceType::NONE && piece.color == state.GetTurn()) {
+        if (piece.Piece() != PieceType::NONE && piece.Color() == state.GetTurn()) {
           // todo: create isincheck behavior and reject valid moves that maintain king in check
-          validMoves = getMoves(piece.piece, index);
+          validMoves = getMoves(piece.Piece(), index);
           if (validMoves.empty()) {
             validMoves = {};
             selected = {INT32_MIN, INT32_MIN};
@@ -77,6 +81,7 @@ void Manager::OnGui(ImGuiContext* context) {
         previousStates.push(state);
 
         state.Move(selected, index);
+        score = Heuristics::MaterialScore(&state);
 
         cout << state.toString() << endl;
         validMoves = {};
@@ -146,15 +151,15 @@ unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
     case PieceType::Pawn:
       return Pawn::PossibleMoves(state, point);
     case PieceType::Rook:
-      return Rook::PossibleMoves(state, point);
+      return Rook::AttackMoves(state, point);
     case PieceType::Knight:
-      return Knight::PossibleMoves(state, point);
+      return Knight::AttackMoves(state, point);
     case PieceType::Bishop:
-      return Bishop::PossibleMoves(state, point);
+      return Bishop::AttackMoves(state, point);
     case PieceType::Queen:
-      return Queen::PossibleMoves(state, point);
+      return Queen::AttackMoves(state, point);
     case PieceType::King:
-      return King::PossibleMoves(state, point);
+      return King::AttackMoves(state, point);
     default:
       return {};
   }
@@ -174,29 +179,31 @@ Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
   state.Reset();
   cout << state.toString() << endl;
   // todo: use asset subsystem loading!
-  piecePackedToTexture[(uint8_t)PieceType::Pawn | (uint8_t)PieceColor::White] = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgWhite);
-  piecePackedToTexture[(uint8_t)PieceType::Pawn | (uint8_t)PieceColor::Black] = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgBlack);
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgWhite);
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgBlack);
 
-  piecePackedToTexture[(uint8_t)PieceType::Knight | (uint8_t)PieceColor::White]
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Knight).Pack()]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, KnightSvgWhite);
-  piecePackedToTexture[(uint8_t)PieceType::Knight | (uint8_t)PieceColor::Black]
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Knight).Pack()]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, KnightSvgBlack);
 
-  piecePackedToTexture[(uint8_t)PieceType::Bishop | (uint8_t)PieceColor::White]
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Bishop).Pack()]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, BishopSvgWhite);
-  piecePackedToTexture[(uint8_t)PieceType::Bishop | (uint8_t)PieceColor::Black]
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Bishop).Pack()]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, BishopSvgBlack);
 
-  piecePackedToTexture[(uint8_t)PieceType::Rook | (uint8_t)PieceColor::White] = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgWhite);
-  piecePackedToTexture[(uint8_t)PieceType::Rook | (uint8_t)PieceColor::Black] = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgBlack);
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgWhite);
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgBlack);
 
-  piecePackedToTexture[(uint8_t)PieceType::Queen | (uint8_t)PieceColor::White]
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Queen).Pack()]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, QueenSvgWhite);
-  piecePackedToTexture[(uint8_t)PieceType::Queen | (uint8_t)PieceColor::Black]
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Queen).Pack()]
       = Texture::LoadSVGFromString(engine->window->sdlRenderer, QueenSvgBlack);
 
-  piecePackedToTexture[(uint8_t)PieceType::King | (uint8_t)PieceColor::White] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgWhite);
-  piecePackedToTexture[(uint8_t)PieceType::King | (uint8_t)PieceColor::Black] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgBlack);
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::King).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgWhite);
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::King).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgBlack);
+
+  score = Heuristics::MaterialScore(&state);
 }
 
 Manager::~Manager() {
@@ -209,5 +216,6 @@ void Manager::Update(float deltaTime) {
   if (aiEnabled && aiColor == state.GetTurn()) {
     auto move = Search::NextMove(state);
     state.Move(move.From(), move.To());
+    score = Heuristics::MaterialScore(&state);
   }
 }

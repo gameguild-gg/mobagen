@@ -1,3 +1,4 @@
+#include <iostream>
 #include "Search.h"
 
 #include "pieces/Bishop.h"
@@ -14,18 +15,18 @@ auto Search::ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Mov
       Point2D const location = {column, line};
       auto p = state.PieceAtPosition(location);
       // continue if it is not a valid piece
-      if (p.piece == PieceType::NONE || p.piece != PieceType::WRONG || (currentPlayer && p.color != state.GetTurn())
-          || (!currentPlayer && p.color == state.GetTurn()))
+      if (p.Piece() == PieceType::NONE || p.Piece() != PieceType::WRONG || (currentPlayer && p.Color() != state.GetTurn())
+          || (!currentPlayer && p.Color() == state.GetTurn()))
         continue;
       vector<Move> toAdd;
       // todo: improve this switch
-      switch (p.piece) {
+      switch (p.Piece()) {
         case PieceType::Rook:
-          toAdd = Move::GenerateListOfMoves(p, location, Rook::PossibleMoves(state, location));
+          toAdd = Move::GenerateListOfMoves(p, location, Rook::AttackMoves(state, location));
           moves.insert(moves.end(), toAdd.begin(), toAdd.end());
           break;
         case PieceType::Bishop:
-          toAdd = Move::GenerateListOfMoves(p, location, Bishop::PossibleMoves(state, location));
+          toAdd = Move::GenerateListOfMoves(p, location, Bishop::AttackMoves(state, location));
           moves.insert(moves.end(), toAdd.begin(), toAdd.end());
           break;
         case PieceType::Pawn:
@@ -33,15 +34,15 @@ auto Search::ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Mov
           moves.insert(moves.end(), toAdd.begin(), toAdd.end());
           break;
         case PieceType::Queen:
-          toAdd = Move::GenerateListOfMoves(p, location, Queen::PossibleMoves(state, location));
+          toAdd = Move::GenerateListOfMoves(p, location, Queen::AttackMoves(state, location));
           moves.insert(moves.end(), toAdd.begin(), toAdd.end());
           break;
         case PieceType::Knight:
-          toAdd = Move::GenerateListOfMoves(p, location, Knight::PossibleMoves(state, location));
+          toAdd = Move::GenerateListOfMoves(p, location, Knight::AttackMoves(state, location));
           moves.insert(moves.end(), toAdd.begin(), toAdd.end());
           break;
         case PieceType::King:
-          toAdd = Move::GenerateListOfMoves(p, location, King::PossibleMoves(state, location));
+          toAdd = Move::GenerateListOfMoves(p, location, King::AttackMoves(state, location));
           moves.insert(moves.end(), toAdd.begin(), toAdd.end());
         default:
           break;
@@ -51,32 +52,34 @@ auto Search::ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Mov
   return moves;
 }
 
-auto Search::ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> unordered_set<Point2D> {
+auto Search::ListPlacesKingCannotGo(WorldState& state, PieceColor turn) -> unordered_set<Point2D> {
   unordered_set<Point2D> moves;
-  auto const turn = state.GetTurn();
   for (auto line = 0; line < 8; line++) {
     for (auto column = 0; column < 8; column++) {
       Point2D const location = {column, line};
       auto p = state.PieceAtPosition(location);
       // continue if it is not a valid piece
-      if (p.piece == PieceType::NONE || p.piece == PieceType::WRONG) continue;
-      if ((turn == p.color && currentPlayer) || (turn != p.color && !currentPlayer)) continue;
+      if (p.Piece() == PieceType::NONE || p.Piece() == PieceType::WRONG) continue;
+      if (turn == p.Color()) continue;
       // todo: improve this switch
-      switch (p.piece) {
+      switch (p.Piece()) {
         case PieceType::Rook:
-          moves.merge(Rook::PossibleMoves(state, location));
+          moves.merge(Rook::CoverMoves(state, location));
           break;
         case PieceType::Bishop:
-          moves.merge(Bishop::PossibleMoves(state, location));
+          moves.merge(Bishop::CoverMoves(state, location));
           break;
         case PieceType::Pawn:
-          moves.merge(Pawn::AttackMoves(state, location));
+          moves.merge(Pawn::CoverMoves(state, location));
           break;
         case PieceType::Queen:
-          moves.merge(Queen::PossibleMoves(state, location));
+          moves.merge(Queen::CoverMoves(state, location));
           break;
         case PieceType::Knight:
-          moves.merge(Knight::PossibleMoves(state, location));
+          moves.merge(Knight::CoverMoves(state, location));
+          break;
+        case PieceType::King:
+          moves.merge(King::CoverMovesNaive(state, location));
           break;
         default:
           break;
@@ -84,15 +87,8 @@ auto Search::ListPlacesKingCannotGo(WorldState& state, bool currentPlayer) -> un
     }
   }
 
-  auto otherKing = King::FindKing(state, !currentPlayer);
-  unordered_set<Point2D> otherKingVicinity = {otherKing + Point2D::UP + Point2D::LEFT,
-                                              otherKing + Point2D::UP,
-                                              otherKing + Point2D::UP + Point2D::RIGHT,
-                                              otherKing + Point2D::DOWN + Point2D::LEFT,
-                                              otherKing + Point2D::DOWN,
-                                              otherKing + Point2D::DOWN + Point2D::RIGHT,
-                                              otherKing + Point2D::RIGHT,
-                                              otherKing + Point2D::LEFT};
-  moves.merge(otherKingVicinity);
+  cout << "attacked: ";
+  for (auto item : moves) cout << item.to_string();
+  std::cout << endl;
   return moves;
 }
