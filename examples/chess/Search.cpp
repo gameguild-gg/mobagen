@@ -1,5 +1,6 @@
 #include <iostream>
 #include "Search.h"
+#include "Heuristics.h"
 
 #include "pieces/Bishop.h"
 #include "pieces/King.h"
@@ -8,15 +9,14 @@
 #include "pieces/Queen.h"
 #include "pieces/Rook.h"
 
-auto Search::ListMoves(WorldState& state, bool currentPlayer) -> std::vector<Move> {
+auto Search::ListMoves(WorldState& state, PieceColor turn) -> std::vector<Move> {
   vector<Move> moves;
   for (auto line = 0; line < 8; line++) {
     for (auto column = 0; column < 8; column++) {
       Point2D const location = {column, line};
       auto p = state.PieceAtPosition(location);
       // continue if it is not a valid piece
-      if (p.Piece() == PieceType::NONE || p.Piece() != PieceType::WRONG || (currentPlayer && p.Color() != state.GetTurn())
-          || (!currentPlayer && p.Color() == state.GetTurn()))
+      if (p.Piece() == PieceType::NONE || turn != p.Color())
         continue;
       vector<Move> toAdd;
       // todo: improve this switch
@@ -91,4 +91,20 @@ auto Search::ListPlacesKingCannotGo(WorldState& state, PieceColor turn) -> unord
   for (auto item : moves) cout << item.to_string();
   std::cout << endl;
   return moves;
+}
+Move Search::NextMove(WorldState& state) {
+  auto moves = Search::ListMoves(state, state.GetTurn());
+  vector<MoveState> moveStates;
+  for(auto move : moves) {
+    auto newState = state;
+    newState.Move(move.From(), move.To());
+    newState.EndTurn();
+    auto score = Heuristics::MaterialScore(&newState);
+    moveStates.push_back({newState, move, score});
+  }
+  sort(moveStates.begin(), moveStates.end());
+  if(state.GetTurn() == PieceColor::Black)
+    return moveStates.begin()->move;
+  else
+    return moveStates.rbegin()->move;
 }
