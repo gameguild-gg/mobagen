@@ -33,16 +33,17 @@ jobs:
 
       - name: Semantic Release
         id: semantic
-        uses: cycjimmy/semantic-release-action@v3
+        uses: cycjimmy/semantic-release-action@v2
         with:
+          semantic_version: 19.0.2
           # You can specify specifying version range for the extra plugins if you prefer.
           extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/git
-            @semantic-release/commit-analyzer
-            @semantic-release/github
-            @semantic-release/npm
-            @semantic-release/release-notes-generator
+            @semantic-release/changelog@6.0.2
+            @semantic-release/git@10.0.1
+            @semantic-release/commit-analyzer@9.0.2
+            @semantic-release/github@8.0.7
+            @semantic-release/npm@9.0.1
+            @semantic-release/release-notes-generator@10.0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
