@@ -1,13 +1,8 @@
 #include <iostream>
 #include "Search.h"
 #include "Heuristics.h"
-
-#include "pieces/Bishop.h"
-#include "pieces/King.h"
-#include "pieces/Pawn.h"
-#include "pieces/Knight.h"
-#include "pieces/Queen.h"
-#include "pieces/Rook.h"
+#include "pieces/Pieces.h"
+#include "algorithm"
 
 auto Search::ListMoves(WorldState& state, PieceColor turn) -> std::vector<Move> {
   vector<Move> moves;

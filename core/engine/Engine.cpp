@@ -183,15 +183,15 @@ void Engine::processInput() {
 
 Vector2 Engine::getInputArrow() const { return arrowInput; }
 
-// todo: optimize this
-template <class T> std::unordered_set<T> Engine::FindObjectsOfType() {
-  std::unordered_set<T> ret;
-  for (GameObject* go : gameObjects)
-    if (T elem = dynamic_cast<T>(&go))  // todo: check this
-      ret.insert(elem);
-
-  return ret;
-}
+//// todo: optimize this
+// template <class T> std::unordered_set<T> Engine::FindObjectsOfType() {
+//   std::unordered_set<T> ret;
+//   for (GameObject* go : gameObjects)
+//     if (T elem = dynamic_cast<T>(&go))  // todo: check this
+//       ret.insert(elem);
+//
+//   return ret;
+// }
 
 // todo: optimize this
 void Engine::Destroy(GameObject* go) { toDestroy.push_back(go); }

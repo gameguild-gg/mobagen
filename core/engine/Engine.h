@@ -22,7 +22,6 @@ private:
 
 public:
   Window* window;
-  //    ImGuiContext *imGuiContext;
 
   // todo: move this to a scene manager and make this private
   std::unordered_set<GameObject*> gameObjects;
@@ -31,9 +30,6 @@ public:
 private:
   bool done = false;
 
-  // Our state
-  bool show_demo_window = true;
-  bool show_another_window = false;
   ImVec4 clear_color = ImVec4(0, 0, 0, 1);
 
   // todo: move this to input class
@@ -44,9 +40,6 @@ private:
   std::vector<GameObject*> toDestroy;
 
 public:
-  //#ifdef __EMSCRIPTEN__
-  //    static void loop();
-  //#endif
   Engine();
   ~Engine();
   bool Start(std::string title);
@@ -54,7 +47,7 @@ public:
   void Tick();
   void Exit();
 
-  template <class T> std::unordered_set<T> FindObjectsOfType();
+  //  template <class T> std::unordered_set<T> FindObjectsOfType();
 
   void Destroy(GameObject* go);
 };
