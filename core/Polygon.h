@@ -2,10 +2,10 @@
 #define POLYGON_H
 
 #include <vector>
-#include "Vector2.h"
-#include "Transform.h"
-#include "Vector3.h"
-#include "ColorT.h"
+#include "math/Vector2.h"
+#include "scene/Transform.h"
+#include "math/Vector3.h"
+#include "math/ColorT.h"
 
 // naive approach to represent a polygon
 struct Polygon {

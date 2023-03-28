@@ -1,8 +1,8 @@
 #ifndef MOBAGEN_TEXTURE_H
 #define MOBAGEN_TEXTURE_H
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include "SDL_render.h"
-#include "Transform.h"
+#include "scene/Transform.h"
 #include <string>
 
 // todo: make this a game object

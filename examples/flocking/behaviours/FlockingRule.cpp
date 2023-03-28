@@ -5,6 +5,7 @@
 #include "Polygon.h"
 #include "../gameobjects/Boid.h"
 #include "../gameobjects/World.h"
+#include "engine/Engine.h"
 
 FlockingRule::FlockingRule(const FlockingRule& toCopy)
     : weight(toCopy.weight), debugColor(toCopy.debugColor), force(toCopy.force), isEnabled(toCopy.isEnabled), world(toCopy.world) {}

@@ -1,6 +1,6 @@
 #ifndef SCENARIOGENERATORBASE_H
 #define SCENARIOGENERATORBASE_H
-#include <ColorT.h>
+#include "math/ColorT.h"
 #include <string>
 #include <vector>
 

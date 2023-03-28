@@ -1,8 +1,8 @@
 #pragma once
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include "SDL_render.h"
 #include "SDL_video.h"
-#include "Vector2.h"
+#include "math/Vector2.h"
 #include <imgui.h>
 #include <string>
 

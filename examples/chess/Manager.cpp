@@ -1,6 +1,6 @@
 #include "Manager.h"
-#include "ColorT.h"
-#include "Point2D.h"
+#include "math/ColorT.h"
+#include "math/Point2D.h"
 #include "pieces/Bishop.h"
 #include "pieces/King.h"
 #include "pieces/Knight.h"

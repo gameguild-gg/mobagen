@@ -9,6 +9,7 @@
 #include "../behaviours/MouseInfluenceRule.h"
 #include "../behaviours/BoundedAreaRule.h"
 #include "../behaviours/WindRule.h"
+#include "engine/Engine.h"
 
 #if defined(_WIN32)
 #  include "Windows.h"

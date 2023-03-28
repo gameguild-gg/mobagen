@@ -1,6 +1,7 @@
 #ifndef MOBAGEN_ENGINE_COMPONENT_H_
 #define MOBAGEN_ENGINE_COMPONENT_H_
 
+#include "SceneForwards.h"
 #include "Object.h"
 class Component : public Object {
 private:

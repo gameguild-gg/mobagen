@@ -1,22 +1,17 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
+#include "EngineForwards.h"
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer.h"
-#include "Window.h"
-#include "GameObject.h"
+#include "../Window.h"
+#include "../scene/SceneForwards.h"
 #include <cstdio>
-#include <SDL.h>
+#include "SDL.h"
 #include <vector>
 #include <unordered_set>
 #include <chrono>
-
-//#ifdef __EMSCRIPTEN__
-//#include <emscripten.h>
-//#endif
-
-class GameObject;
 
 class Engine {
 private:

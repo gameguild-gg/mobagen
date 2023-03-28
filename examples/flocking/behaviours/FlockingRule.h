@@ -3,9 +3,9 @@
 
 #include <vector>
 #include <memory>
-#include "Vector2.h"
-#include "Vector3.h"
-#include "ColorT.h"
+#include "math/Vector2.h"
+#include "math/Vector3.h"
+#include "math/ColorT.h"
 
 class Boid;
 class World;

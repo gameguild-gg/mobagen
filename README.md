@@ -42,7 +42,7 @@ It is the best all-around solution to:
 - Best package manager to import and use third party libs from source code with low maintenance code.
 
 # Architecture
-- Please refer to [this doc.](docs/Architecture.md)
+- Please refer to [this doc.](documentation/Architecture.md)
 - [C++ core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
 
 # Restrictions

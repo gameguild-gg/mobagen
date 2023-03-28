@@ -1,6 +1,8 @@
 #include "World.h"
 #include "Polygon.h"
 #include <chrono>
+#include "scene/Transform.h"
+#include "engine/Engine.h"
 
 void World::print() {
   auto catposid = catPosition.y * (sideSize / 2) + catPosition.x + sideSize * sideSize / 2;

@@ -1,7 +1,7 @@
 #ifndef LIFE_MANAGER_H
 #define LIFE_MANAGER_H
 
-#include "GameObject.h"
+#include "scene/GameObject.h"
 #include "RuleBase.h"
 #include "World.h"
 

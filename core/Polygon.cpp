@@ -1,5 +1,5 @@
 #include "Polygon.h"
-#include "ColorT.h"
+#include "math/ColorT.h"
 
 std::vector<Vector2> Polygon::getDrawablePoints(const Transform& transform) {
   std::vector<Vector2> ret;

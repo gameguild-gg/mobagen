@@ -1,6 +1,7 @@
 #include "Engine.h"
 #include "SDL.h"
-#include "Polygon.h"
+#include "../Polygon.h"
+#include "../scene/GameObject.h"
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
 #endif

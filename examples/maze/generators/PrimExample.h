@@ -3,7 +3,7 @@
 
 #include <vector>
 #include "../MazeGeneratorBase.h"
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include <map>
 
 class PrimExample : public MazeGeneratorBase {

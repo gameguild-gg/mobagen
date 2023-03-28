@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include "WorldStateFwd.h"  // forward is needed here to avoid collisions
-#include "Point2D.h"
+#include "math/Point2D.h"
 
 struct Heuristics {
 public:

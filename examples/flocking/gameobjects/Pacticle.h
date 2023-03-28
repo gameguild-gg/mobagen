@@ -1,8 +1,8 @@
 #ifndef PACTICLE_H
 #define PACTICLE_H
 
-#include "GameObject.h"
-#include "Transform.h"
+#include "scene/GameObject.h"
+#include "scene/Transform.h"
 #include "Polygon.h"
 
 class Particle : public GameObject {

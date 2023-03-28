@@ -4,7 +4,7 @@
   "description": "Module Based Game Engine",
   "main": "bin-emscripten/bin/index.js",
   "directories": {
-    "doc": "docs",
+    "doc": "documentation",
     "example": "examples",
     "engine": "engine"
   },

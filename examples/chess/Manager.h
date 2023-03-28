@@ -3,9 +3,9 @@
 
 #include "Texture.h"
 #include "WorldState.h"
-#include <ColorT.h>
-#include <Engine.h>
-#include <GameObject.h>
+#include "math/ColorT.h"
+#include "engine/Engine.h"
+#include "scene/GameObject.h"
 #include <iostream>
 #include <map>
 #include <unordered_set>

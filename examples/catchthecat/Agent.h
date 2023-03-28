@@ -1,6 +1,6 @@
 #ifndef AGENT_H
 #define AGENT_H
-#include "Point2D.h"
+#include "math/Point2D.h"
 
 class World;
 

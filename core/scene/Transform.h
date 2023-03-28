@@ -1,7 +1,7 @@
 #ifndef TRANSFORM_H
 #define TRANSFORM_H
 
-#include "Vector2.h"
+#include "../math/Vector2.h"
 
 struct Transform {
 public:

@@ -1,7 +1,8 @@
 #include "Manager.h"
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include "generators/ParticleGenerator.h"
 #include "generators/RandomGenerator.h"
+#include "engine/Engine.h"
 
 #include <chrono>
 

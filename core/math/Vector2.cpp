@@ -1,5 +1,5 @@
 #include "Vector2.h"
-#include "Random.h"
+#include "../Random.h"
 
 Vector2::Vector2() {
   x = 0;

@@ -1,7 +1,7 @@
 #ifndef CHESS_WORLDSTATE_H
 #define CHESS_WORLDSTATE_H
 
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include <vector>
 #include <unordered_set>
 #include "WorldStateFwd.h"

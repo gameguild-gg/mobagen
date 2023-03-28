@@ -1,7 +1,7 @@
 #ifndef LIFE_WORLD_H
 #define LIFE_WORLD_H
 
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include <vector>
 
 struct World {

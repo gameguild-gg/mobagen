@@ -1,11 +1,11 @@
 #ifndef MOBAGEN_WORLD_H
 #define MOBAGEN_WORLD_H
 
-#include "ColorT.h"
-#include "GameObject.h"
+#include "math/ColorT.h"
+#include "scene/GameObject.h"
 #include "MazeGeneratorBase.h"
 #include "Node.h"
-#include "Point2D.h"
+#include "math/Point2D.h"
 #include <vector>
 
 class World : GameObject {

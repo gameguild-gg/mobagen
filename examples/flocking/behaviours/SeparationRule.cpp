@@ -1,6 +1,7 @@
 #include "SeparationRule.h"
 #include "../gameobjects/Boid.h"
 #include "../gameobjects/World.h"
+#include "engine/Engine.h"
 
 Vector2 SeparationRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
   // Try to avoid boids too close

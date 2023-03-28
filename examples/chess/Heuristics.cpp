@@ -20,7 +20,7 @@ int Heuristics::MaterialScore(WorldState* state) {
           pieceScore += 1000;                                        // piece value
           pieceScore += King::AttackMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
-          pieceScore -= King::IsInCheck(*state, piece.Color())*10;
+          pieceScore -= King::IsInCheck(*state, piece.Color()) * 10;
           // todo: king safety, check, draw and mate
           break;
         case PieceType::Queen:

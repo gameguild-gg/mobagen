@@ -63,9 +63,10 @@ if(DOXYGEN_FOUND)
     VERBATIM
   )
 
-  # TODO: Where docs will be installed. Note: if docs shall be not a part of final config, delete
-  # this install command, docs will be only available in [build_dir]/doc/doc/index.html install(
-  # DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/ DESTINATION ./share/doc/${PROJECT_NAME} OPTIONAL)
+  # TODO: Where documentation will be installed. Note: if documentation shall be not a part of final
+  # config, delete this install command, documentation will be only available in
+  # [build_dir]/doc/doc/index.html install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/ DESTINATION
+  # ./share/doc/${PROJECT_NAME} OPTIONAL)
 endif()
 
 # TODO uncomment this if used as a standalone project and you want to use install target set default

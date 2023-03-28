@@ -3,7 +3,7 @@
 
 #include "../behaviours/FlockingRule.h"
 #include "Boid.h"
-#include "GameObject.h"
+#include "scene/GameObject.h"
 
 class Particle;
 

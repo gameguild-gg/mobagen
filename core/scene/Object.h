@@ -12,25 +12,26 @@ public:
 private:
   std::string _name;
 
-public:
-  const std::uint64_t& instanceId() const { return _instanceId; }
-
 private:
   int _instanceId;  // todo: initialize this properly
 
+public:
+  // todo: make it const to protect from modification
+  std::uint64_t instanceId() { return _instanceId; }
+
   // todo: equals comparison and attribution via copy or move ?
 public:
-  Object();  // todo: implement copy and set internal variables
+  Object(){};  // todo: implement copy and set internal variables
 
 public:
   // todo: mark to be deleted next frame
-  static void Destroy(const Object& object);
+  static void Destroy(const Object& object){};
 
 public:
   template <class T> static std::vector<T> FindObjectsOfType();
 
 public:
-  static void DontDestroyOnLoad(const Object& object);
+  static void DontDestroyOnLoad(const Object& object){};
 
 public:
   std::string ToString();

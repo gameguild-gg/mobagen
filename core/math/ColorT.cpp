@@ -1,5 +1,5 @@
 #include "ColorT.h"
-#include "Random.h"
+#include "../Random.h"
 #include <stdexcept>
 #include <algorithm>
 

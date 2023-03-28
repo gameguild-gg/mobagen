@@ -1,8 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include <doctest/doctest.h>
-#include "Engine.h"
-#include "GameObject.h"
+#include "engine/Engine.h"
+#include "scene/GameObject.h"
 //#include "cpr/cpr.h"
 
 class Quitter : public GameObject {

@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include "../gameobjects/Boid.h"
 #include "../gameobjects/World.h"
+#include "engine/Engine.h"
 
 Vector2 WindRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
   // todo: add a wind force here

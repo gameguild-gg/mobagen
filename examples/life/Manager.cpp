@@ -1,8 +1,9 @@
 #include "Manager.h"
-#include "ColorT.h"
+#include "math/ColorT.h"
 #include "rules/JohnConway.h"
 #include "rules/HexagonGameOfLife.h"
 #include <iostream>
+#include "engine/Engine.h"
 
 Manager::Manager(Engine* pEngine1, Engine* pEngine) : GameObject(pEngine) {
   world.Resize(sideSize);

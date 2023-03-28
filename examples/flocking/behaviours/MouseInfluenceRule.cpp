@@ -1,6 +1,7 @@
 #include "MouseInfluenceRule.h"
 #include "../gameobjects/Boid.h"
 #include "../gameobjects/World.h"
+#include "engine/Engine.h"
 
 Vector2 MouseInfluenceRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
   ImGui::SetCurrentContext(world->engine->window->imGuiContext);

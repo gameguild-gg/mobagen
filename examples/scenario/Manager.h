@@ -1,8 +1,8 @@
 #ifndef SCENARIO_MANAGER_H
 #define SCENARIO_MANAGER_H
 
-#include "ColorT.h"
-#include "GameObject.h"
+#include "math/ColorT.h"
+#include "scene/GameObject.h"
 #include "GeneratorBase.h"
 #include <SDL.h>
 

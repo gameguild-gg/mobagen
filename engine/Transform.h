@@ -1,6 +1,0 @@
-#ifndef MOBAGEN_ENGINE_TRANSFORM_H_
-#define MOBAGEN_ENGINE_TRANSFORM_H_
-
-class Transform {};
-
-#endif  // MOBAGEN_ENGINE_TRANSFORM_H_
