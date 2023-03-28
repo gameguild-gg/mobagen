@@ -87,24 +87,63 @@ auto Search::ListPlacesKingCannotGo(WorldState& state, PieceColor turn) -> unord
     }
   }
 
-  cout << "attacked: ";
-  for (auto item : moves) cout << item.to_string();
-  std::cout << endl;
   return moves;
 }
 Move Search::NextMove(WorldState& state) {
   auto moves = Search::ListMoves(state, state.GetTurn());
+  // generate states
   vector<MoveState> moveStates;
   for(auto move : moves) {
     auto newState = state;
     newState.Move(move.From(), move.To());
-    newState.EndTurn();
     auto score = Heuristics::MaterialScore(&newState);
-    moveStates.push_back({newState, move, score});
+    moveStates.push_back({newState, {move}, score});
   }
-  sort(moveStates.begin(), moveStates.end());
-  if(state.GetTurn() == PieceColor::Black)
-    return moveStates.begin()->move;
+  // do not cover the worst ones, cut the queue in half
+  if(moveStates[0].state.GetTurn() == PieceColor::White)
+    sort(moveStates.begin(), moveStates.end());
   else
-    return moveStates.rbegin()->move;
+    sort(moveStates.rbegin(), moveStates.rend());
+  //moveStates.resize(min(moveStates.size() / 2, (unsigned long int)10));
+
+  // todo: loop this or make it be recursive
+  vector<MoveState> moveStates2;
+  // go deeper for the opponent color
+  for(auto state : moveStates){
+    auto moves = Search::ListMoves(state.state, state.state.GetTurn());
+    for(auto move : moves) {
+      auto newState = state;
+      newState.moves.push_back(move);
+      newState.state.Move(move.From(), move.To());
+      newState.score = Heuristics::MaterialScore(&newState.state);
+      moveStates2.push_back(newState);
+    }
+  }
+  // do not cover the worst ones, cut the queue in half
+  if(moveStates2[0].state.GetTurn() == PieceColor::Black)
+    sort(moveStates2.begin(), moveStates2.end());
+  else
+    sort(moveStates2.rbegin(), moveStates2.rend());
+  //moveStates2.resize(min(moveStates2.size() / 2, (unsigned long int)10));
+
+  vector<MoveState> moveStates3;
+  // go deeper for the opponent color
+  for(auto state : moveStates2){
+    auto moves = Search::ListMoves(state.state, state.state.GetTurn());
+    for(auto move : moves) {
+      auto newState = state;
+      newState.moves.push_back(move);
+      newState.state.Move(move.From(), move.To());
+      newState.score = Heuristics::MaterialScore(&newState.state);
+      moveStates3.push_back(newState);
+    }
+  }
+  // do not cover the worst ones, cut the queue in half
+  if(moveStates3[0].state.GetTurn() == PieceColor::White)
+    sort(moveStates3.begin(), moveStates3.end());
+  else
+    sort(moveStates3.rbegin(), moveStates3.rend());
+  //moveStates3.resize(min(moveStates2.size() / 2, (unsigned long int)10));
+
+  return moveStates3[0].moves[0];
 }

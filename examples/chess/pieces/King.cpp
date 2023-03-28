@@ -53,3 +53,12 @@ unordered_set<Point2D> King::CoverMovesNaive(WorldState& world, const Point2D& o
   }
   return moves;
 }
+auto King::IsInCheck(WorldState& state, PieceColor color) -> int {
+  auto kingLocation = FindKing(state, color);
+  auto attackedSquares = Search::ListMoves(state, (PieceColor)(!(bool)color));
+  int count=0;
+  for(auto square : attackedSquares) {
+    if (square.To() == kingLocation) count++;
+  }
+  return count;
+}

@@ -111,11 +111,13 @@ public:
 
 struct MoveState {
   WorldState state;
-  Move move;
+  vector<Move> moves;
   int score;
 
   // operator to compare two MoveState using score
   bool operator<(const MoveState& rhs) const { return score < rhs.score; }
+  Move GetCurrentMove() { return moves.back(); }
+  Move GetFirstMove() { return moves.front(); }
 };
 
 #endif  // CHESS_WORLDSTATE_H

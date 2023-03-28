@@ -20,6 +20,7 @@ int Heuristics::MaterialScore(WorldState* state) {
           pieceScore += 1000;                                        // piece value
           pieceScore += King::AttackMoves(*state, location).size();  // mobility
           pieceScore += distanceToCenter(location);
+          pieceScore -= King::IsInCheck(*state, piece.Color())*10;
           // todo: king safety, check, draw and mate
           break;
         case PieceType::Queen:
@@ -45,11 +46,13 @@ int Heuristics::MaterialScore(WorldState* state) {
         case PieceType::Pawn:
           pieceScore += 10;                                      // piece value
           moves = Pawn::PossibleMoves(*state, location).size();  // mobility
-          pieceScore += distanceToCenter(location);
           pieceScore += moves;
-          if (moves == 0) pieceScore -= 5;                          // blocked
+          pieceScore += distanceToCenter(location);
+          pieceScore += Pawn::AttackMoves(*state, location).size();
+          pieceScore += Pawn::CoverMoves(*state, location).size();
+          if (moves == 0) pieceScore -= 2;                          // blocked
           pieceScore -= 2 * Pawn::CountDoubles(*state, location);   // doubled
-          if (Pawn::IsIsolated(*state, location)) pieceScore -= 5;  // isolation
+          if (Pawn::IsIsolated(*state, location)) pieceScore -= 1;  // isolation
           break;
         default:
           continue;
