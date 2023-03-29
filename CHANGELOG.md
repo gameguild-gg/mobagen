@@ -1,3 +1,18 @@
+# [1.6.0](https://github.com/InfiniBrains/mobagen/compare/v1.5.0...v1.6.0) (2023-03-28)
+
+
+### Bug Fixes
+
+* **chess:** missing algorithm include ([efc42a4](https://github.com/InfiniBrains/mobagen/commit/efc42a44dae1fc6bf7d59aeb2451febd1ad217f3))
+* semantic release ([0ae3f54](https://github.com/InfiniBrains/mobagen/commit/0ae3f54c416744552d9ba765e42243d75f1c248d))
+
+
+### Features
+
+* **chess:** 3 levels of search ([6ff01f9](https://github.com/InfiniBrains/mobagen/commit/6ff01f9e15dccad589288b10dca10879c0cd8321))
+* forward includes ([ad643d6](https://github.com/InfiniBrains/mobagen/commit/ad643d629bbbb6229d3f0093dcc245364321559c))
+* naive search for moves ([6abe70e](https://github.com/InfiniBrains/mobagen/commit/6abe70eb31e88db7b2ca561c0d3066730e4dc0e5))
+
 # [1.5.0](https://github.com/InfiniBrains/mobagen/compare/v1.4.0...v1.5.0) (2023-03-20)
 
 
