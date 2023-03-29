@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/InfiniBrains/mobagen/compare/v1.6.0...v1.7.0) (2023-03-29)
+
+
+### Features
+
+* **core:** boilerplate for game objects similar to unity ([7c028d8](https://github.com/InfiniBrains/mobagen/commit/7c028d8b2cb2298e527a8c87b79a924401234f34))
+
 # [1.6.0](https://github.com/InfiniBrains/mobagen/compare/v1.5.0...v1.6.0) (2023-03-28)
 
 
