@@ -8,7 +8,13 @@
 
 using namespace std::chrono_literals;
 
-Engine::Engine() { window = nullptr; }
+//Engine::Engine(EngineSettings settings): window(nullptr), settings(settings) {
+//  SDL_Log("Engine Created");
+//}
+
+Engine::Engine(): window(nullptr), settings(EngineSettings()) {
+  SDL_Log("Engine Created");
+}
 
 Engine::~Engine() {
   if (window) {
@@ -195,3 +201,4 @@ Vector2 Engine::getInputArrow() const { return arrowInput; }
 
 // todo: optimize this
 void Engine::Destroy(GameObject* go) { toDestroy.push_back(go); }
+

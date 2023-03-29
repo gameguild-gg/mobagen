@@ -9,6 +9,7 @@
 #include "../scene/SceneForwards.h"
 #include <cstdio>
 #include "SDL.h"
+#include "EngineSettings.h"
 #include <vector>
 #include <unordered_set>
 #include <chrono>
@@ -19,6 +20,7 @@ private:
   float deltaTime;
   double targetFPS = 60;
   int64_t accumulatedTime = 0;
+  EngineSettings settings;
 
 public:
   Window* window;
@@ -40,7 +42,9 @@ private:
   std::vector<GameObject*> toDestroy;
 
 public:
-  Engine();
+  explicit Engine();
+//  explicit Engine(EngineSettings settings);
+
   ~Engine();
   bool Start(std::string title);
   void Run();
