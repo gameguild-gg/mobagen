@@ -20,10 +20,10 @@ set(CORE_INC_DIR
 add_library(core STATIC ${CORE_SRC} ${CORE_INC})
 
 if(EMSCRIPTEN)
-  target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI)
+  target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI quickjs)
 else()
   target_link_libraries(
-    core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI
+    core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI quickjs
     # MbedTLS::mbedtls MbedTLS::mbedcrypto MbedTLS::mbedx509 cpr::cpr
   )
 endif()
