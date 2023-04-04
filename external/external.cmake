@@ -24,6 +24,10 @@ else()
   # add_subdirectory( glew )
 endif()
 
+if(NOT EMSCRIPTEN)
+  include(external/wasm.cmake)
+endif()
+
 # include(filament.cmake) include(threadpool.cmake) include(external/zlib.cmake)
 include(external/sdl.cmake)
 # include(glm.cmake) include(glew.cmake)

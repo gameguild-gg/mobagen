@@ -2,7 +2,7 @@
 #define MOBAGEN_BEHAVIOUR_H
 
 #include "Component.h"
-class Behaviour: public Component {
+class Behaviour : public Component {
 public:
   bool enabled = true;
   bool isActiveAndEnabled = true;

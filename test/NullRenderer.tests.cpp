@@ -4,13 +4,13 @@
 //#include "engine/Engine.h"
 //#include "scene/GameObject.h"
 //
-//class Quitter : public GameObject {
-//public:
+// class Quitter : public GameObject {
+// public:
 //  explicit Quitter(Engine* pEngine) : GameObject(pEngine){};
 //  void Update(float time) override { engine->Exit(); }
 //};
 //
-//TEST_CASE("Engine should run without Renderering") {
+// TEST_CASE("Engine should run without Renderering") {
 //  auto* engine = new Engine();
 //  if (engine->Start("Test engine")) {
 //    new Quitter(engine);

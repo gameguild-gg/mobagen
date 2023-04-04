@@ -3,8 +3,6 @@
 
 #include "concepts.h"
 
-class Grid2D {
-
-};
+class Grid2D {};
 
 #endif  // MOBAGEN_GRID2D_H

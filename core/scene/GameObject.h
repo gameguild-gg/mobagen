@@ -32,7 +32,7 @@ public:
   template <class T> T* AddComponent() { return nullptr; };
 
   static GameObject* Find(std::string name) { return nullptr; };
-  std::string tag; // todo: make it private
-  bool CompareTag(std::string tag) { return tag == this->tag;}
+  std::string tag;  // todo: make it private
+  bool CompareTag(std::string tag) { return tag == this->tag; }
 };
 #endif
