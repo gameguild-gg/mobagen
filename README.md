@@ -8,8 +8,22 @@ Metrics: [![Codacy Badge](https://app.codacy.com/project/badge/Grade/1d95c33e061
 
 CI: [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![Release](https://github.com/InfiniBrains/mobagen/actions/workflows/release.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/release.yml) [![pages](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/pages/pages-build-deployment) 
 
+# Philosophy
+
+1. Webassembly is the future. The initial plan is to create a Game Editor and Engine to run on browsers or wrap it in apps such as electron, wasm3 or any other;
+2. The engine core should be written in C++;
+3. Scripts in JS, TS or WASM, or any language via specialized module;
+4. The core should be as small as possible and the modules should be as swappable as possible;
+5. Modules are the way to customize and extend the engine. We should create modules to do specific tasks and glue them all together. Ex.: rendering module, physics module, audio module, etc;
+6. A build is simply the combination of: a engine player, packed with the modules used, plugins and the assets;
+7. The engine should be able to run on any platform, but the editor should be web-first;
+8. The company will receive funds from the community to pay the developers and the servers to host the editor. The core will be open source and free to use;
+9. The company will offer subscription model to have access to version control and remote build;
+10. The company will also offer a marketplace to sell assets, plugins and modules.
+
 # Try online
-Before checking it online, some demos are intended to be implemented by you. So most of the demos would looks like empty;
+
+Before checking it online, some demos are intended to be implemented by you. So most of the demos would look like empty;
 
 - [Empty demos](https://infinibrains.github.io/mobagen/).
 - [Flocking demo](https://infinibrains.com/data/flocking) for [this AI class](https://docs.google.com/presentation/d/1OBEY-tb_ubgoq6Mk9lEsCFaYLINni3oPwjH8iAXEQQM/edit?usp=sharing).
