@@ -3,9 +3,9 @@
 #include "../gameobjects/World.h"
 #include "engine/Engine.h"
 
-Vector2 BoundedAreaRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
+Vector2f BoundedAreaRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
   // Return a force proportional to the proximity of the boids with the bounds, and opposed to it
-  Vector2 force = Vector2::zero();  // zero
+  Vector2f force = Vector2f::zero();  // zero
 
   // todo: add here your code code here do make the boid follow the bounded box rule
   // hint: use this->world->engine->window->size() and desiredDistance
@@ -36,8 +36,8 @@ void BoundedAreaRule::draw(const Boid& boid, SDL_Renderer* renderer) const {
   auto dist = (float)desiredDistance;
 
   // Draw a rectangle on the map
-  Polygon::DrawLine(renderer, Vector2(dist, dist), Vector2(size.x - dist, dist), Color::Gray);                    // TOP
-  Polygon::DrawLine(renderer, Vector2(size.x - dist, dist), Vector2(size.x - dist, size.y - dist), Color::Gray);  // RIGHT
-  Polygon::DrawLine(renderer, Vector2(size.x - dist, size.y - dist), Vector2(dist, size.y - dist), Color::Gray);  // Bottom
-  Polygon::DrawLine(renderer, Vector2(dist, size.y - dist), Vector2(dist, dist), Color::Gray);                    // LEFT
+  Polygon::DrawLine(renderer, Vector2f(dist, dist), Vector2f(size.x - dist, dist), Color::Gray);                    // TOP
+  Polygon::DrawLine(renderer, Vector2f(size.x - dist, dist), Vector2f(size.x - dist, size.y - dist), Color::Gray);  // RIGHT
+  Polygon::DrawLine(renderer, Vector2f(size.x - dist, size.y - dist), Vector2f(dist, size.y - dist), Color::Gray);  // Bottom
+  Polygon::DrawLine(renderer, Vector2f(dist, size.y - dist), Vector2f(dist, dist), Color::Gray);                    // LEFT
 }

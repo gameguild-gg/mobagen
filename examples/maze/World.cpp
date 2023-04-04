@@ -104,12 +104,12 @@ void World::OnDraw(SDL_Renderer* renderer) {
   auto windowSize = engine->window->size();
   float linesize = (std::min(windowSize.x, windowSize.y) / (float)sideSize) * 0.9f;
 
-  Vector2 displacement
+  Vector2f displacement
       = {(windowSize.x / 2) - linesize * (sideSize / 2) - linesize / 2, (windowSize.y / 2) - linesize * (sideSize / 2) - linesize / 2};
 
   SDL_SetRenderDrawColor(renderer, SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE);
   for (int i = 0; i < data.size(); i += 2) {
-    Vector2 pos = {(float)((i / 2) % (sideSize + 1)), (float)((i / 2) / (sideSize + 1))};
+    Vector2f pos = {(float)((i / 2) % (sideSize + 1)), (float)((i / 2) / (sideSize + 1))};
     pos *= linesize;
     pos += displacement;
 
@@ -123,7 +123,7 @@ void World::OnDraw(SDL_Renderer* renderer) {
     auto c = colors[i];
     SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);
 
-    Vector2 pos = {(float)(i % sideSize), (float)(i / sideSize)};
+    Vector2f pos = {(float)(i % sideSize), (float)(i / sideSize)};
     pos *= linesize;
     pos += displacement;
     SDL_Rect rect = {(int)(pos.x + 1), (int)(pos.y + 1), (int)(linesize - 1), (int)(linesize - 1)};

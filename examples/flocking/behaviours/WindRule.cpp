@@ -4,10 +4,10 @@
 #include "../gameobjects/World.h"
 #include "engine/Engine.h"
 
-Vector2 WindRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
+Vector2f WindRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
   // todo: add a wind force here
   // hint: use the windAngle variable
-  return Vector2::zero();
+  return Vector2f::zero();
 }
 
 bool WindRule::drawImguiRuleExtra() {

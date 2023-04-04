@@ -4,81 +4,115 @@
 #include <cmath>
 #include <stdexcept>
 #include "SDL.h"
+#include <concepts>
+#include <type_traits>
 
 // #TODO: create a math lib more efficient than this
 #define DEG2RAD (float)((M_PI * 2) / 360)
 
+template<typename T>
+concept FloatType = std::is_floating_point_v<T>;
+
+template<FloatType T>
 struct Vector2 {
-  float x;
-  float y;
+  T x;
+  T y;
 
-  Vector2();
-  Vector2(float x, float y);
+  Vector2(): x(0), y(0){};
+  Vector2(T x, T y):x(x), y(y){};
+  Vector2(const Vector2<T>& v):x(v.x), y(v.y){};
 
-  // directions
-  // todo: probably this should be put outside the struct to reduce memory used by function pointers
-  static Vector2 up() { return {0., -1.}; }
-  static Vector2 down() { return {0., 1.}; }
-  static Vector2 left() { return {-1., 0.}; }
-  static Vector2 right() { return {1., 0.}; }
-  static Vector2 zero() { return {0., 0.}; }
-  static Vector2 identity() { return {1., 1.}; }
+
+  static Vector2<T> up() { return {0., -1.}; }
+  static Vector2<T> down() { return {0., 1.}; }
+  static Vector2<T> left() { return {-1., 0.}; }
+  static Vector2<T> right() { return {1., 0.}; }
+  static Vector2<T> zero() { return {0., 0.}; }
+  static Vector2<T> identity() { return {1., 1.}; }
 
   // unary operations
-  Vector2 operator-() const;
-  Vector2 operator+() const;
+  Vector2<T> operator-() const{ return {-x, -y}; }
+  Vector2<T> operator+() const{ return {x, y}; }
 
   // binary operations
-  Vector2 operator-(const Vector2& rhs) const;
-  Vector2 operator+(const Vector2& rhs) const;
-  Vector2 operator*(const float& rhs) const;
-  friend Vector2 operator*(const float& lhs, const Vector2& rhs);
-  Vector2 operator/(const float& rhs) const;
-  Vector2 operator/(const Vector2& rhs) const;
-  bool operator!=(const Vector2& rhs) const;
-  bool operator==(const Vector2& rhs) const;
+  Vector2<T> operator-(const Vector2& rhs) const{ return {x - rhs.x, y - rhs.y};}
+  Vector2<T> operator+(const Vector2& rhs) const{ return {x + rhs.x, y + rhs.y};}
+  Vector2<T> operator*(const T& rhs) const { return {x * rhs, y * rhs}; }
+  friend Vector2<T> operator*(const T& lhs, const Vector2& rhs) { return {lhs * rhs.x, lhs * rhs.y}; }
+  Vector2<T> operator/(const T& rhs) const{ return {x / rhs, y / rhs}; }
+  Vector2<T> operator/(const Vector2& rhs) const{ return {x / rhs.x, y / rhs.y}; }
+  bool operator!=(const Vector2<T>& rhs) const{return (*this - rhs).sqrMagnitude() >= 1.0e-6;};
+  bool operator==(const Vector2<T>& rhs) const{return (*this - rhs).sqrMagnitude() < 1.0e-6;};
 
   // assignment operation
-  Vector2& operator=(const Vector2& rhs);
+  Vector2<T>& operator=(Vector2<T> const& rhs) = default;
 
   // compound assignment operations
-  Vector2& operator+=(const Vector2& rhs);
-  Vector2& operator-=(const Vector2& rhs);
-  Vector2& operator*=(const float& rhs);
-  Vector2& operator/=(const float& rhs);
+  Vector2<T>& operator+=(const Vector2<T>& rhs) { x += rhs.x; y += rhs.y; return *this;}
+  Vector2<T>& operator-=(const Vector2<T>& rhs){ x -= rhs.x; y -= rhs.y; return *this;}
+  Vector2<T>& operator*=(const T& rhs){ x *= rhs; y *= rhs; return *this;}
+  Vector2<T>& operator/=(const T& rhs){ x /= rhs; y /= rhs; return *this;}
+  Vector2<T>& operator*=(const Vector2<T>& rhs){ x *= rhs.x; y *= rhs.y; return *this;}
+  Vector2<T>& operator/=(const Vector2<T>& rhs){ x /= rhs.x; y /= rhs.y; return *this;}
 
   // subscript operation
-  float& operator[](const int& i);
-  const float& operator[](const int& i) const;
+  T& operator[](const int& i);
+  const T& operator[](const int& i) const;
 
-  // todo: make "const Vector2& vector"
-  static Vector2 Rotate(Vector2 v, float degrees);
-  Vector2 Rotate(float degrees) const;
+  static Vector2<T> Rotate(Vector2<T> v, T degrees){
+    auto sin = std::sin(degrees * DEG2RAD);
+    auto cos = std::cos(degrees * DEG2RAD);
 
-  static Vector2 Rotate(Vector2 v, Vector2 up);
-  Vector2 Rotate(Vector2 up) const;
+    auto tx = v.x;
+    auto ty = v.y;
+    v.x = (cos * tx) - (sin * ty);
+    v.y = (sin * tx) + (cos * ty);
+    return v;
+  };
+  Vector2<T> Rotate(T degrees) const{
+    Vector2<T> v;
+    auto sin = std::sin(degrees * DEG2RAD);
+    auto cos = std::cos(degrees * DEG2RAD);
 
-  float getAngleDegree() const;
-  float static getAngleDegree(Vector2 v);
+    auto tx = x;
+    auto ty = y;
+    v.x = (cos * tx) - (sin * ty);
+    v.y = (sin * tx) + (cos * ty);
+    return v;
+  };
+  static Vector2<T> Rotate(Vector2 v, Vector2 up){return v.Rotate(up.getAngleDegree());};
+  Vector2<T> Rotate(Vector2<T> up) const{return Rotate(up.getAngleDegree());};
 
-  float getAngleRadian() const;
-  float static getAngleRadian(Vector2 v);
+  T getAngleDegree() const{return getAngleRadian() * 180 / (T)M_PI;};
+  T static getAngleDegree(Vector2<T> v){return v.getAngleDegree();};
 
-  static Vector2 Random(float start, float end);
+  T getAngleRadian() const { return atan2(x, -y); } // todo: check if this is correct
+  T static getAngleRadian(Vector2<T> v){return v.getAngleRadian();};
 
-  static Vector2 getVector2FromRadian(float radian);
-  static Vector2 getVector2FromDegree(float degree);
+  static Vector2<T> Random(T start, T end);
 
-  float sqrMagnitude() const;
-  float getMagnitude() const;
-  static float getMagnitude(const Vector2& vector);
+  static Vector2<T> getVector2FromRadian(T radian);
+  static Vector2<T> getVector2FromDegree(T degree);
 
-  static float getDistance(const Vector2& a, const Vector2& b);
+  T sqrMagnitude() const { return x * x + y * y; }
+  T getMagnitude() const { return sqrt(sqrMagnitude()); }
+  static T getMagnitude(const Vector2<T>& vector){ return vector.getMagnitude(); }
+
+  static T getDistance(const Vector2<T>& a, const Vector2<T>& b){ return sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));};
   // todo: create distanceTo using the "this" value
-  static float getSquaredDistance(const Vector2& a, const Vector2& b);
+  static T getSquaredDistance(const Vector2<T>& a, const Vector2<T>& b){return (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);};
 
-  static Vector2 normalized(const Vector2& vector);
-  Vector2 normalized() const;
+  static Vector2<T> normalized(const Vector2<T>& v){ return v.normalized();};
+  Vector2<T> normalized() const {
+    auto magnitude = getMagnitude();
+
+    // If the magnitude is not null
+    if (magnitude > 0.)
+      return Vector2<T>(x, y) / magnitude;
+    else
+      return {x, y};};
 };
+
+using Vector2f = Vector2<float>;
 
 #endif  // VECTOR2_H

@@ -21,7 +21,7 @@ public:
 
   virtual float getBaseWeightMultiplier() override { return 1.; }
 
-  Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) override;
+  Vector2f computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) override;
 
   bool drawImguiRuleExtra() override;
 

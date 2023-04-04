@@ -13,7 +13,7 @@ std::vector<Boid*> Boid::computeBoidNeighborhood() {
   // Option 2. Quadtree or octree
   for (const auto& boid : world->boids) {
     if (boid != this) {
-      float squareDistance = Vector2::getSquaredDistance(position, boid->getPosition());
+      float squareDistance = Vector2f::getSquaredDistance(position, boid->getPosition());
 
       // Verify if boid is close enough to be part of the neighborhood
       if (squareDistance <= detectionRadiusSquared) neighborhood.push_back(boid);
@@ -31,13 +31,13 @@ void Boid::Update(float deltaTime) {
 
   for (auto& rule : rules) {
     auto weightedForce = rule->computeWeightedForce(neighborhood, this);
-    // std::cout << typeid(*rule).name() << " Force : " << vector2::getMagnitude(weightedForce) << std::endl;
+    // std::cout << typeid(*rule).name() << " Force : " << Vector2f::getMagnitude(weightedForce) << std::endl;
     applyForce(weightedForce);
   }
 }
 
 void Boid::OnDraw(SDL_Renderer* renderer) {
-  if (drawDebugRadius) circle.Draw(renderer, transform.position, {detectionRadius, detectionRadius}, Vector2::zero(), circleColor);
+  if (drawDebugRadius) circle.Draw(renderer, transform.position, {detectionRadius, detectionRadius}, Vector2f::zero(), circleColor);
 
   // Display rules
   if (drawDebugRules)

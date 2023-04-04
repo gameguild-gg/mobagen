@@ -34,7 +34,7 @@ private:
   Point2D mousePositionToIndex(ImVec2& pos);
   unordered_set<Point2D> getMoves(PieceType t, Point2D point);
   void drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect);
-  void drawPiece(SDL_Renderer* renderer, PieceData piece, Vector2 location, Vector2 scale);
+  void drawPiece(SDL_Renderer* renderer, PieceData piece, Vector2f location, Vector2f scale);
 };
 
 #endif  // CHESS_MANAGER_H

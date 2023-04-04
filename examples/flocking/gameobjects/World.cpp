@@ -67,12 +67,12 @@ void World::randomizeBoidPositionAndVelocity(Boid* boid) {
   auto size = engine->window->size();
   // todo: give boid a transform to store position, rotation... etc
   boid->setPosition({Random::Range(0.0f, (float)size.x), Random::Range(0.0f, (float)size.y)});
-  boid->setVelocity(Vector2::up().Rotate(Random::Range(0.0f, 360.0f)) * desiredSpeed);  // Random dir
+  boid->setVelocity(Vector2f::up().Rotate(Random::Range(0.0f, 360.0f)) * desiredSpeed);  // Random dir
 }
 
 void World::warpParticleIfOutOfBounds(Particle* particle) {
   // Correct position with windows borders
-  Vector2 position = particle->getTransform().position;
+  Vector2f position = particle->getTransform().position;
   auto sizeWindow = engine->window->size();  // todo: make it int
 
   if (position.x < 0)
@@ -190,7 +190,7 @@ void World::drawRulesUI() {
 
 void World::Update(float deltaTime) {
   // move the first boid
-  if (engine->getInputArrow() != Vector2::zero() && getNbBoids() > 0) {
+  if (engine->getInputArrow() != Vector2f::zero() && getNbBoids() > 0) {
     Boid* firstBoid = *getAllBoids()->begin();
     firstBoid->applyForce(engine->getInputArrow() * 20.f);
     firstBoid->drawDebugRadius = true;

@@ -27,7 +27,7 @@ void Texture::Draw(SDL_Renderer* renderer) {
   rect.y = position.y - rect.h / 2.f;
   SDL_RenderCopy(renderer, texture, nullptr, &rect);
 }
-void Texture::Draw(SDL_Renderer* renderer, Vector2 position, Vector2 scale) {
+void Texture::Draw(SDL_Renderer* renderer, Vector2f position, Vector2f scale) {
   SDL_Rect rect;
   // todo: make rotation aware
   rect.w = dimensions.x * scale.x;

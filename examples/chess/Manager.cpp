@@ -105,10 +105,10 @@ Point2D Manager::mousePositionToIndex(ImVec2& pos) {
   auto squareSide = minDimension / 8;
   auto sideSideOver2 = 8 / 2.0f;
 
-  Vector2 relativePosFloat(pos.x - center.x, pos.y - center.y);
+  Vector2f relativePosFloat(pos.x - center.x, pos.y - center.y);
 
   relativePosFloat *= 0.99f;
-  relativePosFloat += Vector2{minDimension / 2, minDimension / 2};
+  relativePosFloat += Vector2f{minDimension / 2, minDimension / 2};
   relativePosFloat /= squareSide;
 
   return {static_cast<int>(relativePosFloat.x), static_cast<int>(8 - relativePosFloat.y)};
@@ -141,7 +141,7 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
         drawSquare(renderer, whiteCell, rect);
 
       drawPiece(renderer, state.PieceAtPosition({column, line}), {rect.x + squareSideOver2, rect.y + squareSideOver2},
-                Vector2::identity() * squareSide);
+                Vector2f::identity() * squareSide);
     }
   }
 }
@@ -168,10 +168,10 @@ void Manager::drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect)
   SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, SDL_ALPHA_OPAQUE);
   SDL_RenderFillRect(renderer, &rect);
 }
-void Manager::drawPiece(SDL_Renderer* renderer, PieceData piece, Vector2 location, Vector2 scale) {
+void Manager::drawPiece(SDL_Renderer* renderer, PieceData piece, Vector2f location, Vector2f scale) {
   if (piecePackedToTexture.contains(piece.Pack())) {
     auto tex = piecePackedToTexture[piece.Pack()];
-    tex->Draw(renderer, location, scale / Vector2(tex->dimensions.x, tex->dimensions.y));
+    tex->Draw(renderer, location, scale / Vector2f(tex->dimensions.x, tex->dimensions.y));
   }
 }
 

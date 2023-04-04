@@ -208,10 +208,10 @@ Point2D Manager::mousePositionToIndex(ImVec2& mousePos) {
   auto squareSide = minDimension / sideSize;
   auto sideSideOver2 = sideSize / 2.0f;
 
-  Vector2 relativePosFloat(mousePos.x - center.x, mousePos.y - center.y);
+  Vector2f relativePosFloat(mousePos.x - center.x, mousePos.y - center.y);
 
   relativePosFloat *= 0.99f;
-  relativePosFloat += Vector2{minDimension / 2, minDimension / 2};
+  relativePosFloat += Vector2f{minDimension / 2, minDimension / 2};
   relativePosFloat /= squareSide;
 
   return Point2D(relativePosFloat.x, relativePosFloat.y);

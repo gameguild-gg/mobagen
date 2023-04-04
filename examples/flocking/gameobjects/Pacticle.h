@@ -13,15 +13,15 @@ private:
   float maxAcceleration = 10.;
   float circleSize;  // todo: is this really needed?
 
-  Vector2 acceleration;
-  Vector2 previousAcceleration;  // to draw Acc
+  Vector2f acceleration;
+  Vector2f previousAcceleration;  // to draw Acc
   Polygon polygon;
 
   // Methods
   void resetAcceleration();
 
 public:
-  Vector2 velocity;  // todo: make this private
+  Vector2f velocity;  // todo: make this private
   bool drawAcceleration = false;
   Color32 color;  // todo: make this private
 
@@ -31,13 +31,13 @@ public:
   // Getter / Setters
   Transform getTransform() const { return transform; }
 
-  Vector2 getPosition() const { return transform.position; }
+  Vector2f getPosition() const { return transform.position; }
 
-  Vector2 getVelocity() const { return velocity; }
+  Vector2f getVelocity() const { return velocity; }
 
-  void setPosition(Vector2 position) { transform.position = position; }
+  void setPosition(Vector2f position) { transform.position = position; }
 
-  void setVelocity(Vector2 velocity_) {
+  void setVelocity(Vector2f velocity_) {
     velocity = velocity_;
     transform.rotation = velocity_.normalized();
   }
@@ -49,7 +49,7 @@ public:
   void setHasConstantSpeed(bool hasConstantSpeed_) { hasConstantSpeed = hasConstantSpeed_; }
 
   // Methods
-  void applyForce(Vector2 force);
+  void applyForce(Vector2f force);
 
   virtual void Update(float deltaTime) override;
 

@@ -131,7 +131,7 @@ void Engine::processInput() {
   static bool up = false, down = false, left = false, right = false;
 
   // clean the state
-  arrowInput = Vector2();
+  arrowInput = Vector2f();
 
   // process events
   SDL_Event event;
@@ -181,13 +181,13 @@ void Engine::processInput() {
         break;
     }
   }
-  if (up) arrowInput += Vector2::up();
-  if (down) arrowInput += Vector2::down();
-  if (left) arrowInput += Vector2::left();
-  if (right) arrowInput += Vector2::right();
+  if (up) arrowInput += Vector2f::up();
+  if (down) arrowInput += Vector2f::down();
+  if (left) arrowInput += Vector2f::left();
+  if (right) arrowInput += Vector2f::right();
 }
 
-Vector2 Engine::getInputArrow() const { return arrowInput; }
+Vector2f Engine::getInputArrow() const { return arrowInput; }
 
 //// todo: optimize this
 // template <class T> std::unordered_set<T> Engine::FindObjectsOfType() {

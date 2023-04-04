@@ -5,12 +5,12 @@
 
 struct Transform {
 public:
-  Vector2 rotation;  // this is the vector pointing to the up
-  Vector2 scale;
-  Vector2 position;
+  Vector2f rotation;  // this is the vector pointing to the up
+  Vector2f scale;
+  Vector2f position;
 
   Transform();
-  Transform(Vector2 position, Vector2 scale, Vector2 rotation);
+  Transform(Vector2f position, Vector2f scale, Vector2f rotation);
 };
 
 #endif

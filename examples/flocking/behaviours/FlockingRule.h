@@ -16,15 +16,15 @@ public:
 
 protected:
   // We'll cache the computed force to be able to display it later
-  Vector2 force;
+  Vector2f force;
 
   // if displayed
   Color32 debugColor;
 
   explicit FlockingRule(World* pWorld, Color32 debugColor_, float weight_, bool isEnabled_ = true)
-      : debugColor(debugColor_), force(Vector2()), weight(weight_), isEnabled(isEnabled_), world(pWorld) {}
+      : debugColor(debugColor_), force(Vector2f()), weight(weight_), isEnabled(isEnabled_), world(pWorld) {}
 
-  virtual Vector2 computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) = 0;
+  virtual Vector2f computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) = 0;
 
   // Multiplier for weight so we can tilt values closer to each other
   virtual float getBaseWeightMultiplier() { return 1.; };
@@ -48,7 +48,7 @@ public:
   virtual std::unique_ptr<FlockingRule> clone() = 0;
 
   // Compute the force, weight it, and save it in cache.
-  Vector2 computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid);
+  Vector2f computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid);
 
   // Draw the core of the rule settings on ImGui.
   virtual bool drawImguiRule();

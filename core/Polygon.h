@@ -11,16 +11,16 @@
 struct Polygon {
 public:
   Polygon() = default;
-  explicit Polygon(std::vector<Vector2> points) : points(std::move(points)){};
-  std::vector<Vector2> points;
+  explicit Polygon(std::vector<Vector2f> points) : points(std::move(points)){};
+  std::vector<Vector2f> points;
 
   // polygon points to be used in the draw functions
-  std::vector<Vector2> getDrawablePoints(const Transform& transform);
+  std::vector<Vector2f> getDrawablePoints(const Transform& transform);
 
   void Draw(SDL_Renderer* renderer, const Transform& transform, const Color32& color);
-  void Draw(SDL_Renderer* renderer, const Vector2& position, const Vector2& scale, const Vector2& rotation, const Color32& color);
+  void Draw(SDL_Renderer* renderer, const Vector2f& position, const Vector2f& scale, const Vector2f& rotation, const Color32& color);
 
-  static void DrawLine(SDL_Renderer* renderer, const Vector2& v1, const Vector2& v2, const Color32& color);
+  static void DrawLine(SDL_Renderer* renderer, const Vector2f& v1, const Vector2f& v2, const Color32& color);
 };
 
 struct Circle : Polygon {

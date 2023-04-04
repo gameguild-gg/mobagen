@@ -22,6 +22,7 @@ CPMAddPackage(
   NAME SDL2
   GITHUB_REPOSITORY libsdl-org/SDL
   GIT_TAG release-2.26.2
+  OPTIONS
           "SDL2_DISABLE_INSTALL ON"
           "SDL2_SHARED OFF"
           "SDL_SHARED OFF"

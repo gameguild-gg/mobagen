@@ -27,7 +27,7 @@ public:
 
   // todo: move this to a scene manager and make this private
   std::unordered_set<GameObject*> gameObjects;
-  Vector2 getInputArrow() const;
+  Vector2f getInputArrow() const;
 
 private:
   bool done = false;
@@ -36,7 +36,7 @@ private:
 
   // todo: move this to input class
   void processInput();
-  Vector2 arrowInput;
+  Vector2f arrowInput;
 
   // todo: better ordering
   std::vector<GameObject*> toDestroy;

@@ -13,15 +13,15 @@ private:
 
 public:
   Point2D dimensions;
-  Vector2 scale = {1, 1};
-  Vector2 position = {0, 0};
+  Vector2f scale = {1, 1};
+  Vector2f position = {0, 0};
 
 public:
   Texture(){};
   ~Texture();
 
   void Draw(SDL_Renderer* renderer);
-  void Draw(SDL_Renderer* renderer, Vector2 position, Vector2 scale);
+  void Draw(SDL_Renderer* renderer, Vector2f position, Vector2f scale);
 
   // todo: hide or wrap this sdl_renderer type
   // todo: use asset loader in order do not use strings here!
