@@ -1,3 +1,11 @@
+# [1.8.0](https://github.com/InfiniBrains/mobagen/compare/v1.7.0...v1.8.0) (2023-04-04)
+
+
+### Features
+
+* **math:** vector2 is now a template ([926554e](https://github.com/InfiniBrains/mobagen/commit/926554e1a03de35354cf5b57b3c8260731c12513))
+* **wasm:** include test ([d738312](https://github.com/InfiniBrains/mobagen/commit/d738312f58794164a10abf4bfd9cde4d0d58d842))
+
 # [1.7.0](https://github.com/InfiniBrains/mobagen/compare/v1.6.0...v1.7.0) (2023-03-29)
 
 
