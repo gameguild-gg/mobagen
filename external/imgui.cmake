@@ -2,8 +2,8 @@
 string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
   NAME IMGUI
-  VERSION 1.89.3
-  URL "https://github.com/ocornut/imgui/archive/refs/tags/v1.89.3.zip"
+  GIT_TAG docking
+  GITHUB_REPOSITORY ocornut/imgui
 )
 if(IMGUI_ADDED)
   add_library(IMGUI STATIC)

@@ -1,4 +1,4 @@
-option(BUILD_EDITOR "BUILD_EDITOR" OFF)
+option(BUILD_EDITOR "BUILD_EDITOR" ON)
 
 if(BUILD_EDITOR)
   file(GLOB EDITOR_INC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.h
@@ -40,13 +40,11 @@ if(BUILD_EDITOR)
   # include(itk.cmake)
   add_executable(editor ${EDITOR_SRC} ${EDITOR_INC})
   # target_include_directories(editor PUBLIC ${ITKGDCM_INCLUDE_DIRS})
-  target_link_libraries(editor PUBLIC SDL2-static IMGUI engine core)
+  target_link_libraries(editor PUBLIC SDL2-static IMGUI core)
   # target_link_libraries (editor PUBLIC SDL2-static IMGUI engine core itkgdcmDSED-5.3
   # itkgdcmCommon-5.3 itkzlib-5.3)
-  if(EMSCRIPTEN)
-    target_compile_options(editor PUBLIC "-Oz")
-    target_link_options(editor PUBLIC "-s WASM=2 -s USE_SDL=0 -s EXPORT_ALL=1")
-  endif()
+  # if(EMSCRIPTEN) target_compile_options(editor PUBLIC "-Oz") target_link_options(editor PUBLIC "-s
+  # WASM=2 -s USE_SDL=0 -s EXPORT_ALL=1") endif()
 
   target_include_directories(editor PUBLIC ${SDL2_INCLUDE_DIR} ${ENGINE_INC_DIR} ${CORE_INC_DIR})
 

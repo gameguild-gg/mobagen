@@ -21,12 +21,18 @@ private:
   double targetFPS = 60;
   int64_t accumulatedTime = 0;
   EngineSettings settings;
+  inline static Engine* instance = nullptr;
 
 public:
+  static Engine* GetInstance() {
+    if (instance == nullptr) instance = new Engine();
+    return instance;
+  }
   Window* window;
 
   // todo: move this to a scene manager and make this private
   std::unordered_set<GameObject*> gameObjects;
+  std::unordered_set<ScriptableObject*> scriptableObjects;
   Vector2f getInputArrow() const;
 
 private:
@@ -42,8 +48,7 @@ private:
   std::vector<GameObject*> toDestroy;
 
 public:
-  explicit Engine();
-//  explicit Engine(EngineSettings settings);
+  explicit Engine(EngineSettings settings = EngineSettings());
 
   ~Engine();
   bool Start(std::string title);
@@ -54,5 +59,7 @@ public:
   //  template <class T> std::unordered_set<T> FindObjectsOfType();
 
   void Destroy(GameObject* go);
+
+  void AddScriptableObject(ScriptableObject* pObject){scriptableObjects.insert(pObject);};
 };
 #endif

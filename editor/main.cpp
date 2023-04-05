@@ -1,5 +1,6 @@
 #define SDL_MAIN_HANDLED true
 #include "engine/Engine.h"
+#include "TopBar.h"
 #include <vector>
 //#include <gdcmReader.h>
 //#include <gdcmDirectory.h>
@@ -66,6 +67,7 @@ int main(int, char**) {
   SDL_Log("Creating Engine");
   auto engine = new Engine();
   SDL_Log("Engine Created");
+  new TopBar();
 
   SDL_Log("Starting Engine");
   if (engine->Start("Editor")) {

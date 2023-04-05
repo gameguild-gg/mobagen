@@ -6,5 +6,6 @@ class Component;
 class GameObject;
 class Scene;
 class Transform;
+class ScriptableObject;
 
 #endif

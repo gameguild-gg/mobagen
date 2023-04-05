@@ -24,11 +24,10 @@ else()
   # add_subdirectory( glew )
 endif()
 
-include(external/quickjs.cmake)
-# if(NOT EMSCRIPTEN) IF(APPLE) set(CMAKE_THREAD_LIBS_INIT "-lpthread")
-# set(CMAKE_HAVE_THREADS_LIBRARY 1) set(CMAKE_USE_WIN32_THREADS_INIT 0) set(CMAKE_USE_PTHREADS_INIT
-# 1) set(THREADS_PREFER_PTHREAD_FLAG ON) ENDIF() find_package(Threads REQUIRED)
-# include(external/wasm.cmake) include(external/v8.cmake) endif()
+# include(external/quickjs.cmake) if(NOT EMSCRIPTEN) IF(APPLE) set(CMAKE_THREAD_LIBS_INIT
+# "-lpthread") set(CMAKE_HAVE_THREADS_LIBRARY 1) set(CMAKE_USE_WIN32_THREADS_INIT 0)
+# set(CMAKE_USE_PTHREADS_INIT 1) set(THREADS_PREFER_PTHREAD_FLAG ON) ENDIF() find_package(Threads
+# REQUIRED) include(external/wasm.cmake) include(external/v8.cmake) endif()
 
 # include(filament.cmake) include(threadpool.cmake) include(external/zlib.cmake)
 include(external/sdl.cmake)

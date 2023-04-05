@@ -2,18 +2,16 @@
 #include "SDL.h"
 #include "../Polygon.h"
 #include "../scene/GameObject.h"
+#include "../scene/ScriptableObject.h"
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
 #endif
 
 using namespace std::chrono_literals;
 
-//Engine::Engine(EngineSettings settings): window(nullptr), settings(settings) {
-//  SDL_Log("Engine Created");
-//}
-
-Engine::Engine(): window(nullptr), settings(EngineSettings()) {
+Engine::Engine(EngineSettings settings) : window(nullptr), settings(settings) {
   SDL_Log("Engine Created");
+  instance = this;
 }
 
 Engine::~Engine() {
@@ -94,7 +92,9 @@ void Engine::Tick() {
 
   // iterate over all game objects ui
   auto gos = gameObjects;                               // clone to prevent out of bounds access
-  for (auto go : gos) go->OnGui(window->imGuiContext);  // todo: find a better way to pass imgui context
+  for (auto go : gameObjects) go->OnGui(window->imGuiContext);  // todo: find a better way to pass imgui context
+
+  for (auto go : scriptableObjects) go->OnGui(window->imGuiContext);
 
   // Rendering
   ImGui::Render();
@@ -201,4 +201,3 @@ Vector2f Engine::getInputArrow() const { return arrowInput; }
 
 // todo: optimize this
 void Engine::Destroy(GameObject* go) { toDestroy.push_back(go); }
-
