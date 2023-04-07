@@ -63,9 +63,6 @@ bool Engine::Start(std::string title) {
   else
     exit(0);
 
-  // start all gameobjects
-  for (auto go : gameObjects) go->Start();
-
   lastFrameTime = std::chrono::high_resolution_clock::now();
   SDL_Delay(1000 / targetFPS);
   deltaTime = 0;
@@ -86,6 +83,13 @@ void Engine::Tick() {
 
   // inputs processing
   processInput();
+
+  // start objects marked to start
+  for(auto go : gameObjectsToBeStarted) {
+    go->Start();
+    gameObjects.insert(go);
+  }
+  gameObjectsToBeStarted.clear();
 
   // update
   for (auto go : gameObjects) go->Update(deltaTime);

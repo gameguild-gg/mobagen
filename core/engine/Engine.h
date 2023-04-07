@@ -32,6 +32,7 @@ public:
 
   // todo: move this to a scene manager and make this private
   std::unordered_set<GameObject*> gameObjects;
+  std::unordered_set<GameObject*> gameObjectsToBeStarted;
   std::unordered_set<ScriptableObject*> scriptableObjects;
   Vector2f getInputArrow() const;
 
