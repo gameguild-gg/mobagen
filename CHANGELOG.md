@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/InfiniBrains/mobagen/compare/v1.10.0...v1.11.0) (2023-04-07)
+
+
+### Features
+
+* **hideandseek:** first framework for hide and seek ([b1a56a6](https://github.com/InfiniBrains/mobagen/commit/b1a56a6f58a106e60a7326cbc96334ed017f580b))
+
 # [1.10.0](https://github.com/InfiniBrains/mobagen/compare/v1.9.0...v1.10.0) (2023-04-07)
 
 
