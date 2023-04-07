@@ -120,9 +120,10 @@ template <FloatType T> struct Vector2 {
   T getMagnitude() const { return sqrt(sqrMagnitude()); }
   static T getMagnitude(const Vector2<T>& vector) { return vector.getMagnitude(); }
 
-  static T getDistance(const Vector2<T>& a, const Vector2<T>& b) { return sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)); };
-  // todo: create distanceTo using the "this" value
-  static T getSquaredDistance(const Vector2<T>& a, const Vector2<T>& b) { return (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y); };
+  static T Distance(const Vector2<T>& a, const Vector2<T>& b) { return sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)); };
+  T Distance(const Vector2<T>& b) const { return sqrt((x - b.x) * (x - b.x) + (y - b.y) * (y - b.y)); };
+  static T DistanceSquared(const Vector2<T>& a, const Vector2<T>& b) { return (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y); };
+  T DistanceSquared(const Vector2<T>& b) const { return (x - b.x) * (x - b.x) + (y - b.y) * (y - b.y); };
 
   static Vector2<T> normalized(const Vector2<T>& v) { return v.normalized(); };
   Vector2<T> normalized() const {

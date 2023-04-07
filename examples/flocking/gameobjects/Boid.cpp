@@ -13,7 +13,7 @@ std::vector<Boid*> Boid::computeBoidNeighborhood() {
   // Option 2. Quadtree or octree
   for (const auto& boid : world->boids) {
     if (boid != this) {
-      float squareDistance = Vector2f::getSquaredDistance(position, boid->getPosition());
+      float squareDistance = Vector2f::DistanceSquared(position, boid->getPosition());
 
       // Verify if boid is close enough to be part of the neighborhood
       if (squareDistance <= detectionRadiusSquared) neighborhood.push_back(boid);

@@ -5,7 +5,7 @@
 #include <iostream>
 #include "engine/Engine.h"
 
-Manager::Manager(Engine* pEngine1, Engine* pEngine) : GameObject(pEngine) {
+Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
   world.Resize(sideSize);
   rules.push_back(new HexagonGameOfLife());
   rules.push_back(new JohnConway());
