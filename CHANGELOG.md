@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/InfiniBrains/mobagen/compare/v1.9.0...v1.10.0) (2023-04-07)
+
+
+### Features
+
+* **engine:** lazy start ([76bdfb2](https://github.com/InfiniBrains/mobagen/commit/76bdfb292e471523e2eb81ee6488e5a551fcc2ff))
+
 # [1.9.0](https://github.com/InfiniBrains/mobagen/compare/v1.8.0...v1.9.0) (2023-04-05)
 
 
