@@ -179,7 +179,8 @@ void Manager::EnemyTick() {
 }
 void Manager::ShadowCast() {
   // todo: implement the shadow cast
-  // reference: https://www.albertford.com/shadowcasting/
-  // reference: https://www.redblobgames.com/articles/visibility/
-  // find the player position
+  // change the variable visible in the grid to true or false depending on the visibility from the player
+  // ex.: grid(i,j).visible = true;
+  // The easiest way to implement is to follow this tutorial: https://www.albertford.com/shadowcasting/
+  // But you can the algorithm following this tutorial to follow raycast or use polygons to do the shadow cast: https://www.redblobgames.com/articles/visibility/
 }
