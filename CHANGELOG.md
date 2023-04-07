@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/InfiniBrains/mobagen/compare/v1.11.0...v1.12.0) (2023-04-07)
+
+
+### Features
+
+* **hideandseek:** better explanations and references on what the students should do ([7de247b](https://github.com/InfiniBrains/mobagen/commit/7de247bb5b323a5fe1a2666b21194e1c15004e27))
+
 # [1.11.0](https://github.com/InfiniBrains/mobagen/compare/v1.10.0...v1.11.0) (2023-04-07)
 
 
