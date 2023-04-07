@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/InfiniBrains/mobagen/compare/v1.8.0...v1.9.0) (2023-04-05)
+
+
+### Features
+
+* **editor:** create a new demo about game editor ([17156fc](https://github.com/InfiniBrains/mobagen/commit/17156fcf1263e736869958c39d9683cbf084e2cc))
+
 # [1.8.0](https://github.com/InfiniBrains/mobagen/compare/v1.7.0...v1.8.0) (2023-04-04)
 
 
