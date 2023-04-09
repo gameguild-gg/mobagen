@@ -26,6 +26,7 @@ class Manager: public GameObject {
   Grid2D<Square> grid;
   float enemyTickSize = 0.5f;
   float timeTimeRemaining = 0.5f;
+  bool showHiddenObjects = true;
 
 public:
   explicit Manager(Engine* pEngine);

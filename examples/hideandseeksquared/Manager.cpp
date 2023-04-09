@@ -35,8 +35,14 @@ void Manager::OnDraw(SDL_Renderer* renderer){
           break;
       }
       // if it is not visible, make it darker
-      if (!grid(column, line).visible)
-        color = color.Dark();
+      if(showHiddenObjects) {
+        if (!grid(column, line).visible)
+          color = color.Dark();
+      } else {
+        if (!grid(column, line).visible)
+          color = Color::DarkGray;
+      }
+
       SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
       SDL_RenderFillRect(renderer, &rect);
     }
@@ -73,6 +79,8 @@ void Manager::OnGui(ImGuiContext* context) {
   static auto newTickSize = enemyTickSize;
   if (ImGui::SliderFloat("Enemy Tick Size", &newTickSize, 0.1f, 1.0f))
     enemyTickSize = newTickSize;
+
+  ImGui::Checkbox("Show Hidden Objects", &showHiddenObjects);
 
   ImGui::End();
 }
@@ -128,6 +136,9 @@ void Manager::Update(float deltaTime) {
       timeTimeRemaining += enemyTickSize;
       EnemyTick();
   }
+
+  // update the visibility of the squares
+  ShadowCast();
 }
 void Manager::Reset() {
   // resize the grid
@@ -174,7 +185,7 @@ void Manager::Reset() {
   }
 }
 void Manager::EnemyTick() {
-  // todo: implement the enemy tick
+  // todo: optionally implement the enemy tick
   std::cout << "Enemy Tick" << std::endl;
 }
 void Manager::ShadowCast() {
@@ -183,4 +194,26 @@ void Manager::ShadowCast() {
   // ex.: grid(i,j).visible = true;
   // The easiest way to implement is to follow this tutorial: https://www.albertford.com/shadowcasting/
   // But you can the algorithm following this tutorial to follow raycast or use polygons to do the shadow cast: https://www.redblobgames.com/articles/visibility/
+
+  Point2D playerPosition, enemyPosition;
+  // reset the visibility of all the squares and find the player position and enemy position
+  for(int line = 0; line < sideSize; line++) {
+    for (int column = 0; column < sideSize; column++) {
+      grid(column, line).visible = false;
+      if (grid(column, line).type == SquareType::Player) {
+        playerPosition = {column, line};
+        grid(column, line).visible = true;
+      }
+      if (grid(column, line).type == SquareType::Enemy) {
+        enemyPosition = {column, line};
+      }
+    }
+  }
+
+  // dummy implementation. every square is visible
+  for(int line = 0; line < sideSize; line++) {
+    for (int column = 0; column < sideSize; column++) {
+      grid(column, line).visible = true;
+    }
+  }
 }
