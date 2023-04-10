@@ -44,6 +44,8 @@ Extras:
 
 https://create.kahoot.it/details/1fe41440-aea9-49c1-a464-c2f38e662e57
 
+## Class evaluation
+
 a) Goals for the class to be observed
 - Ability to teach complex data structures and algorithms;
 - Ability to incentive the students to learn by themselves;
