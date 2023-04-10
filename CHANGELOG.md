@@ -1,3 +1,10 @@
+## [1.12.1](https://github.com/InfiniBrains/mobagen/compare/v1.12.0...v1.12.1) (2023-04-10)
+
+
+### Bug Fixes
+
+* **core:** grid2d reorder declarations ([05bac1b](https://github.com/InfiniBrains/mobagen/commit/05bac1b914bb5a2240f34b9955f84662b580b16f))
+
 # [1.12.0](https://github.com/InfiniBrains/mobagen/compare/v1.11.0...v1.12.0) (2023-04-07)
 
 
