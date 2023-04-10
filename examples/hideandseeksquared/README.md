@@ -27,6 +27,7 @@ References:
 - The player can use the walls to hide; 
 - The agent should pursue the player via shortest path; If the player hides, then the agent should go to the last known position of the player; And then resume roaming.
 - Both the player and the agent can only see what ever his field of view permits. If a player can see the AI, the AI can see it too;
+- You can use this demo here to do all code by yourself or you can use any game engine you prefer.
 
 ## What to code
 
@@ -39,7 +40,18 @@ Extras:
 - If the enemy don't see the player and don't have a last known position, then the enemy should roam around the map;
 
 
+## Kahoot 
+
+https://create.kahoot.it/details/1fe41440-aea9-49c1-a464-c2f38e662e57
+
 a) Goals for the class to be observed
+- Ability to teach complex data structures and algorithms;
+- Ability to incentive the students to learn by themselves;
 b) Description of the planned teaching/learning activities
+- Revisit some of previous classes, Data Structures, Path Finding, MinMax, Monte Carlo Tree Search;
+- Present the most common visibility algorithm in 2d grids such as Shadow Casting; 
 c) Description of what students have been asked to do to prepare for this class
+- Clone the repository;
 d) Indication if the planned class is typical of your teaching style, and if not why.
+- This class have some changes in style because it includes kahoot;
+- Usually all classes are project and code based.
