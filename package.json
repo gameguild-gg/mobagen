@@ -18,7 +18,8 @@
     "prestyle": "cmake -S. -BbuildStyle -DENABLE_TEST_COVERAGE=ON -DENABLE_DOCUMENTATION=OFF",
     "style": "cmake --build buildStyle --target fix-format",
     "prebuildall": "cmake -S. -Bbuild -DENABLE_TEST_COVERAGE=OFF -DENABLE_DOCUMENTATION=OFF",
-    "buildall": "cmake --build build --parallel"
+    "buildall": "cmake --build build --parallel",
+    "buildwebgl": "bash scripts/emscripten-build.sh"
   },
   "repository": {
     "type": "git",
