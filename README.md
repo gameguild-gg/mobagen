@@ -60,7 +60,7 @@ It is the best all-around solution to:
 - [C++ core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
 
 # Restrictions
-- Don't recreate all game engine stuff, glue them all. "Life es too short to build a game engine from scratch";
+- Don't recreate all game engine stuff, glue them all. "Life is too short to build a game engine from scratch";
 - If a library do not easily compile on all supported platforms, we won't use it.
 - Use consolidated libs and do not reinvent the wheel (only if is strictly needed)
 - Start small and make small steps towards the goal.
