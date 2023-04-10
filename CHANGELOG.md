@@ -1,3 +1,10 @@
+## [1.12.2](https://github.com/InfiniBrains/mobagen/compare/v1.12.1...v1.12.2) (2023-04-10)
+
+
+### Bug Fixes
+
+* **core:** rename grid2d to Grid2D ([2b93bf2](https://github.com/InfiniBrains/mobagen/commit/2b93bf23da2c717e45ee6aff179ee0a87b2f0735))
+
 ## [1.12.1](https://github.com/InfiniBrains/mobagen/compare/v1.12.0...v1.12.1) (2023-04-10)
 
 
