@@ -17,6 +17,7 @@ Secondary Goals:
 References:
 
 - https://www.albertford.com/shadowcasting/ - main reference on shadowcasting. This is the easiest way to implement a Visibility Algorithm.
+- https://www.gridbugs.org/visible-area-detection-recursive-shadowcast/
 - https://www.redblobgames.com/articles/visibility/ - if you intend to use raycasting and polygon shapes, this is a good reference
 - https://www.redblobgames.com/pathfinding/a-star/introduction.html - To remember how A* works
 - https://www.youtube.com/watch?v=fc3nnG2CG8U a very nice video explaining and showing how to implement a Visibility Algorithm
@@ -28,6 +29,30 @@ References:
 - The agent should pursue the player via shortest path; If the player hides, then the agent should go to the last known position of the player; And then resume roaming.
 - Both the player and the agent can only see what ever his field of view permits. If a player can see the AI, the AI can see it too;
 - You can use this demo here to do all code by yourself or you can use any game engine you prefer.
+
+## Algorithm
+
+Here goes a suggestion of how to implement the Visibility Algorithm using Recursion and grids, but you can use any other algorithm you prefer.
+
+```
+// grid is the 2d grid of the map as a matrix. every node is a enum that holds WALL, FLOOR, ENEMY, PLAYER, HIDDEN
+// origin is a 2d int vector with the origin of the visibility algorithm
+// octant is the current octant of the visibility algorithm, it is an enum that holds NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW 
+// deepness is the deepness of the recursion, it is used to limit the recursion
+// maxDeepness is the maximum deepness of the recursion, it is used to limit the recursion
+// slope is a datastructure holding 2 floats, max and min, representing the max and min slope of the current recursion level    
+
+function visibility(grid, origin, octant, deepness, maxDeepness, slopeRange) {
+    // return if max depth is reached
+    // get the current octant. it will change the way we iterate over the grid
+    // start the lower slope with the slopeRange.min
+    // list all elements for the current level of deepness inside the slope range. to calculate the range, you will use origin, depth and octant
+    // iterate over the list of elements looking for blocks:
+    //   If a block is found, then call visibility again with the new slope range from the current lower and the current block.
+    //   Search for the new lower slope, if the current block is not a wall, then the new lower slope is the current block's slope.
+    //   If the current block has slope of 1 call visibility again with the new slope range from the current lower and the current block. 
+}
+```
 
 ## What to code
 
