@@ -100,4 +100,6 @@ It is the best all-around solution to:
     - [ ] Manipulation of variables within script contexts
     - [ ] Support importing and exporting compiled scripts
 
+[![Star History Chart](https://api.star-history.com/svg?repos=InfiniBrains/mobagen&type=Date)](https://star-history.com/#InfiniBrains/mobagen&Date)
+
 [![Anurag's GitHub stats](https://github-readme-stats.vercel.app/api?username=tolstenko)](https://github.com/anuraghazra/github-readme-stats)
