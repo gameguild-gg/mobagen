@@ -6,9 +6,7 @@
 // todo: this should be a scene object?
 class ScriptableObject : public Object {
 public:
-  explicit ScriptableObject() : Object(){
-     Engine::GetInstance()->AddScriptableObject(this);
-  };
+  explicit ScriptableObject() : Object() { Engine::GetInstance()->AddScriptableObject(this); };
 
   // messages
   virtual void Awake(){};

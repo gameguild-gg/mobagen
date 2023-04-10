@@ -61,6 +61,6 @@ public:
 
   void Destroy(GameObject* go);
 
-  void AddScriptableObject(ScriptableObject* pObject){scriptableObjects.insert(pObject);};
+  void AddScriptableObject(ScriptableObject* pObject) { scriptableObjects.insert(pObject); };
 };
 #endif

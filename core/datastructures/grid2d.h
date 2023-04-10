@@ -2,13 +2,14 @@
 #define MOBAGEN_GRID2D_H
 
 #include "../math/Point2D.h"
+#include <vector>
 
-template <typename T>
-struct Grid2D {
+template <typename T> struct Grid2D {
 private:
   int width = 0;
   int height = 0;
   std::vector<T> data;
+
 public:
   Grid2D() = default;
   Grid2D(int width, int height) : width(width), height(height) { data.reserve(width * height); }

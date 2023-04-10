@@ -85,7 +85,7 @@ void Engine::Tick() {
   processInput();
 
   // start objects marked to start
-  for(auto go : gameObjectsToBeStarted) {
+  for (auto go : gameObjectsToBeStarted) {
     go->Start();
     gameObjects.insert(go);
   }
@@ -95,7 +95,7 @@ void Engine::Tick() {
   for (auto go : gameObjects) go->Update(deltaTime);
 
   // iterate over all game objects ui
-  auto gos = gameObjects;                               // clone to prevent out of bounds access
+  auto gos = gameObjects;                                       // clone to prevent out of bounds access
   for (auto go : gameObjects) go->OnGui(window->imGuiContext);  // todo: find a better way to pass imgui context
 
   for (auto go : scriptableObjects) go->OnGui(window->imGuiContext);

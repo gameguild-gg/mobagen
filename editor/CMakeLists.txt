@@ -42,9 +42,8 @@ if(BUILD_EDITOR)
   # target_include_directories(editor PUBLIC ${ITKGDCM_INCLUDE_DIRS})
   target_link_libraries(editor PUBLIC SDL2-static IMGUI core)
   # target_link_libraries (editor PUBLIC SDL2-static IMGUI engine core itkgdcmDSED-5.3
-  # itkgdcmCommon-5.3 itkzlib-5.3)
-  # if(EMSCRIPTEN) target_compile_options(editor PUBLIC "-Oz") target_link_options(editor PUBLIC "-s
-  # WASM=2 -s USE_SDL=0 -s EXPORT_ALL=1") endif()
+  # itkgdcmCommon-5.3 itkzlib-5.3) if(EMSCRIPTEN) target_compile_options(editor PUBLIC "-Oz")
+  # target_link_options(editor PUBLIC "-s WASM=2 -s USE_SDL=0 -s EXPORT_ALL=1") endif()
 
   target_include_directories(editor PUBLIC ${SDL2_INCLUDE_DIR} ${ENGINE_INC_DIR} ${CORE_INC_DIR})
 

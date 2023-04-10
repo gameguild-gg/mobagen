@@ -5,7 +5,7 @@
 
 class TopBar : public ScriptableObject {
 private:
-  bool enabled=true;
+  bool enabled = true;
 
 public:
   explicit TopBar() : ScriptableObject(){};
