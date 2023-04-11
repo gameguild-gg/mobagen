@@ -4,22 +4,7 @@
 #include "engine/EngineForwards.h"
 #include "scene/GameObject.h"
 #include "datastructures/Grid2D.h"
-
-enum class SquareType : uint8_t {
-  Empty = 0,
-  Wall = 1,
-  Player = 2,
-  Enemy = 3,
-};
-
-struct Square {
-public:
-  bool visible : 1;
-  SquareType type : 2;
-
-private:
-  uint8_t _reserved : 5;
-};
+#include "ShadowCastGridRecursive.h"
 
 // make it be a component instead a gameobject
 class Manager : public GameObject {

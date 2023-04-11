@@ -35,7 +35,7 @@ References:
 Here goes a suggestion of how to implement the Visibility Algorithm using Recursion and grids, but you can use any other algorithm you prefer.
 
 ```
-// grid is the 2d grid of the map as a matrix. every node is a enum that holds WALL, FLOOR, ENEMY, PLAYER, HIDDEN
+// grid is the 2d grid of the map as a matrix. every node is a enum that holds WALL, FLOOR, ENEMY, PLAYER 
 // origin is a 2d int vector with the origin of the visibility algorithm
 // octant is the current octant of the visibility algorithm, it is an enum that holds NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW 
 // deepness is the deepness of the recursion, it is used to limit the recursion
