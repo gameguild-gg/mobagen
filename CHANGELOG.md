@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/InfiniBrains/mobagen/compare/v1.12.2...v1.13.0) (2023-04-11)
+
+
+### Features
+
+* **hideandseek:** shadowcast entry points ([595c6dc](https://github.com/InfiniBrains/mobagen/commit/595c6dcc9639a9e3f77b15f9ec01b1e58f4476f5))
+
 ## [1.12.2](https://github.com/InfiniBrains/mobagen/compare/v1.12.1...v1.12.2) (2023-04-10)
 
 
