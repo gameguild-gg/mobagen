@@ -5,7 +5,7 @@ unordered_set<Point2D> Knight::AttackMoves(WorldState& world, const Point2D& ori
 
   unordered_set<Point2D> moves;
 
-  vector<Point2D> const deltas = {{-1, 2}, {1, 2}, {-2, 1}, {-2, 1}, {-2, -1}, {-2, -1}, {-1, -2}, {1, -2}};
+  vector<Point2D> const deltas = {{-1, 2}, {1, 2}, {-2, 1}, {2, 1}, {-2, -1}, {2, -1}, {-1, -2}, {1, -2}};
   for (auto delta : deltas) {
     auto sum = delta + origin;
     auto other = world.PieceAtPosition(sum);
