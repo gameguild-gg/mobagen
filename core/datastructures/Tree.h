@@ -4,18 +4,17 @@
 #include <vector>
 
 // binary tree
-template <Sortable T>
-struct BinaryTree {
+template <Sortable T> struct BinaryTree {
   struct Node {
     T value;
     Node* left = nullptr;
     Node* right = nullptr;
     explicit Node(T value) : value(value) {}
     Node(T value, Node* left, Node* right) : value(value), left(left), right(right) {}
-    
+
     ~Node() {
       if (left) delete left;
-      if (right)delete right;
+      if (right) delete right;
     }
   };
 
@@ -36,7 +35,7 @@ struct BinaryTree {
           break;
         }
       } else {
-        if (current->right != nullptr){
+        if (current->right != nullptr) {
           current = current->right;
         } else {
           current->right = new Node(value);
@@ -45,7 +44,6 @@ struct BinaryTree {
       }
     }
   }
-
 };
 
 #endif  // MOBAGEN_TREE_H

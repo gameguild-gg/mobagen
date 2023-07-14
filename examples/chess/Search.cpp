@@ -91,7 +91,6 @@ Move Search::NextMove(WorldState& state) {
   // after all the recursion, you have to sort all the children from that node
   // selectively choose the best ones (max or min) based on the current deepening level, and mark your score as the result of this search
 
-
   auto moves = Search::ListMoves(state, state.GetTurn());
   // generate states
   vector<MoveState> moveStates;

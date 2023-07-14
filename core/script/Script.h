@@ -3,7 +3,7 @@
 //
 //#include <quickjspp.hpp>
 //
-//class Script {
+// class Script {
 //
 //};
 //

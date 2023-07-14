@@ -29,8 +29,8 @@ endif()
 # set(CMAKE_USE_PTHREADS_INIT 1) set(THREADS_PREFER_PTHREAD_FLAG ON) ENDIF() find_package(Threads
 # REQUIRED) include(external/wasm.cmake) include(external/v8.cmake) endif()
 
-#include(external/quickjs.cmake)
-# include(filament.cmake) include(threadpool.cmake) include(external/zlib.cmake)
+# include(external/quickjs.cmake) include(filament.cmake) include(threadpool.cmake)
+# include(external/zlib.cmake)
 include(external/sdl.cmake)
 # include(glm.cmake) include(glew.cmake)
 include(external/imgui.cmake)
