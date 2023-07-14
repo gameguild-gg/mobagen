@@ -1,3 +1,10 @@
+## [1.13.4](https://github.com/InfiniBrains/mobagen/compare/v1.13.3...v1.13.4) (2023-07-14)
+
+
+### Bug Fixes
+
+* use latest glm ([ffd82b4](https://github.com/InfiniBrains/mobagen/commit/ffd82b478ef14a762f5978ae01d2eeca1e9217ec))
+
 ## [1.13.3](https://github.com/InfiniBrains/mobagen/compare/v1.13.2...v1.13.3) (2023-07-14)
 
 
