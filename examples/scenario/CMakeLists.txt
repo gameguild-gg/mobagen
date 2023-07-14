@@ -3,7 +3,7 @@ string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
   NAME GLM
   GITHUB_REPOSITORY g-truc/glm
-  GIT_TAG 0.9.9.8
+  GIT_TAG master
 )
 include_directories(${GLM_SOURCE_DIR})
 string(TIMESTAMP AFTER "%s")
