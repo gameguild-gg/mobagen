@@ -1,3 +1,10 @@
+## [1.13.7](https://github.com/InfiniBrains/mobagen/compare/v1.13.6...v1.13.7) (2023-07-14)
+
+
+### Bug Fixes
+
+* disable parallel build on ubuntu ([1383cb3](https://github.com/InfiniBrains/mobagen/commit/1383cb341a42f46dc8180df2cb134890a33a7284))
+
 ## [1.13.6](https://github.com/InfiniBrains/mobagen/compare/v1.13.5...v1.13.6) (2023-07-14)
 
 
