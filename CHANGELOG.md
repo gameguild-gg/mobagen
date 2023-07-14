@@ -1,3 +1,10 @@
+## [1.13.3](https://github.com/InfiniBrains/mobagen/compare/v1.13.2...v1.13.3) (2023-07-14)
+
+
+### Bug Fixes
+
+* quickjs ([7bdc7d7](https://github.com/InfiniBrains/mobagen/commit/7bdc7d743e6d9beacf46947118a90b31dd6caf9a))
+
 ## [1.13.2](https://github.com/InfiniBrains/mobagen/compare/v1.13.1...v1.13.2) (2023-07-14)
 
 
