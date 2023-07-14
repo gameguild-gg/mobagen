@@ -10,10 +10,10 @@ if(IMGUI_ADDED)
 
   target_sources(
     IMGUI
-    PRIVATE ${IMGUI_SOURCE_DIR}/imgui_demo.cpp ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
+    PUBLIC ${IMGUI_SOURCE_DIR}/imgui_demo.cpp ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
             ${IMGUI_SOURCE_DIR}/imgui_tables.cpp ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
             ${IMGUI_SOURCE_DIR}/imgui.cpp
-    PRIVATE ${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdlrenderer.cpp
+            ${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdlrenderer2.cpp
             ${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
             ${IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
   )

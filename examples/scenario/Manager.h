@@ -6,6 +6,8 @@
 #include "GeneratorBase.h"
 #include <SDL.h>
 
+// ref https://e2eml.school/transformers.html
+
 class Manager : public GameObject {
 private:
   float accumulatedTime = 0;

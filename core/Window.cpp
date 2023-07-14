@@ -2,7 +2,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"  // TODO: this should not be included here
 #include "imgui_impl_sdl2.h"
-#include "imgui_impl_sdlrenderer.h"
+#include "imgui_impl_sdlrenderer2.h"
 #include <stdexcept>
 #include <cmath>
 
@@ -61,7 +61,7 @@ Window::Window(std::string title) {
 
   // Setup Platform/Renderer backends
   ImGui_ImplSDL2_InitForSDLRenderer(sdlWindow, sdlRenderer);
-  ImGui_ImplSDLRenderer_Init(sdlRenderer);
+  ImGui_ImplSDLRenderer2_Init(sdlRenderer);
 
   // Load Fonts
   // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select

@@ -17,7 +17,7 @@ Engine::Engine(EngineSettings settings) : window(nullptr), settings(settings) {
 Engine::~Engine() {
   if (window) {
     // Cleanup
-    ImGui_ImplSDLRenderer_Shutdown();
+    ImGui_ImplSDLRenderer2_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
     delete (window);
@@ -72,7 +72,7 @@ bool Engine::Start(std::string title) {
 
 void Engine::Tick() {
   // Start the Dear ImGui frame
-  ImGui_ImplSDLRenderer_NewFrame();
+  ImGui_ImplSDLRenderer2_NewFrame();
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
   window->Update();
@@ -115,7 +115,7 @@ void Engine::Tick() {
     toDestroy.clear();
   }
 
-  ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
+  ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
   SDL_RenderPresent(window->sdlRenderer);
 }
 

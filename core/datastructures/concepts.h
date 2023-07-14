@@ -15,4 +15,9 @@ concept Integral = std::is_integral<T>::value;
 template <typename T>
 concept Float = std::is_floating_point<T>::value;
 
+template <typename T>
+concept Sortable = requires(T a, T b) {
+  { a < b } -> std::convertible_to<bool>;
+};
+
 #endif  // MOBAGEN_CONCEPTS_H
