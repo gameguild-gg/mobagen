@@ -1,3 +1,10 @@
+## [1.13.2](https://github.com/InfiniBrains/mobagen/compare/v1.13.1...v1.13.2) (2023-07-14)
+
+
+### Bug Fixes
+
+* import correctly the functional when using hash ([18ee716](https://github.com/InfiniBrains/mobagen/commit/18ee71653b190df591ae98f1e727e0dfbd41f06b))
+
 ## [1.13.1](https://github.com/InfiniBrains/mobagen/compare/v1.13.0...v1.13.1) (2023-07-14)
 
 
