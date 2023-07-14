@@ -66,4 +66,11 @@ if(ENABLE_DOCUMENTATION)
   add_subdirectory(documentation)
 endif()
 
+CPMAddPackage(
+        NAME CPMLicenses.cmake
+        GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
+        VERSION 0.0.5
+)
+write_license_disclaimer("third_party.txt" "${CPM_PACKAGES}")
+
 # todo: follow https://github.com/TheLartians/ModernCppStarter
