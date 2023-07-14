@@ -105,7 +105,13 @@ jobs:
         run: cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DENABLE_TEST_COVERAGE=OFF
 
       - name: build
+        if: startsWith(matrix.os,'ubuntu') == false
         run: cmake --build build --parallel --config MinSizeRel
+
+      # On ubuntu, github actions doesn't support parallel build yet. should be fixed in the future.
+      - name: build
+        if: startsWith(matrix.os,'ubuntu') == true
+        run: cmake --build build --config MinSizeRel
 
       - name: zip
         uses: thedoctor0/zip-release@main
