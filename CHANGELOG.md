@@ -1,3 +1,10 @@
+## [1.13.5](https://github.com/InfiniBrains/mobagen/compare/v1.13.4...v1.13.5) (2023-07-14)
+
+
+### Bug Fixes
+
+* format ([ed8939a](https://github.com/InfiniBrains/mobagen/commit/ed8939a1e050d3255364cdc30ed47685163fb697))
+
 ## [1.13.4](https://github.com/InfiniBrains/mobagen/compare/v1.13.3...v1.13.4) (2023-07-14)
 
 
