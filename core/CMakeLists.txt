@@ -20,7 +20,8 @@ set(CORE_INC_DIR
 add_library(core STATIC ${CORE_SRC} ${CORE_INC})
 
 if(EMSCRIPTEN)
-  target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI quickjspp)
+#  target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI quickjspp)
+  target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI)
 else()
   target_link_libraries(
     core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI
