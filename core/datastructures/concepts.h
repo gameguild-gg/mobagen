@@ -3,6 +3,7 @@
 
 #include <concepts>
 #include <type_traits>
+#include <functional>
 
 template <typename T>
 concept Hashable = requires(T a) {
