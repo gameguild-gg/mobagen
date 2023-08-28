@@ -1,3 +1,10 @@
+## [1.13.8](https://github.com/InfiniBrains/mobagen/compare/v1.13.7...v1.13.8) (2023-08-28)
+
+
+### Bug Fixes
+
+* **flocking:** remove center of mass ([a97f2ea](https://github.com/InfiniBrains/mobagen/commit/a97f2eafab8fd9c1df62f3b436ec113cb75e686c))
+
 ## [1.13.7](https://github.com/InfiniBrains/mobagen/compare/v1.13.6...v1.13.7) (2023-07-14)
 
 
