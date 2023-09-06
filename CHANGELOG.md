@@ -1,3 +1,11 @@
+## [1.13.9](https://github.com/InfiniBrains/mobagen/compare/v1.13.8...v1.13.9) (2023-09-06)
+
+
+### Bug Fixes
+
+* **clear:** clear repo solutions ([6e77ea4](https://github.com/InfiniBrains/mobagen/commit/6e77ea474a784f48b6ca36faeb2d4c420f4f7cfc))
+* **stdint:** add cstdint for compatibility reasons ([80d74fa](https://github.com/InfiniBrains/mobagen/commit/80d74fa934c6d8aa31529cc1626b07d7313d3544))
+
 ## [1.13.8](https://github.com/InfiniBrains/mobagen/compare/v1.13.7...v1.13.8) (2023-08-28)
 
 
