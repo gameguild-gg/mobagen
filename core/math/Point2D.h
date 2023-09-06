@@ -1,6 +1,7 @@
 #ifndef POINT2D_H
 #define POINT2D_H
 #include <string>
+#include <cstdint>
 
 struct Point2D {
 public:

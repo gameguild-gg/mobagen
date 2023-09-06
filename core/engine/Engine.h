@@ -13,6 +13,7 @@
 #include <vector>
 #include <unordered_set>
 #include <chrono>
+#include <cstdint>
 
 class Engine {
 private:
