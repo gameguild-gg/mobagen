@@ -20,11 +20,17 @@ World::World(Engine* pEngine) : GameObject(pEngine) {}
 
 void World::initializeRules() {
   // Starting Rules
+  // parameters: desired separation, weight
   boidsRules.emplace_back(std::make_unique<SeparationRule>(this, 25.f, 4.75f));
+  // parameters: weight
   boidsRules.emplace_back(std::make_unique<CohesionRule>(this, 4.25f));
+  // parameters: weight
   boidsRules.emplace_back(std::make_unique<AlignmentRule>(this, 2.9f));
+  // parameters: weight
   boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(this, 2.f));
+  // parameters: distance from frame border, weight
   boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(this, 20, 8.f, false));
+  // parameters: weight, angle
   boidsRules.emplace_back(std::make_unique<WindRule>(this, 1.f, 6.f, false));
 
   // Starting weights are saved as defaults
