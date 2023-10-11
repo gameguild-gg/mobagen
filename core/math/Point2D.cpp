@@ -4,6 +4,7 @@ const Point2D Point2D::UP = Point2D(0, -1);
 const Point2D Point2D::DOWN = Point2D(0, 1);
 const Point2D Point2D::LEFT = Point2D(-1, 0);
 const Point2D Point2D::RIGHT = Point2D(1, 0);
+const Point2D Point2D::INFINITE = Point2D(INT_MAX, INT_MAX);
 
 bool Point2D::operator==(const Point2D& rhs) const { return y == rhs.y && x == rhs.x; }
 
