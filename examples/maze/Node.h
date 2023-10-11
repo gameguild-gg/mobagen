@@ -2,6 +2,7 @@
 #define MOBAGEN_NODE_H
 #include <iostream>
 #include <vector>
+#include <cstdint>
 
 // the goal of this data structure is to interface with the world
 struct Node {

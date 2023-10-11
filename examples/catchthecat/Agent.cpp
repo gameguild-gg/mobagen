@@ -29,5 +29,5 @@ std::vector<Point2D> Agent::generatePath(World* w){
 
   // if the border is not infinity, build the path from border to the cat using the camefrom map
   // if there isnt a reachable border, just return empty vector
-  // if your vector is filled as the border as the first element, and the last one it the
+  // if your vector is filled from the border to the cat, the first element is the catcher move, and the last element is the cat move
 }
