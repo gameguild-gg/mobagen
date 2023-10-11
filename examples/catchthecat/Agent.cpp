@@ -14,7 +14,7 @@ std::vector<Point2D> Agent::generatePath(World* w){
   auto catPos = w->getCat();
   frontier.push(catPos);
   frontierSet.insert(catPos);
-  Point2D border = Point2D::INFINITE; // if at the end of the loop we dont find a border, we have to return random points
+  Point2D borderExit = Point2D::INFINITE; // if at the end of the loop we dont find a border, we have to return random points
 
   while (!frontier.empty()){
     // get the current from frontier
