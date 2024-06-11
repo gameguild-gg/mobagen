@@ -1,3 +1,10 @@
+## [1.14.2](https://github.com/InfiniBrains/mobagen/compare/v1.14.1...v1.14.2) (2024-06-11)
+
+
+### Bug Fixes
+
+* **ci:** fix api changes for ci ([e892a04](https://github.com/InfiniBrains/mobagen/commit/e892a047e9100c909f9b47e704e16d5edce7db19))
+
 ## [1.14.1](https://github.com/InfiniBrains/mobagen/compare/v1.14.0...v1.14.1) (2024-06-11)
 
 
