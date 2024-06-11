@@ -68,6 +68,11 @@ if(ENABLE_DOCUMENTATION)
   add_subdirectory(documentation)
 endif()
 
+option(ENABLE_EDITOR "ENABLE_EDITOR" ON)
+if(ENABLE_EDITOR)
+  add_subdirectory(editor)
+endif()
+
 CPMAddPackage(
   NAME CPMLicenses.cmake
   GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
