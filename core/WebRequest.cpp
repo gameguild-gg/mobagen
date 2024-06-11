@@ -1,11 +1,11 @@
-//#include "WebRequest.h"
-//#ifndef __EMSCRIPTEN__
-//#  include "cpr/cpr.h"
-//#endif
+// #include "WebRequest.h"
+// #ifndef __EMSCRIPTEN__
+// #  include "cpr/cpr.h"
+// #endif
 //
 //// ref.: see https://github.com/libcpr/cpr/blob/master/test/post_tests.cpp
 // WebRequest::WebRequest(std::string uri, WebRequestVerb verb = WebRequestVerb::GET, std::map<std::string, std::string> headers = {}) {
-//#ifndef __EMSCRIPTEN__
+// #ifndef __EMSCRIPTEN__
 //   cpr::Payload payload{};
 //   cpr::Session session;
 //   cpr::Header header;
@@ -16,5 +16,5 @@
 //   if (verb == WebRequestVerb::GET) {
 //     r = session.Get();
 //   }
-//#endif
+// #endif
 // }

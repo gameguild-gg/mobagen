@@ -1,5 +1,6 @@
 #ifndef MOBAGEN_PARTICLEGENERATOR_H
 #define MOBAGEN_PARTICLEGENERATOR_H
+#define GLM_ENABLE_EXPERIMENTAL  // to use glm::normal
 
 // reference: https://github.com/weigert/SimpleErosion
 #include "../GeneratorBase.h"

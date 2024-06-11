@@ -11,9 +11,9 @@ namespace MoBaGEn::TimeManager {
   class Time {
   public:
     /**
-   * @brief Get the current wall time
-   *
-   * @return TimePoint
+     * @brief Get the current wall time
+     *
+     * @return TimePoint
      */
     static TimePoint Now();
 
@@ -22,11 +22,11 @@ namespace MoBaGEn::TimeManager {
 
   public:
     /**
-   * @brief Get the Elapsed Time since the start of the program
-   *
-   * @return Duration
+     * @brief Get the Elapsed Time since the start of the program
+     *
+     * @return Duration
      */
     static Duration GetElapsedTime();
   };
-}
+}  // namespace MoBaGEn::TimeManager
 #endif  // MOBAGEN_TIME_H

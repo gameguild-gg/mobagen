@@ -6,16 +6,16 @@
 https://playground.diagram.codes/d/system-layers
 
 ```
-V[core,engine,editor] with label "Architecture"
+V[Interfaces,glue,engine,editor] with label "Architecture"
 
-core=H["Math","Containers &\nData Converters","Log",platform] with label "Core"
+glue=H["Math","Containers &\nData Converters","Log",platform] with label "Glue"
 platform=H[mobile,desktop,web] with label "Platform Specific"
 
 mobile=H["android","ios"] with label "Mobile"
 desktop=H["win","osx","linux"] with label "Desktop"
 web=H["wasm"] with label "WEB"
 
-engine=H[orchestrator,rendering,physics,resource,animation,networking,gameplay] with label "Engine Modules"
+engine=H[orchestrator,rendering,physics,resource,animation,networking,gameplay] with label "Modules"
 rendering=V["GUI","Rendering","Shaders","Scripting","Materials"] with label "Graphics"
 
 physics=V["Particles","Collision","RigidBody","Constraints"] with label "Physics"

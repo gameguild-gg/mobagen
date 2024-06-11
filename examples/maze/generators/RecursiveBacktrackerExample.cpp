@@ -3,7 +3,8 @@
 #include "RecursiveBacktrackerExample.h"
 #include <climits>
 bool RecursiveBacktrackerExample::Step(World* w) {
-
+  // todo: implement this
+  return false;
 }
 
 void RecursiveBacktrackerExample::Clear(World* world) {
@@ -30,6 +31,8 @@ Point2D RecursiveBacktrackerExample::randomStartPoint(World* world) {
 std::vector<Point2D> RecursiveBacktrackerExample::getVisitables(World* w, const Point2D& p) {
   auto sideOver2 = w->GetSize() / 2;
   std::vector<Point2D> visitables;
+
+  // todo: implement this
 
   return visitables;
 }

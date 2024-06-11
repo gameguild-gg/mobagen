@@ -1,10 +1,10 @@
-//#ifndef MOBAGEN_SCRIPT_H
-//#define MOBAGEN_SCRIPT_H
+// #ifndef MOBAGEN_SCRIPT_H
+// #define MOBAGEN_SCRIPT_H
 //
-//#include <quickjspp.hpp>
+// #include <quickjspp.hpp>
 //
-// class Script {
+//  class Script {
 //
-//};
+// };
 //
-//#endif  // MOBAGEN_SCRIPT_H
+// #endif  // MOBAGEN_SCRIPT_H

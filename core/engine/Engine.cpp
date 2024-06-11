@@ -115,7 +115,7 @@ void Engine::Tick() {
     toDestroy.clear();
   }
 
-  ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(),window->sdlRenderer);
+  ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), window->sdlRenderer);
   SDL_RenderPresent(window->sdlRenderer);
 }
 

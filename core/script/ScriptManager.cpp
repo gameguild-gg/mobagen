@@ -1,6 +1,6 @@
-//#include "ScriptManager.h"
-//#include "quickjspp.hpp"
+// #include "ScriptManager.h"
+// #include "quickjspp.hpp"
 //
-// void ScriptManager::Initialize() {
+//  void ScriptManager::Initialize() {
 //
-//}
+// }

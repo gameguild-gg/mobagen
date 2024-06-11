@@ -20,7 +20,7 @@ private:
   int64_t moveDuration = 0;
   int64_t totalTime = 0;
 
-  // .=
+  // ._
   // |
   // even indexes are top elements;
   // odd indexes are left elements;

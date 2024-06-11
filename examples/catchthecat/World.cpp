@@ -163,8 +163,7 @@ void World::OnGui(ImGuiContext* context) {
     ImGui::SetNextWindowPos(pos, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
     ImGui::Begin("Game Over", nullptr, flags);
-    if (ImGui::Button("OK", ImVec2(200, 0)))
-      clearWorld();
+    if (ImGui::Button("OK", ImVec2(200, 0))) clearWorld();
     ImGui::End();
   }
 }

@@ -6,18 +6,21 @@
 #include <functional>
 
 template <typename T>
-concept Hashable = requires(T a) {
+concept HashableConcept = requires(T a) {
   { std::hash<T>{}(a) } -> std::convertible_to<std::size_t>;
 };
 
 template <typename T>
-concept Integral = std::is_integral<T>::value;
+concept IntegralConcept = std::integral<T>;
 
 template <typename T>
-concept Float = std::is_floating_point<T>::value;
+concept FloatConcept = std::floating_point<T>;
 
 template <typename T>
-concept Sortable = requires(T a, T b) {
+concept NumberConcept = std::integral<T> || std::floating_point<T>;
+
+template <typename T>
+concept SortableConcept = requires(T a, T b) {
   { a < b } -> std::convertible_to<bool>;
 };
 

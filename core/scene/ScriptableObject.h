@@ -21,7 +21,8 @@ public:
 
   // methods
   template <typename T>
-  requires std::is_base_of<ScriptableObject, T>::value static T* CreateInstance(Engine* engine) {  // todo: remove dependency of engine
+    requires std::is_base_of<ScriptableObject, T>::value
+  static T* CreateInstance(Engine* engine) {  // todo: remove dependency of engine
     return new T(engine);
   }
 };

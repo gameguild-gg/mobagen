@@ -1,11 +1,11 @@
-//#ifndef EDITOR_H
-//#define EDITOR_H
+// #ifndef EDITOR_H
+// #define EDITOR_H
 //
-//#include "GameObject.h"
+// #include "GameObject.h"
 //
-// class Editor: GameObject {
-// public:
-//    explicit Editor(Engine *pEngine);
-//    void OnGui(ImGuiContext *context) override;
-//};
-//#endif
+//  class Editor: GameObject {
+//  public:
+//     explicit Editor(Engine *pEngine);
+//     void OnGui(ImGuiContext *context) override;
+// };
+// #endif

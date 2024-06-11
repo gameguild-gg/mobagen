@@ -46,6 +46,8 @@ if(EMSCRIPTEN)
   set(ENABLE_TEST_COVERAGE OFF)
 endif()
 
+include(cmake/subdirlist.cmake)
+
 include(external/external.cmake)
 
 add_subdirectory(modules)

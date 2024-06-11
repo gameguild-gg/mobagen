@@ -1,7 +1,7 @@
-//#ifndef MOBAGEN_SCRIPTMANAGER_H
-//#define MOBAGEN_SCRIPTMANAGER_H
+// #ifndef MOBAGEN_SCRIPTMANAGER_H
+// #define MOBAGEN_SCRIPTMANAGER_H
 //
-//#include "quickjspp.hpp"
+// #include "quickjspp.hpp"
 //
 //// todo: generate bindings for quickjs. see https://github.com/ftk/quickjspp/tree/master/binding-generator
 //
@@ -25,4 +25,4 @@
 //   ScriptManager() = default;
 // };
 //
-//#endif  // MOBAGEN_SCRIPTMANAGER_H
+// #endif  // MOBAGEN_SCRIPTMANAGER_H
