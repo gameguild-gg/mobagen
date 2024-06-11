@@ -1,3 +1,10 @@
+## [1.14.5](https://github.com/InfiniBrains/mobagen/compare/v1.14.4...v1.14.5) (2024-06-11)
+
+
+### Bug Fixes
+
+* **editor:** add editor to the build system ([e749508](https://github.com/InfiniBrains/mobagen/commit/e74950897ccf56d2facb7bee138178c548c2b5e2))
+
 ## [1.14.4](https://github.com/InfiniBrains/mobagen/compare/v1.14.3...v1.14.4) (2024-06-11)
 
 
