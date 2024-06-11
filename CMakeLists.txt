@@ -48,8 +48,8 @@ endif()
 
 include(external/external.cmake)
 
+add_subdirectory(modules)
 add_subdirectory(core)
-add_subdirectory(editor)
 
 option(ENABLE_TEST_COVERAGE "ENABLE_TEST_COVERAGE" ON)
 if(ENABLE_TEST_COVERAGE)
