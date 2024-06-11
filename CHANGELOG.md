@@ -1,3 +1,10 @@
+## [1.14.4](https://github.com/InfiniBrains/mobagen/compare/v1.14.3...v1.14.4) (2024-06-11)
+
+
+### Bug Fixes
+
+* **style:** fix styles and remove previous solutions ([c01ad5b](https://github.com/InfiniBrains/mobagen/commit/c01ad5bb5a6e0c7817d17d71afff6dcb8c8797b5))
+
 ## [1.14.3](https://github.com/InfiniBrains/mobagen/compare/v1.14.2...v1.14.3) (2024-06-11)
 
 
