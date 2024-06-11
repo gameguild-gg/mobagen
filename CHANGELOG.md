@@ -1,3 +1,10 @@
+## [1.14.1](https://github.com/InfiniBrains/mobagen/compare/v1.14.0...v1.14.1) (2024-06-11)
+
+
+### Bug Fixes
+
+* time manager ([71c06cd](https://github.com/InfiniBrains/mobagen/commit/71c06cd299bdd0e59ec183bf251ad50e576466e5))
+
 # [1.14.0](https://github.com/InfiniBrains/mobagen/compare/v1.13.10...v1.14.0) (2023-10-11)
 
 
