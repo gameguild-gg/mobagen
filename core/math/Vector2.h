@@ -138,5 +138,7 @@ template <FloatType T> struct Vector2 {
 };
 
 using Vector2f = Vector2<float>;
+using Vector2d = Vector2<double>;
+using Vector2lf = Vector2<long double>;
 
 #endif  // VECTOR2_H
