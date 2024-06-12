@@ -1,3 +1,10 @@
+## [1.14.6](https://github.com/InfiniBrains/mobagen/compare/v1.14.5...v1.14.6) (2024-06-12)
+
+
+### Bug Fixes
+
+* **timer:** add timer class ([bb62d7f](https://github.com/InfiniBrains/mobagen/commit/bb62d7fb614e260c1695ef9161d4334d520fb0b7))
+
 ## [1.14.5](https://github.com/InfiniBrains/mobagen/compare/v1.14.4...v1.14.5) (2024-06-11)
 
 
