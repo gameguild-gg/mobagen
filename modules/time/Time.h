@@ -12,18 +12,16 @@ namespace MoBaGEn::TimeManager {
   public:
     /**
      * @brief Get the current wall time
-     *
      * @return TimePoint
      */
     static TimePoint Now();
 
   private:
-    static inline TimePoint m_startTime = Now();
+    static TimePoint startTime();
 
   public:
     /**
      * @brief Get the Elapsed Time since the start of the program
-     *
      * @return Duration
      */
     static Duration GetElapsedTime();
