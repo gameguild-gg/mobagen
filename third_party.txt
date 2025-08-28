@@ -1,6 +1,6 @@
 The following software may be included in this product: SDL2. This software contains the following license and notice below:
 
-Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -23,7 +23,7 @@ freely, subject to the following restrictions:
 -----
 The following software may be included in this product: SDL_image. This software contains the following license and notice below:
 
-Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -47,7 +47,7 @@ The following software may be included in this product: IMGUI. This software con
 
 The MIT License (MIT)
 
-Copyright (c) 2014-2024 Omar Cornut
+Copyright (c) 2014-2025 Omar Cornut
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -73,7 +73,7 @@ The following software may be included in this product: doctest. This software c
 
 The MIT License (MIT)
 
-Copyright (c) 2016-2021 Viktor Kirilov
+Copyright (c) 2016-2023 Viktor Kirilov
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

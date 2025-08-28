@@ -2,7 +2,7 @@
 string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
   NAME IMGUI
-  GIT_TAG docking
+  GIT_TAG v1.92.2b-docking
   GITHUB_REPOSITORY ocornut/imgui
 )
 if(IMGUI_ADDED)
