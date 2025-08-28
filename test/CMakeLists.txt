@@ -9,7 +9,7 @@ include(../cmake/tools.cmake)
 
 include(../external/cpm.cmake)
 
-CPMAddPackage("gh:onqtam/doctest@2.4.8")
+CPMAddPackage("gh:onqtam/doctest@2.4.12")
 CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
 
 # if(TEST_INSTALLED_VERSION) find_package(Concurrency REQUIRED) else() CPMAddPackage(NAME
