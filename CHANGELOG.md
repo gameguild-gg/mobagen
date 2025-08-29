@@ -1,3 +1,10 @@
+## [1.14.7](https://github.com/InfiniBrains/mobagen/compare/v1.14.6...v1.14.7) (2025-08-29)
+
+
+### Bug Fixes
+
+* tentatively fix nasm issues by using native libs from the user and staticly linking them ([b27c662](https://github.com/InfiniBrains/mobagen/commit/b27c6626eefa430bf9063a16270d03af93acae7e))
+
 ## [1.14.6](https://github.com/InfiniBrains/mobagen/compare/v1.14.5...v1.14.6) (2024-06-12)
 
 
