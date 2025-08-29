@@ -9,6 +9,7 @@ project(
   VERSION 0.0.1
   HOMEPAGE_URL "https://infinbrains.com"
   DESCRIPTION "Module Based Game Engine"
+  LANGUAGES C CXX
 )
 
 # Include guards
