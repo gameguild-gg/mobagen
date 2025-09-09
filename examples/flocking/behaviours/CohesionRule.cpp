@@ -5,14 +5,10 @@ Vector2f CohesionRule::computeForce(const std::vector<Boid*>& neighborhood, Boid
   Vector2f cohesionForce;
   float boidsInRange = 0.0f;
 for (int i = 0; i < neighborhood.size(); i++) {
-if (neighborhood[i]!=boid) {
-if ((neighborhood[i]->getPosition() - boid->getPosition()).getMagnitude() <= boid->getDetectionRadius()) {
 cohesionForce += neighborhood[i]->getPosition();
   boidsInRange++;
 }
-}
-}
-if (boidsInRange!= 0) {
+if (!neighborhood.empty()) {
   cohesionForce = (cohesionForce / boidsInRange);
 Vector2f force =cohesionForce-boid->getPosition();
   return force.normalized();

@@ -11,10 +11,10 @@ Vector2f AlignmentRule::computeForce(const std::vector<Boid*>& neighborhood, Boi
       boidsInRange++;
     }
   }
-  if (boidsInRange!=0) {
-Vector2f avgForce = averageVelocity / boidsInRange;
-Vector2f forceApplied = boid->getVelocity() - avgForce;
-    return forceApplied;
+  if (!neighborhood.empty()) {
+Vector2f avgForce = (averageVelocity / neighborhood.size()).normalized()*boid->getDetectionRadius();
+//Vector2f forceApplied = boid->getVelocity() - avgForce;
+    return avgForce;
   }
   return Vector2f::zero();
   // todo: add your code here to align each boid in a neighborhood
