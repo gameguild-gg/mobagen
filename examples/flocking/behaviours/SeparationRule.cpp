@@ -27,7 +27,7 @@ Vector2f SeparationRule::computeForce(const std::vector<Boid*>& neighborhood, Bo
         boidsInRangeCount += 1.0;
   }
   if (!neighborhood.empty()) {
-    Vector2 maxed = (separatingForce/neighborhood.size()) * boid->getDetectionRadius();
+    Vector2 maxed = ((separatingForce/neighborhood.size()) * boid->getDetectionRadius())*weight;
     return maxed;
   }
   return {0, 0};
