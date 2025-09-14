@@ -27,7 +27,7 @@ int HexagonGameOfLife::CountNeighbors(World& world, Point2D point) {
   //Count neighbors
   int neighbors = 0;
   Point2D neighborPoint = point; //take a reference of where the point is
-  if (point.x < world.SideSize() && point.y < world.SideSize()) { //iterate through the 6 possibilities
+  if (point.x-1 < world.SideSize() ==point.x && point.y-1 < world.SideSize() == point.y) { //iterate through the 6 possibilities
     neighborPoint.x = point.x + 1; //in front
     if (world.Get(neighborPoint) == true) {
       neighbors++;
@@ -55,11 +55,48 @@ int HexagonGameOfLife::CountNeighbors(World& world, Point2D point) {
       neighbors++;
     }
   }
-  if (neighborPoint.x >= world.SideSize()) { // if the point's neighbor is outside the range, we get specific
-  
-  }
-  if (neighborPoint.y >= world.SideSize()) {
+  if (neighborPoint.x+1 >= world.SideSize()) { // if the point's neighbor is outside the range, we get specific, in this case, if on the right edge
+    //wrap to the left
+    if (neighborPoint.y+1 >= world.SideSize()) {
+      neighborPoint.y = 0;
+    }
+  neighborPoint.x = 0; //ahead
+    if (world.Get(neighborPoint) == true) {
+      neighbors++;
+    }
+    neighborPoint.y = neighborPoint.y +1; //other side right
+    if (world.Get(neighborPoint) == true) {
+      neighbors++;
+    }
+    neighborPoint.x = point.x - 1; //behind
+    neighborPoint.y = neighborPoint.y - 1;
+    if (world.Get(neighborPoint) == true) {
+      neighbors++;
+    }
+    if (neighborPoint.y-1 <= 0) { //check to see if we're in a corner on the left, if so, we wrap all the way around
+      neighborPoint.y = world.SideSize()-1;
+      if (world.Get(neighborPoint) == true) {
+        neighbors++;
+      } // Above left
+      neighborPoint.y = point.y;
+      neighborPoint.x = point.x - 1;
+    }
 
+    if (neighborPoint.y+1 >= world.SideSize()) { // if Y is at the end of the screen, wrap
+      if (neighborPoint.x+1 >= world.SideSize()) {
+        neighborPoint.x = 0;
+
+      }
+      neighborPoint.x = neighborPoint.x + 1;
+      if (world.Get(neighborPoint) == true) {
+        neighbors++;
+      }
+      neighborPoint.y = 0;
+
+      if (world.Get(neighborPoint) == true) { // above
+        neighbors++;
+      }
+    }
   }
   return neighbors;
 }
