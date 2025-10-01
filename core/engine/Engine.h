@@ -63,5 +63,7 @@ public:
   void Destroy(GameObject* go);
 
   void AddScriptableObject(ScriptableObject* pObject) { scriptableObjects.insert(pObject); };
+
+  bool IsHeadless() const { return settings.headless; }
 };
 #endif

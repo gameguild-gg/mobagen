@@ -56,12 +56,17 @@ void Engine::Run() {
 }
 
 bool Engine::Start(std::string title) {
-  SDL_Log("Initializing Window");
-  window = new Window(title);
-  if (window != nullptr)
-    SDL_Log("Window Initialized");
-  else
-    exit(0);
+  if (!settings.headless) {
+    SDL_Log("Initializing Window");
+    window = new Window(title);
+    if (window != nullptr)
+      SDL_Log("Window Initialized");
+    else
+      exit(0);
+  } else {
+    SDL_Log("Starting in headless mode - no window created");
+    window = nullptr;
+  }
 
   lastFrameTime = std::chrono::high_resolution_clock::now();
   SDL_Delay(1000 / targetFPS);
@@ -71,15 +76,18 @@ bool Engine::Start(std::string title) {
 }
 
 void Engine::Tick() {
-  // Start the Dear ImGui frame
-  ImGui_ImplSDLRenderer2_NewFrame();
-  ImGui_ImplSDL2_NewFrame();
-  ImGui::NewFrame();
-  window->Update();
+  // Only initialize ImGui and rendering if not in headless mode
+  if (!settings.headless) {
+    // Start the Dear ImGui frame
+    ImGui_ImplSDLRenderer2_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+    window->Update();
 
-  SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255),
-                         (Uint8)(clear_color.w * 255));
-  SDL_RenderClear(window->sdlRenderer);
+    SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255),
+                           (Uint8)(clear_color.w * 255));
+    SDL_RenderClear(window->sdlRenderer);
+  }
 
   // inputs processing
   processInput();
@@ -94,17 +102,23 @@ void Engine::Tick() {
   // update
   for (auto go : gameObjects) go->Update(deltaTime);
 
-  // iterate over all game objects ui
-  auto gos = gameObjects;                                       // clone to prevent out of bounds access
-  for (auto go : gameObjects) go->OnGui(window->imGuiContext);  // todo: find a better way to pass imgui context
+  // Only process GUI and rendering if not in headless mode
+  if (!settings.headless) {
+    // iterate over all game objects ui
+    auto gos = gameObjects;                                       // clone to prevent out of bounds access
+    for (auto go : gameObjects) go->OnGui(window->imGuiContext);  // todo: find a better way to pass imgui context
 
-  for (auto go : scriptableObjects) go->OnGui(window->imGuiContext);
+    for (auto go : scriptableObjects) go->OnGui(window->imGuiContext);
 
-  // Rendering
-  ImGui::Render();
+    // Rendering
+    ImGui::Render();
 
-  // Draw
-  for (auto go : gameObjects) go->OnDraw(window->sdlRenderer);
+    // Draw
+    for (auto go : gameObjects) go->OnDraw(window->sdlRenderer);
+
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), window->sdlRenderer);
+    SDL_RenderPresent(window->sdlRenderer);
+  }
 
   // destroy objects marked to death
   if (!toDestroy.empty()) {
@@ -114,9 +128,6 @@ void Engine::Tick() {
     }
     toDestroy.clear();
   }
-
-  ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), window->sdlRenderer);
-  SDL_RenderPresent(window->sdlRenderer);
 }
 
 void Engine::Exit() {
@@ -136,6 +147,11 @@ void Engine::processInput() {
 
   // clean the state
   arrowInput = Vector2f();
+
+  // Skip input processing in headless mode
+  if (settings.headless) {
+    return;
+  }
 
   // process events
   SDL_Event event;
