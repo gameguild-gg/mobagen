@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/InfiniBrains/mobagen/compare/v1.14.7...v1.15.0) (2025-10-01)
+
+
+### Features
+
+* **engine:** Adds headless mode support ([b51ffb9](https://github.com/InfiniBrains/mobagen/commit/b51ffb9586b050c53e053f4281d870b6b3c702ea))
+
 ## [1.14.7](https://github.com/InfiniBrains/mobagen/compare/v1.14.6...v1.14.7) (2025-08-29)
 
 
