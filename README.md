@@ -3,6 +3,7 @@
 MoBaGEn - Module Based Game Engine - Educational tool to teach game programming concepts.
 
 Join us: [![say thanks](https://img.shields.io/badge/Say%20Thanks-👍-1EAEDB.svg)](https://github.com/InfiniBrains/mobagen/stargazers) [![Discord](https://img.shields.io/discord/956922983727915078)](https://discord.gg/9CdJeQ2XKB)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FInfiniBrains%2Fmobagen.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FInfiniBrains%2Fmobagen?ref=badge_shield)
 
 Metrics: [![Codacy Badge](https://app.codacy.com/project/badge/Grade/1d95c33e061442e39d7e1a697b28cb10)](https://www.codacy.com/gh/InfiniBrains/mobagen/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=InfiniBrains/mobagen&amp;utm_campaign=Badge_Grade) [![codecov](https://codecov.io/gh/InfiniBrains/mobagen/branch/master/graph/badge.svg?token=RTRPZ2HBZN)](https://codecov.io/gh/InfiniBrains/mobagen) ![GitHub language count](https://img.shields.io/github/languages/count/InfiniBrains/mobagen) ![GitHub search hit counter](https://img.shields.io/github/search/InfiniBrains/mobagen/todo) ![Lines of code](https://img.shields.io/tokei/lines/github.com/InfiniBrains/mobagen) ![GitHub all releases](https://img.shields.io/github/downloads/InfiniBrains/mobagen/total) ![GitHub contributors](https://img.shields.io/github/contributors/InfiniBrains/mobagen)
 
@@ -103,3 +104,7 @@ It is the best all-around solution to:
 [![Star History Chart](https://api.star-history.com/svg?repos=InfiniBrains/mobagen&type=Date)](https://star-history.com/#InfiniBrains/mobagen&Date)
 
 [![Anurag's GitHub stats](https://github-readme-stats.vercel.app/api?username=tolstenko)](https://github.com/anuraghazra/github-readme-stats)
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FInfiniBrains%2Fmobagen.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FInfiniBrains%2Fmobagen?ref=badge_large)
