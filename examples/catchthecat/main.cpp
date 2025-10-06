@@ -42,6 +42,7 @@ std::vector<bool> parseBoardString(const std::string& boardStr, int size) {
       worldState[validCharCount] = false; // empty (cat position handled separately)
       validCharCount++;
     }
+
     // Skip whitespace, newlines, and other invalid characters without incrementing validCharCount
   }
   
