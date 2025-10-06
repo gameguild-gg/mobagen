@@ -137,17 +137,15 @@ int runHeadlessMode(Engine* engine, const GameConfig& config) {
   World* world = new World(engine, config.size, config.isCatTurn, catPos, worldState);
   
   // Print initial board state
-  std::cout << "Initial board state:\n";
-  world->print();
-  std::cout << "\nTurn: " << (config.isCatTurn ? "CAT" : "CATCHER") << "\n\n";
-  
   // Execute one turn
   world->step();
   
   // Print final board state
-  std::cout << "Board state after turn:\n";
   world->print();
-  std::cout << "\n";
+  
+  // Print processing time and move coordinates
+  std::cout << world->moveDuration << std::endl;
+  std::cout << world->lastMove.x << "," << world->lastMove.y << std::endl;
   
   delete world;
   return 0;

@@ -17,7 +17,6 @@ private:
   bool catTurn = true;
   bool isSimulating = false;
   Point2D catPosition = Point2D(0, 0);
-  int64_t moveDuration = 0;
   bool catWon = false;
   bool catcherWon = false;
 
@@ -46,6 +45,9 @@ private:
   bool catcherWinVerification();
 
 public:
+  Point2D lastMove = Point2D(0, 0);
+  int64_t moveDuration = 0;
+  
   explicit World(Engine* pEngine, int size = 11);
   explicit World(Engine* pEngine, int mapSideSize, bool isCatTurn, Point2D catPos, std::vector<bool> map);
 

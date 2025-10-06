@@ -192,6 +192,7 @@ void World::step() {
   // run the turn
   if (catTurn) {
     auto move = cat->Move(this);
+    lastMove = move;
     if (catCanMoveToPosition(move)) {
       catPosition = move;
       catWon = catWinVerification();
@@ -201,6 +202,7 @@ void World::step() {
     }
   } else {
     auto move = catcher->Move(this);
+    lastMove = move;
     if (catcherCanMoveToPosition(move)) {
       worldState[(move.y + sideSize / 2) * (sideSize) + move.x + sideSize / 2] = true;
       catcherWon = catcherWinVerification();
