@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/InfiniBrains/mobagen/compare/v1.15.0...v1.16.0) (2025-10-06)
+
+
+### Features
+
+* **catchthecat:** Adds move output for headless mode ([f00b6c8](https://github.com/InfiniBrains/mobagen/commit/f00b6c8369c70033ebb29fa2df2871007c117d59))
+
 # [1.15.0](https://github.com/InfiniBrains/mobagen/compare/v1.14.7...v1.15.0) (2025-10-01)
 
 
