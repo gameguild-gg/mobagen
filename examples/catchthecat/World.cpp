@@ -5,7 +5,7 @@
 #include "engine/Engine.h"
 
 void World::print() {
-  auto catposid = catPosition.y * (sideSize / 2) + catPosition.x + sideSize * sideSize / 2;
+  auto catposid = (catPosition.y + sideSize / 2) * sideSize + (catPosition.x + sideSize / 2);
   for (int i = 0; i < worldState.size();) {
     std::cout << ((i == catposid) ? ('C') : (worldState[i] ? '#' : '.'));
     i++;
@@ -66,13 +66,13 @@ Point2D World::NW(const Point2D& p) {
 }
 
 Point2D World::SE(const Point2D& p) {
-  if (p.y % 2) return {p.x, p.y + 1};
-  return {p.x - 1, p.y + 1};
+  if (p.y % 2) return {p.x + 1, p.y + 1};
+  return {p.x, p.y + 1};
 }
 
 Point2D World::SW(const Point2D& p) {
-  if (p.y % 2) return {p.x + 1, p.y + 1};
-  return {p.x, p.y + 1};
+  if (p.y % 2) return {p.x, p.y + 1};
+  return {p.x - 1, p.y + 1};
 }
 
 bool World::isValidPosition(const Point2D& p) {

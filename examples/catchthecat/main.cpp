@@ -35,10 +35,10 @@ std::vector<bool> parseBoardString(const std::string& boardStr, int size) {
   for (int i = 0; i < boardStr.length() && validCharCount < expectedCount; i++) {
     char c = boardStr[i];
     
-    if (c == '#' || c == 'C') {
+    if (c == '#') {
       worldState[validCharCount] = true;  // blocked
       validCharCount++;
-    } else if (c == '.') {
+    } else if (c == '.' || c == 'C') {
       worldState[validCharCount] = false; // empty (cat position handled separately)
       validCharCount++;
     }
