@@ -104,7 +104,9 @@ int parseCommandLineArguments(int argc, char** argv, GameConfig& config) {
 
 // Create and configure the engine based on settings
 Engine* createEngine(const GameConfig& config) {
-  SDL_Log("Creating Engine");
+  if (!config.headless) {
+    SDL_Log("Creating Engine");
+  }
   
   EngineSettings settings;
   if (config.headless) {
@@ -113,7 +115,9 @@ Engine* createEngine(const GameConfig& config) {
   }
   
   auto engine = new Engine(settings);
-  SDL_Log("Engine Created");
+  if (!config.headless) {
+    SDL_Log("Engine Created");
+  }
   return engine;
 }
 

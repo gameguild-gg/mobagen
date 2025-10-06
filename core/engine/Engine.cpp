@@ -10,7 +10,9 @@
 using namespace std::chrono_literals;
 
 Engine::Engine(EngineSettings settings) : window(nullptr), settings(settings) {
-  SDL_Log("Engine Created");
+  if (!settings.headless) {
+    SDL_Log("Engine Created");
+  }
   instance = this;
 }
 
