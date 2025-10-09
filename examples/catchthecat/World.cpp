@@ -1,11 +1,19 @@
 #include "World.h"
 #include "Polygon.h"
+#include "SDL_image.h"
+
 #include <chrono>
 #include "scene/Transform.h"
 #include "engine/Engine.h"
+#include <queue>
+
+#include <iostream>
+#include <vector>
+#include <cmath>
+
 
 void World::print() {
-  auto catposid = (catPosition.y + sideSize / 2) * sideSize + (catPosition.x + sideSize / 2);
+  auto catposid = catPosition.y * (sideSize / 2) + catPosition.x + sideSize * sideSize / 2;
   for (int i = 0; i < worldState.size();) {
     std::cout << ((i == catposid) ? ('C') : (worldState[i] ? '#' : '.'));
     i++;
@@ -66,13 +74,13 @@ Point2D World::NW(const Point2D& p) {
 }
 
 Point2D World::SE(const Point2D& p) {
-  if (p.y % 2) return {p.x + 1, p.y + 1};
-  return {p.x, p.y + 1};
+  if (p.y % 2) return {p.x, p.y + 1};
+  return {p.x - 1, p.y + 1};
 }
 
 Point2D World::SW(const Point2D& p) {
-  if (p.y % 2) return {p.x, p.y + 1};
-  return {p.x - 1, p.y + 1};
+  if (p.y % 2) return {p.x + 1, p.y + 1};
+  return {p.x, p.y + 1};
 }
 
 bool World::isValidPosition(const Point2D& p) {
@@ -83,6 +91,35 @@ bool World::isValidPosition(const Point2D& p) {
 bool World::isNeighbor(const Point2D& p1, const Point2D& p2) {
   return NE(p1) == p2 || NW(p1) == p2 || E(p1) == p2 || W(p1) == p2 || SE(p1) == p2 || SW(p1) == p2;
 }
+
+void FillHexagon(SDL_Renderer* renderer, const Transform& t, const SDL_Color& color)
+{
+  const int SIDES = 6;
+  float r = floorf(t.scale.x) - 0.5f;
+  float cx = roundf(t.position.x);
+  float cy = roundf(t.position.y);
+
+  SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+  SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+
+  for (int i = 0; i < SIDES; ++i)
+  {
+    float a1 = (M_PI / 3.0f) * i + M_PI / 6.0f;
+    float a2 = (M_PI / 3.0f) * (i + 1) + M_PI / 6.0f;
+
+    SDL_Vertex tri[3];
+    tri[0].position.x = cx;
+    tri[0].position.y = cy;
+    tri[1].position.x = cx + cosf(a1) * r;
+    tri[1].position.y = cy + sinf(a1) * r;
+    tri[2].position.x = cx + cosf(a2) * r;
+    tri[2].position.y = cy + sinf(a2) * r;
+    tri[0].color = tri[1].color = tri[2].color = color;
+
+    SDL_RenderGeometry(renderer, nullptr, tri, 3, nullptr, 0);
+  }
+}
+
 
 void World::OnDraw(SDL_Renderer* renderer) {
   Hexagon hex;
@@ -95,15 +132,18 @@ void World::OnDraw(SDL_Renderer* renderer) {
   if (sideSize % 4 >= 2) {
     t.position.x += t.scale.x;
   }
-
   auto catposid = (catPosition.y + sideSize / 2) * (sideSize) + catPosition.x + sideSize / 2;
   for (int i = 0; i < worldState.size();) {
+    SDL_Color fillColor;
+
     if (catposid == i)
-      hex.Draw(renderer, t, Color::Red);
+      fillColor = {255, 65, 65, 255};    // red for cat
     else if (worldState[i])
-      hex.Draw(renderer, t, Color::Blue);
+      fillColor = {65, 128, 255, 255};   // blue for blocked tiles
     else
-      hex.Draw(renderer, t, Color::Gray);
+      fillColor = {180, 180, 180, 255};  // gray for open tiles
+
+    FillHexagon(renderer, t, fillColor);
     i++;
     if ((i) % (2 * sideSize) == 0) {
       t.position.x = windowSize.x / 2 - (sideSize)*t.scale.x + (sideSize % 4 >= 2 ? 1 : 0) * t.scale.x;
@@ -115,6 +155,7 @@ void World::OnDraw(SDL_Renderer* renderer) {
       t.position.x += 2 * t.scale.x;
   }
 }
+
 
 void World::OnGui(ImGuiContext* context) {
   ImGui::SetCurrentContext(context);
@@ -129,7 +170,7 @@ void World::OnGui(ImGuiContext* context) {
       clearWorld();
     }
   }
-  if (ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.1, 30) && sideSize != (newSize / 2) * 2 + 1) {
+  if (ImGui::SliderFloat("Turn Duration", &timeBetweenAITicks, 0.0, 30) && sideSize != (newSize / 2) * 2 + 1) {
     sideSize = (newSize / 2) * 2 + 1;
     clearWorld();
   }
@@ -192,7 +233,6 @@ void World::step() {
   // run the turn
   if (catTurn) {
     auto move = cat->Move(this);
-    lastMove = move;
     if (catCanMoveToPosition(move)) {
       catPosition = move;
       catWon = catWinVerification();
@@ -202,7 +242,6 @@ void World::step() {
     }
   } else {
     auto move = catcher->Move(this);
-    lastMove = move;
     if (catcherCanMoveToPosition(move)) {
       worldState[(move.y + sideSize / 2) * (sideSize) + move.x + sideSize / 2] = true;
       catcherWon = catcherWinVerification();
