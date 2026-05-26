@@ -1,7 +1,7 @@
-#ifdef USE_WEBGPU
+#if defined(USE_WEBGPU) && defined(__EMSCRIPTEN__)
 
 // ============================================================================
-// WebGPU Path (Modern deferred rendering)
+// WebGPU Path (Modern deferred rendering) — Emscripten only
 // ============================================================================
 
 #include <emscripten.h>
@@ -641,4 +641,4 @@ int main() {
     return 0;
 }
 
-#endif // USE_WEBGPU
+#endif // defined(USE_WEBGPU) && defined(__EMSCRIPTEN__)
