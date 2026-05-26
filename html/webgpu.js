@@ -1,4 +1,98 @@
 // WebGPU Initialization and Rendering
+// Browser support detection per MDN Web Docs
+// https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API
+
+function detectWebGPUSupport() {
+    if (!navigator.gpu) {
+        return {
+            supported: false,
+            browser: detectBrowser(),
+            message: "WebGPU not available in this browser"
+        };
+    }
+
+    return {
+        supported: true,
+        browser: detectBrowser(),
+        message: "WebGPU supported!"
+    };
+}
+
+function detectBrowser() {
+    const ua = navigator.userAgent;
+    if (ua.includes('Chrome') && !ua.includes('Chromium')) {
+        return 'Chrome';
+    } else if (ua.includes('Firefox')) {
+        return 'Firefox';
+    } else if (ua.includes('Safari') && !ua.includes('Chrome')) {
+        return 'Safari';
+    } else if (ua.includes('Edge')) {
+        return 'Edge';
+    }
+    return 'Unknown';
+}
+
+function createWebGPUWarningElement() {
+    const support = detectWebGPUSupport();
+    const container = document.body;
+
+    const warningDiv = document.createElement('div');
+    warningDiv.id = 'webgpu-warning';
+    warningDiv.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 15px;
+        background: #1a1a1a;
+        color: #fff;
+        font-family: monospace;
+        font-size: 13px;
+        z-index: 10000;
+        border-bottom: 2px solid #666;
+        max-height: 120px;
+        overflow-y: auto;
+    `;
+
+    if (support.supported) {
+        warningDiv.style.background = '#0a3a0a';
+        warningDiv.style.borderBottom = '2px solid #0f0';
+        warningDiv.innerHTML = `
+            <strong style="color: #0f0;">✓ WebGPU Available</strong><br>
+            Browser: ${support.browser} | Status: ${support.message}
+        `;
+    } else {
+        warningDiv.style.background = '#3a0a0a';
+        warningDiv.style.borderBottom = '2px solid #f00';
+
+        let instructions = '';
+        if (support.browser === 'Chrome' || support.browser === 'Edge') {
+            instructions = `
+                <br><strong>To enable in ${support.browser}:</strong><br>
+                1. Open: <code>chrome://flags/#enable-unsafe-webgpu</code><br>
+                2. Set <code>Unsafe WebGPU</code> to <strong>Enabled</strong><br>
+                3. Restart ${support.browser}
+            `;
+        } else if (support.browser === 'Safari') {
+            instructions = `
+                <br><strong>To enable in Safari:</strong><br>
+                WebGPU support is experimental. Check preferences or upgrade Safari.
+            `;
+        } else {
+            instructions = `
+                <br><strong>Supported Browsers:</strong> Chrome 113+, Firefox, Edge 113+
+            `;
+        }
+
+        warningDiv.innerHTML = `
+            <strong style="color: #f00;">✗ WebGPU Not Detected</strong><br>
+            Browser: ${support.browser} | Status: ${support.message}
+            ${instructions}
+        `;
+    }
+
+    container.insertBefore(warningDiv, container.firstChild);
+}
 
 const WGSL_SHADER = `
 struct VertexInput {
@@ -147,15 +241,42 @@ function renderFrame() {
 
 // Initialize when page loads
 window.addEventListener('DOMContentLoaded', () => {
+    // Show WebGPU support status
+    createWebGPUWarningElement();
+
+    // Adjust canvas margin if warning is shown
+    const canvas = document.getElementById('canvas');
+    if (canvas) {
+        canvas.style.marginTop = '80px';
+    }
+
+    const support = detectWebGPUSupport();
+    console.log(`WebGPU Support: ${support.supported ? '✓' : '✗'} (${support.browser})`);
+    console.log(`Message: ${support.message}`);
+
+    if (!support.supported) {
+        console.warn('WebGPU is not available. Rendering will not work.');
+        console.warn(`Browser: ${support.browser}`);
+        if (support.browser === 'Chrome' || support.browser === 'Edge') {
+            console.warn(`Enable it at: chrome://flags/#enable-unsafe-webgpu`);
+        }
+        return;
+    }
+
     initWebGPU().then(success => {
         if (success) {
+            console.log('WebGPU initialized successfully');
             // Start animation loop
             const animLoop = () => {
                 renderFrame();
                 requestAnimationFrame(animLoop);
             };
             requestAnimationFrame(animLoop);
+        } else {
+            console.error('Failed to initialize WebGPU');
         }
+    }).catch(e => {
+        console.error('WebGPU initialization error:', e);
     });
 });
 
