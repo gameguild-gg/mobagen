@@ -1,5 +1,21 @@
 # DICOM Raytracing Renderer — WebGPU Edition
 
+## 📚 Documentation Structure
+
+Start here, then proceed to the detailed weekly guides:
+
+- **[WEEK-1-TOOLCHAIN.md](docs/WEEK-1-TOOLCHAIN.md)** ← Start here!
+  - Dual-target architecture (WASM + native)
+  - CMake build system explained
+  - How to build and run WASM
+  - SDL2 + OpenGL context setup
+  
+- **[WEEK-2-TRIANGLE.md](docs/WEEK-2-TRIANGLE.md)** ← After Week 1
+  - Complete graphics pipeline (vertex → fragment → screen)
+  - GLSL ES 3.00 shaders explained
+  - Vertex buffers, VAO, draw calls
+  - Debugging graphics issues
+
 ## Overview
 
 This is a **dual-target graphics renderer** that runs both in the browser (via WebAssembly) and as a native desktop app. It's being built toward real-time DICOM volume raytracing, starting with foundational graphics work.
