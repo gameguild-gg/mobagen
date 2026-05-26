@@ -208,13 +208,23 @@ int main() {
 //
 // ============================================================================
 
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <SDL2/SDL.h>
 #include <GLES3/gl3.h>
+#else
+#include <SDL2/SDL.h>
+#include <GL/glew.h>
+#include <SDL2/SDL_opengl.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <memory>
+#include "engine/shader_program.h"
+#include "engine/vertex_buffer.h"
+#include "engine/vertex_array.h"
 
 // Shader version selection based on target platform
 //
@@ -235,9 +245,9 @@ static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 struct App {
     SDL_Window* window = nullptr;
     SDL_GLContext context = nullptr;
-    GLuint vao = 0;
-    GLuint vbo = 0;
-    GLuint shader = 0;
+    std::unique_ptr<engine::VertexArray> vao;
+    std::unique_ptr<engine::VertexBuffer> vbo;
+    std::unique_ptr<engine::ShaderProgram> shader;
     bool running = true;
 
     bool init();
@@ -266,55 +276,15 @@ void main() {
 }
 )";
 
-    GLuint vert = glCreateShader(GL_VERTEX_SHADER);
-    const char* vertPtr = vertSrc.c_str();
-    glShaderSource(vert, 1, &vertPtr, nullptr);
-    glCompileShader(vert);
+    std::string errmsg;
+    shader = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
 
-    int success;
-    glGetShaderiv(vert, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(vert, 512, nullptr, infoLog);
-        fprintf(stderr, "Vertex shader compilation failed: %s\n", infoLog);
-        glDeleteShader(vert);
+    if (!shader->isValid()) {
+        fprintf(stderr, "Shader compilation failed: %s\n", errmsg.c_str());
+        shader.reset();
         return false;
     }
 
-    GLuint frag = glCreateShader(GL_FRAGMENT_SHADER);
-    const char* fragPtr = fragSrc.c_str();
-    glShaderSource(frag, 1, &fragPtr, nullptr);
-    glCompileShader(frag);
-
-    glGetShaderiv(frag, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(frag, 512, nullptr, infoLog);
-        fprintf(stderr, "Fragment shader compilation failed: %s\n", infoLog);
-        glDeleteShader(vert);
-        glDeleteShader(frag);
-        return false;
-    }
-
-    shader = glCreateProgram();
-    glAttachShader(shader, vert);
-    glAttachShader(shader, frag);
-    glLinkProgram(shader);
-
-    glGetProgramiv(shader, GL_LINK_STATUS, &success);
-    if (!success) {
-        char infoLog[512];
-        glGetProgramInfoLog(shader, 512, nullptr, infoLog);
-        fprintf(stderr, "Program linking failed: %s\n", infoLog);
-        glDeleteShader(vert);
-        glDeleteShader(frag);
-        glDeleteProgram(shader);
-        shader = 0;
-        return false;
-    }
-
-    glDeleteShader(vert);
-    glDeleteShader(frag);
     return true;
 }
 
@@ -325,18 +295,26 @@ bool App::setupGeometry() {
         0.5f, -0.5f
     };
 
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
+    // Upload vertex data to GPU using abstraction layer
+    vbo = std::make_unique<engine::VertexBuffer>(vertices, sizeof(vertices));
+    if (!vbo || vbo->getHandle() == 0) {
+        fprintf(stderr, "Failed to create vertex buffer\n");
+        return false;
+    }
 
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // Create VAO and configure vertex attributes
+    vao = std::make_unique<engine::VertexArray>();
+    if (!vao || vao->getHandle() == 0) {
+        fprintf(stderr, "Failed to create vertex array\n");
+        return false;
+    }
 
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
+    vao->bind();
+    vbo->bind();
+    vao->setVertexAttribute(0, 2, GL_FLOAT, 0);  // Attribute 0: 2D position
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    engine::VertexArray::unbind();
+    engine::VertexBuffer::unbind();
 
     return true;
 }
@@ -404,7 +382,9 @@ bool App::init() {
     }
 
     if (!setupGeometry()) {
-        glDeleteProgram(shader);
+        shader.reset();
+        vao.reset();
+        vbo.reset();
         SDL_GL_DeleteContext(context);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -427,23 +407,23 @@ void App::tick() {
     glClearColor(0.1f, 0.2f, 0.5f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glUseProgram(shader);
-    glBindVertexArray(vao);
+    if (shader) {
+        shader->use();
+    }
+    if (vao) {
+        vao->bind();
+    }
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     SDL_GL_SwapWindow(window);
 }
 
 void App::cleanup() {
-    if (shader) {
-        glDeleteProgram(shader);
-    }
-    if (vao) {
-        glDeleteVertexArrays(1, &vao);
-    }
-    if (vbo) {
-        glDeleteBuffers(1, &vbo);
-    }
+    // unique_ptr destructors handle GPU resource cleanup automatically
+    shader.reset();
+    vao.reset();
+    vbo.reset();
+
     if (context) {
         SDL_GL_DeleteContext(context);
     }

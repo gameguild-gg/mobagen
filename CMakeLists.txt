@@ -19,7 +19,22 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 link_directories(${CMAKE_BINARY_DIR}/libs)
 
-add_executable(dicom_renderer src/main.cpp)
+# Engine abstraction layer sources
+set(ENGINE_SOURCES
+    src/main.cpp
+    src/engine/shader_program.cpp
+    src/engine/vertex_buffer.cpp
+    src/engine/vertex_array.cpp
+    src/engine/renderer.cpp
+    src/engine/engine_c.cpp
+)
+
+add_executable(dicom_renderer ${ENGINE_SOURCES})
+target_include_directories(dicom_renderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Load GLM (header-only math library) for all builds
+include(external/glm.cmake)
+target_link_libraries(dicom_renderer PRIVATE glm)
 
 # WebGPU option (parallel implementation with OpenGL)
 option(USE_WEBGPU "Use WebGPU instead of OpenGL" OFF)
