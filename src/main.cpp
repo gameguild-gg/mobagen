@@ -1,3 +1,7 @@
+// Prevent SDL2 from redefining main() to SDL_main()
+// We want to control the entry point ourselves
+#define SDL_MAIN_HANDLED
+
 #if defined(USE_WEBGPU) && defined(__EMSCRIPTEN__)
 
 // ============================================================================
