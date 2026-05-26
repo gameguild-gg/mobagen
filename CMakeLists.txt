@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.16.3 FATAL_ERROR)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(external/cpm.cmake)
 
 project(DicomRenderer VERSION 0.1.0 LANGUAGES C CXX)
