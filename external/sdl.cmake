@@ -11,10 +11,11 @@ set(SDL_STATIC_PIC
     CACHE BOOL "SDL_STATIC_PIC"
 )
 
-if(NOT DEFINED EMSCRIPTEN)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong") # required for opus
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong") # required for opus
-endif()
+# Removed -fstack-protector-strong for Windows compatibility
+# if(NOT DEFINED EMSCRIPTEN)
+#   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong") # required for opus
+#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong") # required for opus
+# endif()
 
 # SDL2
 string(TIMESTAMP BEFORE "%s")
@@ -56,26 +57,27 @@ math(EXPR DELTASDL "${AFTER} - ${BEFORE}")
 message(STATUS "SDL2 TIME: ${DELTASDL}s")
 
 # SDL_image
-string(TIMESTAMP BEFORE "%s")
-CPMAddPackage(
-  NAME SDL_image
-  GITHUB_REPOSITORY libsdl-org/SDL_image
-  GIT_TAG release-2.8.8
-  OPTIONS "BUILD_SHARED_LIBS OFF"
-          "SDL2_SHARED OFF"
-          "SDL_SHARED OFF"
-          "SDL2IMAGE_INSTALL OFF"
-          "SDL2IMAGE_SAMPLES OFF"
-          "SDL2IMAGE_VENDORED OFF"
-          "SDL2IMAGE_BUILD_SHARED_LIBS OFF"
-          "SDL2IMAGE_DEPS_SHARED OFF"
-)
-if(SDL_image_ADDED)
-  include_directories(${SDL_image_SOURCE_DIR}/include)
-else()
-  message(FATAL_ERROR "SDL IMAGE NOT FOUND")
-endif()
+# Disabled: Not needed for triangle renderer. Re-enable when loading DICOM image files.
+# string(TIMESTAMP BEFORE "%s")
+# CPMAddPackage(
+#   NAME SDL_image
+#   GITHUB_REPOSITORY libsdl-org/SDL_image
+#   GIT_TAG release-2.8.8
+#   OPTIONS "BUILD_SHARED_LIBS OFF"
+#           "SDL2_SHARED OFF"
+#           "SDL_SHARED OFF"
+#           "SDL2IMAGE_INSTALL OFF"
+#           "SDL2IMAGE_SAMPLES OFF"
+#           "SDL2IMAGE_VENDORED OFF"
+#           "SDL2IMAGE_BUILD_SHARED_LIBS OFF"
+#           "SDL2IMAGE_DEPS_SHARED OFF"
+# )
+# if(SDL_image_ADDED)
+#   include_directories(${SDL_image_SOURCE_DIR}/include)
+# else()
+#   message(FATAL_ERROR "SDL IMAGE NOT FOUND")
+# endif()
 
-string(TIMESTAMP AFTER "%s")
-math(EXPR DELTASDL_image "${AFTER} - ${BEFORE}")
-message(STATUS "SDL_image TIME: ${DELTASDL_image}s")
+# string(TIMESTAMP AFTER "%s")
+# math(EXPR DELTASDL_image "${AFTER} - ${BEFORE}")
+# message(STATUS "SDL_image TIME: ${DELTASDL_image}s")
