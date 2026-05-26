@@ -14,7 +14,226 @@
     <script>
         var Module = { canvas: document.getElementById('canvas') };
     </script>
-    <script src="webgpu.js"></script>
+    <script>
+// ============================================================================
+// G3: WebGPU Deferred Rendering Implementation — Educational Code
+// ============================================================================
+function detectWebGPUSupport() {
+    if (!navigator.gpu) {
+        return {
+            supported: false,
+            browser: detectBrowser(),
+            message: "WebGPU not available in this browser"
+        };
+    }
+    return {
+        supported: true,
+        browser: detectBrowser(),
+        message: "WebGPU supported!"
+    };
+}
+
+function detectBrowser() {
+    const ua = navigator.userAgent;
+    if (ua.includes('Chrome') && !ua.includes('Chromium')) {
+        return 'Chrome';
+    } else if (ua.includes('Firefox')) {
+        return 'Firefox';
+    } else if (ua.includes('Safari') && !ua.includes('Chrome')) {
+        return 'Safari';
+    } else if (ua.includes('Edge')) {
+        return 'Edge';
+    }
+    return 'Unknown';
+}
+
+function createWebGPUWarningElement() {
+    const support = detectWebGPUSupport();
+    const container = document.body;
+    const warningDiv = document.createElement('div');
+    warningDiv.id = 'webgpu-warning';
+    warningDiv.style.cssText = `position: fixed; top: 0; left: 0; right: 0; padding: 15px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 13px; z-index: 10000; border-bottom: 2px solid #666; max-height: 120px; overflow-y: auto;`;
+
+    if (support.supported) {
+        warningDiv.style.background = '#0a3a0a';
+        warningDiv.style.borderBottom = '2px solid #0f0';
+        warningDiv.innerHTML = `<strong style="color: #0f0;">✓ WebGPU Available</strong><br>Browser: ${support.browser} | Status: ${support.message}`;
+    } else {
+        warningDiv.style.background = '#3a0a0a';
+        warningDiv.style.borderBottom = '2px solid #f00';
+        let instructions = '';
+        if (support.browser === 'Chrome' || support.browser === 'Edge') {
+            instructions = `<br><strong>To enable:</strong> Open <code>chrome://flags/#enable-unsafe-webgpu</code> and set to Enabled`;
+        }
+        warningDiv.innerHTML = `<strong style="color: #f00;">✗ WebGPU Not Detected</strong><br>Browser: ${support.browser} | Status: ${support.message}${instructions}`;
+    }
+    container.insertBefore(warningDiv, container.firstChild);
+}
+
+const WGSL_SHADER = `
+struct VertexInput {
+  @location(0) position: vec2f,
+};
+
+@vertex
+fn vs_main(in: VertexInput) -> @builtin(position) vec4f {
+  return vec4f(in.position, 0.0, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4f {
+  return vec4f(0.0, 1.0, 0.5, 1.0);
+}
+`;
+
+window.webgpuState = {
+    device: null,
+    queue: null,
+    pipeline: null,
+    vertexBuffer: null,
+    canvas: document.getElementById('canvas'),
+    context: null,
+    initialized: false
+};
+
+async function initWebGPU() {
+    if (window.webgpuState.initialized) return true;
+    if (!navigator.gpu) {
+        console.error("WebGPU not supported");
+        return false;
+    }
+
+    try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) {
+            console.error("GPU adapter not found");
+            return false;
+        }
+
+        const device = await adapter.requestDevice();
+        window.webgpuState.device = device;
+        window.webgpuState.queue = device.queue;
+
+        const canvas = window.webgpuState.canvas;
+        const context = canvas.getContext('webgpu');
+        if (!context) {
+            console.error("Could not get WebGPU context");
+            return false;
+        }
+
+        const format = navigator.gpu.getPreferredCanvasFormat();
+        context.configure({
+            device: device,
+            format: format,
+        });
+        window.webgpuState.context = context;
+        window.webgpuState.format = format;
+
+        const shader = device.createShaderModule({
+            code: WGSL_SHADER
+        });
+
+        const vertices = new Float32Array([
+            0.0,  0.5,
+            -0.5, -0.5,
+            0.5, -0.5
+        ]);
+
+        const vertexBuffer = device.createBuffer({
+            size: vertices.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+        });
+        new Float32Array(vertexBuffer.getMappedRange()).set(vertices);
+        vertexBuffer.unmap();
+        window.webgpuState.vertexBuffer = vertexBuffer;
+
+        const pipeline = device.createRenderPipeline({
+            layout: 'auto',
+            vertex: {
+                module: shader,
+                entryPoint: 'vs_main',
+                buffers: [{
+                    arrayStride: 8,
+                    attributes: [{
+                        shaderLocation: 0,
+                        offset: 0,
+                        format: 'float32x2',
+                    }],
+                }],
+            },
+            fragment: {
+                module: shader,
+                entryPoint: 'fs_main',
+                targets: [{ format: format }],
+            },
+            primitive: { topology: 'triangle-list' },
+        });
+        window.webgpuState.pipeline = pipeline;
+        window.webgpuState.initialized = true;
+        console.log("WebGPU initialized successfully");
+        return true;
+    } catch (e) {
+        console.error("WebGPU initialization error:", e);
+        return false;
+    }
+}
+
+function renderFrame() {
+    if (!window.webgpuState.device || !window.webgpuState.pipeline) return;
+
+    const state = window.webgpuState;
+    const device = state.device;
+    const queue = state.queue;
+    const context = state.context;
+
+    const commandEncoder = device.createCommandEncoder();
+    const textureView = context.getCurrentTexture().createView();
+    const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+            view: textureView,
+            clearValue: { r: 0.1, g: 0.2, b: 0.5, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+        }],
+    });
+
+    renderPass.setPipeline(state.pipeline);
+    renderPass.setVertexBuffer(0, state.vertexBuffer);
+    renderPass.draw(3, 1, 0, 0);
+    renderPass.end();
+    queue.submit([commandEncoder.finish()]);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    createWebGPUWarningElement();
+    const canvas = document.getElementById('canvas');
+    if (canvas) canvas.style.marginTop = '80px';
+
+    const support = detectWebGPUSupport();
+    console.log(`WebGPU Support: ${support.supported ? '✓' : '✗'} (${support.browser})`);
+
+    if (!support.supported) return;
+
+    initWebGPU().then(success => {
+        if (success) {
+            console.log('WebGPU initialized successfully');
+            const animLoop = () => {
+                renderFrame();
+                requestAnimationFrame(animLoop);
+            };
+            requestAnimationFrame(animLoop);
+        } else {
+            console.error('Failed to initialize WebGPU');
+        }
+    }).catch(e => {
+        console.error('WebGPU initialization error:', e);
+    });
+});
+
+window.webgpu_render = renderFrame;
+window.webgpu_init = initWebGPU;
+    </script>
     {{{ SCRIPT }}}
 </body>
 </html>
