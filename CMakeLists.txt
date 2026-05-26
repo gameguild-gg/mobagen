@@ -20,6 +20,15 @@ link_directories(${CMAKE_BINARY_DIR}/libs)
 
 add_executable(dicom_renderer src/main.cpp)
 
+# WebGPU option (parallel implementation with OpenGL)
+option(USE_WEBGPU "Use WebGPU instead of OpenGL" OFF)
+if(USE_WEBGPU)
+    target_compile_definitions(dicom_renderer PRIVATE USE_WEBGPU)
+    message(STATUS "Building with WebGPU (modern deferred rendering)")
+else()
+    message(STATUS "Building with OpenGL (immediate-mode rendering)")
+endif()
+
 if(EMSCRIPTEN)
     target_compile_options(dicom_renderer PRIVATE -O3)
     target_link_options(dicom_renderer PRIVATE
