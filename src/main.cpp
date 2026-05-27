@@ -195,10 +195,12 @@ void main() {
 }
 
 bool AppWebGL::setupGeometry() {
+    // G2 geometry: Triangle (3 vertices)
+    // Positioned in normalized device coordinates (-1 to 1)
     float vertices[] = {
-        0.0f,  0.5f,
-        -0.5f, -0.5f,
-        0.5f, -0.5f
+        0.0f,  0.5f,    // Top
+        -0.5f, -0.5f,   // Bottom-left
+        0.5f, -0.5f     // Bottom-right
     };
 
     vbo = std::make_unique<engine::VertexBuffer>(vertices, sizeof(vertices));
@@ -345,6 +347,13 @@ void AppWebGL::cleanup() {
 // ============================================================================
 // G3: WebGPU Path (Deferred rendering)
 // ============================================================================
+//
+// LEARNING: WebGPU rendering is implemented in JavaScript (in html/shell.html)
+// This AppWebGPU class just manages the SDL window and calls window.webgpu_render()
+// each frame. The actual geometry (quad) and shader pipeline are defined in JS.
+//
+// Visual difference from G2: WebGPU renders a QUAD instead of a triangle.
+// This makes renderer switching visually obvious during learning.
 
 struct AppWebGPU {
     SDL_Window* window = nullptr;

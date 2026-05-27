@@ -49,9 +49,9 @@
             <div style="font-size: 11px; margin-bottom: 8px; color: #888;">
                 ACTIVE RENDERER:<br><strong id="renderer-status" style="color: #0f0; font-size: 13px;">WebGL (G2)</strong>
             </div>
-            <button id="btn-webgl" onclick="switchRenderer('webgl')" style="background: #0a3a0a; color: #0f0; border-color: #0f0; width: 100%; margin-bottom: 4px;">► WebGL (Immediate-Mode)</button>
-            <button id="btn-webgpu" onclick="switchRenderer('webgpu')" style="background: #1a1a1a; color: #888; border-color: #444; width: 100%;">► WebGPU (Deferred-Mode)</button>
-            <div style="font-size: 9px; color: #666; margin-top: 6px;">G2 = OpenGL ES 3.0 | G3 = Modern GPU API</div>
+            <button id="btn-webgl" onclick="switchRenderer('webgl')" style="background: #0a3a0a; color: #0f0; border-color: #0f0; width: 100%; margin-bottom: 4px;">► WebGL: Triangle</button>
+            <button id="btn-webgpu" onclick="switchRenderer('webgpu')" style="background: #1a1a1a; color: #888; border-color: #444; width: 100%;">► WebGPU: Quad</button>
+            <div style="font-size: 9px; color: #666; margin-top: 6px;">G2 = Immediate-mode | G3 = Deferred-mode</div>
         </div>
 
         <!-- Shader Variants -->
@@ -319,10 +319,12 @@ async function initWebGPU() {
             code: WGSL_SHADER
         });
 
+        // WebGPU: Quad (4 vertices)
         const vertices = new Float32Array([
-            0.0,  0.5,
-            -0.5, -0.5,
-            0.5, -0.5
+            -0.5,  0.5,   // Top-left
+             0.5,  0.5,   // Top-right
+             0.5, -0.5,   // Bottom-right
+            -0.5, -0.5    // Bottom-left
         ]);
 
         const vertexBuffer = device.createBuffer({
@@ -386,7 +388,7 @@ function renderFrame() {
 
     renderPass.setPipeline(state.pipeline);
     renderPass.setVertexBuffer(0, state.vertexBuffer);
-    renderPass.draw(3, 1, 0, 0);
+    renderPass.draw(4, 1, 0, 0);  // Draw quad (4 vertices)
     renderPass.end();
     queue.submit([commandEncoder.finish()]);
 }
