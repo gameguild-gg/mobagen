@@ -5,52 +5,69 @@
     <title>DICOM Renderer</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { display: block; }
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        button {
+            padding: 6px 10px;
+            margin: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: bold;
+            border: 1px solid;
+            transition: all 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
     <!-- Performance Stats (Top Right) -->
-    <div id="stats" style="position: fixed; top: 10px; right: 10px; z-index: 100; background: rgba(0,0,0,0.9); padding: 12px 15px; border-radius: 8px; font-family: monospace; color: #0f0; font-size: 12px; text-align: right; min-width: 200px;">
-        <div style="margin-bottom: 8px; border-bottom: 1px solid #0f0; padding-bottom: 8px;">
-            <div><strong id="stat-renderer">Renderer: WebGL</strong></div>
-            <div id="stat-fps" style="color: #0f0; font-weight: bold;">FPS: 60</div>
-            <div id="stat-frametime" style="color: #888; font-size: 11px;">Frame: 16.7ms</div>
-        </div>
-        <div style="font-size: 11px; color: #666;">
-            <div id="stat-webgpu-support">WebGPU: Available</div>
-            <div id="stat-canvas-size">Canvas: 800x600</div>
-        </div>
+    <div id="stats" style="position: fixed; top: 50px; right: 10px; z-index: 100; background: rgba(0,0,0,0.95); padding: 12px 15px; border-radius: 8px; font-family: monospace; color: #0f0; font-size: 12px; text-align: right; min-width: 220px; border: 1px solid #0f0;">
+        <div style="margin-bottom: 6px;"><strong id="stat-renderer">Renderer: WebGL (G2)</strong></div>
+        <div id="stat-fps" style="color: #0f0; font-weight: bold; margin-bottom: 4px;">FPS: 60</div>
+        <div id="stat-frametime" style="color: #888; font-size: 10px;">Frame: 16.7ms</div>
     </div>
 
     <!-- Controls (Top Left) -->
-    <div id="controls" style="position: fixed; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.9); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0; max-width: 300px;">
+    <div id="controls" style="position: fixed; top: 50px; left: 10px; z-index: 100; background: rgba(0,0,0,0.95); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0; max-width: 320px; border: 1px solid #0f0;">
         <!-- Renderer Selection -->
-        <div style="margin-bottom: 12px; border-bottom: 1px solid #0f0; padding-bottom: 8px;">
-            <div style="font-size: 12px; margin-bottom: 6px;">
-                <strong>Renderer: <span id="renderer-status">webgl</span></strong>
+        <div style="margin-bottom: 14px; border-bottom: 1px solid #0f0; padding-bottom: 10px;">
+            <div style="font-size: 11px; margin-bottom: 8px; color: #888;">
+                ACTIVE RENDERER:<br><strong id="renderer-status" style="color: #0f0; font-size: 13px;">WebGL (G2)</strong>
             </div>
-            <button id="btn-webgl" onclick="switchRenderer('webgl')" style="padding: 6px 10px; margin: 2px; background: #0a3a0a; color: #0f0; border: 1px solid #0f0; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">◉ WebGL</button>
-            <button id="btn-webgpu" onclick="switchRenderer('webgpu')" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">○ WebGPU</button>
+            <button id="btn-webgl" onclick="switchRenderer('webgl')" style="background: #0a3a0a; color: #0f0; border-color: #0f0; width: 100%; margin-bottom: 4px;">► WebGL (Immediate-Mode)</button>
+            <button id="btn-webgpu" onclick="switchRenderer('webgpu')" style="background: #1a1a1a; color: #888; border-color: #444; width: 100%;">► WebGPU (Deferred-Mode)</button>
+            <div style="font-size: 9px; color: #666; margin-top: 6px;">G2 = OpenGL ES 3.0 | G3 = Modern GPU API</div>
         </div>
 
         <!-- Shader Variants -->
-        <div style="margin-bottom: 12px; border-bottom: 1px solid #0f0; padding-bottom: 8px;">
-            <div style="font-size: 12px; margin-bottom: 6px;">
-                <strong>Color (Press 1/2/3/4):</strong>
-            </div>
-            <button id="shader-1" onclick="switchShader(1)" style="padding: 6px 10px; margin: 2px; background: #0a3a0a; color: #0f0; border: 1px solid #0f0; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">1: Teal</button>
-            <button id="shader-2" onclick="switchShader(2)" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">2: Red</button>
+        <div style="margin-bottom: 12px; border-bottom: 1px solid #0f0; padding-bottom: 10px;">
+            <div style="font-size: 11px; margin-bottom: 6px; color: #888;">COLOR VARIANTS:</div>
+            <button id="shader-1" onclick="switchShader(1)" style="background: #0a3a0a; color: #0f0; border-color: #0f0; width: calc(50% - 3px); margin-right: 5px;">Teal</button>
+            <button id="shader-2" onclick="switchShader(2)" style="background: #1a1a1a; color: #888; border-color: #444; width: calc(50% - 3px);">Red</button>
             <br>
-            <button id="shader-3" onclick="switchShader(3)" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">3: Green</button>
-            <button id="shader-4" onclick="switchShader(4)" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">4: Yellow</button>
+            <button id="shader-3" onclick="switchShader(3)" style="background: #1a1a1a; color: #888; border-color: #444; width: calc(50% - 3px); margin-right: 5px; margin-top: 4px;">Green</button>
+            <button id="shader-4" onclick="switchShader(4)" style="background: #1a1a1a; color: #888; border-color: #444; width: calc(50% - 3px);">Yellow</button>
         </div>
 
         <!-- Info -->
-        <div style="font-size: 10px; color: #666; line-height: 1.4;">
-            <div><strong>G2:</strong> Immediate-mode (OpenGL ES)</div>
-            <div><strong>G3:</strong> Deferred-mode (WebGPU)</div>
-            <div style="margin-top: 5px; color: #555;"><em>Compare same triangle in different colors and renderers</em></div>
+        <div style="font-size: 9px; color: #666; line-height: 1.5;">
+            <div style="color: #555;">Press 1/2/3/4 to switch colors</div>
+            <div style="color: #555; margin-top: 4px;">Click renderer buttons to switch</div>
         </div>
     </div>
 
@@ -100,22 +117,6 @@
                 document.getElementById('stat-fps').textContent = `FPS: ${this.fps}`;
                 document.getElementById('stat-fps').style.color = fpsColor;
                 document.getElementById('stat-frametime').textContent = `Frame: ${this.frameTime.toFixed(1)}ms`;
-
-                // WebGPU support indicator
-                if (typeof navigator.gpu !== 'undefined') {
-                    document.getElementById('stat-webgpu-support').textContent = 'WebGPU: ✓ Available';
-                    document.getElementById('stat-webgpu-support').style.color = '#0f0';
-                } else {
-                    document.getElementById('stat-webgpu-support').textContent = 'WebGPU: ✗ Not Available';
-                    document.getElementById('stat-webgpu-support').style.color = '#f00';
-                }
-
-                // Canvas size
-                const canvas = document.getElementById('canvas');
-                if (canvas) {
-                    document.getElementById('stat-canvas-size').textContent =
-                        `Canvas: ${canvas.width}x${canvas.height}`;
-                }
             }
         }
 
@@ -130,11 +131,13 @@
         statsLoop();
 
         function switchRenderer(renderer) {
-            console.log(`Switching renderer to: ${renderer}`);
+            console.log(`→ Switching to: ${renderer.toUpperCase()}`);
             if (typeof Module._set_renderer === 'function') {
                 Module._set_renderer(renderer);
                 stats.setRenderer(renderer);
-                document.getElementById('renderer-status').textContent = renderer;
+
+                const displayName = renderer === 'webgl' ? 'WebGL (G2)' : 'WebGPU (G3)';
+                document.getElementById('renderer-status').textContent = displayName;
 
                 const btn_webgl = document.getElementById('btn-webgl');
                 const btn_webgpu = document.getElementById('btn-webgpu');
@@ -194,9 +197,12 @@
         // Initialize shader buttons
         switchShader(1);
 
-        console.log('Renderer & Shader controls ready.');
-        console.log('Renderers: Alt+1/Alt+2 (or click buttons)');
-        console.log('Shaders: 1/2/3/4 keys');
+        console.log('═══════════════════════════════════════════');
+        console.log('DICOM Renderer Controls:');
+        console.log('─────────────────────────────────────────');
+        console.log('Renderer Switch: Click buttons (WebGL/WebGPU)');
+        console.log('Color Variants: Press 1/2/3/4 (or click)');
+        console.log('═══════════════════════════════════════════');
     </script>
     <script>
 // ============================================================================
@@ -236,22 +242,18 @@ function createWebGPUWarningElement() {
     const container = document.body;
     const warningDiv = document.createElement('div');
     warningDiv.id = 'webgpu-warning';
-    warningDiv.style.cssText = `position: fixed; top: 0; left: 0; right: 0; padding: 15px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 13px; z-index: 10000; border-bottom: 2px solid #666; max-height: 120px; overflow-y: auto;`;
+    warningDiv.style.cssText = `position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 8px 12px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 11px; z-index: 1000; border-radius: 4px; border: 1px solid #666; max-width: 400px;`;
 
     if (support.supported) {
         warningDiv.style.background = '#0a3a0a';
-        warningDiv.style.borderBottom = '2px solid #0f0';
-        warningDiv.innerHTML = `<strong style="color: #0f0;">✓ WebGPU Available</strong><br>Browser: ${support.browser} | Status: ${support.message}`;
+        warningDiv.style.borderColor = '#0f0';
+        warningDiv.innerHTML = `<strong style="color: #0f0;">✓ WebGPU:</strong> Available (${support.browser})`;
     } else {
         warningDiv.style.background = '#3a0a0a';
-        warningDiv.style.borderBottom = '2px solid #f00';
-        let instructions = '';
-        if (support.browser === 'Chrome' || support.browser === 'Edge') {
-            instructions = `<br><strong>To enable:</strong> Open <code>chrome://flags/#enable-unsafe-webgpu</code> and set to Enabled`;
-        }
-        warningDiv.innerHTML = `<strong style="color: #f00;">✗ WebGPU Not Detected</strong><br>Browser: ${support.browser} | Status: ${support.message}${instructions}`;
+        warningDiv.style.borderColor = '#f00';
+        warningDiv.innerHTML = `<strong style="color: #f00;">⚠ WebGPU:</strong> Not available (${support.browser})`;
     }
-    container.insertBefore(warningDiv, container.firstChild);
+    container.appendChild(warningDiv);
 }
 
 const WGSL_SHADER = `
@@ -391,8 +393,6 @@ function renderFrame() {
 
 window.addEventListener('DOMContentLoaded', () => {
     createWebGPUWarningElement();
-    const canvas = document.getElementById('canvas');
-    if (canvas) canvas.style.marginTop = '80px';
 
     const support = detectWebGPUSupport();
     console.log(`WebGPU Support: ${support.supported ? '✓' : '✗'} (${support.browser})`);
