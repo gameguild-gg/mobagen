@@ -10,9 +10,59 @@
     </style>
 </head>
 <body>
+    <div id="controls" style="position: fixed; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0;">
+        <div style="margin-bottom: 10px; font-size: 12px;">
+            <strong>Renderer: <span id="renderer-status">webgl</span></strong>
+        </div>
+        <button id="btn-webgl" onclick="switchRenderer('webgl')" style="padding: 8px 12px; margin: 5px; background: #0a3a0a; color: #0f0; border: 1px solid #0f0; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">WebGL (G2)</button>
+        <button id="btn-webgpu" onclick="switchRenderer('webgpu')" style="padding: 8px 12px; margin: 5px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">WebGPU (G3)</button>
+        <div style="margin-top: 10px; font-size: 11px; color: #888;">
+            <div>G2: Immediate-mode (OpenGL ES)</div>
+            <div>G3: Deferred-mode (WebGPU)</div>
+        </div>
+    </div>
+
     <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
     <script>
         var Module = { canvas: document.getElementById('canvas') };
+
+        function switchRenderer(renderer) {
+            console.log(`Switching to ${renderer}...`);
+            if (typeof Module._set_renderer === 'function') {
+                // Call C++ function via Emscripten
+                Module._set_renderer(renderer);
+                document.getElementById('renderer-status').textContent = renderer;
+
+                // Update button styles
+                const btn_webgl = document.getElementById('btn-webgl');
+                const btn_webgpu = document.getElementById('btn-webgpu');
+                if (renderer === 'webgl') {
+                    btn_webgl.style.background = '#0a3a0a';
+                    btn_webgl.style.color = '#0f0';
+                    btn_webgl.style.borderColor = '#0f0';
+                    btn_webgpu.style.background = '#1a1a1a';
+                    btn_webgpu.style.color = '#888';
+                    btn_webgpu.style.borderColor = '#444';
+                } else {
+                    btn_webgpu.style.background = '#0a3a0a';
+                    btn_webgpu.style.color = '#0f0';
+                    btn_webgpu.style.borderColor = '#0f0';
+                    btn_webgl.style.background = '#1a1a1a';
+                    btn_webgl.style.color = '#888';
+                    btn_webgl.style.borderColor = '#444';
+                }
+            } else {
+                console.error('set_renderer not available. Module might not be loaded yet.');
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '1') switchRenderer('webgl');
+            if (e.key === '2') switchRenderer('webgpu');
+        });
+
+        console.log('Renderer controls ready. Press 1 for WebGL, 2 for WebGPU');
     </script>
     <script>
 // ============================================================================
