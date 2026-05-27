@@ -36,14 +36,14 @@
 </head>
 <body>
     <!-- Performance Stats (Top Right) -->
-    <div id="stats" style="position: fixed; top: 50px; right: 10px; z-index: 100; background: rgba(0,0,0,0.95); padding: 12px 15px; border-radius: 8px; font-family: monospace; color: #0f0; font-size: 12px; text-align: right; min-width: 220px; border: 1px solid #0f0;">
+    <div id="stats" style="position: fixed; top: 100px; right: 10px; z-index: 100; background: rgba(0,0,0,0.95); padding: 12px 15px; border-radius: 8px; font-family: monospace; color: #0f0; font-size: 12px; text-align: right; min-width: 220px; border: 1px solid #0f0;">
         <div style="margin-bottom: 6px;"><strong id="stat-renderer">Renderer: WebGL (G2)</strong></div>
         <div id="stat-fps" style="color: #0f0; font-weight: bold; margin-bottom: 4px;">FPS: 60</div>
         <div id="stat-frametime" style="color: #888; font-size: 10px;">Frame: 16.7ms</div>
     </div>
 
     <!-- Controls (Top Left) -->
-    <div id="controls" style="position: fixed; top: 50px; left: 10px; z-index: 100; background: rgba(0,0,0,0.95); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0; max-width: 320px; border: 1px solid #0f0;">
+    <div id="controls" style="position: fixed; top: 100px; left: 10px; z-index: 100; background: rgba(0,0,0,0.95); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0; max-width: 320px; border: 1px solid #0f0;">
         <!-- Renderer Selection -->
         <div style="margin-bottom: 14px; border-bottom: 1px solid #0f0; padding-bottom: 10px;">
             <div style="font-size: 11px; margin-bottom: 8px; color: #888;">
@@ -242,16 +242,16 @@ function createWebGPUWarningElement() {
     const container = document.body;
     const warningDiv = document.createElement('div');
     warningDiv.id = 'webgpu-warning';
-    warningDiv.style.cssText = `position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 8px 12px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 11px; z-index: 1000; border-radius: 4px; border: 1px solid #666; max-width: 400px;`;
+    warningDiv.style.cssText = `position: fixed; top: 8px; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 10px; z-index: 1000; border-radius: 3px; border: 1px solid #666;`;
 
     if (support.supported) {
         warningDiv.style.background = '#0a3a0a';
         warningDiv.style.borderColor = '#0f0';
-        warningDiv.innerHTML = `<strong style="color: #0f0;">✓ WebGPU:</strong> Available (${support.browser})`;
+        warningDiv.innerHTML = `<strong style="color: #0f0;">✓ WebGPU</strong> (${support.browser})`;
     } else {
         warningDiv.style.background = '#3a0a0a';
         warningDiv.style.borderColor = '#f00';
-        warningDiv.innerHTML = `<strong style="color: #f00;">⚠ WebGPU:</strong> Not available (${support.browser})`;
+        warningDiv.innerHTML = `<strong style="color: #f00;">✗ WebGPU</strong> (${support.browser})`;
     }
     container.appendChild(warningDiv);
 }
