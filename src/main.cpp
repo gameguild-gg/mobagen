@@ -10,6 +10,11 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <cmath>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include "engine/camera.h"
 
 // ============================================================================
 // RUNTIME RENDERER SELECTION (Educational)
@@ -40,6 +45,15 @@ static RendererType g_active_renderer = RendererType::RENDERER_WEBGL;
 static ShaderVariant g_active_shader = ShaderVariant::VARIANT_TEAL;
 static bool g_renderer_switching = false;
 static bool g_shader_recompile = false;
+
+// ============================================================================
+// CAMERA & INPUT
+// ============================================================================
+static engine::Camera g_camera(engine::CameraMode::ORBIT);
+static int g_mouse_last_x = 0;
+static int g_mouse_last_y = 0;
+static bool g_mouse_captured = false;
+static float g_frame_time = 0.016f;  // ~60 FPS
 
 // Forward declarations
 class AppWebGL;
@@ -130,6 +144,8 @@ extern "C" {
         if (g_active_renderer == RendererType::RENDERER_WEBGL && g_app_webgl) {
             glViewport(0, 0, width, height);
         }
+        // Update camera aspect ratio
+        g_camera.set_viewport(width, height);
         // WebGPU handles resize via context.configure() in JavaScript
     }
 }
@@ -177,10 +193,13 @@ bool AppWebGL::compileShaders() {
     Color c = get_shader_color(g_active_shader);
 
     std::string vertSrc = std::string(VERT_GLSL) + R"(
+uniform mat4 view_projection;
 layout(location = 0) in vec2 aPos;
 
 void main() {
-    gl_Position = vec4(aPos, 0.0, 1.0);
+    // Use camera matrices for 3D positioning
+    // For now, project 2D as 3D: (x, y, 0, 1)
+    gl_Position = view_projection * vec4(aPos, 0.0, 1.0);
 }
 )";
 
@@ -317,21 +336,61 @@ void AppWebGL::tick() {
         compileShaders();
     }
 
+    // ========================================================================
+    // INPUT HANDLING: Keyboard, Mouse, Events
+    // ========================================================================
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_QUIT:
                 running = false;
                 break;
+
+            case SDL_KEYDOWN:
+                g_camera.on_key_pressed(event.key.keysym.sym);
+                // Toggle camera mode on 'C' key
+                if (event.key.keysym.sym == SDLK_c) {
+                    engine::CameraMode new_mode =
+                        (g_camera.get_mode() == engine::CameraMode::ORBIT)
+                            ? engine::CameraMode::WASD
+                            : engine::CameraMode::ORBIT;
+                    g_camera.set_mode(new_mode);
+                    const char* mode_name = (new_mode == engine::CameraMode::ORBIT) ? "ORBIT" : "WASD";
+                    printf("Switched camera mode to: %s\n", mode_name);
+                }
+                break;
+
+            case SDL_KEYUP:
+                g_camera.on_key_released(event.key.keysym.sym);
+                break;
+
+            case SDL_MOUSEMOTION:
+                // Orbit/WASD camera with middle mouse button or always active
+                g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                break;
+
+            case SDL_MOUSEWHEEL:
+                g_camera.on_mouse_wheel(event.wheel.y);
+                break;
         }
     }
 
+    // Update camera for WASD movement
+    g_camera.update(g_frame_time);
+
+    // ========================================================================
+    // RENDERING
+    // ========================================================================
     glClearColor(0.1f, 0.2f, 0.5f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     if (shader) {
         shader->use();
+
+        // Pass camera matrices to shader
+        shader->setUniform("view_projection", g_camera.get_view_projection());
     }
+
     if (vao) {
         vao->bind();
     }
@@ -399,13 +458,49 @@ bool AppWebGPU::init() {
 }
 
 void AppWebGPU::tick() {
+    // ========================================================================
+    // INPUT HANDLING: Same as WebGL (shared camera system)
+    // ========================================================================
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT || event.type == SDL_KEYDOWN) {
-            running = false;
+        switch (event.type) {
+            case SDL_QUIT:
+                running = false;
+                break;
+
+            case SDL_KEYDOWN:
+                g_camera.on_key_pressed(event.key.keysym.sym);
+                if (event.key.keysym.sym == SDLK_c) {
+                    engine::CameraMode new_mode =
+                        (g_camera.get_mode() == engine::CameraMode::ORBIT)
+                            ? engine::CameraMode::WASD
+                            : engine::CameraMode::ORBIT;
+                    g_camera.set_mode(new_mode);
+                    const char* mode_name = (new_mode == engine::CameraMode::ORBIT) ? "ORBIT" : "WASD";
+                    printf("Switched camera mode to: %s\n", mode_name);
+                }
+                break;
+
+            case SDL_KEYUP:
+                g_camera.on_key_released(event.key.keysym.sym);
+                break;
+
+            case SDL_MOUSEMOTION:
+                g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                break;
+
+            case SDL_MOUSEWHEEL:
+                g_camera.on_mouse_wheel(event.wheel.y);
+                break;
         }
     }
 
+    // Update camera for WASD movement
+    g_camera.update(g_frame_time);
+
+    // ========================================================================
+    // RENDERING: WebGPU (JavaScript bridge)
+    // ========================================================================
     emscripten_run_script("if(window.webgpu_render) window.webgpu_render();");
 }
 
