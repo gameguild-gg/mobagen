@@ -29,8 +29,17 @@ enum class RendererType {
     RENDERER_WEBGPU = 1
 };
 
+enum class ShaderVariant {
+    VARIANT_TEAL = 1,    // (0.0, 1.0, 0.5, 1.0)
+    VARIANT_RED = 2,     // (1.0, 0.0, 0.0, 1.0)
+    VARIANT_GREEN = 3,   // (0.0, 1.0, 0.0, 1.0)
+    VARIANT_YELLOW = 4   // (1.0, 1.0, 0.0, 1.0)
+};
+
 static RendererType g_active_renderer = RendererType::RENDERER_WEBGL;
+static ShaderVariant g_active_shader = ShaderVariant::VARIANT_TEAL;
 static bool g_renderer_switching = false;
+static bool g_shader_recompile = false;
 
 // Forward declarations
 class AppWebGL;
@@ -43,6 +52,32 @@ static bool g_webgpu_initialized = false;
 // ============================================================================
 // EXPORTED FUNCTIONS FOR JAVASCRIPT
 // ============================================================================
+
+// Helper: Get shader color based on variant
+struct Color {
+    float r, g, b, a;
+};
+
+static Color get_shader_color(ShaderVariant variant) {
+    switch (variant) {
+        case ShaderVariant::VARIANT_TEAL:   return {0.0f, 1.0f, 0.5f, 1.0f};
+        case ShaderVariant::VARIANT_RED:    return {1.0f, 0.0f, 0.0f, 1.0f};
+        case ShaderVariant::VARIANT_GREEN:  return {0.0f, 1.0f, 0.0f, 1.0f};
+        case ShaderVariant::VARIANT_YELLOW: return {1.0f, 1.0f, 0.0f, 1.0f};
+        default: return {0.0f, 1.0f, 0.5f, 1.0f};
+    }
+}
+
+static const char* get_shader_name(ShaderVariant variant) {
+    switch (variant) {
+        case ShaderVariant::VARIANT_TEAL:   return "Teal";
+        case ShaderVariant::VARIANT_RED:    return "Red";
+        case ShaderVariant::VARIANT_GREEN:  return "Green";
+        case ShaderVariant::VARIANT_YELLOW: return "Yellow";
+        default: return "Unknown";
+    }
+}
+
 #ifdef __EMSCRIPTEN__
 extern "C" {
     EMSCRIPTEN_KEEPALIVE
@@ -65,6 +100,27 @@ extern "C" {
     EMSCRIPTEN_KEEPALIVE
     const char* get_available_renderers() {
         return "webgl,webgpu";
+    }
+
+    EMSCRIPTEN_KEEPALIVE
+    void set_shader_variant(int variant_num) {
+        if (variant_num >= 1 && variant_num <= 4) {
+            g_active_shader = static_cast<ShaderVariant>(variant_num);
+            g_shader_recompile = true;
+            Color c = get_shader_color(g_active_shader);
+            printf("Switching shader to: %s (RGB: %.1f, %.1f, %.1f)\n",
+                   get_shader_name(g_active_shader), c.r, c.g, c.b);
+        }
+    }
+
+    EMSCRIPTEN_KEEPALIVE
+    int get_shader_variant() {
+        return static_cast<int>(g_active_shader);
+    }
+
+    EMSCRIPTEN_KEEPALIVE
+    const char* get_available_shaders() {
+        return "1:Teal,2:Red,3:Green,4:Yellow";
     }
 }
 #endif
@@ -108,6 +164,8 @@ private:
 };
 
 bool AppWebGL::compileShaders() {
+    Color c = get_shader_color(g_active_shader);
+
     std::string vertSrc = std::string(VERT_GLSL) + R"(
 layout(location = 0) in vec2 aPos;
 
@@ -116,13 +174,13 @@ void main() {
 }
 )";
 
-    std::string fragSrc = std::string(FRAG_GLSL) + R"(
-out vec4 fragColor;
+    // Fragment shader with dynamic color
+    char fragColorStr[128];
+    snprintf(fragColorStr, sizeof(fragColorStr),
+             "out vec4 fragColor;\n\nvoid main() {\n    fragColor = vec4(%.1f, %.1f, %.1f, %.1f);\n}\n",
+             c.r, c.g, c.b, c.a);
 
-void main() {
-    fragColor = vec4(0.0, 1.0, 0.5, 1.0);
-}
-)";
+    std::string fragSrc = std::string(FRAG_GLSL) + fragColorStr;
 
     std::string errmsg;
     shader = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
@@ -241,6 +299,12 @@ bool AppWebGL::init() {
 }
 
 void AppWebGL::tick() {
+    // Recompile shader if variant changed
+    if (g_shader_recompile) {
+        g_shader_recompile = false;
+        compileShaders();
+    }
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {

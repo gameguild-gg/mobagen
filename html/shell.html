@@ -10,15 +10,33 @@
     </style>
 </head>
 <body>
-    <div id="controls" style="position: fixed; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0;">
-        <div style="margin-bottom: 10px; font-size: 12px;">
-            <strong>Renderer: <span id="renderer-status">webgl</span></strong>
+    <div id="controls" style="position: fixed; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.9); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0; max-width: 300px;">
+        <!-- Renderer Selection -->
+        <div style="margin-bottom: 12px; border-bottom: 1px solid #0f0; padding-bottom: 8px;">
+            <div style="font-size: 12px; margin-bottom: 6px;">
+                <strong>Renderer: <span id="renderer-status">webgl</span></strong>
+            </div>
+            <button id="btn-webgl" onclick="switchRenderer('webgl')" style="padding: 6px 10px; margin: 2px; background: #0a3a0a; color: #0f0; border: 1px solid #0f0; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">◉ WebGL</button>
+            <button id="btn-webgpu" onclick="switchRenderer('webgpu')" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">○ WebGPU</button>
         </div>
-        <button id="btn-webgl" onclick="switchRenderer('webgl')" style="padding: 8px 12px; margin: 5px; background: #0a3a0a; color: #0f0; border: 1px solid #0f0; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">WebGL (G2)</button>
-        <button id="btn-webgpu" onclick="switchRenderer('webgpu')" style="padding: 8px 12px; margin: 5px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">WebGPU (G3)</button>
-        <div style="margin-top: 10px; font-size: 11px; color: #888;">
-            <div>G2: Immediate-mode (OpenGL ES)</div>
-            <div>G3: Deferred-mode (WebGPU)</div>
+
+        <!-- Shader Variants -->
+        <div style="margin-bottom: 12px; border-bottom: 1px solid #0f0; padding-bottom: 8px;">
+            <div style="font-size: 12px; margin-bottom: 6px;">
+                <strong>Color (Press 1/2/3/4):</strong>
+            </div>
+            <button id="shader-1" onclick="switchShader(1)" style="padding: 6px 10px; margin: 2px; background: #0a3a0a; color: #0f0; border: 1px solid #0f0; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">1: Teal</button>
+            <button id="shader-2" onclick="switchShader(2)" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">2: Red</button>
+            <br>
+            <button id="shader-3" onclick="switchShader(3)" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">3: Green</button>
+            <button id="shader-4" onclick="switchShader(4)" style="padding: 6px 10px; margin: 2px; background: #1a1a1a; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold;">4: Yellow</button>
+        </div>
+
+        <!-- Info -->
+        <div style="font-size: 10px; color: #666; line-height: 1.4;">
+            <div><strong>G2:</strong> Immediate-mode (OpenGL ES)</div>
+            <div><strong>G3:</strong> Deferred-mode (WebGPU)</div>
+            <div style="margin-top: 5px; color: #555;"><em>Compare same triangle in different colors and renderers</em></div>
         </div>
     </div>
 
@@ -27,13 +45,11 @@
         var Module = { canvas: document.getElementById('canvas') };
 
         function switchRenderer(renderer) {
-            console.log(`Switching to ${renderer}...`);
+            console.log(`Switching renderer to: ${renderer}`);
             if (typeof Module._set_renderer === 'function') {
-                // Call C++ function via Emscripten
                 Module._set_renderer(renderer);
                 document.getElementById('renderer-status').textContent = renderer;
 
-                // Update button styles
                 const btn_webgl = document.getElementById('btn-webgl');
                 const btn_webgpu = document.getElementById('btn-webgpu');
                 if (renderer === 'webgl') {
@@ -51,18 +67,50 @@
                     btn_webgl.style.color = '#888';
                     btn_webgl.style.borderColor = '#444';
                 }
-            } else {
-                console.error('set_renderer not available. Module might not be loaded yet.');
+            }
+        }
+
+        function switchShader(variant) {
+            console.log(`Switching shader to variant: ${variant}`);
+            if (typeof Module._set_shader_variant === 'function') {
+                Module._set_shader_variant(variant);
+
+                // Update button styles for all shader buttons
+                const names = ['Teal', 'Red', 'Green', 'Yellow'];
+                const colors = ['#00ff80', '#ff0000', '#00ff00', '#ffff00'];
+
+                for (let i = 1; i <= 4; i++) {
+                    const btn = document.getElementById(`shader-${i}`);
+                    if (i === variant) {
+                        btn.style.background = '#0a3a0a';
+                        btn.style.color = colors[i-1];
+                        btn.style.borderColor = colors[i-1];
+                        btn.style.textShadow = `0 0 5px ${colors[i-1]}`;
+                    } else {
+                        btn.style.background = '#1a1a1a';
+                        btn.style.color = '#888';
+                        btn.style.borderColor = '#444';
+                        btn.style.textShadow = 'none';
+                    }
+                }
             }
         }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.key === '1') switchRenderer('webgl');
-            if (e.key === '2') switchRenderer('webgpu');
+            // Shader variants: 1/2/3/4
+            if (e.key === '1') switchShader(1);
+            if (e.key === '2') switchShader(2);
+            if (e.key === '3') switchShader(3);
+            if (e.key === '4') switchShader(4);
         });
 
-        console.log('Renderer controls ready. Press 1 for WebGL, 2 for WebGPU');
+        // Initialize shader buttons
+        switchShader(1);
+
+        console.log('Renderer & Shader controls ready.');
+        console.log('Renderers: Alt+1/Alt+2 (or click buttons)');
+        console.log('Shaders: 1/2/3/4 keys');
     </script>
     <script>
 // ============================================================================
