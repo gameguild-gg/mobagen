@@ -10,6 +10,20 @@
     </style>
 </head>
 <body>
+    <!-- Performance Stats (Top Right) -->
+    <div id="stats" style="position: fixed; top: 10px; right: 10px; z-index: 100; background: rgba(0,0,0,0.9); padding: 12px 15px; border-radius: 8px; font-family: monospace; color: #0f0; font-size: 12px; text-align: right; min-width: 200px;">
+        <div style="margin-bottom: 8px; border-bottom: 1px solid #0f0; padding-bottom: 8px;">
+            <div><strong id="stat-renderer">Renderer: WebGL</strong></div>
+            <div id="stat-fps" style="color: #0f0; font-weight: bold;">FPS: 60</div>
+            <div id="stat-frametime" style="color: #888; font-size: 11px;">Frame: 16.7ms</div>
+        </div>
+        <div style="font-size: 11px; color: #666;">
+            <div id="stat-webgpu-support">WebGPU: Available</div>
+            <div id="stat-canvas-size">Canvas: 800x600</div>
+        </div>
+    </div>
+
+    <!-- Controls (Top Left) -->
     <div id="controls" style="position: fixed; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.9); padding: 15px; border-radius: 8px; font-family: monospace; color: #0f0; max-width: 300px;">
         <!-- Renderer Selection -->
         <div style="margin-bottom: 12px; border-bottom: 1px solid #0f0; padding-bottom: 8px;">
@@ -44,10 +58,82 @@
     <script>
         var Module = { canvas: document.getElementById('canvas') };
 
+        // ====================================================================
+        // PERFORMANCE STATS TRACKING
+        // ====================================================================
+        class PerformanceStats {
+            constructor() {
+                this.frameCount = 0;
+                this.lastTime = performance.now();
+                this.lastFpsTime = this.lastTime;
+                this.fps = 60;
+                this.frameTime = 16.7;
+                this.currentRenderer = 'webgl';
+            }
+
+            update() {
+                const now = performance.now();
+                const delta = now - this.lastTime;
+                this.frameTime = delta;
+                this.lastTime = now;
+                this.frameCount++;
+
+                // Update FPS every 500ms
+                if (now - this.lastFpsTime >= 500) {
+                    this.fps = Math.round((this.frameCount / (now - this.lastFpsTime)) * 1000);
+                    this.frameCount = 0;
+                    this.lastFpsTime = now;
+                    this.updateDisplay();
+                }
+            }
+
+            setRenderer(renderer) {
+                this.currentRenderer = renderer;
+                this.updateDisplay();
+            }
+
+            updateDisplay() {
+                const rendererName = this.currentRenderer === 'webgl' ? 'WebGL (G2)' : 'WebGPU (G3)';
+                const fpsColor = this.fps >= 55 ? '#0f0' : this.fps >= 30 ? '#ff0' : '#f00';
+
+                document.getElementById('stat-renderer').textContent = `Renderer: ${rendererName}`;
+                document.getElementById('stat-fps').textContent = `FPS: ${this.fps}`;
+                document.getElementById('stat-fps').style.color = fpsColor;
+                document.getElementById('stat-frametime').textContent = `Frame: ${this.frameTime.toFixed(1)}ms`;
+
+                // WebGPU support indicator
+                if (typeof navigator.gpu !== 'undefined') {
+                    document.getElementById('stat-webgpu-support').textContent = 'WebGPU: ✓ Available';
+                    document.getElementById('stat-webgpu-support').style.color = '#0f0';
+                } else {
+                    document.getElementById('stat-webgpu-support').textContent = 'WebGPU: ✗ Not Available';
+                    document.getElementById('stat-webgpu-support').style.color = '#f00';
+                }
+
+                // Canvas size
+                const canvas = document.getElementById('canvas');
+                if (canvas) {
+                    document.getElementById('stat-canvas-size').textContent =
+                        `Canvas: ${canvas.width}x${canvas.height}`;
+                }
+            }
+        }
+
+        const stats = new PerformanceStats();
+        stats.updateDisplay();
+
+        // Update stats on every frame
+        function statsLoop() {
+            stats.update();
+            requestAnimationFrame(statsLoop);
+        }
+        statsLoop();
+
         function switchRenderer(renderer) {
             console.log(`Switching renderer to: ${renderer}`);
             if (typeof Module._set_renderer === 'function') {
                 Module._set_renderer(renderer);
+                stats.setRenderer(renderer);
                 document.getElementById('renderer-status').textContent = renderer;
 
                 const btn_webgl = document.getElementById('btn-webgl');
