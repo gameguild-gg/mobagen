@@ -4,7 +4,7 @@ string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
   GITHUB_REPOSITORY curl/curl
   # GIT_TAG curl-7_88_1
-  GIT_TAG curl-7_80_0
+  GIT_TAG curl-8_5_0
   OPTIONS "CURL_USE_MBEDTLS ON"
           "CMAKE_USE_MBEDTLS ON"
           "MBEDTLS_INCLUDE_DIRS ${mbedtls_SOURCE_DIR}/include"

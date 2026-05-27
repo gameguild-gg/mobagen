@@ -34,5 +34,5 @@ install(FILES ${SCENARIO_INC} DESTINATION include/scenario)
 
 add_executable(scenario ${SCENARIO_SRC} ${SCENARIO_INC})
 
-target_include_directories(scenario PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
-target_link_libraries(scenario PUBLIC SDL2-static IMGUI core glm)
+target_include_directories(scenario PUBLIC ${CORE_INC_DIR})
+target_link_libraries(scenario PUBLIC core glm)

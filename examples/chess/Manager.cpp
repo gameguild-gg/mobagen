@@ -114,7 +114,7 @@ Point2D Manager::mousePositionToIndex(ImVec2& pos) {
   return {static_cast<int>(relativePosFloat.x), static_cast<int>(8 - relativePosFloat.y)};
 }
 
-void Manager::OnDraw(SDL_Renderer* renderer) {
+void Manager::OnDraw(Renderer2D& r) {
   auto windowSize = engine->window->size();
   auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
   float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
@@ -128,19 +128,21 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
   auto selectedCell = Color::Yellow.Light();
   for (int line = 0; line < 8; line++) {
     for (int column = 0; column < 8; column++) {
-      SDL_Rect rect = {(int)(ceil(center.x + (column - sideSideOver2) * squareSide)),
-                       (int)(ceil(center.y + (-line - 1 + sideSideOver2) * squareSide)), (int)(ceil(squareSide)), (int)(ceil(squareSide))};
+      Rect2D rect = {(float)ceil(center.x + (column - sideSideOver2) * squareSide),
+                     (float)ceil(center.y + (-line - 1 + sideSideOver2) * squareSide),
+                     (float)ceil(squareSide), (float)ceil(squareSide)};
 
       if (selected.y == line && selected.x == column)
-        drawSquare(renderer, selectedCell, rect);
+        drawSquare(r, selectedCell, rect);
       else if (validMoves.contains(Point2D(column, line)))
-        drawSquare(renderer, movesCell, rect);
+        drawSquare(r, movesCell, rect);
       else if ((line + column) % 2 == 0)
-        drawSquare(renderer, blackCell, rect);
+        drawSquare(r, blackCell, rect);
       else
-        drawSquare(renderer, whiteCell, rect);
+        drawSquare(r, whiteCell, rect);
 
-      drawPiece(renderer, state.PieceAtPosition({column, line}), {rect.x + squareSideOver2, rect.y + squareSideOver2},
+      drawPiece(r, state.PieceAtPosition({column, line}),
+                {rect.x + squareSideOver2, rect.y + squareSideOver2},
                 Vector2f::identity() * squareSide);
     }
   }
@@ -164,14 +166,14 @@ unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
       return {};
   }
 }
-void Manager::drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect) {
-  SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, SDL_ALPHA_OPAQUE);
-  SDL_RenderFillRect(renderer, &rect);
+void Manager::drawSquare(Renderer2D& r, Color32& color, Rect2D& rect) {
+  r.SetDrawColor(color.r, color.g, color.b, 255);
+  r.DrawFilledRect(rect);
 }
-void Manager::drawPiece(SDL_Renderer* renderer, PieceData piece, Vector2f location, Vector2f scale) {
+void Manager::drawPiece(Renderer2D& r, PieceData piece, Vector2f location, Vector2f scale) {
   if (piecePackedToTexture.contains(piece.Pack())) {
     auto tex = piecePackedToTexture[piece.Pack()];
-    tex->Draw(renderer, location, scale / Vector2f(tex->dimensions.x, tex->dimensions.y));
+    tex->Draw(r, location, scale / Vector2f(tex->dimensions.x, tex->dimensions.y));
   }
 }
 
@@ -179,29 +181,29 @@ Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
   state.Reset();
   cout << state.toString() << endl;
   // todo: use asset subsystem loading!
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, PawnSvgBlack);
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(PawnSvgWhite);
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(PawnSvgBlack);
 
   piecePackedToTexture[PieceData(PieceColor::White, PieceType::Knight).Pack()]
-      = Texture::LoadSVGFromString(engine->window->sdlRenderer, KnightSvgWhite);
+      = Texture::LoadSVGFromString(KnightSvgWhite);
   piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Knight).Pack()]
-      = Texture::LoadSVGFromString(engine->window->sdlRenderer, KnightSvgBlack);
+      = Texture::LoadSVGFromString(KnightSvgBlack);
 
   piecePackedToTexture[PieceData(PieceColor::White, PieceType::Bishop).Pack()]
-      = Texture::LoadSVGFromString(engine->window->sdlRenderer, BishopSvgWhite);
+      = Texture::LoadSVGFromString(BishopSvgWhite);
   piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Bishop).Pack()]
-      = Texture::LoadSVGFromString(engine->window->sdlRenderer, BishopSvgBlack);
+      = Texture::LoadSVGFromString(BishopSvgBlack);
 
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, RookSvgBlack);
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(RookSvgWhite);
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(RookSvgBlack);
 
   piecePackedToTexture[PieceData(PieceColor::White, PieceType::Queen).Pack()]
-      = Texture::LoadSVGFromString(engine->window->sdlRenderer, QueenSvgWhite);
+      = Texture::LoadSVGFromString(QueenSvgWhite);
   piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Queen).Pack()]
-      = Texture::LoadSVGFromString(engine->window->sdlRenderer, QueenSvgBlack);
+      = Texture::LoadSVGFromString(QueenSvgBlack);
 
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::King).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::King).Pack()] = Texture::LoadSVGFromString(engine->window->sdlRenderer, KingSvgBlack);
+  piecePackedToTexture[PieceData(PieceColor::White, PieceType::King).Pack()] = Texture::LoadSVGFromString(KingSvgWhite);
+  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::King).Pack()] = Texture::LoadSVGFromString(KingSvgBlack);
 
   score = Heuristics::MaterialScore(&state);
 }

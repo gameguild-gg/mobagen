@@ -22,7 +22,7 @@ public:
   // todo: move this to component. Revome from this class
   virtual void Start(){};
   virtual void OnGui(ImGuiContext* context){};
-  virtual void OnDraw(SDL_Renderer* renderer){};
+  virtual void OnDraw(Renderer2D& r){};
   virtual void Update(float deltaTime){};
 
   // make use of concepts here

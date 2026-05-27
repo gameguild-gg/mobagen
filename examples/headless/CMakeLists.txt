@@ -18,5 +18,5 @@ install(FILES ${HEADLESS_INC} DESTINATION include/headless)
 
 add_executable(headless ${HEADLESS_SRC} ${HEADLESS_INC})
 
-target_include_directories(headless PUBLIC ${SDL2_INCLUDE_DIR} ${CORE_INC_DIR})
-target_link_libraries(headless PUBLIC SDL2-static IMGUI core)
+target_include_directories(headless PUBLIC ${CORE_INC_DIR})
+target_link_libraries(headless PUBLIC core)

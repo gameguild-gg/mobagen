@@ -34,6 +34,10 @@ link_directories(${CMAKE_BINARY_DIR}/libs)
 
 if(EMSCRIPTEN)
   message(STATUS "emscripten build")
+  # NOTE: We do NOT pass -sUSE_WEBGPU=1 -- that emscripten port is deprecated.
+  # WebGPU comes from the emdawnwebgpu port wired up by external/dawn.cmake
+  # (it injects --use-port=.../emdawnwebgpu.port.py on the link line).
+  # SDL3 is built from source, so -sUSE_SDL=0 keeps emscripten from bundling its own.
   set(CMAKE_CXX_FLAGS
       "${CMAKE_CXX_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )

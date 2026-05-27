@@ -1,6 +1,6 @@
 # zlib
 string(TIMESTAMP BEFORE "%s")
-CPMAddPackage("gh:madler/zlib#v1.2.13")
+CPMAddPackage("gh:madler/zlib#v1.3.1")
 string(TIMESTAMP AFTER "%s")
 math(EXPR DELTAzlib "${AFTER} - ${BEFORE}")
 message(STATUS "zlib TIME: ${DELTAzlib}s")

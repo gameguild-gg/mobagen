@@ -3,8 +3,12 @@ if(NOT DEFINED MINGW)
   set(MINGW OFF)
 endif()
 
-# check if mingw
-if("${CMAKE_GENERATOR}" MATCHES "(M|m?)in(G|g?)(W|w?)")
+# check if mingw (only meaningful on Windows; CMake also auto-sets the MINGW
+# variable when using a MinGW toolchain). The previous regex
+#   (M|m?)in(G|g?)(W|w?)
+# was buggy: with all groups optional it effectively matched any generator
+# containing "in" (e.g. "Ninja"), so MINGW was wrongly turned ON on macOS.
+if(WIN32 AND "${CMAKE_GENERATOR}" MATCHES "[Mm][Ii][Nn][Gg][Ww]")
   set(MINGW ON)
   message(STATUS "MinGW Detected")
   message(STATUS "${CMAKE_GENERATOR}")

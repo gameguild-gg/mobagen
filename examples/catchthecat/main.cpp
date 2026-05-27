@@ -15,13 +15,20 @@ void printUsage() {
 }
 
 Point2D findCatPosition(const std::string& boardStr, int size) {
+  int pos = 0;
   for (int i = 0; i < boardStr.length(); i++) {
-    if (boardStr[i] == 'C') {
-      int y = i / size;
-      int x = i % size;
+    char c = boardStr[i];
+    if (c=='.' || c=='#') {
+      pos++;
+      continue;
+    }
+    else if (c == 'C') {
+      int y = pos / size;
+      int x = pos % size;
       // Convert to world coordinates (center at 0,0)
       return {x - size/2, y - size/2};
     }
+    // Skip whitespace, newlines, and other invalid characters without incrementing pos
   }
   return {0, 0}; // Default to center if not found
 }

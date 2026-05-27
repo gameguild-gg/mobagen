@@ -6,7 +6,7 @@ set(CURL_CA_FALLBACK
 ) # Workaround for failing SSL requests
 CPMAddPackage(
   GITHUB_REPOSITORY libcpr/cpr
-  GIT_TAG 1.10.1
+  GIT_TAG 1.10.5
   OPTIONS "CPR_ENABLE_SSL ON" "CPR_FORCE_MBEDTLS_BACKEND ON" "CURL_USE_MBEDTLS ON"
 )
 string(TIMESTAMP AFTER "%s")

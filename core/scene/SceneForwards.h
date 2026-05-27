@@ -7,5 +7,6 @@ class GameObject;
 class Scene;
 class Transform;
 class ScriptableObject;
+class Renderer2D;
 
 #endif

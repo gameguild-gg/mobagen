@@ -3,6 +3,7 @@
 
 #include "engine/EngineForwards.h"
 #include "scene/GameObject.h"
+#include "Renderer2D.h"
 #include "datastructures/Grid2D.h"
 #include "ShadowCastGridRecursive.h"
 
@@ -19,7 +20,7 @@ public:
 
   void Start() override;
   void OnGui(ImGuiContext* context) override;
-  void OnDraw(SDL_Renderer* renderer) override;
+  void OnDraw(Renderer2D& r) override;
   void Update(float deltaTime) override;
 
   // helper functions

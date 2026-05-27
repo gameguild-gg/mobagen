@@ -100,34 +100,34 @@ void World::OnGui(ImGuiContext* context) {
   ImGui::End();
 }
 
-void World::OnDraw(SDL_Renderer* renderer) {
+void World::OnDraw(Renderer2D& r) {
   auto windowSize = engine->window->size();
   float linesize = (std::min(windowSize.x, windowSize.y) / (float)sideSize) * 0.9f;
 
   Vector2f displacement
       = {(windowSize.x / 2) - linesize * (sideSize / 2) - linesize / 2, (windowSize.y / 2) - linesize * (sideSize / 2) - linesize / 2};
 
-  SDL_SetRenderDrawColor(renderer, SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE, SDL_ALPHA_OPAQUE);
+  r.SetDrawColor(255, 255, 255, 255);
   for (int i = 0; i < data.size(); i += 2) {
     Vector2f pos = {(float)((i / 2) % (sideSize + 1)), (float)((i / 2) / (sideSize + 1))};
     pos *= linesize;
     pos += displacement;
 
     // north
-    if (data[i]) SDL_RenderDrawLine(renderer, (int)pos.x, (int)pos.y, (int)(pos.x + linesize), (int)pos.y);
+    if (data[i]) r.DrawLine(pos.x, pos.y, pos.x + linesize, pos.y);
     // west
-    if (data[i + 1]) SDL_RenderDrawLine(renderer, (int)pos.x, (int)pos.y, (int)pos.x, (int)(pos.y + linesize));
+    if (data[i + 1]) r.DrawLine(pos.x, pos.y, pos.x, pos.y + linesize);
   }
 
   for (int i = 0; i < sideSize * sideSize; i++) {
     auto c = colors[i];
-    SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);
+    r.SetDrawColor(c.r, c.g, c.b, c.a);
 
     Vector2f pos = {(float)(i % sideSize), (float)(i / sideSize)};
     pos *= linesize;
     pos += displacement;
-    SDL_Rect rect = {(int)(pos.x + 1), (int)(pos.y + 1), (int)(linesize - 1), (int)(linesize - 1)};
-    SDL_RenderFillRect(renderer, &rect);
+    Rect2D rect = {pos.x + 1, pos.y + 1, linesize - 1, linesize - 1};
+    r.DrawFilledRect(rect);
   }
 }
 

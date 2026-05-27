@@ -3,7 +3,7 @@
 
 #include <cmath>
 #include <stdexcept>
-#include "SDL.h"
+#include <SDL3/SDL.h>
 #include <concepts>
 #include <type_traits>
 

@@ -2,6 +2,7 @@
 #define LIFE_MANAGER_H
 
 #include "scene/GameObject.h"
+#include "Renderer2D.h"
 #include "RuleBase.h"
 #include "World.h"
 
@@ -24,7 +25,7 @@ public:
 
   void Start() override;
   void OnGui(ImGuiContext* context) override;
-  void OnDraw(SDL_Renderer* renderer) override;
+  void OnDraw(Renderer2D& r) override;
   void Update(float deltaTime) override;
 };
 

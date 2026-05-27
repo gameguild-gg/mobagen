@@ -1,7 +1,8 @@
 #define SDL_MAIN_HANDLED true
 #include "engine/Engine.h"
 #include "scene/GameObject.h"
-#include "SDL.h"
+#include "Renderer2D.h"
+#include <SDL3/SDL.h>
 #include <iostream>
 
 // Simple test object that runs for a limited time in headless mode
@@ -30,7 +31,7 @@ public:
     }
   }
 
-  void OnDraw(SDL_Renderer* renderer) override {
+  void OnDraw(Renderer2D& r) override {
     // This should never be called in headless mode
     SDL_Log("Warning: OnDraw called in headless mode!");
   }
