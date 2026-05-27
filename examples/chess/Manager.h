@@ -2,6 +2,7 @@
 #define CHESS_MANAGER_H
 
 #include "Texture.h"
+#include "Renderer2D.h"
 #include "WorldState.h"
 #include "math/ColorT.h"
 #include "engine/Engine.h"
@@ -27,14 +28,14 @@ public:
   void Start() override;
   ~Manager();
   void OnGui(ImGuiContext* context) override;
-  void OnDraw(SDL_Renderer* renderer) override;
+  void OnDraw(Renderer2D& r) override;
   void Update(float deltaTime) override;
 
 private:
   Point2D mousePositionToIndex(ImVec2& pos);
   unordered_set<Point2D> getMoves(PieceType t, Point2D point);
-  void drawSquare(SDL_Renderer* renderer, Color32& color, SDL_Rect& rect);
-  void drawPiece(SDL_Renderer* renderer, PieceData piece, Vector2f location, Vector2f scale);
+  void drawSquare(Renderer2D& r, Color32& color, Rect2D& rect);
+  void drawPiece(Renderer2D& r, PieceData piece, Vector2f location, Vector2f scale);
 };
 
 #endif  // CHESS_MANAGER_H

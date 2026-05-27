@@ -1,73 +1,48 @@
 #pragma once
+
 #include "math/Point2D.h"
-#include "SDL_render.h"
-#include "SDL_video.h"
 #include "math/Vector2.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_metal.h>
+#include <webgpu/webgpu.h>
 #include <imgui.h>
 #include <string>
 
-#ifdef EMSCRIPTEN
-#  include <emscripten.h>
-#endif
-
+// A thin owner of the OS window + WebGPU surface/device used by the engine.
+// No SDL_Renderer anymore — all drawing goes through WebGPU + ImGui.
 class Window {
-  //    void init(void);
-
-  //    void tick(void);
-
-  //    void swapBuffer(void);
-
-  //    int poll_event(void);
-
-  //    int getWidth(void);
-
-  //    int getHeight(void);
-
-  // getViewport(void) const;
-
-  // getDisplaySize(void) const;
-
-  // getDrawableSize(void) const;
-
-  // static const char *getClipboardText(void* user_data);
-
-  // static void setClipboardText(void* user_data, const char* text);
-
-  // void makeCurrentContext(void) const;
-
-  // Input *getInput(void);
-
-  SDL_Window* getSDLWindow(void);
-
-  //    bool shouldQuit(void) const;
-
-  //    void drawCursor(bool enabled);
-
-  //    void setFullscreen(uint32_t flag);
-
-  //    void toggleFullscreen(void);
-
 public:
   explicit Window(std::string title);
-
-  SDL_Window* sdlWindow;
-  SDL_Renderer* sdlRenderer;
-  ImGuiContext* imGuiContext;
-
-  Point2D size();
-  void Update();
-
   ~Window();
 
+  Window(const Window&) = delete;
+  Window& operator=(const Window&) = delete;
+
+  // Current window size in pixels (drawable size, HiDPI-aware).
+  Point2D size() const { return windowSize; }
+
+  // Per-frame housekeeping: detect resize, reconfigure WebGPU surface,
+  // adapt ImGui font scale. Called by Engine::Tick.
+  void Update();
+
+  // --- public for the Engine; demos shouldn't touch these directly ---
+  SDL_Window*       sdlWindow     = nullptr;
+  ImGuiContext*     imGuiContext  = nullptr;
+
+  WGPUInstance      wgpuInstance  = nullptr;
+  WGPUAdapter       wgpuAdapter   = nullptr;
+  WGPUDevice        wgpuDevice    = nullptr;
+  WGPUQueue         wgpuQueue     = nullptr;
+  WGPUSurface       wgpuSurface   = nullptr;
+  WGPUTextureFormat surfaceFormat = WGPUTextureFormat_Undefined;
+
+  // Backed by SDL_Metal_CreateView on macOS; nullptr elsewhere.
+  SDL_MetalView     metalView     = nullptr;
+
 private:
-  SDL_GLContext m_glContext;
-  Point2D windowSize;
-  //    std::unique_ptr<GuiManager> m_guiManager;
+  void createSurface();
+  void configureSurface(int widthPx, int heightPx);
+  void initDeviceAndQueue();
 
-  //    int m_width, m_height;
-
-  //    Input m_input;
-
-  //    bool m_quit;
-  //    bool m_fullscreen;
+  Point2D windowSize{0, 0};
 };

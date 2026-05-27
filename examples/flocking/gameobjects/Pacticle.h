@@ -54,7 +54,7 @@ public:
   virtual void Update(float deltaTime) override;
 
   // Inherited via Drawable
-  void OnDraw(SDL_Renderer* renderer) override;
+  void OnDraw(Renderer2D& r) override;
 };
 
 #endif

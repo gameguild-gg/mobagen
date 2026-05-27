@@ -1,6 +1,5 @@
 #include "World.h"
 #include "Polygon.h"
-#include "SDL_image.h"
 
 #include <chrono>
 #include "scene/Transform.h"
@@ -13,7 +12,7 @@
 
 
 void World::print() {
-  auto catposid = catPosition.y * (sideSize / 2) + catPosition.x + sideSize * sideSize / 2;
+  auto catposid = (catPosition.y + sideSize / 2) * sideSize + (catPosition.x + sideSize / 2);
   for (int i = 0; i < worldState.size();) {
     std::cout << ((i == catposid) ? ('C') : (worldState[i] ? '#' : '.'));
     i++;
@@ -92,36 +91,32 @@ bool World::isNeighbor(const Point2D& p1, const Point2D& p2) {
   return NE(p1) == p2 || NW(p1) == p2 || E(p1) == p2 || W(p1) == p2 || SE(p1) == p2 || SW(p1) == p2;
 }
 
-void FillHexagon(SDL_Renderer* renderer, const Transform& t, const SDL_Color& color)
+void FillHexagon(Renderer2D& r, const Transform& t, const ColorRGBA& color)
 {
   const int SIDES = 6;
-  float r = floorf(t.scale.x) - 0.5f;
+  float radius = floorf(t.scale.x) - 0.5f;
   float cx = roundf(t.position.x);
   float cy = roundf(t.position.y);
-
-  SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-  SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 
   for (int i = 0; i < SIDES; ++i)
   {
     float a1 = (M_PI / 3.0f) * i + M_PI / 6.0f;
     float a2 = (M_PI / 3.0f) * (i + 1) + M_PI / 6.0f;
 
-    SDL_Vertex tri[3];
-    tri[0].position.x = cx;
-    tri[0].position.y = cy;
-    tri[1].position.x = cx + cosf(a1) * r;
-    tri[1].position.y = cy + sinf(a1) * r;
-    tri[2].position.x = cx + cosf(a2) * r;
-    tri[2].position.y = cy + sinf(a2) * r;
-    tri[0].color = tri[1].color = tri[2].color = color;
-
-    SDL_RenderGeometry(renderer, nullptr, tri, 3, nullptr, 0);
+    Vertex2D tri[3] = {};
+    tri[0].x = cx;                  tri[0].y = cy;
+    tri[1].x = cx + cosf(a1) * radius; tri[1].y = cy + sinf(a1) * radius;
+    tri[2].x = cx + cosf(a2) * radius; tri[2].y = cy + sinf(a2) * radius;
+    for (auto& v : tri) {
+      v.r = color.r; v.g = color.g; v.b = color.b; v.a = color.a;
+      v.u = 0; v.v = 0;
+    }
+    r.DrawTriangles(tri, 3);
   }
 }
 
 
-void World::OnDraw(SDL_Renderer* renderer) {
+void World::OnDraw(Renderer2D& r) {
   Hexagon hex;
   Transform t;
   auto windowSize = engine->window->size();
@@ -134,7 +129,7 @@ void World::OnDraw(SDL_Renderer* renderer) {
   }
   auto catposid = (catPosition.y + sideSize / 2) * (sideSize) + catPosition.x + sideSize / 2;
   for (int i = 0; i < worldState.size();) {
-    SDL_Color fillColor;
+    ColorRGBA fillColor;
 
     if (catposid == i)
       fillColor = {255, 65, 65, 255};    // red for cat
@@ -143,7 +138,7 @@ void World::OnDraw(SDL_Renderer* renderer) {
     else
       fillColor = {180, 180, 180, 255};  // gray for open tiles
 
-    FillHexagon(renderer, t, fillColor);
+    FillHexagon(r, t, fillColor);
     i++;
     if ((i) % (2 * sideSize) == 0) {
       t.position.x = windowSize.x / 2 - (sideSize)*t.scale.x + (sideSize % 4 >= 2 ? 1 : 0) * t.scale.x;

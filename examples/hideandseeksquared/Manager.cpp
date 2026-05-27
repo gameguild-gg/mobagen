@@ -9,14 +9,15 @@ Manager::Manager(Engine* pEngine) : GameObject(pEngine) {}
 
 void Manager::Start() { Reset(); }
 
-void Manager::OnDraw(SDL_Renderer* renderer) {
+void Manager::OnDraw(Renderer2D& r) {
   float minDimension = std::min(engine->window->size().x, engine->window->size().y);
   float cellSize = minDimension / sideSize;
   Vector2f center = {static_cast<float>(engine->window->size().x / 2), static_cast<float>(engine->window->size().y / 2)};
   for (int line = 0; line < sideSize; line++) {
     for (int column = 0; column < sideSize; column++) {
-      SDL_Rect rect = {(int)(ceil(center.x + (column - sideSize / 2.0f) * cellSize)),
-                       (int)(ceil(center.y + (-line - 1 + sideSize / 2.0f) * cellSize)), (int)cellSize - 1, (int)cellSize - 1};
+      Rect2D rect = {(float)ceil(center.x + (column - sideSize / 2.0f) * cellSize),
+                     (float)ceil(center.y + (-line - 1 + sideSize / 2.0f) * cellSize),
+                     (float)((int)cellSize - 1), (float)((int)cellSize - 1)};
       Color32 color;
       switch (grid(column, line).type) {
         case SquareType::Empty:
@@ -39,8 +40,8 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
         if (!grid(column, line).visible) color = Color::DarkGray;
       }
 
-      SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-      SDL_RenderFillRect(renderer, &rect);
+      r.SetDrawColor(color.r, color.g, color.b, color.a);
+      r.DrawFilledRect(rect);
     }
   }
 }

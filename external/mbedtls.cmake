@@ -1,6 +1,6 @@
 # mbedtls
 string(TIMESTAMP BEFORE "%s")
-CPMAddPackage("gh:Mbed-TLS/mbedtls#v3.3.0")
+CPMAddPackage("gh:Mbed-TLS/mbedtls#v3.6.0")
 string(TIMESTAMP AFTER "%s")
 math(EXPR DELTAmbedtls "${AFTER} - ${BEFORE}")
 message(STATUS "mbedtls TIME: ${DELTAmbedtls}s")

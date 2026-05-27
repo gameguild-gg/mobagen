@@ -7,6 +7,9 @@
 #include "math/Vector3.h"
 #include "math/ColorT.h"
 
+// forward decl to avoid including Renderer2D.h in this header; we only need it for the Draw() impl.
+class Renderer2D;
+
 // naive approach to represent a polygon
 struct Polygon {
 public:
@@ -17,10 +20,10 @@ public:
   // polygon points to be used in the draw functions
   std::vector<Vector2f> getDrawablePoints(const Transform& transform);
 
-  void Draw(SDL_Renderer* renderer, const Transform& transform, const Color32& color);
-  void Draw(SDL_Renderer* renderer, const Vector2f& position, const Vector2f& scale, const Vector2f& rotation, const Color32& color);
+  void Draw(Renderer2D& r, const Transform& transform, const Color32& color);
+  void Draw(Renderer2D& r, const Vector2f& position, const Vector2f& scale, const Vector2f& rotation, const Color32& color);
 
-  static void DrawLine(SDL_Renderer* renderer, const Vector2f& v1, const Vector2f& v2, const Color32& color);
+  static void DrawLine(Renderer2D& r, const Vector2f& v1, const Vector2f& v2, const Color32& color);
 };
 
 struct Circle : Polygon {

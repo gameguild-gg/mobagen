@@ -19,15 +19,15 @@ set(CORE_INC_DIR
 
 add_library(core STATIC ${CORE_SRC} ${CORE_INC})
 
-if(EMSCRIPTEN)
-  # target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI quickjspp)
-  target_link_libraries(core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI)
-else()
-  target_link_libraries(
-    core PUBLIC SDL2::SDL2 SDL2_image::SDL2_image-static IMGUI
-    # MbedTLS::mbedtls MbedTLS::mbedcrypto MbedTLS::mbedx509 cpr::cpr
-  )
-endif()
+# IMGUI already PUBLIC-links SDL3::SDL3-static + mobagen::webgpu, so consumers
+# of `core` get SDL3, WebGPU (Dawn / emdawnwebgpu) and ImGui transitively.
+target_link_libraries(core
+  PUBLIC
+    SDL3::SDL3-static
+    SDL3_image::SDL3_image-static
+    IMGUI
+    mobagen::webgpu
+)
 
 # If(NOT EMSCRIPTEN AND NOT ANDROID) add_definitions(-DGLEW_STATIC) #  add_definitions(-DGLEW_BUILD)
 # set(GLEW_USE_STATIC_LIBS ON CACHE BOOL "bla") set(BUILD_SHARED_LIBS OFF CACHE BOOL "bla") set(

@@ -1,8 +1,17 @@
 #include "Engine.h"
-#include "SDL.h"
+
 #include "../Polygon.h"
+#include "../Renderer2D.h"
 #include "../scene/GameObject.h"
 #include "../scene/ScriptableObject.h"
+
+#include <SDL3/SDL.h>
+#include <webgpu/webgpu.h>
+
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_wgpu.h>
+
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
 #endif
@@ -18,23 +27,22 @@ Engine::Engine(EngineSettings settings) : window(nullptr), settings(settings) {
 
 Engine::~Engine() {
   if (window) {
-    // Cleanup
-    ImGui_ImplSDLRenderer2_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
-    delete (window);
+    // ImGui backend shutdown happens inside Window's destructor.
+    delete window;
+    window = nullptr;
   }
 
-  for (auto go : gameObjects) delete (go);  // clear all remaining game objects
+  for (auto go : gameObjects) delete go;
   gameObjects.clear();
   SDL_Log("Game Objects Cleared");
 }
+
 // https://gafferongames.com/post/fix_your_timestep/
 void Engine::Run() {
-  // Main loop
   for (;;) {
     auto currentTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - lastFrameTime).count();
+    auto duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(currentTime - lastFrameTime).count();
     deltaTime = duration / 1000000.0f;
     accumulatedTime += duration;
     lastFrameTime = currentTime;
@@ -51,8 +59,7 @@ void Engine::Run() {
 #ifdef __EMSCRIPTEN__
     emscripten_sleep(targetTimeToSleep / 1000);
 #else
-    // std::this_thread::sleep_for(targetTimeToSleep * 1ms/1000);
-    SDL_Delay(targetTimeToSleep / 1000);
+    SDL_Delay((Uint32)(targetTimeToSleep / 1000));
 #endif
   }
 }
@@ -71,62 +78,102 @@ bool Engine::Start(std::string title) {
   }
 
   lastFrameTime = std::chrono::high_resolution_clock::now();
-  SDL_Delay(1000 / targetFPS);
+  SDL_Delay((Uint32)(1000 / targetFPS));
   deltaTime = 0;
-
   return true;
 }
 
 void Engine::Tick() {
-  // Only initialize ImGui and rendering if not in headless mode
+  WGPUSurfaceTexture     surfaceTex     = {};
+  WGPUTextureView        backbufferView = nullptr;
+  WGPUCommandEncoder     encoder        = nullptr;
+  WGPURenderPassEncoder  pass           = nullptr;
+
   if (!settings.headless) {
-    // Start the Dear ImGui frame
-    ImGui_ImplSDLRenderer2_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
     window->Update();
 
-    SDL_SetRenderDrawColor(window->sdlRenderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255),
-                           (Uint8)(clear_color.w * 255));
-    SDL_RenderClear(window->sdlRenderer);
+    wgpuSurfaceGetCurrentTexture(window->wgpuSurface, &surfaceTex);
+    bool haveBackbuffer =
+        (surfaceTex.status == WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal ||
+         surfaceTex.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) &&
+        surfaceTex.texture != nullptr;
+
+    if (haveBackbuffer) {
+      WGPUTextureViewDescriptor vd = {};
+      vd.format          = wgpuTextureGetFormat(surfaceTex.texture);
+      vd.dimension       = WGPUTextureViewDimension_2D;
+      vd.baseMipLevel    = 0;
+      vd.mipLevelCount   = 1;
+      vd.baseArrayLayer  = 0;
+      vd.arrayLayerCount = 1;
+      vd.aspect          = WGPUTextureAspect_All;
+      backbufferView     = wgpuTextureCreateView(surfaceTex.texture, &vd);
+
+      WGPUCommandEncoderDescriptor edesc = {};
+      encoder = wgpuDeviceCreateCommandEncoder(window->wgpuDevice, &edesc);
+
+      WGPURenderPassColorAttachment color = {};
+      color.view       = backbufferView;
+      color.loadOp     = WGPULoadOp_Clear;
+      color.storeOp    = WGPUStoreOp_Store;
+      color.clearValue = {clearColor[0], clearColor[1], clearColor[2], clearColor[3]};
+      color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+
+      WGPURenderPassDescriptor passDesc = {};
+      passDesc.colorAttachmentCount = 1;
+      passDesc.colorAttachments     = &color;
+      pass = wgpuCommandEncoderBeginRenderPass(encoder, &passDesc);
+    }
+
+    ImGui_ImplWGPU_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
   }
 
-  // inputs processing
   processInput();
 
-  // start objects marked to start
   for (auto go : gameObjectsToBeStarted) {
     go->Start();
     gameObjects.insert(go);
   }
   gameObjectsToBeStarted.clear();
 
-  // update
   for (auto go : gameObjects) go->Update(deltaTime);
 
-  // Only process GUI and rendering if not in headless mode
   if (!settings.headless) {
-    // iterate over all game objects ui
-    auto gos = gameObjects;                                       // clone to prevent out of bounds access
-    for (auto go : gameObjects) go->OnGui(window->imGuiContext);  // todo: find a better way to pass imgui context
+    for (auto go : gameObjects)         go->OnGui(window->imGuiContext);
+    for (auto go : scriptableObjects)   go->OnGui(window->imGuiContext);
 
-    for (auto go : scriptableObjects) go->OnGui(window->imGuiContext);
+    Renderer2D r(ImGui::GetBackgroundDrawList(),
+                 window->size().x, window->size().y);
+    for (auto go : gameObjects) go->OnDraw(r);
 
-    // Rendering
     ImGui::Render();
 
-    // Draw
-    for (auto go : gameObjects) go->OnDraw(window->sdlRenderer);
+    if (pass) {
+      ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
+      wgpuRenderPassEncoderEnd(pass);
+      wgpuRenderPassEncoderRelease(pass);
 
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), window->sdlRenderer);
-    SDL_RenderPresent(window->sdlRenderer);
+      WGPUCommandBufferDescriptor cbDesc = {};
+      WGPUCommandBuffer cb = wgpuCommandEncoderFinish(encoder, &cbDesc);
+      wgpuQueueSubmit(window->wgpuQueue, 1, &cb);
+      wgpuCommandBufferRelease(cb);
+      wgpuCommandEncoderRelease(encoder);
+
+#ifndef __EMSCRIPTEN__
+      wgpuSurfacePresent(window->wgpuSurface);
+#endif
+    }
+
+    if (backbufferView)     wgpuTextureViewRelease(backbufferView);
+    if (surfaceTex.texture) wgpuTextureRelease(surfaceTex.texture);
   }
 
-  // destroy objects marked to death
   if (!toDestroy.empty()) {
     for (auto go : toDestroy) {
       gameObjects.erase(go);
-      delete (go);
+      delete go;
     }
     toDestroy.clear();
   }
@@ -138,74 +185,47 @@ void Engine::Exit() {
 }
 
 void Engine::processInput() {
-  // Poll and handle events (inputs, window resize, etc.)
-  // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-  // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-  // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-  // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-
   // todo: move this to Input
   static bool up = false, down = false, left = false, right = false;
 
-  // clean the state
   arrowInput = Vector2f();
 
-  // Skip input processing in headless mode
   if (settings.headless) {
     return;
   }
 
-  // process events
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
-    ImGui_ImplSDL2_ProcessEvent(&event);
-    if (event.type == SDL_QUIT) done = true;
-    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window->sdlWindow))
+    ImGui_ImplSDL3_ProcessEvent(&event);
+    if (event.type == SDL_EVENT_QUIT) done = true;
+    if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+        event.window.windowID == SDL_GetWindowID(window->sdlWindow))
       done = true;
 
-    // todo: improve the key strokes tracking
     switch (event.type) {
-      case SDL_KEYDOWN:
-        switch (event.key.keysym.sym) {
-          case SDLK_LEFT:
-            left = true;
-            break;
-          case SDLK_RIGHT:
-            right = true;
-            break;
-          case SDLK_UP:
-            up = true;
-            break;
-          case SDLK_DOWN:
-            down = true;
-            break;
-          default:
-            break;
+      case SDL_EVENT_KEY_DOWN:
+        switch (event.key.key) {
+          case SDLK_LEFT:  left  = true; break;
+          case SDLK_RIGHT: right = true; break;
+          case SDLK_UP:    up    = true; break;
+          case SDLK_DOWN:  down  = true; break;
+          default: break;
         }
         break;
-      case SDL_KEYUP:
-        switch (event.key.keysym.sym) {
-          case SDLK_LEFT:
-            left = false;
-            break;
-          case SDLK_RIGHT:
-            right = false;
-            break;
-          case SDLK_UP:
-            up = false;
-            break;
-          case SDLK_DOWN:
-            down = false;
-            break;
-          default:
-            break;
+      case SDL_EVENT_KEY_UP:
+        switch (event.key.key) {
+          case SDLK_LEFT:  left  = false; break;
+          case SDLK_RIGHT: right = false; break;
+          case SDLK_UP:    up    = false; break;
+          case SDLK_DOWN:  down  = false; break;
+          default: break;
         }
         break;
     }
   }
-  if (up) arrowInput += Vector2f::up();
-  if (down) arrowInput += Vector2f::down();
-  if (left) arrowInput += Vector2f::left();
+  if (up)    arrowInput += Vector2f::up();
+  if (down)  arrowInput += Vector2f::down();
+  if (left)  arrowInput += Vector2f::left();
   if (right) arrowInput += Vector2f::right();
 }
 

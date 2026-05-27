@@ -24,13 +24,13 @@ void Particle::Update(const float deltaTime) {
   transform.position += velocity * deltaTime;
 }
 
-void Particle::OnDraw(SDL_Renderer* renderer) {
+void Particle::OnDraw(Renderer2D& r) {
   // todo: draw a circle or the ship?
-  polygon.Draw(renderer, transform, color);
+  polygon.Draw(r, transform, color);
 
   if (drawAcceleration) {
     auto pos = getPosition();
-    Polygon::DrawLine(renderer, pos, pos + previousAcceleration * 2.f, Color::Purple);
+    Polygon::DrawLine(r, pos, pos + previousAcceleration * 2.f, Color::Purple);
   }
 }
 

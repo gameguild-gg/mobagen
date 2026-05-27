@@ -3,6 +3,7 @@
 
 #include "math/ColorT.h"
 #include "scene/GameObject.h"
+#include "Renderer2D.h"
 #include "MazeGeneratorBase.h"
 #include "Node.h"
 #include "math/Point2D.h"
@@ -52,7 +53,7 @@ public:
 
   void Start() override;
   void OnGui(ImGuiContext* context) override;
-  void OnDraw(SDL_Renderer* renderer) override;
+  void OnDraw(Renderer2D& r) override;
   void Update(float deltaTime) override;
 
   void Clear();

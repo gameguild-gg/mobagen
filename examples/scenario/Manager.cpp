@@ -13,53 +13,33 @@ Manager::Manager(Engine* engine, int size) : GameObject(engine) {
 }
 
 void Manager::SetPixels(std::vector<Color32>& input) {
-  Uint32* output = nullptr;
-  int pitch = 0;
-  uint32_t format;
-
-  // Get the size of the texture.
-  int w, h;
-  SDL_QueryTexture(texture, &format, nullptr, &w, &h);
-
-  // Now let's make our "pixels" pointer point to the texture data.
-  if (SDL_LockTexture(texture, nullptr, (void**)&output, &pitch)) {
-    auto error = SDL_GetError();
-    SDL_Log(error);
-    return;
-    // If the locking fails, you might want to handle it somehow. SDL_GetError(); or something here.
-  }
-
-  SDL_PixelFormat pixelFormat;
-  pixelFormat.format = format;
-  for (uint64_t line = 0; line < h; line++) {
-    for (uint64_t column = 0; column < w; column++) {
-      // Now you want to format the color to a correct format that SDL can use.
-      // Basically we convert our RGB color to a hex-like BGR color.
-      auto color = input[line * w + column].GetPacked();
-      // Before setting the color, we need to know where we have to place it.
-      Uint32 pixelPosition = (line * w + column);
-      // Now we can set the pixel(s) we want.
-      output[pixelPosition] = color;
+  if (!texture) return;
+  const int w = (int)texture->Width();
+  const int h = (int)texture->Height();
+  std::vector<uint32_t> packed(w * h);
+  for (int line = 0; line < h; line++) {
+    for (int column = 0; column < w; column++) {
+      packed[line * w + column] = input[line * w + column].GetPacked();
     }
   }
-  // Also don't forget to unlock your texture once you're done.
-  SDL_UnlockTexture(texture);
+  texture->Upload(packed.data());
 }
-void Manager::OnDraw(SDL_Renderer* renderer) {
+void Manager::OnDraw(Renderer2D& r) {
+  if (!texture) return;
   auto windowSize = engine->window->size();
   auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
   int minDimension = std::min(windowSize.x, windowSize.y);
-  const SDL_Rect r = {center.x - minDimension / 2, center.y - minDimension / 2, minDimension, minDimension};
-
-  SDL_RenderCopy(renderer, texture, NULL, &r);
+  Rect2D dst = {(float)(center.x - minDimension / 2),
+                (float)(center.y - minDimension / 2),
+                (float)minDimension, (float)minDimension};
+  r.DrawTexture(*texture, dst);
 }
 Manager::~Manager() {
-  SDL_DestroyTexture(texture);
+  delete texture;
   texture = nullptr;
 }
 void Manager::Start() {
-  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, sideSize, sideSize);
-  //  step();
+  texture = Texture::CreateStreaming(sideSize, sideSize);
 }
 void Manager::OnGui(ImGuiContext* context) {
   ImGui::SetCurrentContext(context);
@@ -123,8 +103,8 @@ void Manager::Update(float deltaTime) {
   }
 }
 void Manager::Clear() {
-  if (texture != nullptr) SDL_DestroyTexture(texture);
-  texture = SDL_CreateTexture(engine->window->sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, sideSize, sideSize);
+  delete texture;
+  texture = Texture::CreateStreaming(sideSize, sideSize);
 }
 int Manager::GetSize() const { return sideSize; }
 void Manager::step() {

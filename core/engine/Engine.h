@@ -2,18 +2,18 @@
 #define ENGINE_H
 
 #include "EngineForwards.h"
-#include "imgui.h"
-#include "imgui_impl_sdl2.h"
-#include "imgui_impl_sdlrenderer2.h"
+#include <imgui.h>
 #include "../Window.h"
 #include "../scene/SceneForwards.h"
-#include <cstdio>
-#include "SDL.h"
 #include "EngineSettings.h"
-#include <vector>
-#include <unordered_set>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <string>
+#include <unordered_set>
+#include <vector>
+
+class Renderer2D;
 
 class Engine {
 private:
@@ -40,7 +40,8 @@ public:
 private:
   bool done = false;
 
-  ImVec4 clear_color = ImVec4(0, 0, 0, 1);
+  // RGBA in 0..1; used to clear the WGPU surface each frame.
+  float clearColor[4] = {0.f, 0.f, 0.f, 1.f};
 
   // todo: move this to input class
   void processInput();

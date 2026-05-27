@@ -36,13 +36,13 @@ void Boid::Update(float deltaTime) {
   }
 }
 
-void Boid::OnDraw(SDL_Renderer* renderer) {
-  if (drawDebugRadius) circle.Draw(renderer, transform.position, {detectionRadius, detectionRadius}, Vector2f::zero(), circleColor);
+void Boid::OnDraw(Renderer2D& r) {
+  if (drawDebugRadius) circle.Draw(r, transform.position, {detectionRadius, detectionRadius}, Vector2f::zero(), circleColor);
 
   // Display rules
   if (drawDebugRules)
     for (auto& rule : rules)
-      if (rule->isEnabled) rule->draw(*this, renderer);
+      if (rule->isEnabled) rule->draw(*this, r);
 
-  Particle::OnDraw(renderer);  // super()
+  Particle::OnDraw(r);  // super()
 }

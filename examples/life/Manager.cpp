@@ -108,7 +108,7 @@ void Manager::OnGui(ImGuiContext* context) {
   }
 }
 
-void Manager::OnDraw(SDL_Renderer* renderer) {
+void Manager::OnDraw(Renderer2D& r) {
   if (rules[ruleId]->GetTileSet() == GameOfLifeTileSetEnum::None) {
     std::cout << "your rule should explicitly say which board you want to use";
     return;
@@ -127,26 +127,27 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
       for (int c = 0; c < sideSize; c++) {
         auto state = world.Get({c, l});
         if (state)
-          SDL_SetRenderDrawColor(renderer, liveCell.r, liveCell.g, liveCell.b, SDL_ALPHA_OPAQUE);
+          r.SetDrawColor(liveCell.r, liveCell.g, liveCell.b, 255);
         else
-          SDL_SetRenderDrawColor(renderer, emptyCell.r, emptyCell.g, emptyCell.b, SDL_ALPHA_OPAQUE);
+          r.SetDrawColor(emptyCell.r, emptyCell.g, emptyCell.b, 255);
 
-        SDL_Rect rect
-            = {static_cast<int>(ceil(center.x + (c - sideSideOver2) * squareSide)),
-               static_cast<int>(ceil(center.y + (l - sideSideOver2) * squareSide)), static_cast<int>(squareSide), static_cast<int>(squareSide)};
-        SDL_RenderFillRect(renderer, &rect);
+        Rect2D rect
+            = {(float)ceil(center.x + (c - sideSideOver2) * squareSide),
+               (float)ceil(center.y + (l - sideSideOver2) * squareSide),
+               (float)squareSide, (float)squareSide};
+        r.DrawFilledRect(rect);
       }
     }
 
     // Draw line matrix
     auto lineColor = Color32(50, 50, 50, 50);
-    SDL_SetRenderDrawColor(renderer, lineColor.r, lineColor.g, lineColor.b, 10);
+    r.SetDrawColor(lineColor.r, lineColor.g, lineColor.b, 10);
     for (int i = 0; i <= sideSize; i++) {
       if (sideSize < 50 || i == 0 || i == sideSize) {
-        SDL_RenderDrawLine(renderer, (int)(center.x - minDimension / 2), (int)(center.y - (i - sideSideOver2) * squareSide),
-                           (int)(center.x + minDimension / 2), (int)(center.y - (i - sideSideOver2) * squareSide));
-        SDL_RenderDrawLine(renderer, (int)(center.x - (i - sideSideOver2) * squareSide), (int)(center.y - minDimension / 2),
-                           (int)(center.x - (i - sideSideOver2) * squareSide), (int)(center.y + minDimension / 2));
+        r.DrawLine((float)(center.x - minDimension / 2), (float)(center.y - (i - sideSideOver2) * squareSide),
+                   (float)(center.x + minDimension / 2), (float)(center.y - (i - sideSideOver2) * squareSide));
+        r.DrawLine((float)(center.x - (i - sideSideOver2) * squareSide), (float)(center.y - minDimension / 2),
+                   (float)(center.x - (i - sideSideOver2) * squareSide), (float)(center.y + minDimension / 2));
       }
     }
   } else if (rules[ruleId]->GetTileSet() == GameOfLifeTileSetEnum::Hexagon) {
@@ -164,14 +165,15 @@ void Manager::OnDraw(SDL_Renderer* renderer) {
       for (int c = 0; c < sideSize; c++) {
         auto state = world.Get({c, l});
         if (state)
-          SDL_SetRenderDrawColor(renderer, liveCell.r, liveCell.g, liveCell.b, SDL_ALPHA_OPAQUE);
+          r.SetDrawColor(liveCell.r, liveCell.g, liveCell.b, 255);
         else
-          SDL_SetRenderDrawColor(renderer, emptyCell.r, emptyCell.g, emptyCell.b, SDL_ALPHA_OPAQUE);
+          r.SetDrawColor(emptyCell.r, emptyCell.g, emptyCell.b, 255);
 
-        SDL_Rect rect
-            = {static_cast<int>(ceil(center.x + displacement + (c - sideSideOver2) * squareSide)),
-               static_cast<int>(ceil(center.y + (l - sideSideOver2) * squareSide)), static_cast<int>(squareSide), static_cast<int>(squareSide)};
-        SDL_RenderFillRect(renderer, &rect);
+        Rect2D rect
+            = {(float)ceil(center.x + displacement + (c - sideSideOver2) * squareSide),
+               (float)ceil(center.y + (l - sideSideOver2) * squareSide),
+               (float)squareSide, (float)squareSide};
+        r.DrawFilledRect(rect);
       }
     }
   }

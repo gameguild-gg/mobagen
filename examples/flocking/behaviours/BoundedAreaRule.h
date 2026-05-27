@@ -25,7 +25,7 @@ public:
 
   bool drawImguiRuleExtra() override;
 
-  virtual void draw(const Boid& boid, SDL_Renderer* renderer) const override;
+  virtual void draw(const Boid& boid, Renderer2D& r) const override;
 };
 
 #endif

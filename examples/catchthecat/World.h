@@ -4,6 +4,7 @@
 #include "Cat.h"
 #include "Catcher.h"
 #include "scene/GameObject.h"
+#include "Renderer2D.h"
 #include "math/Point2D.h"
 #include "Random.h"
 #include <bitset>
@@ -83,7 +84,7 @@ public:
 
   static bool isNeighbor(const Point2D& p1, const Point2D& p2);
 
-  void OnDraw(SDL_Renderer* renderer) override;
+  void OnDraw(Renderer2D& r) override;
   void OnGui(ImGuiContext* context) override;
   void Update(float deltaTime) override;
 

@@ -3,8 +3,9 @@
 
 #include "math/ColorT.h"
 #include "scene/GameObject.h"
+#include "Texture.h"
+#include "Renderer2D.h"
 #include "GeneratorBase.h"
-#include <SDL.h>
 
 // ref https://e2eml.school/transformers.html
 
@@ -12,7 +13,7 @@ class Manager : public GameObject {
 private:
   float accumulatedTime = 0;
   int sideSize = 512;
-  SDL_Texture* texture;
+  Texture* texture = nullptr;
   bool isSimulating = false;
 
   std::vector<ScenarioGeneratorBase*> generators;
@@ -26,7 +27,7 @@ public:
 
   void Start() override;
   void OnGui(ImGuiContext* context) override;
-  void OnDraw(SDL_Renderer* renderer) override;
+  void OnDraw(Renderer2D& r) override;
   void Update(float deltaTime) override;
 
   void Clear();

@@ -8,7 +8,7 @@ string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
   NAME wasm-micro-runtime
   GITHUB_REPOSITORY bytecodealliance/wasm-micro-runtime RECURSIVE YES
-  GIT_TAG WAMR-1.1.2
+  GIT_TAG WAMR-2.1.1
 )
 string(TIMESTAMP AFTER "%s")
 math(EXPR DELTAwasm "${AFTER} - ${BEFORE}")
