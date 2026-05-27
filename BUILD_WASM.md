@@ -36,31 +36,42 @@ emcmake cmake --version
 
 ## Build Targets
 
-### G2: WASM + WebGL (OpenGL ES 3.0)
+### Unified Build: WASM + Both WebGL & WebGPU (Runtime Switchable)
 
-Uses traditional OpenGL immediate-mode rendering compiled to WebAssembly.
+Starting with Week 5, the project uses a **unified WASM binary** containing both rendering paths (G2 WebGL and G3 WebGPU). You can switch between them at runtime without rebuilding.
 
 **Build:**
 ```bash
 cd e:/repositories/game-guild/mobagen
+emcmake cmake -B build-wasm-unified -DCMAKE_BUILD_TYPE=Release
+cmake --build build-wasm-unified
+```
+
+**Output:** `build-wasm-unified/bin/dicom_renderer.html` (single binary, ~500KB WASM + 400KB JS)
+
+**Why Unified?**
+- **Runtime Switching**: Press `1` or `2` (or use buttons) to switch between WebGL and WebGPU without page reload
+- **Easier Comparison**: See both renderers' visual output and performance side-by-side
+- **Single Deployment**: One HTML file serves both code paths
+- **Educational Value**: Direct A/B testing of immediate vs. deferred rendering
+
+### Legacy: Separate Builds (G2 and G3 individually)
+
+For isolated testing or studying a single renderer:
+
+**G2 Only (WebGL):**
+```bash
 emcmake cmake -B build-wasm-webgl -DCMAKE_BUILD_TYPE=Release
 cmake --build build-wasm-webgl
+# Output: build-wasm-webgl/bin/dicom_renderer.html
 ```
 
-**Output:** `build-wasm-webgl/bin/dicom_renderer.html`
-
-### G3: WASM + WebGPU (Modern Deferred Rendering)
-
-Modern GPU API with deferred rendering commands. **Requires Chrome/Edge with WebGPU enabled.**
-
-**Build:**
+**G3 Only (WebGPU):**
 ```bash
-cd e:/repositories/game-guild/mobagen
 emcmake cmake -B build-wasm-webgpu -DCMAKE_BUILD_TYPE=Release -DUSE_WEBGPU=ON
 cmake --build build-wasm-webgpu
+# Output: build-wasm-webgpu/bin/dicom_renderer.html
 ```
-
-**Output:** `build-wasm-webgpu/bin/dicom_renderer.html`
 
 ## Running Locally
 
@@ -68,22 +79,51 @@ WebAssembly **cannot** run from `file://` URLs. Use a local web server:
 
 ### Option A: Python (built-in)
 ```bash
-cd build-wasm-webgl/bin
+cd build-wasm-unified/bin
 python -m http.server 8080
 # Open browser: http://localhost:8080/dicom_renderer.html
 ```
 
 ### Option B: Emscripten's emrun
 ```bash
-emrun --port 8080 build-wasm-webgl/bin/dicom_renderer.html
+emrun --port 8080 build-wasm-unified/bin/dicom_renderer.html
 ```
 
 ### Option C: Node.js http-server
 ```bash
 npm install -g http-server
-cd build-wasm-webgl/bin
+cd build-wasm-unified/bin
 http-server -p 8080
 ```
+
+## Interactive Controls
+
+The unified WASM renderer includes:
+
+### Renderer Switcher
+- **Keyboard**: Press `1` for WebGL (G2), `2` for WebGPU (G3)
+- **UI Buttons**: Click "WebGL" or "WebGPU" buttons (top-left)
+- **Visual Feedback**: Active renderer button is highlighted
+
+**Use Case**: Compare immediate-mode vs. deferred-mode rendering on the same geometry. Performance metrics update dynamically.
+
+### Shader Variants (4 colors)
+- **Keyboard**: Press `3` (Red), `4` (Green), `5` (Yellow), or `6` (Teal)
+- **UI Buttons**: Click color buttons (top-left, under renderer selector)
+- **Effect**: Fragment shader recompiles with new RGBA values injected dynamically
+
+**Use Case**: Verify both renderers produce identical colors; observe any visual differences.
+
+### Performance Stats (top-right)
+- **Current Renderer**: Shows active renderer name (WebGL or WebGPU)
+- **FPS**: Frames per second, updated every 500ms
+- **Frame Time**: Milliseconds per frame
+- **WebGPU Support**: Browser capability indicator
+
+**Color Coding**:
+- 🟢 Green (55+ FPS): Smooth
+- 🟡 Yellow (30-54 FPS): Playable
+- 🔴 Red (<30 FPS): Slow
 
 ## What to Expect
 
@@ -261,10 +301,10 @@ window.webgpu_render = function() { ... }
 
 **Learning**: WASM assets benefit from self-contained HTML; external includes have path resolution issues.
 
-### Challenge 4: Dual-Path Build System
-**Problem**: One `main.cpp` with two completely different rendering paths (G2 OpenGL vs G3 WebGPU).
+### Challenge 4: Runtime Renderer Switching
+**Problem**: User wanted to compare G2 (WebGL) and G3 (WebGPU) on the same hardware without rebuilding.
 
-**Solution**: Conditional compilation with preprocessor directives:
+**Initial Solution**: Separate builds with preprocessor selection:
 ```cpp
 #if defined(USE_WEBGPU) && defined(__EMSCRIPTEN__)
   // G3: WebGPU path
@@ -273,25 +313,196 @@ window.webgpu_render = function() { ... }
 #endif
 ```
 
-**Build Commands**:
-```bash
-# G2: WebGL (default)
-emcc src/main.cpp ... -o dicom_renderer.html
+**Final Solution**: Unified WASM with runtime switching:
+```cpp
+// Global state
+enum class RendererType { RENDERER_WEBGL = 0, RENDERER_WEBGPU = 1 };
+static RendererType g_active_renderer = RendererType::RENDERER_WEBGL;
+static AppWebGL* g_app_webgl = nullptr;
+static AppWebGPU* g_app_webgpu = nullptr;
 
-# G3: WebGPU
-emcc src/main.cpp ... -DUSE_WEBGPU -o dicom_renderer.html
+// Exported to JavaScript
+extern "C" EMSCRIPTEN_KEEPALIVE
+void set_renderer(const char* renderer_name) {
+    if (strcmp(renderer_name, "webgl") == 0) {
+        g_active_renderer = RendererType::RENDERER_WEBGL;
+    } else if (strcmp(renderer_name, "webgpu") == 0) {
+        g_active_renderer = RendererType::RENDERER_WEBGPU;
+    }
+}
+
+// Unified tick routes to active renderer
+void em_unified_tick() {
+    if (g_active_renderer == RendererType::RENDERER_WEBGL) {
+        g_app_webgl->tick();
+    } else if (g_active_renderer == RendererType::RENDERER_WEBGPU) {
+        g_app_webgpu->tick();
+    }
+}
 ```
 
-**Learning**: Preprocessor-based feature selection works but creates code maintenance burden; future refactor should separate into `main_webgl.cpp` and `main_webgpu.cpp`.
+**JavaScript Integration**:
+```javascript
+function switchRenderer(name) {
+    Module._set_renderer(name);
+    // Update UI to show active renderer
+}
+```
 
-## Next Steps (Week 5+)
+**Architecture Benefits**:
+- ✅ Both renderers compiled into single WASM binary
+- ✅ Runtime switching via exported C functions callable from JS
+- ✅ No page reload required
+- ✅ Enables A/B testing and direct performance comparison
+- ✅ Foundation for user-selectable rendering backends
 
-- [ ] Separate G2 and G3 into distinct source files for clarity
+**Learning**: C/WASM and JavaScript interop enables flexible UI-driven selection without rebuild complexity.
+
+### Challenge 5: Dynamic Shader Compilation with Variants
+**Problem**: User wanted to see color differences between renderers without rebuilding; needed 4 variants for visual comparison.
+
+**Solution**: Generate fragment shader source dynamically with color values injected at runtime:
+
+```cpp
+enum class ShaderVariant {
+    VARIANT_TEAL = 1,    // (0.0, 1.0, 0.5, 1.0)
+    VARIANT_RED = 2,     // (1.0, 0.0, 0.0, 1.0)
+    VARIANT_GREEN = 3,   // (0.0, 1.0, 0.0, 1.0)
+    VARIANT_YELLOW = 4   // (1.0, 1.0, 0.0, 1.0)
+};
+
+static Color get_shader_color(ShaderVariant variant) {
+    switch (variant) {
+        case ShaderVariant::VARIANT_TEAL:   return {0.0f, 1.0f, 0.5f, 1.0f};
+        case ShaderVariant::VARIANT_RED:    return {1.0f, 0.0f, 0.0f, 1.0f};
+        // ...
+    }
+}
+
+bool AppWebGL::compileShaders() {
+    Color c = get_shader_color(g_active_shader);
+    
+    // Build fragment shader with dynamic color
+    char fragColorStr[128];
+    snprintf(fragColorStr, sizeof(fragColorStr),
+             "out vec4 fragColor;\n\nvoid main() {\n    fragColor = vec4(%.1f, %.1f, %.1f, %.1f);\n}\n",
+             c.r, c.g, c.b, c.a);
+    
+    std::string fragSrc = std::string(FRAG_GLSL) + fragColorStr;
+    shader = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
+}
+```
+
+**Exported to JavaScript**:
+```cpp
+extern "C" EMSCRIPTEN_KEEPALIVE
+void set_shader_variant(int variant_num) {
+    if (variant_num >= 1 && variant_num <= 4) {
+        g_active_shader = static_cast<ShaderVariant>(variant_num);
+        g_shader_recompile = true;  // Signal tick() to recompile
+    }
+}
+```
+
+**Tick-Time Recompilation**:
+```cpp
+void AppWebGL::tick() {
+    if (g_shader_recompile) {
+        g_shader_recompile = false;
+        compileShaders();  // Recompile with new color
+    }
+    // ... render frame
+}
+```
+
+**Architecture Benefits**:
+- ✅ No rebuild required to test new colors
+- ✅ Immediate visual feedback (recompiles on tick)
+- ✅ Demonstrates GPU shader compilation flexibility
+- ✅ Enables per-renderer color testing
+
+**Learning**: String formatting + shader recompilation allows runtime variation without code changes; useful for parameter sweeps and A/B testing.
+
+### Challenge 6: Real-Time Performance Monitoring
+**Problem**: User needed to know which renderer was active and what FPS each achieved for comparative analysis.
+
+**Solution**: JavaScript PerformanceStats class tracking frame timing:
+
+```javascript
+class PerformanceStats {
+    update() {
+        const now = performance.now();
+        const delta = now - this.lastTime;
+        this.frameTime = delta;
+        this.frameCount++;
+        
+        if (now - this.lastFpsTime >= 500) {
+            this.fps = Math.round((this.frameCount / (now - this.lastFpsTime)) * 1000);
+            this.frameCount = 0;
+            this.lastFpsTime = now;
+        }
+    }
+}
+```
+
+**UI Display** (top-right corner):
+```
+✓ WebGPU Available
+Renderer: WebGL
+FPS: 60
+Frame: 16.7ms
+```
+
+**Color-Coded Feedback**:
+- 🟢 Green (55+ FPS): Excellent performance
+- 🟡 Yellow (30-54 FPS): Acceptable performance
+- 🔴 Red (<30 FPS): Performance concern
+
+**Integration with Renderer Switching**:
+```javascript
+function switchRenderer(name) {
+    Module._set_renderer(name);
+    stats.updateRenderer(name);  // Update display
+}
+```
+
+**Architecture Benefits**:
+- ✅ Real-time FPS tracking via `performance.now()`
+- ✅ Visual feedback shows active renderer
+- ✅ Enables performance comparison between G2 and G3
+- ✅ Browser WebGPU support indicator
+
+**Learning**: Low-overhead performance metrics enable data-driven optimization; updating every 500ms prevents jank.
+
+## Learning Progression (Week 4-5 Curriculum)
+
+This codebase is structured as an educational journey through GPU rendering:
+
+### Week 4: Foundation
+- **G1**: Basic initialization (SDL2 window, GL context)
+- **G2**: Triangle rendering with immediate-mode OpenGL
+- **Concepts**: GPU state machines, vertex buffers, shader compilation, rasterization pipeline
+
+### Week 5: Comparative Analysis
+- **Runtime Switching**: Compare G2 and G3 without rebuilding
+- **Shader Variants**: Test color rendering across both paths
+- **Performance Metrics**: Measure and visualize FPS differences
+- **Concepts**: Immediate vs. deferred rendering, CPU-GPU sync, command batching
+
+### Week 6+ (Planned)
+- **Compute Shaders**: DICOM volume raytracing
+- **Memory Allocation**: Arena/pool allocators for GPU resources
+- **ECS Architecture**: Scalable entity-component-system for geometry management
+- **Interactive Controls**: Mouse/keyboard for scene exploration
+
+## Next Steps (Week 6+)
+
+- [ ] Separate G2 and G3 into distinct source files (main_webgl.cpp, main_webgpu.cpp) for clarity
 - [ ] Implement memory allocators (arena, pool) for GPU resources
 - [ ] Add ECS-based resource management
 - [ ] Implement compute shaders for DICOM volume raytracing
-- [ ] Add interactive controls (mouse/keyboard)
-- [ ] Optimize WASM binary size (currently 145K-509K)
+- [ ] Add interactive controls (mouse/keyboard for 3D navigation)
+- [ ] Optimize WASM binary size (currently 513KB WASM, 414KB JS)
 
 ## References
 
