@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/InfiniBrains/mobagen/compare/v1.16.0...v1.17.0) (2026-05-27)
+
+
+### Features
+
+* change default renderer based on WebGPU and provides a new Rederer2D ([0e20699](https://github.com/InfiniBrains/mobagen/commit/0e206996e8d7d6574985436fa6fbc7ff2289a56e))
+
 # [1.16.0](https://github.com/InfiniBrains/mobagen/compare/v1.15.0...v1.16.0) (2025-10-06)
 
 
