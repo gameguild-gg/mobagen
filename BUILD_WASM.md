@@ -2,6 +2,10 @@
 
 This guide explains how to build and test the WASM versions of the DICOM renderer.
 
+**→ Start here**: [QUICKSTART.md](QUICKSTART.md) for the fastest way to get running.
+
+This document covers the technical build details, architecture decisions, and implementation lessons.
+
 ## Prerequisites
 
 ### 1. Install Emscripten SDK
