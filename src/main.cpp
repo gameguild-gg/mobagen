@@ -122,6 +122,16 @@ extern "C" {
     const char* get_available_shaders() {
         return "1:Teal,2:Red,3:Green,4:Yellow";
     }
+
+    EMSCRIPTEN_KEEPALIVE
+    void on_canvas_resize(int width, int height) {
+        printf("Canvas resized to: %dx%d\n", width, height);
+        // Update viewport for active renderer
+        if (g_active_renderer == RendererType::RENDERER_WEBGL && g_app_webgl) {
+            glViewport(0, 0, width, height);
+        }
+        // WebGPU handles resize via context.configure() in JavaScript
+    }
 }
 #endif
 

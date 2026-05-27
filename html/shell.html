@@ -17,8 +17,8 @@
 
         #container {
             position: relative;
-            width: 800px;
-            height: 600px;
+            width: 100%;
+            height: 100%;
         }
 
         canvas {
@@ -198,6 +198,44 @@
 
         const stats = new PerformanceStats();
         stats.updateDisplay();
+
+        // ====================================================================
+        // CANVAS RESIZE HANDLING
+        // ====================================================================
+        const canvas = document.getElementById('canvas');
+        const container = document.getElementById('container');
+
+        function resizeCanvas() {
+            if (!container) return;
+
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+
+            // Update WebGL viewport
+            if (typeof Module._on_canvas_resize === 'function') {
+                Module._on_canvas_resize(canvas.width, canvas.height);
+            }
+
+            // Update WebGPU viewport
+            if (window.webgpuState && window.webgpuState.context) {
+                window.webgpuState.context.configure({
+                    device: window.webgpuState.device,
+                    format: window.webgpuState.format,
+                });
+            }
+
+            console.log(`Canvas resized: ${canvas.width}x${canvas.height}`);
+        }
+
+        // Initial resize
+        resizeCanvas();
+
+        // Listen for window resize
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
 
         function statsLoop() {
             stats.update();
