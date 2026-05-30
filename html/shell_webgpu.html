@@ -133,11 +133,43 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
 }
 `;
 
+// PASS 2 shader: samples the offscreen "scene" texture onto a fullscreen quad
+// and applies a vignette — visible proof the second pass ran. This is the WGSL
+// counterpart of the WebGL post shader (uScene + vignette).
+const WGSL_POST = `
+@group(0) @binding(0) var sceneTex : texture_2d<f32>;
+@group(0) @binding(1) var sceneSamp : sampler;
+
+struct VsOut {
+  @builtin(position) pos : vec4f,
+  @location(0) uv : vec2f,
+};
+
+@vertex
+fn vs_post(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
+  var out : VsOut;
+  out.pos = vec4f(position, 0.0, 1.0);   // fullscreen NDC
+  out.uv = uv;
+  return out;
+}
+
+@fragment
+fn fs_post(@location(0) uv : vec2f) -> @location(0) vec4f {
+  let c = textureSample(sceneTex, sceneSamp, uv);
+  let d = distance(uv, vec2f(0.5, 0.5));
+  let vignette = 1.0 - smoothstep(0.30, 0.80, d);
+  return vec4f(c.rgb * vignette, 1.0);
+}
+`;
+
 window.webgpuState = {
-    device: null, queue: null, pipeline: null,
-    vertexBuffer: null, uniformBuffer: null, bindGroup: null,
+    device: null, queue: null, context: null, format: null, initialized: false,
+    // Pass 1 (scene -> offscreen texture)
+    pipeline: null, vertexBuffer: null, uniformBuffer: null, bindGroup: null,
     texture: null, sampler: null,
-    context: null, format: null, initialized: false
+    // Pass 2 (offscreen texture -> canvas)
+    postPipeline: null, fullscreenBuffer: null, sceneSampler: null, postBindGroup: null,
+    sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0
 };
 
 // Same checkerboard + UV gradient the WebGL build generates in C++
@@ -288,6 +320,50 @@ async function initWebGPU() {
             ],
         });
 
+        // ---- PASS 2 resources (render-to-texture post step) ----
+        const postModule = device.createShaderModule({ code: WGSL_POST });
+
+        // Fullscreen quad in NDC (-1..1). UV origin is top-left in WebGPU, so
+        // NDC top (y=+1) maps to v=0 to display the scene upright.
+        const fsVerts = new Float32Array([
+            // pos          uv
+            -1.0,  1.0,    0.0, 0.0,   // top-left
+            -1.0, -1.0,    0.0, 1.0,   // bottom-left
+             1.0, -1.0,    1.0, 1.0,   // bottom-right
+
+            -1.0,  1.0,    0.0, 0.0,   // top-left
+             1.0, -1.0,    1.0, 1.0,   // bottom-right
+             1.0,  1.0,    1.0, 0.0,   // top-right
+        ]);
+        st.fullscreenBuffer = device.createBuffer({
+            size: fsVerts.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+        });
+        new Float32Array(st.fullscreenBuffer.getMappedRange()).set(fsVerts);
+        st.fullscreenBuffer.unmap();
+
+        st.sceneSampler = device.createSampler({
+            magFilter: 'linear', minFilter: 'linear',
+            addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
+        });
+
+        st.postPipeline = device.createRenderPipeline({
+            layout: 'auto',
+            vertex: {
+                module: postModule, entryPoint: 'vs_post',
+                buffers: [{
+                    arrayStride: 16,
+                    attributes: [
+                        { shaderLocation: 0, offset: 0, format: 'float32x2' },
+                        { shaderLocation: 1, offset: 8, format: 'float32x2' },
+                    ],
+                }],
+            },
+            fragment: { module: postModule, entryPoint: 'fs_post', targets: [{ format }] },
+            primitive: { topology: 'triangle-list' },
+        });
+
         st.initialized = true;
         webgpu_set_color(1, 1, 1, 1);  // default white = show true texture colors
         resizeCanvas();
@@ -299,26 +375,71 @@ async function initWebGPU() {
     }
 }
 
-// Render exactly one frame. Called by the C++ main loop (em_tick -> tick ->
-// emscripten_run_script). There is intentionally no requestAnimationFrame loop
-// here, so the C++ side is the single owner of the frame.
+// (Re)create the offscreen "scene" texture when missing or when the canvas
+// size changed. The post bind group depends on its view, so rebuild it too.
+// This is the WebGPU equivalent of the WebGL Framebuffer's color attachment.
+function ensureSceneTarget(w, h) {
+    const st = window.webgpuState;
+    if (w <= 0 || h <= 0) return;
+    if (st.sceneTexture && st.sceneW === w && st.sceneH === h) return;
+    if (st.sceneTexture) st.sceneTexture.destroy();
+    st.sceneTexture = st.device.createTexture({
+        size: [w, h, 1],
+        format: st.format,   // match the scene pipeline's color target
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    st.sceneView = st.sceneTexture.createView();
+    st.sceneW = w; st.sceneH = h;
+    st.postBindGroup = st.device.createBindGroup({
+        layout: st.postPipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: st.sceneView },
+            { binding: 1, resource: st.sceneSampler },
+        ],
+    });
+}
+
+// Render exactly one frame in TWO passes. Called by the C++ main loop (em_tick
+// -> tick -> emscripten_run_script). No requestAnimationFrame loop here, so the
+// C++ side is the single owner of the frame.
 function renderFrame() {
     const st = window.webgpuState;
     if (!st.initialized) return;
 
+    ensureSceneTarget(canvas.width, canvas.height);
+    if (!st.sceneView) return;
+
     const encoder = st.device.createCommandEncoder();
-    const view = st.context.getCurrentTexture().createView();
-    const pass = encoder.beginRenderPass({
+
+    // PASS 1: draw the textured checker quad INTO the offscreen scene texture.
+    const p1 = encoder.beginRenderPass({
         colorAttachments: [{
-            view, clearValue: { r: 0.1, g: 0.2, b: 0.5, a: 1.0 },
+            view: st.sceneView,
+            clearValue: { r: 0.1, g: 0.2, b: 0.5, a: 1.0 },
             loadOp: 'clear', storeOp: 'store',
         }],
     });
-    pass.setPipeline(st.pipeline);
-    pass.setBindGroup(0, st.bindGroup);
-    pass.setVertexBuffer(0, st.vertexBuffer);
-    pass.draw(6, 1, 0, 0);   // 6 vertices = two triangles = one quad
-    pass.end();
+    p1.setPipeline(st.pipeline);
+    p1.setBindGroup(0, st.bindGroup);
+    p1.setVertexBuffer(0, st.vertexBuffer);
+    p1.draw(6, 1, 0, 0);
+    p1.end();
+
+    // PASS 2: draw a fullscreen quad to the CANVAS, sampling the scene texture.
+    const canvasView = st.context.getCurrentTexture().createView();
+    const p2 = encoder.beginRenderPass({
+        colorAttachments: [{
+            view: canvasView,
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            loadOp: 'clear', storeOp: 'store',
+        }],
+    });
+    p2.setPipeline(st.postPipeline);
+    p2.setBindGroup(0, st.postBindGroup);
+    p2.setVertexBuffer(0, st.fullscreenBuffer);
+    p2.draw(6, 1, 0, 0);
+    p2.end();
+
     st.queue.submit([encoder.finish()]);
 }
 
