@@ -59,6 +59,7 @@ set(ENGINE_SOURCES
     src/engine/vertex_buffer.cpp
     src/engine/vertex_array.cpp
     src/engine/texture.cpp
+    src/engine/framebuffer.cpp
     src/engine/renderer.cpp
     src/engine/engine_c.cpp
 )

@@ -143,7 +143,7 @@ Goal: Multiple objects, camera system, lighting.
 | 2.1 | Free-fly camera (keyboard + mouse) | ✅ | 1.4 |
 | 2.2 | Multiple objects (multi-draw organization) | ❌ | 2.1 |
 | 2.3 | Phong lighting (ambient + diffuse + specular) | ❌ | 2.2 |
-| 2.4 | Framebuffer objects (FBO) / render-to-texture | ❌ | 2.3 |
+| 2.4 | Framebuffer objects (FBO) / render-to-texture | ✅ | 2.1 |
 
 **Deliverables:**
 - Camera abstraction with orbit/WASD

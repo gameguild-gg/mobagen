@@ -183,6 +183,7 @@ static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 #include "engine/vertex_array.h"
 #include "engine/renderer.h"
 #include "engine/texture.h"
+#include "engine/framebuffer.h"
 
 // --- Tint (driven by the 1-4 buttons) ----------------------------------------
 // Multiplied with the sampled texture in the fragment shader. Default white =
@@ -224,10 +225,19 @@ static std::vector<unsigned char> make_checker_texture(int size) {
 struct AppWebGL {
     SDL_Window* window = nullptr;
     SDL_GLContext context = nullptr;
+    // Pass 1 (scene -> FBO): textured quad
     std::unique_ptr<engine::VertexArray> vao;
     std::unique_ptr<engine::VertexBuffer> vbo;
     std::unique_ptr<engine::ShaderProgram> shader;
     std::unique_ptr<engine::Texture2D> texture;
+
+    // Pass 2 (FBO -> screen): fullscreen quad + post shader
+    std::unique_ptr<engine::VertexArray> postVao;
+    std::unique_ptr<engine::VertexBuffer> postVbo;
+    std::unique_ptr<engine::ShaderProgram> postShader;
+    std::unique_ptr<engine::Framebuffer> fbo;
+    int fbW = 0, fbH = 0;
+
     engine::Renderer renderer;
     bool running = true;
 
@@ -237,7 +247,10 @@ struct AppWebGL {
 
 private:
     bool compileShaders();
+    bool compilePostShader();
     bool setupGeometry();
+    bool setupPostGeometry();
+    void ensureFramebuffer(int w, int h);
 };
 
 bool AppWebGL::compileShaders() {
@@ -323,6 +336,94 @@ bool AppWebGL::setupGeometry() {
     return true;
 }
 
+// Pass 2 shader: samples the offscreen scene texture onto a fullscreen quad and
+// applies a vignette — a deliberately visible post-process so you can SEE that a
+// second pass ran over the render-to-texture result.
+bool AppWebGL::compilePostShader() {
+    std::string vertSrc = std::string(VERT_GLSL) + R"(
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUv;
+
+out vec2 vUv;
+
+void main() {
+    vUv = aUv;
+    gl_Position = vec4(aPos, 0.0, 1.0);   // fullscreen NDC, no camera
+}
+)";
+
+    std::string fragSrc = std::string(FRAG_GLSL) + R"(
+in vec2 vUv;
+out vec4 fragColor;
+
+uniform sampler2D uScene;   // the texture rendered in pass 1
+
+void main() {
+    vec4 c = texture(uScene, vUv);
+    // Vignette: bright at the center, darkening toward the edges.
+    float d = distance(vUv, vec2(0.5));
+    float vignette = 1.0 - smoothstep(0.30, 0.80, d);
+    fragColor = vec4(c.rgb * vignette, 1.0);
+}
+)";
+
+    std::string errmsg;
+    auto next = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
+    if (!next->isValid()) {
+        fprintf(stderr, "Post shader compile failed: %s\n", errmsg.c_str());
+        return false;
+    }
+    postShader = std::move(next);
+    return true;
+}
+
+bool AppWebGL::setupPostGeometry() {
+    // Fullscreen quad in NDC (-1..1) with UVs (0..1). Same axis convention as
+    // the FBO texture (y up), so the scene is displayed upright (no flip).
+    const float verts[] = {
+        // pos            uv
+        -1.0f,  1.0f,    0.0f, 1.0f,   // top-left
+        -1.0f, -1.0f,    0.0f, 0.0f,   // bottom-left
+         1.0f, -1.0f,    1.0f, 0.0f,   // bottom-right
+
+        -1.0f,  1.0f,    0.0f, 1.0f,   // top-left
+         1.0f, -1.0f,    1.0f, 0.0f,   // bottom-right
+         1.0f,  1.0f,    1.0f, 1.0f,   // top-right
+    };
+
+    postVbo = std::make_unique<engine::VertexBuffer>(verts, sizeof(verts));
+    if (!postVbo || postVbo->getHandle() == 0) {
+        fprintf(stderr, "Failed to create post vertex buffer\n");
+        return false;
+    }
+    postVao = std::make_unique<engine::VertexArray>();
+    if (!postVao || postVao->getHandle() == 0) {
+        fprintf(stderr, "Failed to create post vertex array\n");
+        return false;
+    }
+
+    const GLsizei stride = 4 * sizeof(float);
+    postVao->bind();
+    postVbo->bind();
+    postVao->setVertexAttribute(0, 2, GL_FLOAT, 0, stride);
+    postVao->setVertexAttribute(1, 2, GL_FLOAT, 2 * sizeof(float), stride);
+    engine::VertexArray::unbind();
+    engine::VertexBuffer::unbind();
+    return true;
+}
+
+// (Re)create the offscreen target when missing or when the drawable size changed.
+void AppWebGL::ensureFramebuffer(int w, int h) {
+    if (w <= 0 || h <= 0) return;
+    if (fbo && fbW == w && fbH == h) return;
+    fbo = std::make_unique<engine::Framebuffer>(w, h);
+    fbW = w;
+    fbH = h;
+    if (!fbo->isComplete()) {
+        fprintf(stderr, "Framebuffer incomplete at %dx%d\n", w, h);
+    }
+}
+
 bool AppWebGL::init() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -371,13 +472,14 @@ bool AppWebGL::init() {
     }
 #endif
 
-    if (!compileShaders() || !setupGeometry()) {
+    if (!compileShaders() || !setupGeometry() ||
+        !compilePostShader() || !setupPostGeometry()) {
         cleanup();
         return false;
     }
 
     renderer.setClearColor(0.1f, 0.2f, 0.5f, 1.0f);
-    printf("WebGL2 (G2) initialized.\n");
+    printf("WebGL2 (G2) initialized (render-to-texture pipeline).\n");
     return true;
 }
 
@@ -385,28 +487,47 @@ void AppWebGL::tick() {
     process_input(running);
     g_camera.update(measure_delta_seconds());
 
-    renderer.clear();
+    // Match the offscreen target to the current drawable size.
+    int w = 0, h = 0;
+    SDL_GL_GetDrawableSize(window, &w, &h);
+    ensureFramebuffer(w, h);
 
-    // The Renderer binds the shader + VAO and issues the draw. We set the
-    // per-frame uniforms on the active program first, and bind the texture to
-    // unit 0 (which the sampler uniform uTex reads from).
+    // ---- PASS 1: render the scene INTO the offscreen framebuffer ----
+    if (fbo) fbo->bind();
+    glViewport(0, 0, fbW, fbH);
+    renderer.clear();
     if (shader) {
         shader->use();
         shader->setUniform("view_projection", g_camera.get_view_projection());
         shader->setUniform("uTint", g_tint);
         shader->setUniform("uTex", 0);
     }
-    if (texture) {
-        texture->bind(0);
-    }
-    if (vao) {
-        renderer.draw(*vao, 6);  // 6 vertices = two triangles = one quad
+    if (texture) texture->bind(0);
+    if (vao) renderer.draw(*vao, 6);  // textured quad
+
+    // ---- PASS 2: draw a fullscreen quad sampling the FBO's color texture ----
+    engine::Framebuffer::bindDefault();
+    glViewport(0, 0, w, h);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (postShader && fbo && postVao) {
+        postShader->use();
+        postShader->setUniform("uScene", 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, fbo->getColorTexture());
+        postVao->bind();
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        engine::VertexArray::unbind();
     }
 
     SDL_GL_SwapWindow(window);
 }
 
 void AppWebGL::cleanup() {
+    fbo.reset();
+    postShader.reset();
+    postVao.reset();
+    postVbo.reset();
+    texture.reset();
     shader.reset();
     vao.reset();
     vbo.reset();

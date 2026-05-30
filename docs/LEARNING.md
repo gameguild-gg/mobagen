@@ -17,7 +17,7 @@ You are currently finishing **Tier 1**.
 
 ---
 
-## Tier 1 — Earn the fundamentals  *(2 of 3 done)*
+## Tier 1 — Earn the fundamentals  *(complete)*
 
 1. **One honest WebGL2 build.** Triangle, working MVP camera, real delta-time,
    gated mouse-look. ✅
@@ -25,9 +25,10 @@ You are currently finishing **Tier 1**.
    ✅ *(uses a procedural checkerboard+gradient texture; swap to a real PNG via
    stb_image is optional. This is the seed of "sample data from a texture" — i.e.
    all of volume rendering.)*
-3. **◀ NEXT — Render-to-texture (FBO).** Draw the scene into a texture, then blit a
-   fullscreen quad. *This is the surface the ray caster will write into, and the
-   "ping-pong" primitive behind GPGPU in WebGL2.*
+3. **Render-to-texture (FBO).** Scene is drawn into an offscreen `Framebuffer`,
+   then a fullscreen quad samples it through a post shader (vignette). ✅
+   *This is the surface the ray caster will write into, and the "ping-pong"
+   primitive behind GPGPU in WebGL2.* (WebGL build only so far.)
 
 ## Tier 2 — Ray marching (the heart of the thesis)
 
