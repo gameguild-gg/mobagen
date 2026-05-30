@@ -33,10 +33,10 @@ You are currently finishing **Tier 1**.
 ## Tier 2 — Ray marching (the heart of the thesis)
 
 4. **Fullscreen quad + ray generation.** One ray per pixel from the inverse
-   view-projection. Visualize ray direction as RGB. *Prove the rays are correct
-   before adding data.* (This is where the camera finally matters in WebGPU too.)
-5. **March an implicit sphere (SDF).** `length(p) - r`. Step along the ray, shade
-   on hit. *Identical loop to volume rendering — math instead of a texture.*
+   view-projection; ray direction shown as RGB. ✅ *(both renderers. This is where
+   the camera reaches the shader — in WebGPU via a C++→JS matrix bridge (EM_ASM).)*
+5. **◀ NEXT — March an implicit sphere (SDF).** `length(p) - r`. Step along the
+   ray, shade on hit. *Identical loop to volume rendering — math instead of a texture.*
 6. **3D texture, synthetic volume.** Generate a 64³ sphere/noise, upload as
    `TEXTURE_3D`, replace the SDF with a texture sample. **Now you are volume rendering.**
 7. **Transfer function + compositing.** A 1D LUT mapping intensity → RGBA, with

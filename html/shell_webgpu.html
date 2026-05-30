@@ -12,7 +12,7 @@
             position:absolute; background:rgba(0,0,0,0.95);
             border:2px solid #0cf; border-radius:5px; padding:12px; z-index:100; color:#0cf;
         }
-        #controls { top:10px; left:10px; max-width:200px; }
+        #controls { top:10px; left:10px; max-width:210px; }
         #stats    { top:10px; right:10px; text-align:right; font-size:12px; }
         h3 { font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
         button {
@@ -33,16 +33,17 @@
 
         <div id="controls" class="panel">
             <h3>WebGPU · G3</h3>
-            <h3 style="margin-top:4px;">Colors (uniform buffer)</h3>
+            <h3 style="margin-top:4px;">Ray directions</h3>
+            <div class="hint" style="margin-top:0;">
+                Each pixel shows its camera ray<br>
+                direction as RGB. Drag to orbit —<br>
+                the gradient swings with the camera.
+            </div>
+            <h3 style="margin-top:10px;">Tint</h3>
             <button id="color-1" class="active" onclick="setColor(1)">1: Teal</button>
             <button id="color-2" onclick="setColor(2)">2: Red</button>
             <button id="color-3" onclick="setColor(3)">3: Green</button>
             <button id="color-4" onclick="setColor(4)">4: Yellow</button>
-            <div class="hint">
-                Color is sent to WGSL via a<br>
-                uniform buffer (queue.writeBuffer),<br>
-                not a shader recompile.
-            </div>
         </div>
 
         <div id="stats" class="panel">
@@ -101,17 +102,13 @@
 
     <!-- ===================== WebGPU (G3) implementation ===================== -->
     <script>
-const WGSL_SHADER = `
-struct Uniforms {
-  color : vec4f,        // tint multiplied with the sampled texture
-};
-
-// WebGPU binds resources through a bind group. Unlike GL (where sampler state
-// lives on the texture object), WGSL takes the texture and the sampler as two
-// SEPARATE bindings.
-@group(0) @binding(0) var<uniform> u : Uniforms;
-@group(0) @binding(1) var tex : texture_2d<f32>;
-@group(0) @binding(2) var samp : sampler;
+// PASS 1 (ray generation): a fullscreen quad whose fragment shader reconstructs
+// a camera ray per pixel from the inverse view-projection (sent from C++ each
+// frame) and writes the ray DIRECTION as RGB. WGSL counterpart of the WebGL
+// ray-gen shader.
+const WGSL_RAYGEN = `
+struct Camera { invViewProj : mat4x4f };
+@group(0) @binding(0) var<uniform> cam : Camera;
 
 struct VsOut {
   @builtin(position) pos : vec4f,
@@ -121,24 +118,32 @@ struct VsOut {
 @vertex
 fn vs_main(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
   var out : VsOut;
-  out.pos = vec4f(position, 0.0, 1.0);   // static NDC quad (no camera yet)
+  out.pos = vec4f(position, 0.0, 1.0);
   out.uv = uv;
   return out;
 }
 
 @fragment
 fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
-  // The WGSL equivalent of GLSL's texture(uTex, vUv) * uTint.
-  return textureSample(tex, samp, uv) * u.color;
+  let ndc = uv * 2.0 - 1.0;
+  // invViewProj is built in C++ with glm (OpenGL depth convention, z in [-1,1]),
+  // so we unproject near z=-1 and far z=+1 here too. This is pure matrix math —
+  // independent of WebGPU's own clip-space depth range.
+  let nearH = cam.invViewProj * vec4f(ndc, -1.0, 1.0);
+  let farH  = cam.invViewProj * vec4f(ndc,  1.0, 1.0);
+  let nearP = nearH.xyz / nearH.w;
+  let farP  = farH.xyz / farH.w;
+  let rayDir = normalize(farP - nearP);
+  return vec4f(rayDir * 0.5 + 0.5, 1.0);
 }
 `;
 
-// PASS 2 shader: samples the offscreen "scene" texture onto a fullscreen quad
-// and applies a vignette — visible proof the second pass ran. This is the WGSL
-// counterpart of the WebGL post shader (uScene + vignette).
+// PASS 2 (blit): sample the offscreen ray-gen texture onto a fullscreen quad,
+// multiplied by a tint (the 1-4 buttons).
 const WGSL_POST = `
 @group(0) @binding(0) var sceneTex : texture_2d<f32>;
 @group(0) @binding(1) var sceneSamp : sampler;
+@group(0) @binding(2) var<uniform> tint : vec4f;
 
 struct VsOut {
   @builtin(position) pos : vec4f,
@@ -148,49 +153,25 @@ struct VsOut {
 @vertex
 fn vs_post(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
   var out : VsOut;
-  out.pos = vec4f(position, 0.0, 1.0);   // fullscreen NDC
+  out.pos = vec4f(position, 0.0, 1.0);
   out.uv = uv;
   return out;
 }
 
 @fragment
 fn fs_post(@location(0) uv : vec2f) -> @location(0) vec4f {
-  let c = textureSample(sceneTex, sceneSamp, uv);
-  let d = distance(uv, vec2f(0.5, 0.5));
-  let vignette = 1.0 - smoothstep(0.30, 0.80, d);
-  return vec4f(c.rgb * vignette, 1.0);
+  return textureSample(sceneTex, sceneSamp, uv) * tint;
 }
 `;
 
 window.webgpuState = {
     device: null, queue: null, context: null, format: null, initialized: false,
-    // Pass 1 (scene -> offscreen texture)
-    pipeline: null, vertexBuffer: null, uniformBuffer: null, bindGroup: null,
-    texture: null, sampler: null,
-    // Pass 2 (offscreen texture -> canvas)
-    postPipeline: null, fullscreenBuffer: null, sceneSampler: null, postBindGroup: null,
-    sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0
+    // Pass 1 (ray-gen -> offscreen)
+    raygenPipeline: null, sceneQuad: null, cameraBuffer: null, cameraBindGroup: null,
+    // Pass 2 (offscreen -> canvas)
+    postPipeline: null, fullscreenBuffer: null, sceneSampler: null, tintBuffer: null,
+    postBindGroup: null, sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0,
 };
-
-// Same checkerboard + UV gradient the WebGL build generates in C++
-// (make_checker_texture). Returns tightly-packed RGBA8 pixels.
-function makeCheckerTexture(size) {
-    const px = new Uint8Array(size * size * 4);
-    const cell = size / 8;
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const dark = ((Math.floor(x / cell) + Math.floor(y / cell)) % 2) === 0;
-            const u = x / (size - 1);
-            const v = y / (size - 1);
-            const i = (y * size + x) * 4;
-            px[i]     = dark ? 40 : 230;          // R: checker
-            px[i + 1] = Math.floor(v * 255);      // G: vertical gradient
-            px[i + 2] = Math.floor(u * 255);      // B: horizontal gradient
-            px[i + 3] = 255;
-        }
-    }
-    return px;
-}
 
 const COLORS = {
     1: [0.0, 1.0, 0.5, 1.0],  // Teal
@@ -199,12 +180,12 @@ const COLORS = {
     4: [1.0, 1.0, 0.0, 1.0],  // Yellow
 };
 
+// Tint -> pass-2 uniform buffer.
 function webgpu_set_color(r, g, b, a) {
     const st = window.webgpuState;
-    if (!st.device || !st.uniformBuffer) return;
-    st.queue.writeBuffer(st.uniformBuffer, 0, new Float32Array([r, g, b, a]));
+    if (!st.tintBuffer) return;
+    st.queue.writeBuffer(st.tintBuffer, 0, new Float32Array([r, g, b, a]));
 }
-
 function setColor(num) {
     const c = COLORS[num];
     if (c) webgpu_set_color(c[0], c[1], c[2], c[3]);
@@ -215,6 +196,46 @@ function setColor(num) {
 document.addEventListener('keydown', (e) => {
     if (e.key >= '1' && e.key <= '4') setColor(parseInt(e.key));
 });
+
+// Camera bridge: C++ calls this every frame (via EM_ASM) with the inverse
+// view-projection as 16 column-major floats; upload it to the camera uniform.
+function webgpu_set_camera(mat16) {
+    const st = window.webgpuState;
+    if (!st.cameraBuffer) return;
+    st.queue.writeBuffer(st.cameraBuffer, 0, new Float32Array(mat16));
+}
+
+// Fullscreen quad (NDC -1..1). For ray-gen we want uv = (pos+1)/2 so the shader
+// can rebuild clip-space xy as uv*2-1 (uvTopIsZero=false). For sampling a WebGPU
+// texture (origin top-left, v down) the blit wants NDC-top -> v=0 (true).
+function makeQuad(device, uvTopIsZero) {
+    const t = uvTopIsZero ? 0 : 1;   // v at NDC top (+1)
+    const b = uvTopIsZero ? 1 : 0;   // v at NDC bottom (-1)
+    const verts = new Float32Array([
+        -1,  1,  0, t,
+        -1, -1,  0, b,
+         1, -1,  1, b,
+        -1,  1,  0, t,
+         1, -1,  1, b,
+         1,  1,  1, t,
+    ]);
+    const buf = device.createBuffer({
+        size: verts.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true,
+    });
+    new Float32Array(buf.getMappedRange()).set(verts);
+    buf.unmap();
+    return buf;
+}
+
+const QUAD_LAYOUT = {
+    arrayStride: 16,
+    attributes: [
+        { shaderLocation: 0, offset: 0, format: 'float32x2' },
+        { shaderLocation: 1, offset: 8, format: 'float32x2' },
+    ],
+};
 
 async function initWebGPU() {
     if (window.webgpuState.initialized) return true;
@@ -239,135 +260,44 @@ async function initWebGPU() {
         st.context = context;
         st.format = format;
 
-        const shader = device.createShaderModule({ code: WGSL_SHADER });
-
-        // A quad as two triangles. Each vertex is (x, y, u, v) interleaved —
-        // identical layout to the WebGL build's quad.
-        const verts = new Float32Array([
-            // pos          uv
-            -0.5,  0.5,    0.0, 0.0,   // top-left
-            -0.5, -0.5,    0.0, 1.0,   // bottom-left
-             0.5, -0.5,    1.0, 1.0,   // bottom-right
-
-            -0.5,  0.5,    0.0, 0.0,   // top-left
-             0.5, -0.5,    1.0, 1.0,   // bottom-right
-             0.5,  0.5,    1.0, 0.0,   // top-right
-        ]);
-        st.vertexBuffer = device.createBuffer({
-            size: verts.byteLength,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            mappedAtCreation: true,
+        // ---- Pass 1: ray generation ----
+        const raygenModule = device.createShaderModule({ code: WGSL_RAYGEN });
+        st.sceneQuad = makeQuad(device, false);             // uv = (pos+1)/2
+        st.cameraBuffer = device.createBuffer({             // mat4x4f = 64 bytes
+            size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        new Float32Array(st.vertexBuffer.getMappedRange()).set(verts);
-        st.vertexBuffer.unmap();
-
-        // Uniform buffer holding the tint color (vec4f = 16 bytes).
-        st.uniformBuffer = device.createBuffer({
-            size: 16,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        // --- Texture: create the GPU texture, then upload pixels with
-        // queue.writeTexture (WebGPU's equivalent of glTexImage2D). ---
-        const texSize = 256;
-        const pixels = makeCheckerTexture(texSize);
-        st.texture = device.createTexture({
-            size: [texSize, texSize, 1],
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-        });
-        device.queue.writeTexture(
-            { texture: st.texture },
-            pixels,
-            { bytesPerRow: texSize * 4, rowsPerImage: texSize },
-            { width: texSize, height: texSize, depthOrArrayLayers: 1 }
-        );
-
-        // Sampler is a standalone object in WebGPU (not baked into the texture).
-        st.sampler = device.createSampler({
-            magFilter: 'linear',
-            minFilter: 'linear',
-            addressModeU: 'clamp-to-edge',
-            addressModeV: 'clamp-to-edge',
-        });
-
-        st.pipeline = device.createRenderPipeline({
+        st.raygenPipeline = device.createRenderPipeline({
             layout: 'auto',
-            vertex: {
-                module: shader, entryPoint: 'vs_main',
-                buffers: [{
-                    arrayStride: 16,   // vec2 pos + vec2 uv
-                    attributes: [
-                        { shaderLocation: 0, offset: 0, format: 'float32x2' },  // pos
-                        { shaderLocation: 1, offset: 8, format: 'float32x2' },  // uv
-                    ],
-                }],
-            },
-            fragment: {
-                module: shader, entryPoint: 'fs_main',
-                targets: [{ format }],
-            },
+            vertex: { module: raygenModule, entryPoint: 'vs_main', buffers: [QUAD_LAYOUT] },
+            fragment: { module: raygenModule, entryPoint: 'fs_main', targets: [{ format }] },
             primitive: { topology: 'triangle-list' },
         });
-
-        // Bind group now carries three resources: uniform buffer, texture, sampler.
-        st.bindGroup = device.createBindGroup({
-            layout: st.pipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: { buffer: st.uniformBuffer } },
-                { binding: 1, resource: st.texture.createView() },
-                { binding: 2, resource: st.sampler },
-            ],
+        st.cameraBindGroup = device.createBindGroup({
+            layout: st.raygenPipeline.getBindGroupLayout(0),
+            entries: [{ binding: 0, resource: { buffer: st.cameraBuffer } }],
         });
 
-        // ---- PASS 2 resources (render-to-texture post step) ----
+        // ---- Pass 2: blit + tint ----
         const postModule = device.createShaderModule({ code: WGSL_POST });
-
-        // Fullscreen quad in NDC (-1..1). UV origin is top-left in WebGPU, so
-        // NDC top (y=+1) maps to v=0 to display the scene upright.
-        const fsVerts = new Float32Array([
-            // pos          uv
-            -1.0,  1.0,    0.0, 0.0,   // top-left
-            -1.0, -1.0,    0.0, 1.0,   // bottom-left
-             1.0, -1.0,    1.0, 1.0,   // bottom-right
-
-            -1.0,  1.0,    0.0, 0.0,   // top-left
-             1.0, -1.0,    1.0, 1.0,   // bottom-right
-             1.0,  1.0,    1.0, 0.0,   // top-right
-        ]);
-        st.fullscreenBuffer = device.createBuffer({
-            size: fsVerts.byteLength,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            mappedAtCreation: true,
+        st.fullscreenBuffer = makeQuad(device, true);       // v-down for sampling
+        st.tintBuffer = device.createBuffer({
+            size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        new Float32Array(st.fullscreenBuffer.getMappedRange()).set(fsVerts);
-        st.fullscreenBuffer.unmap();
-
         st.sceneSampler = device.createSampler({
             magFilter: 'linear', minFilter: 'linear',
             addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
         });
-
         st.postPipeline = device.createRenderPipeline({
             layout: 'auto',
-            vertex: {
-                module: postModule, entryPoint: 'vs_post',
-                buffers: [{
-                    arrayStride: 16,
-                    attributes: [
-                        { shaderLocation: 0, offset: 0, format: 'float32x2' },
-                        { shaderLocation: 1, offset: 8, format: 'float32x2' },
-                    ],
-                }],
-            },
+            vertex: { module: postModule, entryPoint: 'vs_post', buffers: [QUAD_LAYOUT] },
             fragment: { module: postModule, entryPoint: 'fs_post', targets: [{ format }] },
             primitive: { topology: 'triangle-list' },
         });
 
         st.initialized = true;
-        webgpu_set_color(1, 1, 1, 1);  // default white = show true texture colors
+        webgpu_set_color(1, 1, 1, 1);   // default white tint
         resizeCanvas();
-        console.log('WebGPU initialized.');
+        console.log('WebGPU initialized (ray-gen + blit).');
         return true;
     } catch (e) {
         console.error('WebGPU init error:', e);
@@ -375,9 +305,7 @@ async function initWebGPU() {
     }
 }
 
-// (Re)create the offscreen "scene" texture when missing or when the canvas
-// size changed. The post bind group depends on its view, so rebuild it too.
-// This is the WebGPU equivalent of the WebGL Framebuffer's color attachment.
+// (Re)create the offscreen ray-gen target + post bind group on canvas resize.
 function ensureSceneTarget(w, h) {
     const st = window.webgpuState;
     if (w <= 0 || h <= 0) return;
@@ -385,7 +313,7 @@ function ensureSceneTarget(w, h) {
     if (st.sceneTexture) st.sceneTexture.destroy();
     st.sceneTexture = st.device.createTexture({
         size: [w, h, 1],
-        format: st.format,   // match the scene pipeline's color target
+        format: st.format,
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     st.sceneView = st.sceneTexture.createView();
@@ -395,13 +323,12 @@ function ensureSceneTarget(w, h) {
         entries: [
             { binding: 0, resource: st.sceneView },
             { binding: 1, resource: st.sceneSampler },
+            { binding: 2, resource: { buffer: st.tintBuffer } },
         ],
     });
 }
 
-// Render exactly one frame in TWO passes. Called by the C++ main loop (em_tick
-// -> tick -> emscripten_run_script). No requestAnimationFrame loop here, so the
-// C++ side is the single owner of the frame.
+// Render one frame in two passes. Called by the C++ main loop each tick.
 function renderFrame() {
     const st = window.webgpuState;
     if (!st.initialized) return;
@@ -411,26 +338,26 @@ function renderFrame() {
 
     const encoder = st.device.createCommandEncoder();
 
-    // PASS 1: draw the textured checker quad INTO the offscreen scene texture.
+    // PASS 1: ray generation -> offscreen texture
     const p1 = encoder.beginRenderPass({
         colorAttachments: [{
             view: st.sceneView,
-            clearValue: { r: 0.1, g: 0.2, b: 0.5, a: 1.0 },
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
             loadOp: 'clear', storeOp: 'store',
         }],
     });
-    p1.setPipeline(st.pipeline);
-    p1.setBindGroup(0, st.bindGroup);
-    p1.setVertexBuffer(0, st.vertexBuffer);
+    p1.setPipeline(st.raygenPipeline);
+    p1.setBindGroup(0, st.cameraBindGroup);
+    p1.setVertexBuffer(0, st.sceneQuad);
     p1.draw(6, 1, 0, 0);
     p1.end();
 
-    // PASS 2: draw a fullscreen quad to the CANVAS, sampling the scene texture.
+    // PASS 2: blit the offscreen texture to the canvas
     const canvasView = st.context.getCurrentTexture().createView();
     const p2 = encoder.beginRenderPass({
         colorAttachments: [{
             view: canvasView,
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
             loadOp: 'clear', storeOp: 'store',
         }],
     });
@@ -445,9 +372,10 @@ function renderFrame() {
 
 window.webgpu_render = renderFrame;
 window.webgpu_init = initWebGPU;
+window.webgpu_set_camera = webgpu_set_camera;
 
-// Kick off device init as soon as the page is ready. The C++ loop will call
-// webgpu_render() every tick; it no-ops until init completes.
+// Kick off device init as soon as the page is ready. The C++ loop calls
+// webgpu_set_camera + webgpu_render every tick; they no-op until init completes.
 window.addEventListener('DOMContentLoaded', () => { initWebGPU(); });
     </script>
 

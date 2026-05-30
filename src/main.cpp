@@ -148,10 +148,20 @@ struct AppWebGPU {
         process_input(running);
         g_camera.update(measure_delta_seconds());
 
-        // Single owner of the frame: ask JS to record + submit one frame.
-        // (shell_webgpu.html does NOT run its own requestAnimationFrame loop.)
 #ifdef __EMSCRIPTEN__
-        emscripten_run_script("if (window.webgpu_render) window.webgpu_render();");
+        // The camera->WGSL bridge: the camera lives here in C++/WASM, but the
+        // WebGPU renderer runs in JS. So each frame we marshal the inverse
+        // view-projection (16 column-major floats) across the boundary into the
+        // camera uniform buffer, then ask JS to record + submit one frame.
+        // (shell_webgpu.html does NOT run its own requestAnimationFrame loop.)
+        glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
+        const float* m = &invVP[0][0];  // 16 contiguous floats
+        EM_ASM({
+            if (window.webgpu_set_camera) {
+                window.webgpu_set_camera(HEAPF32.subarray($0 >> 2, ($0 >> 2) + 16));
+            }
+            if (window.webgpu_render) { window.webgpu_render(); }
+        }, m);
 #endif
     }
 
