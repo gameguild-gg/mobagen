@@ -18,26 +18,27 @@ void main() {
 #endif
 
 #ifdef FRAGMENT_SHADER
-// Tier 2.2: march each camera ray through space and hit-test an implicit sphere
-// via its signed distance function. Same loop volume rendering uses — in Tier 2.3
-// sdfSphere() becomes a 3D-texture lookup and "stop on hit" becomes "accumulate".
+// Tier 2.3: Direct Volume Rendering. March each camera ray through a 3D texture
+// that lives in the unit cube [-1,1]^3, sampling density and ACCUMULATING colour
+// + opacity front-to-back. This is the same loop as Tier 2.2, but it samples a
+// texture instead of an SDF and blends instead of stopping. Tier 3 swaps the
+// synthetic volume for DICOM data; Tier 2.4 adds a real transfer function.
 in vec2 vUv;
 out vec4 fragColor;
 
 uniform mat4 inv_view_projection;
+uniform sampler3D uVolume;
 
-// Signed distance to a sphere at the origin: >0 outside, 0 on surface, <0 inside.
-float sdfSphere(vec3 p) {
-    return length(p) - 0.7;
-}
-
-// Surface normal = gradient of the SDF, via central differences (6 samples).
-vec3 calcNormal(vec3 p) {
-    float e = 0.001;
-    return normalize(vec3(
-        sdfSphere(p + vec3(e, 0.0, 0.0)) - sdfSphere(p - vec3(e, 0.0, 0.0)),
-        sdfSphere(p + vec3(0.0, e, 0.0)) - sdfSphere(p - vec3(0.0, e, 0.0)),
-        sdfSphere(p + vec3(0.0, 0.0, e)) - sdfSphere(p - vec3(0.0, 0.0, e))));
+// Ray vs axis-aligned box [-1,1]^3 (slab method). Returns entry/exit distances.
+bool intersectBox(vec3 ro, vec3 rd, out float t0, out float t1) {
+    vec3 invD = 1.0 / rd;
+    vec3 ta = (vec3(-1.0) - ro) * invD;
+    vec3 tb = (vec3( 1.0) - ro) * invD;
+    vec3 tmin = min(ta, tb);
+    vec3 tmax = max(ta, tb);
+    t0 = max(max(tmin.x, tmin.y), tmin.z);
+    t1 = min(min(tmax.x, tmax.y), tmax.z);
+    return t1 >= max(t0, 0.0);
 }
 
 void main() {
@@ -49,30 +50,34 @@ void main() {
     vec3 farP = farH.xyz / farH.w;
     vec3 rd = normalize(farP - ro);                   // ray direction
 
-    // Sphere tracing: step by the SDF (the largest safe distance) until we
-    // touch the surface (d < EPS) or the ray leaves the scene (t > MAX_DIST).
-    const int   MAX_STEPS = 96;
-    const float MAX_DIST  = 20.0;
-    const float EPS       = 0.001;
-
-    float t = 0.0;
-    bool hit = false;
-    for (int i = 0; i < MAX_STEPS; i++) {
-        vec3 p = ro + rd * t;
-        float d = sdfSphere(p);
-        if (d < EPS) { hit = true; break; }
-        t += d;
-        if (t > MAX_DIST) break;
-    }
-
     vec3 col = vec3(0.04, 0.05, 0.08);                // background
-    if (hit) {
-        vec3 p = ro + rd * t;
-        vec3 n = calcNormal(p);
-        vec3 lightDir = normalize(vec3(0.6, 0.8, 0.5));
-        float diff = max(dot(n, lightDir), 0.0);
-        col = vec3(0.2, 0.5, 1.0) * (0.15 + 0.85 * diff);   // ambient + diffuse
+
+    float t0, t1;
+    if (intersectBox(ro, rd, t0, t1)) {
+        t0 = max(t0, 0.0);                            // start at the box / camera
+        const int STEPS = 128;
+        float dt = (t1 - t0) / float(STEPS);
+
+        vec4 acc = vec4(0.0);                         // accumulated colour + opacity
+        float t = t0;
+        for (int i = 0; i < STEPS; i++) {
+            vec3 p  = ro + rd * t;
+            vec3 tc = p * 0.5 + 0.5;                  // [-1,1] -> [0,1] texcoords
+            float density = texture(uVolume, tc).r;
+
+            // Simple grayscale transfer (real transfer function is Tier 2.4):
+            // brighter where denser, opacity proportional to density.
+            float a = density * 0.15;                 // per-step opacity
+            vec3  c = vec3(density);
+
+            acc.rgb += (1.0 - acc.a) * a * c;         // front-to-back compositing
+            acc.a   += (1.0 - acc.a) * a;
+            if (acc.a > 0.99) break;                  // early ray termination
+            t += dt;
+        }
+        col = mix(col, acc.rgb, acc.a);               // composite over background
     }
+
     fragColor = vec4(col, 1.0);
 }
 #endif

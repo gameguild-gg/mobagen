@@ -184,7 +184,8 @@ struct AppWebGPU {
 #ifdef __EMSCRIPTEN__
 #include <GLES3/gl3.h>
 static constexpr const char* VERT_GLSL = "#version 300 es\n";
-static constexpr const char* FRAG_GLSL = "#version 300 es\nprecision mediump float;\n";
+static constexpr const char* FRAG_GLSL =
+    "#version 300 es\nprecision highp float;\nprecision highp sampler3D;\n";
 #else
 #include <GL/glew.h>
 #include <SDL2/SDL_opengl.h>
@@ -198,8 +199,9 @@ static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 #include "engine/vertex_array.h"
 #include "engine/renderer.h"
 #include "engine/texture.h"
+#include "engine/texture3d.h"
 #include "engine/framebuffer.h"
-#include "embedded_shaders.h"   // generated from shaders/*.vert|frag by CMake
+#include "embedded_shaders.h"   // generated from shaders/*.glsl by CMake
 
 // --- Tint (driven by the 1-4 buttons) ----------------------------------------
 // Multiplied with the scene texture in the pass-2 blit. Default white shows the
@@ -216,13 +218,35 @@ static glm::vec4 variant_color(int n) {
     }
 }
 
+// Synthetic volume: a soft ball, density 1 at the centre falling to 0 at the
+// edge. Same "fill on CPU, upload, sample on GPU" pattern as the checker — but
+// now 3D. Stored as R8 voxels (density * 255). Tier 3 replaces this with DICOM.
+static std::vector<unsigned char> make_volume(int n) {
+    std::vector<unsigned char> v(static_cast<size_t>(n) * n * n);
+    for (int z = 0; z < n; ++z) {
+        for (int y = 0; y < n; ++y) {
+            for (int x = 0; x < n; ++x) {
+                // voxel centre in [-1, 1]
+                glm::vec3 c = (glm::vec3(x, y, z) / float(n - 1) - 0.5f) * 2.0f;
+                float r = glm::length(c);
+                float density = glm::clamp(1.0f - r / 0.9f, 0.0f, 1.0f);
+                density *= density;                       // softer falloff
+                v[(static_cast<size_t>(z) * n + y) * n + x] =
+                    static_cast<unsigned char>(density * 255.0f);
+            }
+        }
+    }
+    return v;
+}
+
 struct AppWebGL {
     SDL_Window* window = nullptr;
     SDL_GLContext context = nullptr;
-    // Pass 1 (ray generation -> FBO): fullscreen quad
+    // Pass 1 (volume ray cast -> FBO): fullscreen quad + 3D volume texture
     std::unique_ptr<engine::VertexArray> vao;
     std::unique_ptr<engine::VertexBuffer> vbo;
     std::unique_ptr<engine::ShaderProgram> shader;
+    std::unique_ptr<engine::Texture3D> volume;
 
     // Pass 2 (FBO -> screen): fullscreen quad + post shader
     std::unique_ptr<engine::VertexArray> postVao;
@@ -297,6 +321,15 @@ bool AppWebGL::setupGeometry() {
     vao->setVertexAttribute(1, 2, GL_FLOAT, 2 * sizeof(float), stride);  // uv
     engine::VertexArray::unbind();
     engine::VertexBuffer::unbind();
+
+    // Synthetic 3D volume (64^3) uploaded once; the ray caster samples it.
+    const int N = 64;
+    std::vector<unsigned char> voxels = make_volume(N);
+    volume = std::make_unique<engine::Texture3D>(N, N, N, voxels.data());
+    if (!volume || volume->getHandle() == 0) {
+        fprintf(stderr, "Failed to create volume texture\n");
+        return false;
+    }
     return true;
 }
 
@@ -451,8 +484,10 @@ void AppWebGL::tick() {
         shader->use();
         glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
         shader->setUniform("inv_view_projection", invVP);
+        shader->setUniform("uVolume", 0);   // sampler reads texture unit 0
     }
-    if (vao) renderer.draw(*vao, 6);  // fullscreen quad
+    if (volume) volume->bind(0);
+    if (vao) renderer.draw(*vao, 6);  // fullscreen quad -> volume ray cast
 
     // ---- PASS 2: blit the ray-gen texture to the screen (tinted) ----
     engine::Framebuffer::bindDefault();
@@ -477,6 +512,7 @@ void AppWebGL::cleanup() {
     postShader.reset();
     postVao.reset();
     postVbo.reset();
+    volume.reset();
     shader.reset();
     vao.reset();
     vbo.reset();
