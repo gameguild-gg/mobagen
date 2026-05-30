@@ -79,9 +79,11 @@
         const container = document.getElementById('container');
         function resizeCanvas() {
             const rect = container.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;  // layout not ready
             const dpr = window.devicePixelRatio || 1;
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
+            canvas.width = Math.max(1, Math.round(rect.width * dpr));
+            canvas.height = Math.max(1, Math.round(rect.height * dpr));
+            console.log('[resize] canvas', canvas.width, canvas.height);
             if (typeof Module._on_canvas_resize === 'function') {
                 Module._on_canvas_resize(canvas.width, canvas.height);
             }

@@ -4,7 +4,6 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#include <emscripten/html5.h>
 #endif
 
 #include <SDL2/SDL.h>
@@ -46,6 +45,11 @@ static engine::Camera g_camera(engine::CameraMode::ORBIT);
 // Mouse-look is GATED: the camera only rotates while a mouse button is held.
 // This lets the user move the cursor to click UI without spinning the camera.
 static bool g_mouse_look_active = false;
+
+// Current canvas drawing-buffer size, pushed from the shell via on_canvas_resize
+// (the authoritative size; SDL's window size is stale on the web). 0 = not set.
+static int g_canvas_w = 0;
+static int g_canvas_h = 0;
 
 // Real frame delta time, measured from SDL's high-resolution counter.
 static float measure_delta_seconds() {
@@ -425,13 +429,12 @@ void AppWebGL::tick() {
     g_camera.update(measure_delta_seconds());
 
     // Match the offscreen target + viewport to the CURRENT canvas size.
-    // On the web the shell resizes the canvas drawing buffer directly, but SDL's
-    // window size stays at its creation value — so we must read the real canvas
-    // size, not SDL_GL_GetDrawableSize (which would leave us rendering into a
-    // small stale-sized corner after a window resize).
+    // On the web the shell sets the canvas drawing buffer and tells us its size
+    // via on_canvas_resize (g_canvas_w/h); SDL's window size is stale there.
     int w = 0, h = 0;
 #ifdef __EMSCRIPTEN__
-    emscripten_get_canvas_element_size("#canvas", &w, &h);
+    w = g_canvas_w;
+    h = g_canvas_h;
 #else
     SDL_GL_GetDrawableSize(window, &w, &h);
 #endif
@@ -492,6 +495,8 @@ extern "C" {
     // Called by the shell when the canvas is resized.
     EMSCRIPTEN_KEEPALIVE
     void on_canvas_resize(int width, int height) {
+        g_canvas_w = width;
+        g_canvas_h = height;
         g_camera.set_viewport(width, height);
 #ifndef USE_WEBGPU
         glViewport(0, 0, width, height);
