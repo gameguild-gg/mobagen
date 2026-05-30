@@ -194,6 +194,7 @@ static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 #include "engine/renderer.h"
 #include "engine/texture.h"
 #include "engine/framebuffer.h"
+#include "embedded_shaders.h"   // generated from shaders/*.vert|frag by CMake
 
 // --- Tint (driven by the 1-4 buttons) ----------------------------------------
 // Multiplied with the scene texture in the pass-2 blit. Default white shows the
@@ -241,45 +242,12 @@ private:
 };
 
 bool AppWebGL::compileShaders() {
-    // Fullscreen quad: positions ARE the NDC coordinates, no camera transform.
-    std::string vertSrc = std::string(VERT_GLSL) + R"(
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aUv;
-
-out vec2 vUv;
-
-void main() {
-    vUv = aUv;
-    gl_Position = vec4(aPos, 0.0, 1.0);
-}
-)";
-
-    // Tier 2.1: generate one camera ray per pixel and show its DIRECTION as RGB.
-    // The camera reaches the shader as the inverse view-projection matrix, NOT as
-    // a vertex transform — in ray casting the camera makes rays, it doesn't move
-    // geometry. We unproject a near-plane and far-plane point for this pixel and
-    // take the direction between them.
-    std::string fragSrc = std::string(FRAG_GLSL) + R"(
-in vec2 vUv;
-out vec4 fragColor;
-
-uniform mat4 inv_view_projection;
-
-void main() {
-    vec2 ndc = vUv * 2.0 - 1.0;                       // pixel -> clip space xy
-
-    vec4 nearH = inv_view_projection * vec4(ndc, -1.0, 1.0);
-    vec4 farH  = inv_view_projection * vec4(ndc,  1.0, 1.0);
-    vec3 nearP = nearH.xyz / nearH.w;                 // world point on near plane
-    vec3 farP  = farH.xyz / farH.w;                   // world point on far plane
-
-    vec3 rayDir = normalize(farP - nearP);            // the ray for this pixel
-
-    // Visualize direction: map [-1,1] -> [0,1]. Orbit the camera and watch the
-    // gradient swing — that proves the rays track the camera correctly.
-    fragColor = vec4(rayDir * 0.5 + 0.5, 1.0);
-}
-)";
+    // Source from shaders/raygen.glsl (embedded at build time). The same file
+    // holds both stages; we compile it twice with VERTEX_SHADER / FRAGMENT_SHADER
+    // defined. The #version / precision header is prepended here so one source
+    // serves WebGL2/GLES3 and desktop GL 3.3.
+    std::string vertSrc = std::string(VERT_GLSL) + "#define VERTEX_SHADER\n"   + shaders::RAYGEN_GLSL;
+    std::string fragSrc = std::string(FRAG_GLSL) + "#define FRAGMENT_SHADER\n" + shaders::RAYGEN_GLSL;
 
     std::string errmsg;
     auto next = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
@@ -331,29 +299,9 @@ bool AppWebGL::setupGeometry() {
 // multiplied by a tint. This is the "deliver the render-texture to the screen"
 // step; the per-pixel work lives in pass 1.
 bool AppWebGL::compilePostShader() {
-    std::string vertSrc = std::string(VERT_GLSL) + R"(
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aUv;
-
-out vec2 vUv;
-
-void main() {
-    vUv = aUv;
-    gl_Position = vec4(aPos, 0.0, 1.0);   // fullscreen NDC, no camera
-}
-)";
-
-    std::string fragSrc = std::string(FRAG_GLSL) + R"(
-in vec2 vUv;
-out vec4 fragColor;
-
-uniform sampler2D uScene;   // the texture rendered in pass 1
-uniform vec4 uTint;
-
-void main() {
-    fragColor = texture(uScene, vUv) * uTint;
-}
-)";
+    // Source from shaders/blit.glsl (both stages, compiled twice).
+    std::string vertSrc = std::string(VERT_GLSL) + "#define VERTEX_SHADER\n"   + shaders::BLIT_GLSL;
+    std::string fragSrc = std::string(FRAG_GLSL) + "#define FRAGMENT_SHADER\n" + shaders::BLIT_GLSL;
 
     std::string errmsg;
     auto next = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);

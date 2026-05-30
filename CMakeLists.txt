@@ -64,8 +64,40 @@ set(ENGINE_SOURCES
     src/engine/engine_c.cpp
 )
 
+# ----------------------------------------------------------------------------
+# Shaders.
+#
+# GLSL (C++ side): embedded at build time into a generated header, so there is
+#   no runtime filesystem dependency (works identically native and in WASM).
+#   Edit shaders/*.vert|frag — NOT the generated header. Editing a shader
+#   re-runs CMake via CMAKE_CONFIGURE_DEPENDS.
+# WGSL (JS side): copied next to the output and fetch()-ed at runtime by the
+#   WebGPU shell (see below, in the EMSCRIPTEN block).
+# ----------------------------------------------------------------------------
+set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
+# Each .glsl holds BOTH stages, gated by VERTEX_SHADER / FRAGMENT_SHADER (the
+# C++ loader compiles it twice) — mirroring how a .wgsl module holds both
+# entry points.
+set(GLSL_SHADERS raygen.glsl blit.glsl)
+set(GEN_DIR ${CMAKE_BINARY_DIR}/generated)
+set(GEN_HEADER ${GEN_DIR}/embedded_shaders.h)
+
+set(_gen "#pragma once\n// AUTO-GENERATED from shaders/. Edit the .vert/.frag files, not this.\nnamespace shaders {\n\n")
+foreach(_f ${GLSL_SHADERS})
+    file(READ ${SHADER_DIR}/${_f} _content)
+    string(MAKE_C_IDENTIFIER ${_f} _id)
+    string(TOUPPER ${_id} _id)
+    string(APPEND _gen "inline constexpr const char* ${_id} = R\"GLSL(\n${_content})GLSL\";\n\n")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SHADER_DIR}/${_f})
+endforeach()
+string(APPEND _gen "}  // namespace shaders\n")
+file(WRITE ${GEN_HEADER} "${_gen}")
+
 add_executable(dicom_renderer ${ENGINE_SOURCES})
-target_include_directories(dicom_renderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(dicom_renderer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${GEN_DIR}
+)
 
 # Load GLM (header-only math library) for all builds
 include(external/glm.cmake)
@@ -76,6 +108,13 @@ if(USE_WEBGPU)
     message(STATUS "Renderer: WebGPU (G3) — deferred-mode, compute-capable")
 else()
     message(STATUS "Renderer: WebGL2 (G2) — immediate-mode")
+endif()
+
+if(EMSCRIPTEN AND USE_WEBGPU)
+    # The WebGPU shell fetch()-es these at runtime; place them beside the output.
+    foreach(_w raygen.wgsl blit.wgsl)
+        configure_file(${SHADER_DIR}/${_w} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${_w} COPYONLY)
+    endforeach()
 endif()
 
 if(EMSCRIPTEN)

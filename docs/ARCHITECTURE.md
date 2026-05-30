@@ -61,8 +61,15 @@ html/
 ├── shell_webgl.html         Emscripten shell for the WebGL2 build (canvas, FPS,
 │                            color buttons that call into C++).
 ├── shell_webgpu.html        Emscripten shell for the WebGPU build (canvas, FPS,
-│                            WGSL pipeline, color via a uniform buffer).
+│                            fetches the .wgsl shaders, camera bridge).
 └── camera-test.html         Standalone JS camera demo (no build needed).
+
+shaders/                     Shader source of truth (one file per program).
+├── raygen.glsl / blit.glsl  GLSL: BOTH stages in one file, gated by
+│                            VERTEX_SHADER / FRAGMENT_SHADER. EMBEDDED into a
+│                            generated header at build time (no runtime FS).
+└── raygen.wgsl / blit.wgsl  WGSL: one module each. COPIED beside the WebGPU
+                             output and fetch()-ed at runtime by the shell.
 ```
 
 ### One class = one GPU object
