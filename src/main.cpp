@@ -186,9 +186,8 @@ static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 #include "engine/framebuffer.h"
 
 // --- Tint (driven by the 1-4 buttons) ----------------------------------------
-// Multiplied with the sampled texture in the fragment shader. Default white =
-// show the texture's true colors; the buttons tint it. This teaches combining a
-// sampler with a uniform (vs WebGPU, which feeds color via a uniform buffer).
+// Multiplied with the scene texture in the pass-2 blit. Default white shows the
+// scene as-is; the buttons tint the whole image.
 static glm::vec4 g_tint(1.0f, 1.0f, 1.0f, 1.0f);
 
 static glm::vec4 variant_color(int n) {
@@ -201,35 +200,13 @@ static glm::vec4 variant_color(int n) {
     }
 }
 
-// A checkerboard modulated by a UV gradient, so both tiling AND orientation are
-// visible. Same "fill data on the CPU, upload to a texture, sample on the GPU"
-// pattern we reuse for the synthetic 3D volume in Tier 2.
-static std::vector<unsigned char> make_checker_texture(int size) {
-    std::vector<unsigned char> px(static_cast<size_t>(size) * size * 4);
-    const int cell = size / 8;
-    for (int y = 0; y < size; ++y) {
-        for (int x = 0; x < size; ++x) {
-            const bool dark = ((x / cell) + (y / cell)) % 2 == 0;
-            const float u = static_cast<float>(x) / (size - 1);
-            const float v = static_cast<float>(y) / (size - 1);
-            unsigned char* p = &px[(static_cast<size_t>(y) * size + x) * 4];
-            p[0] = dark ? 40 : 230;                          // R: checker
-            p[1] = static_cast<unsigned char>(v * 255.0f);   // G: vertical gradient
-            p[2] = static_cast<unsigned char>(u * 255.0f);   // B: horizontal gradient
-            p[3] = 255;
-        }
-    }
-    return px;
-}
-
 struct AppWebGL {
     SDL_Window* window = nullptr;
     SDL_GLContext context = nullptr;
-    // Pass 1 (scene -> FBO): textured quad
+    // Pass 1 (ray generation -> FBO): fullscreen quad
     std::unique_ptr<engine::VertexArray> vao;
     std::unique_ptr<engine::VertexBuffer> vbo;
     std::unique_ptr<engine::ShaderProgram> shader;
-    std::unique_ptr<engine::Texture2D> texture;
 
     // Pass 2 (FBO -> screen): fullscreen quad + post shader
     std::unique_ptr<engine::VertexArray> postVao;
@@ -254,30 +231,43 @@ private:
 };
 
 bool AppWebGL::compileShaders() {
+    // Fullscreen quad: positions ARE the NDC coordinates, no camera transform.
     std::string vertSrc = std::string(VERT_GLSL) + R"(
-uniform mat4 view_projection;
 layout(location = 0) in vec2 aPos;
 layout(location = 1) in vec2 aUv;
 
 out vec2 vUv;
 
 void main() {
-    vUv = aUv;                                       // pass UV to fragment stage
-    gl_Position = view_projection * vec4(aPos, 0.0, 1.0);
+    vUv = aUv;
+    gl_Position = vec4(aPos, 0.0, 1.0);
 }
 )";
 
+    // Tier 2.1: generate one camera ray per pixel and show its DIRECTION as RGB.
+    // The camera reaches the shader as the inverse view-projection matrix, NOT as
+    // a vertex transform — in ray casting the camera makes rays, it doesn't move
+    // geometry. We unproject a near-plane and far-plane point for this pixel and
+    // take the direction between them.
     std::string fragSrc = std::string(FRAG_GLSL) + R"(
 in vec2 vUv;
 out vec4 fragColor;
 
-uniform sampler2D uTex;
-uniform vec4 uTint;
+uniform mat4 inv_view_projection;
 
 void main() {
-    // The heart of Tier 1.2: read data from a texture at coordinate vUv.
-    // In Tier 2 this becomes a 3D texture sampled at points along a ray.
-    fragColor = texture(uTex, vUv) * uTint;
+    vec2 ndc = vUv * 2.0 - 1.0;                       // pixel -> clip space xy
+
+    vec4 nearH = inv_view_projection * vec4(ndc, -1.0, 1.0);
+    vec4 farH  = inv_view_projection * vec4(ndc,  1.0, 1.0);
+    vec3 nearP = nearH.xyz / nearH.w;                 // world point on near plane
+    vec3 farP  = farH.xyz / farH.w;                   // world point on far plane
+
+    vec3 rayDir = normalize(farP - nearP);            // the ray for this pixel
+
+    // Visualize direction: map [-1,1] -> [0,1]. Orbit the camera and watch the
+    // gradient swing — that proves the rays track the camera correctly.
+    fragColor = vec4(rayDir * 0.5 + 0.5, 1.0);
 }
 )";
 
@@ -293,16 +283,17 @@ void main() {
 }
 
 bool AppWebGL::setupGeometry() {
-    // A quad as two triangles. Each vertex is (x, y, u, v) interleaved.
+    // Fullscreen quad: pos in NDC (-1..1), uv = (pos + 1) / 2 so the fragment
+    // shader can reconstruct clip-space xy as uv*2-1.
     const float verts[] = {
         // pos            uv
-        -0.5f,  0.5f,    0.0f, 0.0f,   // top-left
-        -0.5f, -0.5f,    0.0f, 1.0f,   // bottom-left
-         0.5f, -0.5f,    1.0f, 1.0f,   // bottom-right
+        -1.0f, -1.0f,    0.0f, 0.0f,
+         1.0f, -1.0f,    1.0f, 0.0f,
+         1.0f,  1.0f,    1.0f, 1.0f,
 
-        -0.5f,  0.5f,    0.0f, 0.0f,   // top-left
-         0.5f, -0.5f,    1.0f, 1.0f,   // bottom-right
-         0.5f,  0.5f,    1.0f, 0.0f,   // top-right
+        -1.0f, -1.0f,    0.0f, 0.0f,
+         1.0f,  1.0f,    1.0f, 1.0f,
+        -1.0f,  1.0f,    0.0f, 1.0f,
     };
 
     vbo = std::make_unique<engine::VertexBuffer>(verts, sizeof(verts));
@@ -323,22 +314,12 @@ bool AppWebGL::setupGeometry() {
     vao->setVertexAttribute(1, 2, GL_FLOAT, 2 * sizeof(float), stride);  // uv
     engine::VertexArray::unbind();
     engine::VertexBuffer::unbind();
-
-    // Procedural texture — no asset or PNG decoder needed. Swappable for a real
-    // PNG via stb_image later (see docs/LEARNING.md, Tier 1.2).
-    const int texSize = 256;
-    std::vector<unsigned char> pixels = make_checker_texture(texSize);
-    texture = std::make_unique<engine::Texture2D>(texSize, texSize, pixels.data());
-    if (!texture || texture->getHandle() == 0) {
-        fprintf(stderr, "Failed to create texture\n");
-        return false;
-    }
     return true;
 }
 
-// Pass 2 shader: samples the offscreen scene texture onto a fullscreen quad and
-// applies a vignette — a deliberately visible post-process so you can SEE that a
-// second pass ran over the render-to-texture result.
+// Pass 2 shader: blit the offscreen scene texture onto a fullscreen quad,
+// multiplied by a tint. This is the "deliver the render-texture to the screen"
+// step; the per-pixel work lives in pass 1.
 bool AppWebGL::compilePostShader() {
     std::string vertSrc = std::string(VERT_GLSL) + R"(
 layout(location = 0) in vec2 aPos;
@@ -357,13 +338,10 @@ in vec2 vUv;
 out vec4 fragColor;
 
 uniform sampler2D uScene;   // the texture rendered in pass 1
+uniform vec4 uTint;
 
 void main() {
-    vec4 c = texture(uScene, vUv);
-    // Vignette: bright at the center, darkening toward the edges.
-    float d = distance(vUv, vec2(0.5));
-    float vignette = 1.0 - smoothstep(0.30, 0.80, d);
-    fragColor = vec4(c.rgb * vignette, 1.0);
+    fragColor = texture(uScene, vUv) * uTint;
 }
 )";
 
@@ -492,26 +470,26 @@ void AppWebGL::tick() {
     SDL_GL_GetDrawableSize(window, &w, &h);
     ensureFramebuffer(w, h);
 
-    // ---- PASS 1: render the scene INTO the offscreen framebuffer ----
+    // ---- PASS 1: generate one ray per pixel INTO the offscreen framebuffer ----
+    // The camera reaches the shader as the inverse view-projection matrix.
     if (fbo) fbo->bind();
     glViewport(0, 0, fbW, fbH);
     renderer.clear();
     if (shader) {
         shader->use();
-        shader->setUniform("view_projection", g_camera.get_view_projection());
-        shader->setUniform("uTint", g_tint);
-        shader->setUniform("uTex", 0);
+        glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
+        shader->setUniform("inv_view_projection", invVP);
     }
-    if (texture) texture->bind(0);
-    if (vao) renderer.draw(*vao, 6);  // textured quad
+    if (vao) renderer.draw(*vao, 6);  // fullscreen quad
 
-    // ---- PASS 2: draw a fullscreen quad sampling the FBO's color texture ----
+    // ---- PASS 2: blit the ray-gen texture to the screen (tinted) ----
     engine::Framebuffer::bindDefault();
     glViewport(0, 0, w, h);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (postShader && fbo && postVao) {
         postShader->use();
         postShader->setUniform("uScene", 0);
+        postShader->setUniform("uTint", g_tint);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fbo->getColorTexture());
         postVao->bind();
@@ -527,7 +505,6 @@ void AppWebGL::cleanup() {
     postShader.reset();
     postVao.reset();
     postVbo.reset();
-    texture.reset();
     shader.reset();
     vao.reset();
     vbo.reset();
