@@ -4,6 +4,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #endif
 
 #include <SDL2/SDL.h>
@@ -423,9 +424,19 @@ void AppWebGL::tick() {
     process_input(running);
     g_camera.update(measure_delta_seconds());
 
-    // Match the offscreen target to the current drawable size.
+    // Match the offscreen target + viewport to the CURRENT canvas size.
+    // On the web the shell resizes the canvas drawing buffer directly, but SDL's
+    // window size stays at its creation value — so we must read the real canvas
+    // size, not SDL_GL_GetDrawableSize (which would leave us rendering into a
+    // small stale-sized corner after a window resize).
     int w = 0, h = 0;
+#ifdef __EMSCRIPTEN__
+    emscripten_get_canvas_element_size("#canvas", &w, &h);
+#else
     SDL_GL_GetDrawableSize(window, &w, &h);
+#endif
+    if (w <= 0 || h <= 0) { w = 800; h = 600; }
+    g_camera.set_viewport(w, h);   // keep aspect ratio in sync with the viewport
     ensureFramebuffer(w, h);
 
     // ---- PASS 1: generate one ray per pixel INTO the offscreen framebuffer ----

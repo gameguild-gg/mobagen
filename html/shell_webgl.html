@@ -89,6 +89,9 @@
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('orientationchange', resizeCanvas);
         resizeCanvas();
+        // SDL_CreateWindow resets the canvas to its initial size during WASM
+        // startup, so re-sync to the real window size once the module is ready.
+        Module.onRuntimeInitialized = () => resizeCanvas();
 
         // ---- Color variants (calls into C++) ----------------------------------
         function setColor(num) {
