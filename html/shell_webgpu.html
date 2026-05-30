@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>DICOM Renderer — WebGPU (G3)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background:#111; height:100vh; font-family:monospace; overflow:hidden; }
+        #container { position:relative; width:100%; height:100%; }
+        canvas { display:block; width:100%; height:100%; background:#1a2a4a; }
+        .panel {
+            position:absolute; background:rgba(0,0,0,0.95);
+            border:2px solid #0cf; border-radius:5px; padding:12px; z-index:100; color:#0cf;
+        }
+        #controls { top:10px; left:10px; max-width:200px; }
+        #stats    { top:10px; right:10px; text-align:right; font-size:12px; }
+        h3 { font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+        button {
+            display:block; width:100%; padding:7px; margin:4px 0; background:#1a1a1a; color:#888;
+            border:1px solid #444; border-radius:3px; cursor:pointer; font-family:monospace;
+            font-size:11px; font-weight:bold; transition:all .15s;
+        }
+        button:hover { transform:scale(1.02); }
+        button.active { background:#073a3a; color:#0cf; border-color:#0cf; }
+        #stat-fps { font-weight:bold; font-size:13px; }
+        .hint { font-size:10px; color:#888; margin-top:8px; line-height:1.5; }
+        #warn { top:50%; left:50%; transform:translate(-50%,-50%); border-color:#f00; color:#f00; display:none; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+
+        <div id="controls" class="panel">
+            <h3>WebGPU · G3</h3>
+            <h3 style="margin-top:4px;">Colors (uniform buffer)</h3>
+            <button id="color-1" class="active" onclick="setColor(1)">1: Teal</button>
+            <button id="color-2" onclick="setColor(2)">2: Red</button>
+            <button id="color-3" onclick="setColor(3)">3: Green</button>
+            <button id="color-4" onclick="setColor(4)">4: Yellow</button>
+            <div class="hint">
+                Color is sent to WGSL via a<br>
+                uniform buffer (queue.writeBuffer),<br>
+                not a shader recompile.
+            </div>
+        </div>
+
+        <div id="stats" class="panel">
+            <div id="stat-renderer">WebGPU (G3)</div>
+            <div id="stat-fps">FPS: 60</div>
+            <div id="stat-frametime" style="font-size:10px; color:#888;">Frame: 16.7ms</div>
+        </div>
+
+        <div id="warn" class="panel">
+            WebGPU not available in this browser.<br>
+            Use Chrome/Edge 113+ (or enable the flag).
+        </div>
+    </div>
+
+    <script>
+        var Module = { canvas: document.getElementById('canvas') };
+
+        // ---- Performance stats ------------------------------------------------
+        let frameCount = 0, lastTime = performance.now(), lastFpsTime = lastTime;
+        function statsLoop() {
+            const now = performance.now();
+            const frameTime = now - lastTime;
+            lastTime = now; frameCount++;
+            if (now - lastFpsTime >= 500) {
+                const fps = Math.round(frameCount / (now - lastFpsTime) * 1000);
+                frameCount = 0; lastFpsTime = now;
+                const c = fps >= 55 ? '#0cf' : fps >= 30 ? '#ff0' : '#f00';
+                const el = document.getElementById('stat-fps');
+                el.textContent = `FPS: ${fps}`; el.style.color = c;
+                document.getElementById('stat-frametime').textContent =
+                    `Frame: ${frameTime.toFixed(1)}ms`;
+            }
+            requestAnimationFrame(statsLoop);
+        }
+        statsLoop();
+
+        // ---- Canvas resize ----------------------------------------------------
+        const canvas = document.getElementById('canvas');
+        const container = document.getElementById('container');
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            if (typeof Module._on_canvas_resize === 'function') {
+                Module._on_canvas_resize(canvas.width, canvas.height);
+            }
+            const st = window.webgpuState;
+            if (st && st.context && st.device) {
+                st.context.configure({ device: st.device, format: st.format });
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+    </script>
+
+    <!-- ===================== WebGPU (G3) implementation ===================== -->
+    <script>
+const WGSL_SHADER = `
+struct Uniforms {
+  color : vec4f,        // tint multiplied with the sampled texture
+};
+
+// WebGPU binds resources through a bind group. Unlike GL (where sampler state
+// lives on the texture object), WGSL takes the texture and the sampler as two
+// SEPARATE bindings.
+@group(0) @binding(0) var<uniform> u : Uniforms;
+@group(0) @binding(1) var tex : texture_2d<f32>;
+@group(0) @binding(2) var samp : sampler;
+
+struct VsOut {
+  @builtin(position) pos : vec4f,
+  @location(0) uv : vec2f,
+};
+
+@vertex
+fn vs_main(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
+  var out : VsOut;
+  out.pos = vec4f(position, 0.0, 1.0);   // static NDC quad (no camera yet)
+  out.uv = uv;
+  return out;
+}
+
+@fragment
+fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
+  // The WGSL equivalent of GLSL's texture(uTex, vUv) * uTint.
+  return textureSample(tex, samp, uv) * u.color;
+}
+`;
+
+window.webgpuState = {
+    device: null, queue: null, pipeline: null,
+    vertexBuffer: null, uniformBuffer: null, bindGroup: null,
+    texture: null, sampler: null,
+    context: null, format: null, initialized: false
+};
+
+// Same checkerboard + UV gradient the WebGL build generates in C++
+// (make_checker_texture). Returns tightly-packed RGBA8 pixels.
+function makeCheckerTexture(size) {
+    const px = new Uint8Array(size * size * 4);
+    const cell = size / 8;
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const dark = ((Math.floor(x / cell) + Math.floor(y / cell)) % 2) === 0;
+            const u = x / (size - 1);
+            const v = y / (size - 1);
+            const i = (y * size + x) * 4;
+            px[i]     = dark ? 40 : 230;          // R: checker
+            px[i + 1] = Math.floor(v * 255);      // G: vertical gradient
+            px[i + 2] = Math.floor(u * 255);      // B: horizontal gradient
+            px[i + 3] = 255;
+        }
+    }
+    return px;
+}
+
+const COLORS = {
+    1: [0.0, 1.0, 0.5, 1.0],  // Teal
+    2: [1.0, 0.0, 0.0, 1.0],  // Red
+    3: [0.0, 1.0, 0.0, 1.0],  // Green
+    4: [1.0, 1.0, 0.0, 1.0],  // Yellow
+};
+
+function webgpu_set_color(r, g, b, a) {
+    const st = window.webgpuState;
+    if (!st.device || !st.uniformBuffer) return;
+    st.queue.writeBuffer(st.uniformBuffer, 0, new Float32Array([r, g, b, a]));
+}
+
+function setColor(num) {
+    const c = COLORS[num];
+    if (c) webgpu_set_color(c[0], c[1], c[2], c[3]);
+    for (let i = 1; i <= 4; i++) {
+        document.getElementById(`color-${i}`).classList.toggle('active', i === num);
+    }
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key >= '1' && e.key <= '4') setColor(parseInt(e.key));
+});
+
+async function initWebGPU() {
+    if (window.webgpuState.initialized) return true;
+    if (!navigator.gpu) {
+        document.getElementById('warn').style.display = 'block';
+        console.error('WebGPU not supported');
+        return false;
+    }
+    try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) { console.error('No GPU adapter'); return false; }
+        const device = await adapter.requestDevice();
+
+        const st = window.webgpuState;
+        st.device = device;
+        st.queue = device.queue;
+
+        const context = canvas.getContext('webgpu');
+        if (!context) { console.error('No WebGPU context'); return false; }
+        const format = navigator.gpu.getPreferredCanvasFormat();
+        context.configure({ device, format });
+        st.context = context;
+        st.format = format;
+
+        const shader = device.createShaderModule({ code: WGSL_SHADER });
+
+        // A quad as two triangles. Each vertex is (x, y, u, v) interleaved —
+        // identical layout to the WebGL build's quad.
+        const verts = new Float32Array([
+            // pos          uv
+            -0.5,  0.5,    0.0, 0.0,   // top-left
+            -0.5, -0.5,    0.0, 1.0,   // bottom-left
+             0.5, -0.5,    1.0, 1.0,   // bottom-right
+
+            -0.5,  0.5,    0.0, 0.0,   // top-left
+             0.5, -0.5,    1.0, 1.0,   // bottom-right
+             0.5,  0.5,    1.0, 0.0,   // top-right
+        ]);
+        st.vertexBuffer = device.createBuffer({
+            size: verts.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+        });
+        new Float32Array(st.vertexBuffer.getMappedRange()).set(verts);
+        st.vertexBuffer.unmap();
+
+        // Uniform buffer holding the tint color (vec4f = 16 bytes).
+        st.uniformBuffer = device.createBuffer({
+            size: 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        // --- Texture: create the GPU texture, then upload pixels with
+        // queue.writeTexture (WebGPU's equivalent of glTexImage2D). ---
+        const texSize = 256;
+        const pixels = makeCheckerTexture(texSize);
+        st.texture = device.createTexture({
+            size: [texSize, texSize, 1],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+        device.queue.writeTexture(
+            { texture: st.texture },
+            pixels,
+            { bytesPerRow: texSize * 4, rowsPerImage: texSize },
+            { width: texSize, height: texSize, depthOrArrayLayers: 1 }
+        );
+
+        // Sampler is a standalone object in WebGPU (not baked into the texture).
+        st.sampler = device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+        });
+
+        st.pipeline = device.createRenderPipeline({
+            layout: 'auto',
+            vertex: {
+                module: shader, entryPoint: 'vs_main',
+                buffers: [{
+                    arrayStride: 16,   // vec2 pos + vec2 uv
+                    attributes: [
+                        { shaderLocation: 0, offset: 0, format: 'float32x2' },  // pos
+                        { shaderLocation: 1, offset: 8, format: 'float32x2' },  // uv
+                    ],
+                }],
+            },
+            fragment: {
+                module: shader, entryPoint: 'fs_main',
+                targets: [{ format }],
+            },
+            primitive: { topology: 'triangle-list' },
+        });
+
+        // Bind group now carries three resources: uniform buffer, texture, sampler.
+        st.bindGroup = device.createBindGroup({
+            layout: st.pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: st.uniformBuffer } },
+                { binding: 1, resource: st.texture.createView() },
+                { binding: 2, resource: st.sampler },
+            ],
+        });
+
+        st.initialized = true;
+        webgpu_set_color(1, 1, 1, 1);  // default white = show true texture colors
+        resizeCanvas();
+        console.log('WebGPU initialized.');
+        return true;
+    } catch (e) {
+        console.error('WebGPU init error:', e);
+        return false;
+    }
+}
+
+// Render exactly one frame. Called by the C++ main loop (em_tick -> tick ->
+// emscripten_run_script). There is intentionally no requestAnimationFrame loop
+// here, so the C++ side is the single owner of the frame.
+function renderFrame() {
+    const st = window.webgpuState;
+    if (!st.initialized) return;
+
+    const encoder = st.device.createCommandEncoder();
+    const view = st.context.getCurrentTexture().createView();
+    const pass = encoder.beginRenderPass({
+        colorAttachments: [{
+            view, clearValue: { r: 0.1, g: 0.2, b: 0.5, a: 1.0 },
+            loadOp: 'clear', storeOp: 'store',
+        }],
+    });
+    pass.setPipeline(st.pipeline);
+    pass.setBindGroup(0, st.bindGroup);
+    pass.setVertexBuffer(0, st.vertexBuffer);
+    pass.draw(6, 1, 0, 0);   // 6 vertices = two triangles = one quad
+    pass.end();
+    st.queue.submit([encoder.finish()]);
+}
+
+window.webgpu_render = renderFrame;
+window.webgpu_init = initWebGPU;
+
+// Kick off device init as soon as the page is ready. The C++ loop will call
+// webgpu_render() every tick; it no-ops until init completes.
+window.addEventListener('DOMContentLoaded', () => { initWebGPU(); });
+    </script>
+
+    {{{ SCRIPT }}}
+</body>
+</html>

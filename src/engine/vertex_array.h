@@ -90,10 +90,14 @@ public:
     //   vao.setVertexAttribute(0, 2, GL_FLOAT, 0);        // Position
     //   vao.setVertexAttribute(1, 4, GL_UNSIGNED_BYTE, 8); // Color
     //
+    // strideBytes: bytes between consecutive vertices. 0 = tightly packed
+    // (single attribute). For interleaved data (e.g. position + uv) pass the
+    // full vertex size, e.g. 4 * sizeof(float) for vec2 pos + vec2 uv.
     void setVertexAttribute(GLuint attribIndex,
                             GLint componentCount,
                             GLenum type,
-                            GLuint offsetBytes);
+                            GLuint offsetBytes,
+                            GLsizei strideBytes = 0);
 
     // Get the native GL handle
     GLuint getHandle() const { return handle_; }

@@ -29,22 +29,32 @@ $env:EMSDK = "C:\Users\MatheusMartins\AppData\Local\Temp\emsdk"
 $env:PATH = "$env:EMSDK;$env:EMSDK\upstream\emscripten;$env:EMSDK\node\22.16.0_64bit\bin;$env:PATH"
 ```
 
-#### 2. **Clean Previous Build**
-```bash
-rm -r build-wasm-unified -Force
-```
-
-#### 3. **Configure & Build**
+#### 2. **Build WebGL Version (G2)**
 ```bash
 cd e:\repositories\game-guild\mobagen
-emcmake cmake -B build-wasm-unified -DCMAKE_BUILD_TYPE=Release
-cmake --build build-wasm-unified
+rm -r build/wasm-webgl -Force
+emcmake cmake -B build/wasm-webgl -DCMAKE_BUILD_TYPE=Release
+cmake --build build/wasm-webgl
 ```
 
-#### 4. **Run Server**
+#### 3. **Build WebGPU Version (G3)**
 ```bash
-cd build-wasm-unified\bin
+cd e:\repositories\game-guild\mobagen
+rm -r build/wasm-webgpu -Force
+emcmake cmake -B build/wasm-webgpu -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build/wasm-webgpu
+```
+
+#### 4. **Run Server (WebGL)**
+```bash
+cd build/wasm-webgl/bin
 python -m http.server 8083
+```
+
+Or WebGPU on port 8084:
+```bash
+cd build/wasm-webgpu/bin
+python -m http.server 8084
 ```
 
 #### 5. **Open Browser**

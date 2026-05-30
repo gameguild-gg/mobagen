@@ -40,24 +40,42 @@ emcmake cmake --version
 
 ## Build Targets
 
-### Unified Build: WASM + Both WebGL & WebGPU (Runtime Switchable)
+### Build Organization
 
-Starting with Week 5, the project uses a **unified WASM binary** containing both rendering paths (G2 WebGL and G3 WebGPU). You can switch between them at runtime without rebuilding.
+Builds are now organized in `build/` with clear subdirectories:
+- **`build/native/bin`** — Native build (Windows/Linux desktop app)
+- **`build/wasm-webgl/bin`** — WASM WebGL build (G2: Immediate-mode, ES3.0)
+- **`build/wasm-webgpu/bin`** — WASM WebGPU build (G3: Deferred-mode, modern)
 
-**Build:**
+### Option 1: Unified Build (Both G2+G3, Runtime Switchable)
+
+For easy A/B comparison, build both renderers in one binary:
+
+**Build WebGL (G2):**
 ```bash
 cd e:/repositories/game-guild/mobagen
-emcmake cmake -B build-wasm-unified -DCMAKE_BUILD_TYPE=Release
-cmake --build build-wasm-unified
+rm -r build/wasm-webgl -Force
+emcmake cmake -B build/wasm-webgl -DCMAKE_BUILD_TYPE=Release
+cmake --build build/wasm-webgl
 ```
 
-**Output:** `build-wasm-unified/bin/dicom_renderer.html` (single binary, ~500KB WASM + 400KB JS)
+**Build WebGPU (G3):**
+```bash
+cd e:/repositories/game-guild/mobagen
+rm -r build/wasm-webgpu -Force
+emcmake cmake -B build/wasm-webgpu -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build/wasm-webgpu
+```
 
-**Why Unified?**
-- **Runtime Switching**: Press `1` or `2` (or use buttons) to switch between WebGL and WebGPU without page reload
-- **Easier Comparison**: See both renderers' visual output and performance side-by-side
-- **Single Deployment**: One HTML file serves both code paths
-- **Educational Value**: Direct A/B testing of immediate vs. deferred rendering
+**Output:** 
+- `build/wasm-webgl/bin/dicom_renderer.html` (~500KB WASM + 400KB JS)
+- `build/wasm-webgpu/bin/dicom_renderer.html` (~500KB WASM + 400KB JS)
+
+**Why Separate Builds?**
+- **Clear Isolation**: G2 and G3 code paths don't interfere
+- **Easier Debugging**: Single renderer per build
+- **Performance Comparison**: Test each separately
+- **Educational**: See pure WebGL vs. pure WebGPU implementation
 
 ### Legacy: Separate Builds (G2 and G3 individually)
 

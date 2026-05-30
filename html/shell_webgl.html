@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>DICOM Renderer — WebGL2 (G2)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background:#111; height:100vh; font-family:monospace; overflow:hidden; }
+        #container { position:relative; width:100%; height:100%; }
+        canvas { display:block; width:100%; height:100%; background:#1a2a4a; }
+        .panel {
+            position:absolute; background:rgba(0,0,0,0.95);
+            border:2px solid #0f0; border-radius:5px; padding:12px; z-index:100; color:#0f0;
+        }
+        #controls { top:10px; left:10px; max-width:200px; }
+        #stats    { top:10px; right:10px; text-align:right; font-size:12px; }
+        h3 { font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+        button {
+            display:block; width:100%; padding:7px; margin:4px 0; background:#1a1a1a; color:#888;
+            border:1px solid #444; border-radius:3px; cursor:pointer; font-family:monospace;
+            font-size:11px; font-weight:bold; transition:all .15s;
+        }
+        button:hover { transform:scale(1.02); }
+        button.active { background:#0a3a0a; color:#0f0; border-color:#0f0; }
+        #stat-fps { font-weight:bold; font-size:13px; }
+        .hint { font-size:10px; color:#888; margin-top:8px; line-height:1.5; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+
+        <div id="controls" class="panel">
+            <h3>WebGL2 · G2</h3>
+            <h3 style="margin-top:4px;">Colors</h3>
+            <button id="color-1" class="active" onclick="setColor(1)">1: Teal</button>
+            <button id="color-2" onclick="setColor(2)">2: Red</button>
+            <button id="color-3" onclick="setColor(3)">3: Green</button>
+            <button id="color-4" onclick="setColor(4)">4: Yellow</button>
+            <div class="hint">
+                Hold mouse + drag: rotate<br>
+                Wheel: zoom<br>
+                C: ORBIT / WASD<br>
+                WASD + Space: move (WASD)
+            </div>
+        </div>
+
+        <div id="stats" class="panel">
+            <div id="stat-renderer">WebGL2 (G2)</div>
+            <div id="stat-fps">FPS: 60</div>
+            <div id="stat-frametime" style="font-size:10px; color:#888;">Frame: 16.7ms</div>
+        </div>
+    </div>
+
+    <script>
+        var Module = { canvas: document.getElementById('canvas') };
+
+        // ---- Performance stats ------------------------------------------------
+        let frameCount = 0, lastTime = performance.now(), lastFpsTime = lastTime;
+        function statsLoop() {
+            const now = performance.now();
+            const frameTime = now - lastTime;
+            lastTime = now; frameCount++;
+            if (now - lastFpsTime >= 500) {
+                const fps = Math.round(frameCount / (now - lastFpsTime) * 1000);
+                frameCount = 0; lastFpsTime = now;
+                const c = fps >= 55 ? '#0f0' : fps >= 30 ? '#ff0' : '#f00';
+                const el = document.getElementById('stat-fps');
+                el.textContent = `FPS: ${fps}`; el.style.color = c;
+                document.getElementById('stat-frametime').textContent =
+                    `Frame: ${frameTime.toFixed(1)}ms`;
+            }
+            requestAnimationFrame(statsLoop);
+        }
+        statsLoop();
+
+        // ---- Canvas resize ----------------------------------------------------
+        const canvas = document.getElementById('canvas');
+        const container = document.getElementById('container');
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            if (typeof Module._on_canvas_resize === 'function') {
+                Module._on_canvas_resize(canvas.width, canvas.height);
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+        resizeCanvas();
+
+        // ---- Color variants (calls into C++) ----------------------------------
+        function setColor(num) {
+            if (typeof Module._set_shader_variant === 'function') {
+                Module._set_shader_variant(num);
+                for (let i = 1; i <= 4; i++) {
+                    document.getElementById(`color-${i}`).classList.toggle('active', i === num);
+                }
+            }
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key >= '1' && e.key <= '4') setColor(parseInt(e.key));
+        });
+    </script>
+
+    {{{ SCRIPT }}}
+</body>
+</html>

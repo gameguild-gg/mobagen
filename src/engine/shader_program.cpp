@@ -96,6 +96,13 @@ GLint ShaderProgram::getUniformLocation(const std::string& name) const {
     return glGetUniformLocation(handle_, name.c_str());
 }
 
+void ShaderProgram::setUniform(const std::string& name, int value) const {
+    GLint loc = getUniformLocation(name);
+    if (loc != -1) {
+        glUniform1i(loc, value);
+    }
+}
+
 void ShaderProgram::setUniform(const std::string& name, float value) const {
     GLint loc = getUniformLocation(name);
     if (loc != -1) {

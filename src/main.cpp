@@ -9,150 +9,161 @@
 #include <SDL2/SDL.h>
 #include <cstdio>
 #include <cstring>
+#include <cstdint>
 #include <string>
-#include <cmath>
+#include <memory>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "engine/camera.h"
 
 // ============================================================================
-// RUNTIME RENDERER SELECTION (Educational)
+// SINGLE-RENDERER BUILD MODEL
 // ============================================================================
 //
-// LEARNING: This demonstrates how to abstract different rendering backends
-// and switch between them at runtime.
+// LEARNING: A browser <canvas> can hold exactly ONE context for its lifetime.
+// Once getContext('webgl2') is called, getContext('webgpu') returns null (and
+// vice versa). So a runtime "switch renderer on the same canvas" is impossible.
 //
-// Architecture:
-// - RendererType enum: Select between WebGL (G2) and WebGPU (G3)
-// - Separate app instances: Each renderer has its own state
-// - Runtime switcher: JavaScript calls set_renderer() to switch
-// - Unified tick: Calls the appropriate renderer each frame
-
-enum class RendererType {
-    RENDERER_WEBGL = 0,
-    RENDERER_WEBGPU = 1
-};
-
-enum class ShaderVariant {
-    VARIANT_TEAL = 1,    // (0.0, 1.0, 0.5, 1.0)
-    VARIANT_RED = 2,     // (1.0, 0.0, 0.0, 1.0)
-    VARIANT_GREEN = 3,   // (0.0, 1.0, 0.0, 1.0)
-    VARIANT_YELLOW = 4   // (1.0, 1.0, 0.0, 1.0)
-};
-
-static RendererType g_active_renderer = RendererType::RENDERER_WEBGL;
-static ShaderVariant g_active_shader = ShaderVariant::VARIANT_TEAL;
-static bool g_renderer_switching = false;
-static bool g_shader_recompile = false;
+// Instead, each renderer is its own BUILD, selected at compile time:
+//   - USE_WEBGPU OFF (default) -> WebGL2 build  (the learning rung)
+//   - USE_WEBGPU ON            -> WebGPU build  (the destination: compute shaders)
+//
+// Both builds share the same camera + input code below. The renderer-specific
+// code is guarded by #ifdef USE_WEBGPU.
+//
+// CMake produces them in separate output dirs:
+//   build/wasm-webgl/bin/dicom_renderer.html
+//   build/wasm-webgpu/bin/dicom_renderer.html
+// ============================================================================
 
 // ============================================================================
-// CAMERA & INPUT
+// CAMERA & INPUT (shared by both renderer builds)
 // ============================================================================
 static engine::Camera g_camera(engine::CameraMode::ORBIT);
-static int g_mouse_last_x = 0;
-static int g_mouse_last_y = 0;
-static bool g_mouse_captured = false;
-static float g_frame_time = 0.016f;  // ~60 FPS
 
-// Forward declarations
-class AppWebGL;
-class AppWebGPU;
-static AppWebGL* g_app_webgl = nullptr;
-static AppWebGPU* g_app_webgpu = nullptr;
-static bool g_webgl_initialized = false;
-static bool g_webgpu_initialized = false;
+// Mouse-look is GATED: the camera only rotates while a mouse button is held.
+// This lets the user move the cursor to click UI without spinning the camera.
+static bool g_mouse_look_active = false;
 
+// Real frame delta time, measured from SDL's high-resolution counter.
+static float measure_delta_seconds() {
+    static uint64_t last = SDL_GetPerformanceCounter();
+    const uint64_t now = SDL_GetPerformanceCounter();
+    const double freq = static_cast<double>(SDL_GetPerformanceFrequency());
+    float dt = static_cast<float>(static_cast<double>(now - last) / freq);
+    last = now;
+    // Clamp to avoid huge jumps after a stall / tab switch.
+    if (dt > 0.1f) dt = 0.1f;
+    return dt;
+}
+
+// Poll SDL events: quit, keyboard, mouse. Updates the shared camera.
+// Works identically in native and Emscripten (SDL2 abstracts the event source).
+static void process_input(bool& running) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_QUIT:
+                running = false;
+                break;
+
+            case SDL_KEYDOWN:
+                g_camera.on_key_pressed(event.key.keysym.sym);
+                // 'C' toggles between ORBIT (DICOM viewing) and WASD (engine fly).
+                if (event.key.keysym.sym == SDLK_c) {
+                    engine::CameraMode next =
+                        (g_camera.get_mode() == engine::CameraMode::ORBIT)
+                            ? engine::CameraMode::WASD
+                            : engine::CameraMode::ORBIT;
+                    g_camera.set_mode(next);
+                    printf("Camera mode: %s\n",
+                           next == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
+                }
+                break;
+
+            case SDL_KEYUP:
+                g_camera.on_key_released(event.key.keysym.sym);
+                break;
+
+            case SDL_MOUSEBUTTONDOWN:
+                g_mouse_look_active = true;
+                break;
+
+            case SDL_MOUSEBUTTONUP:
+                g_mouse_look_active = false;
+                break;
+
+            case SDL_MOUSEMOTION:
+                if (g_mouse_look_active) {
+                    g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                }
+                break;
+
+            case SDL_MOUSEWHEEL:
+                g_camera.on_mouse_wheel(event.wheel.y);
+                break;
+        }
+    }
+}
+
+#ifdef USE_WEBGPU
 // ============================================================================
-// EXPORTED FUNCTIONS FOR JAVASCRIPT
+// G3: WebGPU BUILD (deferred-mode, the destination)
 // ============================================================================
+//
+// The WebGPU device, pipeline and draw are implemented in JavaScript
+// (html/shell_webgpu.html), because WebGPU is a JS-first API and Emscripten's
+// C bindings are still in flux. This C++ side owns the main loop and input;
+// it asks JS to render one frame per tick via window.webgpu_render().
+//
+// Camera->WGSL wiring is intentionally NOT done yet: the current WGSL just
+// draws a static triangle. The matrix plumbing arrives when we move to
+// fullscreen-quad ray marching (see docs/LEARNING.md, Tier 2).
 
-// Helper: Get shader color based on variant
-struct Color {
-    float r, g, b, a;
+struct AppWebGPU {
+    SDL_Window* window = nullptr;
+    bool running = true;
+
+    bool init() {
+        printf("WebGPU (G3) build — device/pipeline initialized in JavaScript.\n");
+        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+            fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+            return false;
+        }
+        // No SDL_WINDOW_OPENGL: the canvas context is owned by WebGPU (JS side).
+        // The SDL window exists so SDL can route keyboard/mouse events for input.
+        window = SDL_CreateWindow("DICOM Renderer (WebGPU)",
+                                  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                  800, 600, SDL_WINDOW_SHOWN);
+        if (!window) {
+            fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+            SDL_Quit();
+            return false;
+        }
+        return true;
+    }
+
+    void tick() {
+        process_input(running);
+        g_camera.update(measure_delta_seconds());
+
+        // Single owner of the frame: ask JS to record + submit one frame.
+        // (shell_webgpu.html does NOT run its own requestAnimationFrame loop.)
+#ifdef __EMSCRIPTEN__
+        emscripten_run_script("if (window.webgpu_render) window.webgpu_render();");
+#endif
+    }
+
+    void cleanup() {
+        if (window) SDL_DestroyWindow(window);
+        SDL_Quit();
+    }
 };
 
-static Color get_shader_color(ShaderVariant variant) {
-    switch (variant) {
-        case ShaderVariant::VARIANT_TEAL:   return {0.0f, 1.0f, 0.5f, 1.0f};
-        case ShaderVariant::VARIANT_RED:    return {1.0f, 0.0f, 0.0f, 1.0f};
-        case ShaderVariant::VARIANT_GREEN:  return {0.0f, 1.0f, 0.0f, 1.0f};
-        case ShaderVariant::VARIANT_YELLOW: return {1.0f, 1.0f, 0.0f, 1.0f};
-        default: return {0.0f, 1.0f, 0.5f, 1.0f};
-    }
-}
-
-static const char* get_shader_name(ShaderVariant variant) {
-    switch (variant) {
-        case ShaderVariant::VARIANT_TEAL:   return "Teal";
-        case ShaderVariant::VARIANT_RED:    return "Red";
-        case ShaderVariant::VARIANT_GREEN:  return "Green";
-        case ShaderVariant::VARIANT_YELLOW: return "Yellow";
-        default: return "Unknown";
-    }
-}
-
-#ifdef __EMSCRIPTEN__
-extern "C" {
-    EMSCRIPTEN_KEEPALIVE
-    void set_renderer(const char* renderer_name) {
-        printf("Switching renderer to: %s\n", renderer_name);
-        if (strcmp(renderer_name, "webgl") == 0) {
-            g_active_renderer = RendererType::RENDERER_WEBGL;
-            g_renderer_switching = true;
-        } else if (strcmp(renderer_name, "webgpu") == 0) {
-            g_active_renderer = RendererType::RENDERER_WEBGPU;
-            g_renderer_switching = true;
-        }
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    const char* get_renderer() {
-        return (g_active_renderer == RendererType::RENDERER_WEBGL) ? "webgl" : "webgpu";
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    const char* get_available_renderers() {
-        return "webgl,webgpu";
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    void set_shader_variant(int variant_num) {
-        if (variant_num >= 1 && variant_num <= 4) {
-            g_active_shader = static_cast<ShaderVariant>(variant_num);
-            g_shader_recompile = true;
-            Color c = get_shader_color(g_active_shader);
-            printf("Switching shader to: %s (RGB: %.1f, %.1f, %.1f)\n",
-                   get_shader_name(g_active_shader), c.r, c.g, c.b);
-        }
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    int get_shader_variant() {
-        return static_cast<int>(g_active_shader);
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    const char* get_available_shaders() {
-        return "1:Teal,2:Red,3:Green,4:Yellow";
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    void on_canvas_resize(int width, int height) {
-        printf("Canvas resized to: %dx%d\n", width, height);
-        // Update viewport for active renderer
-        if (g_active_renderer == RendererType::RENDERER_WEBGL && g_app_webgl) {
-            glViewport(0, 0, width, height);
-        }
-        // Update camera aspect ratio
-        g_camera.set_viewport(width, height);
-        // WebGPU handles resize via context.configure() in JavaScript
-    }
-}
-#endif
-
+#else
 // ============================================================================
-// G2: OpenGL Path (Immediate-mode rendering)
+// G2: WebGL2 / OpenGL BUILD (immediate-mode, the learning rung)
 // ============================================================================
 
 #ifdef __EMSCRIPTEN__
@@ -166,11 +177,49 @@ static constexpr const char* VERT_GLSL = "#version 330 core\n";
 static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 #endif
 
-#include <cstdint>
-#include <memory>
+#include <vector>
 #include "engine/shader_program.h"
 #include "engine/vertex_buffer.h"
 #include "engine/vertex_array.h"
+#include "engine/renderer.h"
+#include "engine/texture.h"
+
+// --- Tint (driven by the 1-4 buttons) ----------------------------------------
+// Multiplied with the sampled texture in the fragment shader. Default white =
+// show the texture's true colors; the buttons tint it. This teaches combining a
+// sampler with a uniform (vs WebGPU, which feeds color via a uniform buffer).
+static glm::vec4 g_tint(1.0f, 1.0f, 1.0f, 1.0f);
+
+static glm::vec4 variant_color(int n) {
+    switch (n) {
+        case 1: return {0.0f, 1.0f, 0.5f, 1.0f};  // teal
+        case 2: return {1.0f, 0.0f, 0.0f, 1.0f};  // red
+        case 3: return {0.0f, 1.0f, 0.0f, 1.0f};  // green
+        case 4: return {1.0f, 1.0f, 0.0f, 1.0f};  // yellow
+        default: return {1.0f, 1.0f, 1.0f, 1.0f}; // white (no tint)
+    }
+}
+
+// A checkerboard modulated by a UV gradient, so both tiling AND orientation are
+// visible. Same "fill data on the CPU, upload to a texture, sample on the GPU"
+// pattern we reuse for the synthetic 3D volume in Tier 2.
+static std::vector<unsigned char> make_checker_texture(int size) {
+    std::vector<unsigned char> px(static_cast<size_t>(size) * size * 4);
+    const int cell = size / 8;
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            const bool dark = ((x / cell) + (y / cell)) % 2 == 0;
+            const float u = static_cast<float>(x) / (size - 1);
+            const float v = static_cast<float>(y) / (size - 1);
+            unsigned char* p = &px[(static_cast<size_t>(y) * size + x) * 4];
+            p[0] = dark ? 40 : 230;                          // R: checker
+            p[1] = static_cast<unsigned char>(v * 255.0f);   // G: vertical gradient
+            p[2] = static_cast<unsigned char>(u * 255.0f);   // B: horizontal gradient
+            p[3] = 255;
+        }
+    }
+    return px;
+}
 
 struct AppWebGL {
     SDL_Window* window = nullptr;
@@ -178,6 +227,8 @@ struct AppWebGL {
     std::unique_ptr<engine::VertexArray> vao;
     std::unique_ptr<engine::VertexBuffer> vbo;
     std::unique_ptr<engine::ShaderProgram> shader;
+    std::unique_ptr<engine::Texture2D> texture;
+    engine::Renderer renderer;
     bool running = true;
 
     bool init();
@@ -190,66 +241,85 @@ private:
 };
 
 bool AppWebGL::compileShaders() {
-    Color c = get_shader_color(g_active_shader);
-
     std::string vertSrc = std::string(VERT_GLSL) + R"(
 uniform mat4 view_projection;
 layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUv;
+
+out vec2 vUv;
 
 void main() {
-    // Use camera matrices for 3D positioning
-    // For now, project 2D as 3D: (x, y, 0, 1)
+    vUv = aUv;                                       // pass UV to fragment stage
     gl_Position = view_projection * vec4(aPos, 0.0, 1.0);
 }
 )";
 
-    // Fragment shader with dynamic color
-    char fragColorStr[128];
-    snprintf(fragColorStr, sizeof(fragColorStr),
-             "out vec4 fragColor;\n\nvoid main() {\n    fragColor = vec4(%.1f, %.1f, %.1f, %.1f);\n}\n",
-             c.r, c.g, c.b, c.a);
+    std::string fragSrc = std::string(FRAG_GLSL) + R"(
+in vec2 vUv;
+out vec4 fragColor;
 
-    std::string fragSrc = std::string(FRAG_GLSL) + fragColorStr;
+uniform sampler2D uTex;
+uniform vec4 uTint;
+
+void main() {
+    // The heart of Tier 1.2: read data from a texture at coordinate vUv.
+    // In Tier 2 this becomes a 3D texture sampled at points along a ray.
+    fragColor = texture(uTex, vUv) * uTint;
+}
+)";
 
     std::string errmsg;
-    shader = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
-
-    if (!shader->isValid()) {
-        fprintf(stderr, "Shader compilation failed: %s\n", errmsg.c_str());
-        shader.reset();
+    auto next = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
+    if (!next->isValid()) {
+        fprintf(stderr, "Shader compile failed: %s\n", errmsg.c_str());
         return false;
     }
-
+    shader = std::move(next);
+    renderer.setShaderProgram(shader.get());
     return true;
 }
 
 bool AppWebGL::setupGeometry() {
-    // G2 geometry: Triangle (3 vertices)
-    // Positioned in normalized device coordinates (-1 to 1)
-    float vertices[] = {
-        0.0f,  0.5f,    // Top
-        -0.5f, -0.5f,   // Bottom-left
-        0.5f, -0.5f     // Bottom-right
+    // A quad as two triangles. Each vertex is (x, y, u, v) interleaved.
+    const float verts[] = {
+        // pos            uv
+        -0.5f,  0.5f,    0.0f, 0.0f,   // top-left
+        -0.5f, -0.5f,    0.0f, 1.0f,   // bottom-left
+         0.5f, -0.5f,    1.0f, 1.0f,   // bottom-right
+
+        -0.5f,  0.5f,    0.0f, 0.0f,   // top-left
+         0.5f, -0.5f,    1.0f, 1.0f,   // bottom-right
+         0.5f,  0.5f,    1.0f, 0.0f,   // top-right
     };
 
-    vbo = std::make_unique<engine::VertexBuffer>(vertices, sizeof(vertices));
+    vbo = std::make_unique<engine::VertexBuffer>(verts, sizeof(verts));
     if (!vbo || vbo->getHandle() == 0) {
         fprintf(stderr, "Failed to create vertex buffer\n");
         return false;
     }
-
     vao = std::make_unique<engine::VertexArray>();
     if (!vao || vao->getHandle() == 0) {
         fprintf(stderr, "Failed to create vertex array\n");
         return false;
     }
 
+    const GLsizei stride = 4 * sizeof(float);
     vao->bind();
     vbo->bind();
-    vao->setVertexAttribute(0, 2, GL_FLOAT, 0);
+    vao->setVertexAttribute(0, 2, GL_FLOAT, 0, stride);                  // position
+    vao->setVertexAttribute(1, 2, GL_FLOAT, 2 * sizeof(float), stride);  // uv
     engine::VertexArray::unbind();
     engine::VertexBuffer::unbind();
 
+    // Procedural texture — no asset or PNG decoder needed. Swappable for a real
+    // PNG via stb_image later (see docs/LEARNING.md, Tier 1.2).
+    const int texSize = 256;
+    std::vector<unsigned char> pixels = make_checker_texture(texSize);
+    texture = std::make_unique<engine::Texture2D>(texSize, texSize, pixels.data());
+    if (!texture || texture->getHandle() == 0) {
+        fprintf(stderr, "Failed to create texture\n");
+        return false;
+    }
     return true;
 }
 
@@ -268,18 +338,12 @@ bool AppWebGL::init() {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 #endif
-
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-    window = SDL_CreateWindow(
-        "DICOM Renderer (OpenGL)",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        800, 600,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN
-    );
-
+    window = SDL_CreateWindow("DICOM Renderer (WebGL2)",
+                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                              800, 600, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     if (!window) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -293,7 +357,6 @@ bool AppWebGL::init() {
         SDL_Quit();
         return false;
     }
-
     SDL_GL_SetSwapInterval(1);
 
 #ifndef __EMSCRIPTEN__
@@ -308,93 +371,37 @@ bool AppWebGL::init() {
     }
 #endif
 
-    if (!compileShaders()) {
-        SDL_GL_DeleteContext(context);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+    if (!compileShaders() || !setupGeometry()) {
+        cleanup();
         return false;
     }
 
-    if (!setupGeometry()) {
-        shader.reset();
-        vao.reset();
-        vbo.reset();
-        SDL_GL_DeleteContext(context);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return false;
-    }
-
-    printf("WebGL (G2) initialized successfully\n");
+    renderer.setClearColor(0.1f, 0.2f, 0.5f, 1.0f);
+    printf("WebGL2 (G2) initialized.\n");
     return true;
 }
 
 void AppWebGL::tick() {
-    // Recompile shader if variant changed
-    if (g_shader_recompile) {
-        g_shader_recompile = false;
-        compileShaders();
-    }
+    process_input(running);
+    g_camera.update(measure_delta_seconds());
 
-    // ========================================================================
-    // INPUT HANDLING: Keyboard, Mouse, Events
-    // ========================================================================
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        switch (event.type) {
-            case SDL_QUIT:
-                running = false;
-                break;
+    renderer.clear();
 
-            case SDL_KEYDOWN:
-                g_camera.on_key_pressed(event.key.keysym.sym);
-                // Toggle camera mode on 'C' key
-                if (event.key.keysym.sym == SDLK_c) {
-                    engine::CameraMode new_mode =
-                        (g_camera.get_mode() == engine::CameraMode::ORBIT)
-                            ? engine::CameraMode::WASD
-                            : engine::CameraMode::ORBIT;
-                    g_camera.set_mode(new_mode);
-                    const char* mode_name = (new_mode == engine::CameraMode::ORBIT) ? "ORBIT" : "WASD";
-                    printf("Switched camera mode to: %s\n", mode_name);
-                }
-                break;
-
-            case SDL_KEYUP:
-                g_camera.on_key_released(event.key.keysym.sym);
-                break;
-
-            case SDL_MOUSEMOTION:
-                // Orbit/WASD camera with middle mouse button or always active
-                g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
-                break;
-
-            case SDL_MOUSEWHEEL:
-                g_camera.on_mouse_wheel(event.wheel.y);
-                break;
-        }
-    }
-
-    // Update camera for WASD movement
-    g_camera.update(g_frame_time);
-
-    // ========================================================================
-    // RENDERING
-    // ========================================================================
-    glClearColor(0.1f, 0.2f, 0.5f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
+    // The Renderer binds the shader + VAO and issues the draw. We set the
+    // per-frame uniforms on the active program first, and bind the texture to
+    // unit 0 (which the sampler uniform uTex reads from).
     if (shader) {
         shader->use();
-
-        // Pass camera matrices to shader
         shader->setUniform("view_projection", g_camera.get_view_projection());
+        shader->setUniform("uTint", g_tint);
+        shader->setUniform("uTex", 0);
     }
-
+    if (texture) {
+        texture->bind(0);
+    }
     if (vao) {
-        vao->bind();
+        renderer.draw(*vao, 6);  // 6 vertices = two triangles = one quad
     }
-    glDrawArrays(GL_TRIANGLES, 0, 3);
 
     SDL_GL_SwapWindow(window);
 }
@@ -403,146 +410,36 @@ void AppWebGL::cleanup() {
     shader.reset();
     vao.reset();
     vbo.reset();
-
-    if (context) {
-        SDL_GL_DeleteContext(context);
-    }
-    if (window) {
-        SDL_DestroyWindow(window);
-    }
+    if (context) SDL_GL_DeleteContext(context);
+    if (window)  SDL_DestroyWindow(window);
     SDL_Quit();
 }
 
-// ============================================================================
-// G3: WebGPU Path (Deferred rendering)
-// ============================================================================
-//
-// LEARNING: WebGPU rendering is implemented in JavaScript (in html/shell.html)
-// This AppWebGPU class just manages the SDL window and calls window.webgpu_render()
-// each frame. The actual geometry (quad) and shader pipeline are defined in JS.
-//
-// Visual difference from G2: WebGPU renders a QUAD instead of a triangle.
-// This makes renderer switching visually obvious during learning.
-
-struct AppWebGPU {
-    SDL_Window* window = nullptr;
-    bool running = true;
-
-    bool init();
-    void tick();
-    void cleanup();
-};
-
-bool AppWebGPU::init() {
-    printf("WebGPU (G3) initialization via JavaScript...\n");
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-        return false;
-    }
-
-    window = SDL_CreateWindow(
-        "DICOM Renderer (WebGPU)",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        800, 600,
-        SDL_WINDOW_SHOWN
-    );
-
-    if (!window) {
-        fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
-        SDL_Quit();
-        return false;
-    }
-
-    return true;
-}
-
-void AppWebGPU::tick() {
-    // ========================================================================
-    // INPUT HANDLING: Same as WebGL (shared camera system)
-    // ========================================================================
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        switch (event.type) {
-            case SDL_QUIT:
-                running = false;
-                break;
-
-            case SDL_KEYDOWN:
-                g_camera.on_key_pressed(event.key.keysym.sym);
-                if (event.key.keysym.sym == SDLK_c) {
-                    engine::CameraMode new_mode =
-                        (g_camera.get_mode() == engine::CameraMode::ORBIT)
-                            ? engine::CameraMode::WASD
-                            : engine::CameraMode::ORBIT;
-                    g_camera.set_mode(new_mode);
-                    const char* mode_name = (new_mode == engine::CameraMode::ORBIT) ? "ORBIT" : "WASD";
-                    printf("Switched camera mode to: %s\n", mode_name);
-                }
-                break;
-
-            case SDL_KEYUP:
-                g_camera.on_key_released(event.key.keysym.sym);
-                break;
-
-            case SDL_MOUSEMOTION:
-                g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
-                break;
-
-            case SDL_MOUSEWHEEL:
-                g_camera.on_mouse_wheel(event.wheel.y);
-                break;
-        }
-    }
-
-    // Update camera for WASD movement
-    g_camera.update(g_frame_time);
-
-    // ========================================================================
-    // RENDERING: WebGPU (JavaScript bridge)
-    // ========================================================================
-    emscripten_run_script("if(window.webgpu_render) window.webgpu_render();");
-}
-
-void AppWebGPU::cleanup() {
-    printf("WebGPU cleanup\n");
-    if (window) {
-        SDL_DestroyWindow(window);
-    }
-    SDL_Quit();
-}
+#endif  // USE_WEBGPU
 
 // ============================================================================
-// UNIFIED TICK FUNCTION
+// EXPORTED C FUNCTIONS FOR JAVASCRIPT (Emscripten)
 // ============================================================================
-
 #ifdef __EMSCRIPTEN__
-void em_unified_tick() {
-    // Handle renderer switching
-    if (g_renderer_switching) {
-        g_renderer_switching = false;
-        printf("Renderer switch requested\n");
+extern "C" {
+    // Called by the shell when the canvas is resized.
+    EMSCRIPTEN_KEEPALIVE
+    void on_canvas_resize(int width, int height) {
+        g_camera.set_viewport(width, height);
+#ifndef USE_WEBGPU
+        glViewport(0, 0, width, height);
+#endif
+        // WebGPU build reconfigures its context in JS.
     }
 
-    // Tick the active renderer
-    if (g_active_renderer == RendererType::RENDERER_WEBGL) {
-        if (g_app_webgl && g_app_webgl->running) {
-            g_app_webgl->tick();
-        }
-    } else if (g_active_renderer == RendererType::RENDERER_WEBGPU) {
-        if (g_app_webgpu && g_app_webgpu->running) {
-            g_app_webgpu->tick();
-        }
+#ifndef USE_WEBGPU
+    // Tint control (WebGL build only — WebGPU does color in JS). Sets the vec4
+    // multiplied with the sampled texture; out-of-range resets to white.
+    EMSCRIPTEN_KEEPALIVE
+    void set_shader_variant(int variant_num) {
+        g_tint = variant_color(variant_num);
     }
-
-    // Check if either renderer is still running
-    bool any_running = false;
-    if (g_app_webgl) any_running |= g_app_webgl->running;
-    if (g_app_webgpu) any_running |= g_app_webgpu->running;
-
-    if (!any_running) {
-        emscripten_cancel_main_loop();
-    }
+#endif
 }
 #endif
 
@@ -550,61 +447,52 @@ void em_unified_tick() {
 // MAIN
 // ============================================================================
 
-int main() {
-    printf("====================================\n");
-    printf("DICOM Renderer - Runtime Renderer Selection\n");
-    printf("====================================\n");
+static const char* renderer_name() {
+#ifdef USE_WEBGPU
+    return "WebGPU (G3)";
+#else
+    return "WebGL2 (G2)";
+#endif
+}
+
+#ifdef USE_WEBGPU
+using App = AppWebGPU;
+#else
+using App = AppWebGL;
+#endif
+
+static App* g_app = nullptr;
 
 #ifdef __EMSCRIPTEN__
-    // Initialize both renderers
-    printf("\nInitializing renderers...\n");
-
-    g_app_webgl = new AppWebGL();
-    if (!g_app_webgl->init()) {
-        fprintf(stderr, "Failed to initialize WebGL\n");
-        delete g_app_webgl;
-        g_app_webgl = nullptr;
+static void em_tick() {
+    if (g_app && g_app->running) {
+        g_app->tick();
     } else {
-        g_webgl_initialized = true;
+        emscripten_cancel_main_loop();
     }
+}
+#endif
 
-    g_app_webgpu = new AppWebGPU();
-    if (!g_app_webgpu->init()) {
-        fprintf(stderr, "Failed to initialize WebGPU\n");
-        delete g_app_webgpu;
-        g_app_webgpu = nullptr;
-    } else {
-        g_webgpu_initialized = true;
-    }
+int main() {
+    printf("====================================\n");
+    printf("DICOM Renderer — %s build\n", renderer_name());
+    printf("====================================\n");
 
-    if (!g_webgl_initialized && !g_webgpu_initialized) {
-        fprintf(stderr, "Failed to initialize any renderer\n");
-        return 1;
-    }
+    static App app;
+    g_app = &app;
 
-    printf("✓ Available renderers: ");
-    if (g_webgl_initialized) printf("WebGL ");
-    if (g_webgpu_initialized) printf("WebGPU ");
-    printf("\n");
-
-    printf("✓ Active renderer: %s\n", get_renderer());
-    printf("\nStarting render loop...\n");
-    printf("Use set_renderer('webgl') or set_renderer('webgpu') to switch\n\n");
-
-    emscripten_set_main_loop(em_unified_tick, 0, 1);
-#else
-    // Native build: Use WebGL only
-    AppWebGL app;
     if (!app.init()) {
-        fprintf(stderr, "Failed to initialize\n");
+        fprintf(stderr, "Failed to initialize %s\n", renderer_name());
         return 1;
     }
 
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop(em_tick, 0, 1);
+#else
     while (app.running) {
         app.tick();
     }
     app.cleanup();
 #endif
-
     return 0;
 }

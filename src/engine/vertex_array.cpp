@@ -26,7 +26,8 @@ void VertexArray::unbind() {
 void VertexArray::setVertexAttribute(GLuint attribIndex,
                                       GLint componentCount,
                                       GLenum type,
-                                      GLuint offsetBytes) {
+                                      GLuint offsetBytes,
+                                      GLsizei strideBytes) {
     if (handle_ == 0) {
         return;  // VAO not valid
     }
@@ -40,14 +41,14 @@ void VertexArray::setVertexAttribute(GLuint attribIndex,
     // - size: Components per vertex (2 for vec2, 3 for vec3)
     // - type: Data type (GL_FLOAT, GL_INT, etc)
     // - normalized: GL_FALSE = don't normalize (raw values)
-    // - stride: Bytes between consecutive vertex attributes (0 = tightly packed)
+    // - stride: Bytes between consecutive vertices (0 = tightly packed)
     // - pointer: Byte offset within the buffer (cast as void* for GPU address)
     glVertexAttribPointer(
         attribIndex,
         componentCount,
         type,
         GL_FALSE,
-        0,  // Stride: 0 means tightly packed (each vertex is just this attribute)
+        strideBytes,
         reinterpret_cast<const void*>(static_cast<intptr_t>(offsetBytes))
     );
 }

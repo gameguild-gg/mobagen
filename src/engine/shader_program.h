@@ -60,6 +60,10 @@ public:
     // Equivalent to glUseProgram(handle_)
     void use() const;
 
+    // Set a uniform int value. Also used to bind a sampler to a texture unit:
+    // Example: shader.setUniform("uTex", 0)  // sampler reads texture unit 0
+    void setUniform(const std::string& name, int value) const;
+
     // Set a uniform float value in the shader
     // Example: shader.setUniform("brightness", 1.5f)
     void setUniform(const std::string& name, float value) const;
