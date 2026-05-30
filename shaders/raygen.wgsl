@@ -3,6 +3,8 @@
 // frame) and writes the ray DIRECTION as RGB. WGSL counterpart of raygen.frag.
 struct Camera { invViewProj : mat4x4f };
 @group(0) @binding(0) var<uniform> cam : Camera;
+@group(0) @binding(1) var volume : texture_3d<f32>;
+@group(0) @binding(2) var volSamp : sampler;
 
 struct VsOut {
   @builtin(position) pos : vec4f,
@@ -17,18 +19,21 @@ fn vs_main(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
   return out;
 }
 
-// Signed distance to a sphere at the origin: >0 outside, 0 on surface, <0 inside.
-fn sdfSphere(p : vec3f) -> f32 {
-  return length(p) - 0.7;
-}
-
-// Surface normal = gradient of the SDF, via central differences (6 samples).
-fn calcNormal(p : vec3f) -> vec3f {
-  let e = 0.001;
-  return normalize(vec3f(
-    sdfSphere(p + vec3f(e, 0.0, 0.0)) - sdfSphere(p - vec3f(e, 0.0, 0.0)),
-    sdfSphere(p + vec3f(0.0, e, 0.0)) - sdfSphere(p - vec3f(0.0, e, 0.0)),
-    sdfSphere(p + vec3f(0.0, 0.0, e)) - sdfSphere(p - vec3f(0.0, 0.0, e))));
+// Ray vs axis-aligned box [-1,1]^3 (slab method).
+struct BoxHit { ok : bool, t0 : f32, t1 : f32 };
+fn intersectBox(ro : vec3f, rd : vec3f) -> BoxHit {
+  let invD = 1.0 / rd;
+  let ta = (vec3f(-1.0) - ro) * invD;
+  let tb = (vec3f( 1.0) - ro) * invD;
+  let tmin = min(ta, tb);
+  let tmax = max(ta, tb);
+  let t0 = max(max(tmin.x, tmin.y), tmin.z);
+  let t1 = min(min(tmax.x, tmax.y), tmax.z);
+  var h : BoxHit;
+  h.ok = t1 >= max(t0, 0.0);
+  h.t0 = t0;
+  h.t1 = t1;
+  return h;
 }
 
 @fragment
@@ -42,24 +47,30 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
   let farP = farH.xyz / farH.w;
   let rd = normalize(farP - ro);            // ray direction
 
-  // Sphere tracing: step by the SDF until we hit the surface or leave the scene.
-  var t = 0.0;
-  var hit = false;
-  for (var i = 0; i < 96; i = i + 1) {
-    let p = ro + rd * t;
-    let d = sdfSphere(p);
-    if (d < 0.001) { hit = true; break; }
-    t = t + d;
-    if (t > 20.0) { break; }
+  var col = vec3f(0.04, 0.05, 0.08);        // background
+
+  let hit = intersectBox(ro, rd);
+  if (hit.ok) {
+    let t0 = max(hit.t0, 0.0);
+    let steps = 128;
+    let dt = (hit.t1 - t0) / f32(steps);
+
+    var acc = vec4f(0.0);                    // accumulated colour + opacity
+    var t = t0;
+    for (var i = 0; i < steps; i = i + 1) {
+      let p  = ro + rd * t;
+      let tc = p * 0.5 + 0.5;                // [-1,1] -> [0,1] texcoords
+      let density = textureSampleLevel(volume, volSamp, tc, 0.0).r;
+
+      let a = density * 0.15;                // per-step opacity
+      let c = vec3f(density);
+      acc = vec4f(acc.rgb + (1.0 - acc.a) * a * c,
+                  acc.a   + (1.0 - acc.a) * a);
+      if (acc.a > 0.99) { break; }           // early ray termination
+      t = t + dt;
+    }
+    col = mix(col, acc.rgb, acc.a);          // composite over background
   }
 
-  var col = vec3f(0.04, 0.05, 0.08);        // background
-  if (hit) {
-    let p = ro + rd * t;
-    let n = calcNormal(p);
-    let lightDir = normalize(vec3f(0.6, 0.8, 0.5));
-    let diff = max(dot(n, lightDir), 0.0);
-    col = vec3f(0.2, 0.5, 1.0) * (0.15 + 0.85 * diff);   // ambient + diffuse
-  }
   return vec4f(col, 1.0);
 }

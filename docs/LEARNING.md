@@ -38,11 +38,12 @@ You are currently finishing **Tier 1**.
 5. **March an implicit sphere (SDF).** `length(p) - r`; sphere-trace the ray,
    gradient-normal + diffuse shading on hit. ✅ *(both renderers — a lit sphere
    you can orbit. Identical loop to volume rendering, math instead of a texture.)*
-6. **◀ NEXT — 3D texture, synthetic volume.** Generate a 64³ sphere/noise, upload
-   as `TEXTURE_3D`, replace the SDF with a texture sample. **Now you are volume rendering.**
-7. **Transfer function + compositing.** A 1D LUT mapping intensity → RGBA, with
-   front-to-back alpha compositing. Change the LUT, watch "tissue" appear.
-   *This is the core of a clinical viewer.*
+6. **3D texture, synthetic volume.** A 64³ soft ball in a `TEXTURE_3D`; the ray
+   marches the unit cube and accumulates density front-to-back (DVR). ✅ *(both
+   renderers — a semi-transparent glowing ball. You are now volume rendering.)*
+7. **◀ NEXT — Transfer function + compositing.** A 1D LUT mapping intensity → RGBA
+   (the grayscale transfer is hardcoded for now). Change the LUT, watch "tissue"
+   appear. *This is the core of a clinical viewer.*
 
 ## Tier 3 — Real DICOM
 

@@ -165,8 +165,8 @@ Goal: Transition from geometry rendering to volume data rendering.
 |------|------|--------|-------|
 | 3.1 | Fullscreen quad + ray generation | ✅ | both renderers; ray dir as RGB |
 | 3.2 | Ray march implicit sphere (SDF) | ✅ | both renderers; lit, orbitable |
-| 3.3 | 3D texture with synthetic volume | ❌ | Requires GLES3/WebGL2 |
-| 3.4 | Transfer function (1D LUT) | ❌ | Maps intensity → RGBA |
+| 3.3 | 3D texture with synthetic volume | ✅ | both renderers; DVR front-to-back |
+| 3.4 | Transfer function (1D LUT) | ◀ NEXT | Maps intensity → RGBA |
 
 **Code structure for 3.1:**
 ```glsl
