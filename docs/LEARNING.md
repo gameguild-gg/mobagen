@@ -35,10 +35,11 @@ You are currently finishing **Tier 1**.
 4. **Fullscreen quad + ray generation.** One ray per pixel from the inverse
    view-projection; ray direction shown as RGB. ✅ *(both renderers. This is where
    the camera reaches the shader — in WebGPU via a C++→JS matrix bridge (EM_ASM).)*
-5. **◀ NEXT — March an implicit sphere (SDF).** `length(p) - r`. Step along the
-   ray, shade on hit. *Identical loop to volume rendering — math instead of a texture.*
-6. **3D texture, synthetic volume.** Generate a 64³ sphere/noise, upload as
-   `TEXTURE_3D`, replace the SDF with a texture sample. **Now you are volume rendering.**
+5. **March an implicit sphere (SDF).** `length(p) - r`; sphere-trace the ray,
+   gradient-normal + diffuse shading on hit. ✅ *(both renderers — a lit sphere
+   you can orbit. Identical loop to volume rendering, math instead of a texture.)*
+6. **◀ NEXT — 3D texture, synthetic volume.** Generate a 64³ sphere/noise, upload
+   as `TEXTURE_3D`, replace the SDF with a texture sample. **Now you are volume rendering.**
 7. **Transfer function + compositing.** A 1D LUT mapping intensity → RGBA, with
    front-to-back alpha compositing. Change the LUT, watch "tissue" appear.
    *This is the core of a clinical viewer.*
