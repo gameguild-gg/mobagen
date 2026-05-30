@@ -102,9 +102,12 @@
 
     <!-- ===================== WebGPU (G3) implementation ===================== -->
     <script>
-// WGSL shader sources are loaded at runtime from shaders/*.wgsl (CMake copies
-// them beside this page). Editing a .wgsl + refreshing the browser is enough —
-// no recompile. They are fetched in initWebGPU().
+// WGSL shader sources are embedded at build time: CMake substitutes the
+// contents of shaders/raygen.wgsl and shaders/blit.wgsl into the @...@ markers
+// below (configure_file @ONLY). This file is a template (shell_webgpu.html.in);
+// the generated shell lives in build/generated/.
+const WGSL_RAYGEN = `@RAYGEN_WGSL@`;
+const WGSL_POST   = `@BLIT_WGSL@`;
 
 window.webgpuState = {
     device: null, queue: null, context: null, format: null, initialized: false,
@@ -202,14 +205,8 @@ async function initWebGPU() {
         st.context = context;
         st.format = format;
 
-        // Load WGSL shader sources from files served beside this page.
-        const [raygenCode, postCode] = await Promise.all([
-            fetch('raygen.wgsl').then(r => r.text()),
-            fetch('blit.wgsl').then(r => r.text()),
-        ]);
-
         // ---- Pass 1: ray generation ----
-        const raygenModule = device.createShaderModule({ code: raygenCode });
+        const raygenModule = device.createShaderModule({ code: WGSL_RAYGEN });
         st.sceneQuad = makeQuad(device, false);             // uv = (pos+1)/2
         st.cameraBuffer = device.createBuffer({             // mat4x4f = 64 bytes
             size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -226,7 +223,7 @@ async function initWebGPU() {
         });
 
         // ---- Pass 2: blit + tint ----
-        const postModule = device.createShaderModule({ code: postCode });
+        const postModule = device.createShaderModule({ code: WGSL_POST });
         st.fullscreenBuffer = makeQuad(device, true);       // v-down for sampling
         st.tintBuffer = device.createBuffer({
             size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,

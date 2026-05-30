@@ -60,16 +60,20 @@ src/
 html/
 ├── shell_webgl.html         Emscripten shell for the WebGL2 build (canvas, FPS,
 │                            color buttons that call into C++).
-├── shell_webgpu.html        Emscripten shell for the WebGPU build (canvas, FPS,
-│                            fetches the .wgsl shaders, camera bridge).
+├── shell_webgpu.html.in     WebGPU shell TEMPLATE (canvas, FPS, camera bridge).
+│                            CMake substitutes the .wgsl sources into it.
 └── camera-test.html         Standalone JS camera demo (no build needed).
 
 shaders/                     Shader source of truth (one file per program).
 ├── raygen.glsl / blit.glsl  GLSL: BOTH stages in one file, gated by
-│                            VERTEX_SHADER / FRAGMENT_SHADER. EMBEDDED into a
-│                            generated header at build time (no runtime FS).
-└── raygen.wgsl / blit.wgsl  WGSL: one module each. COPIED beside the WebGPU
-                             output and fetch()-ed at runtime by the shell.
+│                            VERTEX_SHADER / FRAGMENT_SHADER. Embedded at build
+│                            time into a generated header (compiled twice).
+└── raygen.wgsl / blit.wgsl  WGSL: one module each. Embedded at build time too —
+                             substituted into the WebGPU shell template
+                             (shell_webgpu.html.in) by CMake configure_file.
+
+Both shader languages are embedded at build time: no runtime fetch, no runtime
+filesystem. Edit a shader and re-run CMake (auto-triggered by CMAKE_CONFIGURE_DEPENDS).
 ```
 
 ### One class = one GPU object

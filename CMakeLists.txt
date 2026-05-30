@@ -29,7 +29,8 @@ option(USE_WEBGPU "Build the WebGPU (G3) renderer instead of WebGL2 (G2)" OFF)
 if(EMSCRIPTEN)
     if(USE_WEBGPU)
         set(BUILD_TYPE_DIR "wasm-webgpu")
-        set(SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgpu.html")
+        # Generated below: the WGSL sources are substituted into the shell.
+        set(SHELL_FILE "${CMAKE_BINARY_DIR}/generated/shell_webgpu.html")
     else()
         set(BUILD_TYPE_DIR "wasm-webgl")
         set(SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgl.html")
@@ -65,24 +66,21 @@ set(ENGINE_SOURCES
 )
 
 # ----------------------------------------------------------------------------
-# Shaders.
+# Shaders — both GLSL and WGSL are EMBEDDED at build time (no runtime fetch).
+# shaders/ is the source of truth; one file per program holds both stages.
+# Editing any shader re-runs CMake via CMAKE_CONFIGURE_DEPENDS.
 #
-# GLSL (C++ side): embedded at build time into a generated header, so there is
-#   no runtime filesystem dependency (works identically native and in WASM).
-#   Edit shaders/*.vert|frag — NOT the generated header. Editing a shader
-#   re-runs CMake via CMAKE_CONFIGURE_DEPENDS.
-# WGSL (JS side): copied next to the output and fetch()-ed at runtime by the
-#   WebGPU shell (see below, in the EMSCRIPTEN block).
+# GLSL (C++ side): baked into a generated header (build/generated/embedded_shaders.h),
+#   compiled twice with VERTEX_SHADER / FRAGMENT_SHADER.
+# WGSL (JS side): substituted into the WebGPU shell at configure time
+#   (build/generated/shell_webgpu.html), so the shell carries the WGSL inline.
 # ----------------------------------------------------------------------------
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
-# Each .glsl holds BOTH stages, gated by VERTEX_SHADER / FRAGMENT_SHADER (the
-# C++ loader compiles it twice) — mirroring how a .wgsl module holds both
-# entry points.
 set(GLSL_SHADERS raygen.glsl blit.glsl)
 set(GEN_DIR ${CMAKE_BINARY_DIR}/generated)
 set(GEN_HEADER ${GEN_DIR}/embedded_shaders.h)
 
-set(_gen "#pragma once\n// AUTO-GENERATED from shaders/. Edit the .vert/.frag files, not this.\nnamespace shaders {\n\n")
+set(_gen "#pragma once\n// AUTO-GENERATED from shaders/*.glsl. Edit those, not this.\nnamespace shaders {\n\n")
 foreach(_f ${GLSL_SHADERS})
     file(READ ${SHADER_DIR}/${_f} _content)
     string(MAKE_C_IDENTIFIER ${_f} _id)
@@ -92,6 +90,19 @@ foreach(_f ${GLSL_SHADERS})
 endforeach()
 string(APPEND _gen "}  // namespace shaders\n")
 file(WRITE ${GEN_HEADER} "${_gen}")
+
+# WGSL: substitute the .wgsl sources into the WebGPU shell template (@ONLY so the
+# JS template-literal ${...} and the WGSL @attributes are left untouched).
+if(EMSCRIPTEN AND USE_WEBGPU)
+    file(READ ${SHADER_DIR}/raygen.wgsl RAYGEN_WGSL)
+    file(READ ${SHADER_DIR}/blit.wgsl   BLIT_WGSL)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgpu.html.in
+                   ${GEN_DIR}/shell_webgpu.html @ONLY)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        ${SHADER_DIR}/raygen.wgsl
+        ${SHADER_DIR}/blit.wgsl
+        ${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgpu.html.in)
+endif()
 
 add_executable(dicom_renderer ${ENGINE_SOURCES})
 target_include_directories(dicom_renderer PRIVATE
@@ -108,13 +119,6 @@ if(USE_WEBGPU)
     message(STATUS "Renderer: WebGPU (G3) — deferred-mode, compute-capable")
 else()
     message(STATUS "Renderer: WebGL2 (G2) — immediate-mode")
-endif()
-
-if(EMSCRIPTEN AND USE_WEBGPU)
-    # The WebGPU shell fetch()-es these at runtime; place them beside the output.
-    foreach(_w raygen.wgsl blit.wgsl)
-        configure_file(${SHADER_DIR}/${_w} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${_w} COPYONLY)
-    endforeach()
 endif()
 
 if(EMSCRIPTEN)
