@@ -8,6 +8,7 @@ struct Camera { invViewProj : mat4x4f };
 @group(0) @binding(3) var transferTex : texture_2d<f32>;  // 1D LUT: density -> RGBA
 @group(0) @binding(4) var<uniform> uMode : vec4<u32>;     // .x: 0=DVR 1=MIP 2=Iso
 @group(0) @binding(5) var<uniform> uWindow : vec4f;       // .x center, .y width
+@group(0) @binding(6) var<uniform> uBoxHalf : vec4f;      // .xyz box half-extents
 
 // Window/level: remap [center-width/2, center+width/2] to [0,1], clip outside.
 fn applyWindow(v : f32) -> f32 {
@@ -42,8 +43,8 @@ fn volumeGradient(tc : vec3f) -> vec3f {
 struct BoxHit { ok : bool, t0 : f32, t1 : f32 };
 fn intersectBox(ro : vec3f, rd : vec3f) -> BoxHit {
   let invD = 1.0 / rd;
-  let ta = (vec3f(-1.0) - ro) * invD;
-  let tb = (vec3f( 1.0) - ro) * invD;
+  let ta = (-uBoxHalf.xyz - ro) * invD;
+  let tb = ( uBoxHalf.xyz - ro) * invD;
   let tmin = min(ta, tb);
   let tmax = max(ta, tb);
   let t0 = max(max(tmin.x, tmin.y), tmin.z);
@@ -91,7 +92,7 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       var maxD = 0.0;
       var t = t0;
       for (var i = 0; i < steps; i = i + 1) {
-        let tc = (ro + rd * t) * 0.5 + 0.5;
+        let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
         maxD = max(maxD, applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r));
         t = t + dt;
       }
@@ -101,7 +102,7 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       let ISO = 0.40;
       var t = t0;
       for (var i = 0; i < steps; i = i + 1) {
-        let tc = (ro + rd * t) * 0.5 + 0.5;
+        let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
         let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
         if (density > ISO) {
           let base = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0).rgb;
@@ -115,7 +116,7 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       var acc = vec4f(0.0);
       var t = t0;
       for (var i = 0; i < steps; i = i + 1) {
-        let tc = (ro + rd * t) * 0.5 + 0.5;
+        let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
         let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
         let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
         let a = tf.a * 0.2;

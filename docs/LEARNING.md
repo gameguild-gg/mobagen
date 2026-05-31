@@ -62,9 +62,9 @@ the loader gets proven on a stand-in phantom first.
   96³ "head" phantom (`tools/gen_phantom.py`) stands in for a real scan.
 9. **B2 ✅** **Window/level** in the shader (center+width sliders) — remap a band
    of density to [0,1], clipping outside. The "bone window / brain window" knob.
-10. **B3 ◀ NEXT** **Voxel spacing** — real slices aren't cubes; scale the volume
-    box by per-axis spacing so anatomy isn't squished.
-11. **A** **Real DICOM parser** (GDCM/DCMTK → WASM): parse a CT series from
+10. **B3 ✅** **Voxel spacing** — the volume box scales per-axis by voxel spacing
+    (uBoxHalf), so non-cubic scans aren't squished. (Phantom uses z=1.5 to show it.)
+11. **A ◀ NEXT** **Real DICOM parser** (GDCM/DCMTK → WASM): parse a CT series from
     The Cancer Imaging Archive, apply the Hounsfield rescale, stack slices into
     the 3D texture. The heavy lift — and B has de-risked everything after it.
 

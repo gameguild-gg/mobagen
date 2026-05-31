@@ -122,7 +122,7 @@ window.webgpuState = {
     device: null, queue: null, context: null, format: null, initialized: false,
     // Pass 1 (volume ray cast -> offscreen)
     raygenPipeline: null, sceneQuad: null, cameraBuffer: null, raygenBindGroup: null,
-    volumeTexture: null, volumeSampler: null, transferTexture: null, modeBuffer: null, windowBuffer: null,
+    volumeTexture: null, volumeSampler: null, transferTexture: null, modeBuffer: null, windowBuffer: null, boxHalfBuffer: null,
     // Pass 2 (offscreen -> canvas)
     postPipeline: null, fullscreenBuffer: null, sceneSampler: null, tintBuffer: null,
     postBindGroup: null, sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0,
@@ -337,6 +337,19 @@ async function initWebGPU() {
             size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
+        // Box half-extents (vec4f .xyz) from voxel spacing. z=1.5 simulates thick
+        // CT slices (same as the C++ build); (1,1,1) would be a cubic box.
+        st.boxHalfBuffer = device.createBuffer({
+            size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        {
+            const spacing = [1.0, 1.0, 1.5];
+            const phys = spacing.map(s => s * N);
+            const m = Math.max(phys[0], phys[1], phys[2]);
+            device.queue.writeBuffer(st.boxHalfBuffer, 0,
+                new Float32Array([phys[0] / m, phys[1] / m, phys[2] / m, 0]));
+        }
+
         st.raygenPipeline = device.createRenderPipeline({
             layout: 'auto',
             vertex: { module: raygenModule, entryPoint: 'vs_main', buffers: [QUAD_LAYOUT] },
@@ -352,6 +365,7 @@ async function initWebGPU() {
                 { binding: 3, resource: st.transferTexture.createView() },
                 { binding: 4, resource: { buffer: st.modeBuffer } },
                 { binding: 5, resource: { buffer: st.windowBuffer } },
+                { binding: 6, resource: { buffer: st.boxHalfBuffer } },
             ],
         });
 
