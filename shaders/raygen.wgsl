@@ -5,6 +5,7 @@ struct Camera { invViewProj : mat4x4f };
 @group(0) @binding(0) var<uniform> cam : Camera;
 @group(0) @binding(1) var volume : texture_3d<f32>;
 @group(0) @binding(2) var volSamp : sampler;
+@group(0) @binding(3) var transferTex : texture_2d<f32>;  // 1D LUT: density -> RGBA
 
 struct VsOut {
   @builtin(position) pos : vec4f,
@@ -62,8 +63,10 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       let tc = p * 0.5 + 0.5;                // [-1,1] -> [0,1] texcoords
       let density = textureSampleLevel(volume, volSamp, tc, 0.0).r;
 
-      let a = density * 0.15;                // per-step opacity
-      let c = vec3f(density);
+      // Transfer function: density -> colour + opacity via the 1D LUT.
+      let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
+      let a = tf.a * 0.2;                     // per-step opacity
+      let c = tf.rgb;
       acc = vec4f(acc.rgb + (1.0 - acc.a) * a * c,
                   acc.a   + (1.0 - acc.a) * a);
       if (acc.a > 0.99) { break; }           // early ray termination

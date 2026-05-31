@@ -33,17 +33,15 @@
 
         <div id="controls" class="panel">
             <h3>WebGPU · G3</h3>
-            <h3 style="margin-top:4px;">Ray directions</h3>
-            <div class="hint" style="margin-top:0;">
-                Each pixel shows its camera ray<br>
-                direction as RGB. Drag to orbit —<br>
-                the gradient swings with the camera.
+            <h3 style="margin-top:4px;">Transfer function</h3>
+            <button id="color-1" class="active" onclick="setPreset(1)">1: Gray</button>
+            <button id="color-2" onclick="setPreset(2)">2: Tissue</button>
+            <button id="color-3" onclick="setPreset(3)">3: Shell</button>
+            <button id="color-4" onclick="setPreset(4)">4: Cool</button>
+            <div class="hint" style="margin-top:8px;">
+                Maps density → colour + opacity.<br>
+                Drag to orbit, wheel to zoom.
             </div>
-            <h3 style="margin-top:10px;">Tint</h3>
-            <button id="color-1" class="active" onclick="setColor(1)">1: Teal</button>
-            <button id="color-2" onclick="setColor(2)">2: Red</button>
-            <button id="color-3" onclick="setColor(3)">3: Green</button>
-            <button id="color-4" onclick="setColor(4)">4: Yellow</button>
         </div>
 
         <div id="stats" class="panel">
@@ -113,7 +111,7 @@ window.webgpuState = {
     device: null, queue: null, context: null, format: null, initialized: false,
     // Pass 1 (volume ray cast -> offscreen)
     raygenPipeline: null, sceneQuad: null, cameraBuffer: null, raygenBindGroup: null,
-    volumeTexture: null, volumeSampler: null,
+    volumeTexture: null, volumeSampler: null, transferTexture: null,
     // Pass 2 (offscreen -> canvas)
     postPipeline: null, fullscreenBuffer: null, sceneSampler: null, tintBuffer: null,
     postBindGroup: null, sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0,
@@ -138,28 +136,52 @@ function makeVolume(n) {
     return v;
 }
 
-const COLORS = {
-    1: [0.0, 1.0, 0.5, 1.0],  // Teal
-    2: [1.0, 0.0, 0.0, 1.0],  // Red
-    3: [0.0, 1.0, 0.0, 1.0],  // Green
-    4: [1.0, 1.0, 0.0, 1.0],  // Yellow
-};
-
-// Tint -> pass-2 uniform buffer.
-function webgpu_set_color(r, g, b, a) {
-    const st = window.webgpuState;
-    if (!st.tintBuffer) return;
-    st.queue.writeBuffer(st.tintBuffer, 0, new Float32Array([r, g, b, a]));
+// Transfer LUT (256x1 RGBA) — same presets as the C++ make_transfer_lut().
+function makeTransferLUT(preset) {
+    const clamp01 = v => Math.min(Math.max(v, 0), 1);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const smoothstep = (e0, e1, x) => { const u = clamp01((x - e0) / (e1 - e0)); return u * u * (3 - 2 * u); };
+    const lut = new Uint8Array(256 * 4);
+    for (let i = 0; i < 256; i++) {
+        const t = i / 255;
+        let r, g, b, a;
+        if (preset === 2) {            // tissue: transparent low end, warm ramp
+            a = smoothstep(0.15, 0.50, t);
+            r = lerp(0.55, 1.00, t); g = lerp(0.12, 0.92, t); b = lerp(0.05, 0.78, t);
+        } else if (preset === 3) {     // shell: only a narrow band opaque
+            a = (t > 0.30 && t < 0.55) ? 0.9 : 0.0;
+            r = 0.2; g = 0.9; b = 0.6;
+        } else if (preset === 4) {     // cool: blue -> cyan -> white
+            a = t;
+            r = lerp(0.0, 0.7, t); g = lerp(0.1, 0.95, t); b = lerp(0.4, 1.0, t);
+        } else {                       // gray
+            a = t; r = t; g = t; b = t;
+        }
+        lut[i * 4 + 0] = Math.floor(clamp01(r) * 255);
+        lut[i * 4 + 1] = Math.floor(clamp01(g) * 255);
+        lut[i * 4 + 2] = Math.floor(clamp01(b) * 255);
+        lut[i * 4 + 3] = Math.floor(clamp01(a) * 255);
+    }
+    return lut;
 }
-function setColor(num) {
-    const c = COLORS[num];
-    if (c) webgpu_set_color(c[0], c[1], c[2], c[3]);
+
+// Upload a preset's LUT to the transfer texture.
+function setPreset(num) {
+    const st = window.webgpuState;
+    if (st.transferTexture) {
+        st.queue.writeTexture(
+            { texture: st.transferTexture },
+            makeTransferLUT(num),
+            { bytesPerRow: 256 * 4, rowsPerImage: 1 },
+            { width: 256, height: 1, depthOrArrayLayers: 1 }
+        );
+    }
     for (let i = 1; i <= 4; i++) {
         document.getElementById(`color-${i}`).classList.toggle('active', i === num);
     }
 }
 document.addEventListener('keydown', (e) => {
-    if (e.key >= '1' && e.key <= '4') setColor(parseInt(e.key));
+    if (e.key >= '1' && e.key <= '4') setPreset(parseInt(e.key));
 });
 
 // Camera bridge: C++ calls this every frame (via EM_ASM) with the inverse
@@ -251,6 +273,12 @@ async function initWebGPU() {
             addressModeW: 'clamp-to-edge',
         });
 
+        // Transfer LUT (256x1 RGBA). setPreset() (re)writes its contents.
+        st.transferTexture = device.createTexture({
+            size: [256, 1, 1], format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+
         st.raygenPipeline = device.createRenderPipeline({
             layout: 'auto',
             vertex: { module: raygenModule, entryPoint: 'vs_main', buffers: [QUAD_LAYOUT] },
@@ -263,6 +291,7 @@ async function initWebGPU() {
                 { binding: 0, resource: { buffer: st.cameraBuffer } },
                 { binding: 1, resource: st.volumeTexture.createView({ dimension: '3d' }) },
                 { binding: 2, resource: st.volumeSampler },
+                { binding: 3, resource: st.transferTexture.createView() },
             ],
         });
 
@@ -284,9 +313,10 @@ async function initWebGPU() {
         });
 
         st.initialized = true;
-        webgpu_set_color(1, 1, 1, 1);   // default white tint
+        st.queue.writeBuffer(st.tintBuffer, 0, new Float32Array([1, 1, 1, 1]));  // no tint
+        setPreset(1);                   // load the initial transfer LUT
         resizeCanvas();
-        console.log('WebGPU initialized (ray-gen + blit).');
+        console.log('WebGPU initialized (volume ray cast).');
         return true;
     } catch (e) {
         console.error('WebGPU init error:', e);
