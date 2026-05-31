@@ -78,3 +78,5 @@ ehthumbs.db
 Thumbs.db
 
 external/*/
+# Generated DICOM test data (regenerate: python tools/gen_dicom.py)
+assets/dicom/
