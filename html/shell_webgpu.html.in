@@ -121,7 +121,21 @@ window.webgpuState = {
     postBindGroup: null, sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0,
 };
 
-// Synthetic 64^3 volume — same soft ball as the C++ make_volume(), R8 voxels.
+// Load the raw R8 volume served beside this page; fall back to synthetic.
+async function loadVolume(n) {
+    try {
+        const resp = await fetch('volume.raw');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        if (buf.length === n * n * n) return buf;
+        console.warn('volume.raw wrong size', buf.length);
+    } catch (e) {
+        console.warn('volume.raw load failed, using synthetic:', e);
+    }
+    return makeVolume(n);
+}
+
+// Synthetic fallback volume — a soft ball (same as C++ make_volume), R8 voxels.
 function makeVolume(n) {
     const v = new Uint8Array(n * n * n);
     for (let z = 0; z < n; z++) {
@@ -269,9 +283,9 @@ async function initWebGPU() {
             size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        // 3D volume texture (same synthetic ball the C++ build uploads).
-        const N = 64;
-        const vox = makeVolume(N);
+        // 3D volume texture (loaded from volume.raw, like the C++ build).
+        const N = 96;
+        const vox = await loadVolume(N);
         st.volumeTexture = device.createTexture({
             size: [N, N, N], dimension: '3d', format: 'r8unorm',
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,

@@ -122,6 +122,8 @@ else()
     message(STATUS "Renderer: WebGL2 (G2) — immediate-mode")
 endif()
 
+set(VOLUME_RAW ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.raw)
+
 if(EMSCRIPTEN)
     message(STATUS "Shell file: ${SHELL_FILE}")
     target_compile_options(dicom_renderer PRIVATE -O3)
@@ -135,11 +137,21 @@ if(EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH=1
         --shell-file ${SHELL_FILE}
     )
+    if(USE_WEBGPU)
+        # WebGPU reads the volume in JS via fetch — serve it beside the output.
+        configure_file(${VOLUME_RAW} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/volume.raw COPYONLY)
+    else()
+        # WebGL reads it in C++ from the WASM virtual FS — preload it there.
+        target_link_options(dicom_renderer PRIVATE
+            "SHELL:--preload-file ${VOLUME_RAW}@/volume.raw")
+    endif()
     set_target_properties(dicom_renderer PROPERTIES SUFFIX ".html")
 else()
     # Native build is WebGL/OpenGL only (no WebGPU path off the web).
     include(external/external.cmake)
     find_package(OpenGL REQUIRED)
     target_compile_definitions(dicom_renderer PRIVATE GLEW_STATIC)
+    # Native reads the volume from its source path.
+    target_compile_definitions(dicom_renderer PRIVATE VOLUME_PATH="${VOLUME_RAW}")
     target_link_libraries(dicom_renderer PRIVATE SDL2-static OpenGL::GL libglew_static)
 endif()

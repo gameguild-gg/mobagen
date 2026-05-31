@@ -36,3 +36,5 @@
 
 # Other
 #*.exe filter=lfs diff=lfs merge=lfs -text
+# Binary assets
+*.raw binary

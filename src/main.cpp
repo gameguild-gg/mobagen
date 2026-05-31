@@ -245,9 +245,23 @@ static std::vector<unsigned char> make_transfer_lut(int preset) {
     return lut;
 }
 
-// Synthetic volume: a soft ball, density 1 at the centre falling to 0 at the
-// edge. Same "fill on CPU, upload, sample on GPU" pattern as the checker — but
-// now 3D. Stored as R8 voxels (density * 255). Tier 3 replaces this with DICOM.
+// Load a raw R8 volume of n^3 bytes from disk. Returns empty on any failure so
+// the caller can fall back to the synthetic volume. This is the same load path
+// real DICOM data will use (just different bytes) — the point of Tier 3 / path B.
+static std::vector<unsigned char> load_volume_raw(const char* path, int n) {
+    std::vector<unsigned char> data;
+    FILE* f = fopen(path, "rb");
+    if (!f) return data;
+    const size_t expected = static_cast<size_t>(n) * n * n;
+    data.resize(expected);
+    const size_t got = fread(data.data(), 1, expected, f);
+    fclose(f);
+    if (got != expected) data.clear();
+    return data;
+}
+
+// Synthetic fallback volume: a soft ball, density 1 at the centre falling to 0
+// at the edge. Used when the raw file is missing.
 static std::vector<unsigned char> make_volume(int n) {
     std::vector<unsigned char> v(static_cast<size_t>(n) * n * n);
     for (int z = 0; z < n; ++z) {
@@ -350,9 +364,21 @@ bool AppWebGL::setupGeometry() {
     engine::VertexArray::unbind();
     engine::VertexBuffer::unbind();
 
-    // Synthetic 3D volume (64^3) uploaded once; the ray caster samples it.
-    const int N = 64;
-    std::vector<unsigned char> voxels = make_volume(N);
+    // Load the volume from a raw file (preloaded into the WASM FS on the web, or
+    // an absolute path natively). Fall back to the synthetic ball if missing.
+    const int N = 96;
+#ifdef __EMSCRIPTEN__
+    const char* volPath = "/volume.raw";
+#else
+    const char* volPath = VOLUME_PATH;
+#endif
+    std::vector<unsigned char> voxels = load_volume_raw(volPath, N);
+    if (voxels.empty()) {
+        fprintf(stderr, "volume.raw not found/invalid at %s — using synthetic\n", volPath);
+        voxels = make_volume(N);
+    } else {
+        printf("Loaded volume %s (%d^3)\n", volPath, N);
+    }
     volume = std::make_unique<engine::Texture3D>(N, N, N, voxels.data());
     if (!volume || volume->getHandle() == 0) {
         fprintf(stderr, "Failed to create volume texture\n");

@@ -24,7 +24,7 @@ fn vs_main(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
 // Volume "normal" = gradient of the density field (central differences over one
 // voxel), pointing toward increasing density.
 fn volumeGradient(tc : vec3f) -> vec3f {
-  let h = 1.0 / 64.0;
+  let h = 1.0 / f32(textureDimensions(volume).x);   // one voxel step
   return vec3f(
     textureSampleLevel(volume, volSamp, tc + vec3f(h, 0.0, 0.0), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(h, 0.0, 0.0), 0.0).r,
     textureSampleLevel(volume, volSamp, tc + vec3f(0.0, h, 0.0), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(0.0, h, 0.0), 0.0).r,

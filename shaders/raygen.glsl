@@ -36,7 +36,7 @@ const vec3 LIGHT_DIR = vec3(0.6, 0.8, 0.5);
 // Volume "normal" = gradient of the density field (central differences over one
 // voxel). Points toward INCREASING density; we negate it for an outward normal.
 vec3 volumeGradient(vec3 tc) {
-    float h = 1.0 / 64.0;   // one voxel step in texture coords (volume is 64^3)
+    float h = 1.0 / float(textureSize(uVolume, 0).x);   // one voxel step
     return vec3(
         texture(uVolume, tc + vec3(h, 0.0, 0.0)).r - texture(uVolume, tc - vec3(h, 0.0, 0.0)).r,
         texture(uVolume, tc + vec3(0.0, h, 0.0)).r - texture(uVolume, tc - vec3(0.0, h, 0.0)).r,
