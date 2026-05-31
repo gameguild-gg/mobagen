@@ -47,6 +47,7 @@ controls, and the native build are in [docs/LEARNING.md](docs/LEARNING.md).
 
 Three lenses on the project — **now**, **the goal**, and **the path between**:
 
+- **[docs/CONCEPTS.md](docs/CONCEPTS.md)** — **start here if you're new to C++/GPUs/graphics.** Explains every idea from zero (CPU vs GPU, shaders, ray casting, volume rendering, the languages/tools) and ties each to the actual code.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — where the code *is now*: structure and *why* (one-renderer-per-build, the engine wrappers, the C ABI study module, GLSL-vs-WGSL).
 - **[docs/ROADMAP.md](docs/ROADMAP.md)** — the **north star**: target architecture and full todo list for the DICOM volume caster (and the later ray tracer / engine). Where you're going, not where you are.
 - **[docs/LEARNING.md](docs/LEARNING.md)** — the ordered path from *now* to *the goal*, with build/run commands and reference reading.

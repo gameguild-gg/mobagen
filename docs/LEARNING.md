@@ -6,7 +6,8 @@ goal. A rung is done when it renders *and* you can explain why it works.
 
 This is the *path*. The destination — full target architecture and todo — is the
 north star in [ROADMAP.md](ROADMAP.md); the current code is in
-[ARCHITECTURE.md](ARCHITECTURE.md).
+[ARCHITECTURE.md](ARCHITECTURE.md). **New to C++/GPUs/graphics? Read
+[CONCEPTS.md](CONCEPTS.md) first — it explains every idea here from zero.**
 
 You are currently in **Tier 3** (real-DICOM prep, path B — see below).
 
