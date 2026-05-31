@@ -8,7 +8,7 @@ This is the *path*. The destination — full target architecture and todo — is
 north star in [ROADMAP.md](ROADMAP.md); the current code is in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
-You are currently finishing **Tier 1**.
+You are currently in **Tier 3** (real-DICOM prep, path B — see below).
 
 > Scope discipline: build the **volume ray caster first** (your dissertation
 > deliverable). The ray tracer and any job-system / ECS / fiber work come *after*
@@ -49,30 +49,34 @@ You are currently finishing **Tier 1**.
 **Tier 2 complete.** A full synthetic-volume ray caster: rays → 3D texture →
 transfer function → shading → DVR/MIP/Iso, in WebGL2 and WebGPU.
 
-## Tier 3 — Real DICOM  *(in progress, path B: de-risk first)*
-- **B1 ✅** load the volume from a raw file (`volume.raw`), not generated in code —
-  the same load path real data will use (both renderers).
-- **B2 ✅** window/level in-shader (center+width sliders) — isolate density bands.
-- **B3 ◀ next** voxel spacing (non-cubic volume box).
-- **A** real DICOM parser (GDCM/DCMTK → WASM): parse a CT series, Hounsfield
-  rescale, stack into the 3D texture. The heavy lift; B has de-risked everything
-  downstream of it.
+## Tier 3 — Real DICOM  *(in progress; path B = de-risk the data path first)*
 
-## Tier 3 — Real DICOM
+We chose **path B**: prove the load → window → spacing pipeline against a raw
+file *before* taking on the big DICOM-parser dependency. Everything downstream of
+the loader gets proven on a stand-in phantom first.
 
-8. **Proxy-cube entry/exit** for correct camera interaction with the volume box.
-9. **Load a real CT series.** GDCM/DCMTK compiled to WASM; free data from
-   The Cancer Imaging Archive. Stack slices → 3D texture, respect voxel spacing.
-10. **Windowing + Hounsfield in the shader** (your first true "GPU-side
-    processing"), then **gradient shading** (6-tap normal + Phong).
-11. **Rendering modes:** DVR, MIP, isosurface. *Now it's a usable viewer.*
+- **B1 ✅** Load the volume from a **file** (`volume.raw`), not generated in code —
+  the same path real data will use. WebGL reads it from the WASM FS (Emscripten
+  `--preload-file`); WebGPU `fetch()`es it; native reads an absolute path. A
+  96³ "head" phantom (`tools/gen_phantom.py`) stands in for a real scan.
+9. **B2 ✅** **Window/level** in the shader (center+width sliders) — remap a band
+   of density to [0,1], clipping outside. The "bone window / brain window" knob.
+10. **B3 ◀ NEXT** **Voxel spacing** — real slices aren't cubes; scale the volume
+    box by per-axis spacing so anatomy isn't squished.
+11. **A** **Real DICOM parser** (GDCM/DCMTK → WASM): parse a CT series from
+    The Cancer Imaging Archive, apply the Hounsfield rescale, stack slices into
+    the 3D texture. The heavy lift — and B has de-risked everything after it.
+
+> Note: instead of the classic "proxy-cube" two-pass for ray entry/exit, we do an
+> analytic **ray–AABB (slab) intersection** in the fragment shader — simpler and
+> equivalent for an axis-aligned volume box.
 
 ## Tier 4 — WebGPU + compute (the research contribution)
 
 12. Port the ray caster into a **WGSL compute shader** writing a storage texture.
 13. **GPU histogram + auto-windowing** with atomics — *impossible in WebGL2; this
     is the concrete justification for WebGPU.*
-14. Optimizations: early-ray-termination, empty-space skipping, adaptive step.
+14. Optimizations: early-ray-termination (have it), empty-space skipping, adaptive step.
 
 ## Tier 5 — *Only now* the systems material
 
@@ -88,41 +92,47 @@ context now; don't build that layer yet.
 
 ## Build & run
 
-Set the Emscripten environment once per shell:
+### One-time toolchain setup (Windows, learned the hard way)
+- Emscripten env per shell:
+  ```powershell
+  $env:EMSDK = "C:\Users\MatheusMartins\AppData\Local\Temp\emsdk"
+  $env:PATH  = "$env:EMSDK;$env:EMSDK\upstream\emscripten;$env:EMSDK\node\22.16.0_64bit\bin;$env:PATH"
+  ```
+- A **real `ninja.exe`** is required (the npm `ninja` shim does not work). Installed via
+  `python -m pip install ninja --trusted-host pypi.org --trusted-host files.pythonhosted.org`.
+- The emsdk config (`upstream/emscripten/.emscripten`) had `BINARYEN_ROOT` pointing at
+  `upstream/bin`; it must be `upstream` (else `wasm-opt` is looked for at `bin/bin` and `-O3` link fails).
 
+### WebGL2 (G2) — the learning rung
 ```powershell
-$env:EMSDK = "C:\Users\MatheusMartins\AppData\Local\Temp\emsdk"
-$env:PATH  = "$env:EMSDK;$env:EMSDK\upstream\emscripten;$env:EMSDK\node\22.16.0_64bit\bin;$env:PATH"
-```
-
-### WebGL2 (G2) — the rung you're on
-```powershell
-emcmake cmake -B build/wasm-webgl -DCMAKE_BUILD_TYPE=Release
+$ninja = "C:\Users\MatheusMartins\AppData\Local\Programs\Python\Python310\Scripts\ninja.exe"
+emcmake cmake -B build/wasm-webgl -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DCMAKE_BUILD_TYPE=Release
 cmake --build build/wasm-webgl
-cd build/wasm-webgl/bin ; python -m http.server 8083
+cd build/wasm-webgl/wasm-webgl/bin ; python -m http.server 8083
 # open http://localhost:8083/dicom_renderer.html
 ```
 
 ### WebGPU (G3) — the destination
 ```powershell
-emcmake cmake -B build/wasm-webgpu -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
+emcmake cmake -B build/wasm-webgpu -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build/wasm-webgpu
-cd build/wasm-webgpu/bin ; python -m http.server 8084
-# open http://localhost:8084/dicom_renderer.html  (Chrome/Edge 113+)
+cd build/wasm-webgpu/wasm-webgpu/bin ; python -m http.server 8084
+# open http://localhost:8084/dicom_renderer.html  (needs a WebGPU adapter; Chrome/Edge 113+ or recent Firefox)
 ```
 
-### Native (fast desktop iteration, WebGL/OpenGL only)
+### Native (fast desktop iteration, WebGL/OpenGL only — no WebGPU)
 ```powershell
 cmake -B build/native -DCMAKE_BUILD_TYPE=Release
-cmake --build build/native
-./build/native/bin/dicom_renderer
+cmake --build build/native --config Release
+build\native\native\bin\Release\dicom_renderer.exe
 ```
 
-### Standalone camera demo (no build)
-```powershell
-python -m http.server 8085
-# open http://localhost:8085/html/camera-test.html
-```
+> ⚠️ **After every rebuild, hard-refresh the browser** (Ctrl+Shift+R, or DevTools →
+> "Empty Cache and Hard Reload"). A soft refresh serves a stale cached `.wasm`/`.data`
+> against the new files and blanks the canvas — this is *not* a bug, just cache.
+>
+> Note the doubled path (`build/wasm-webgl/wasm-webgl/bin`): the build-type dir is
+> appended under the build dir. Functional; tidy-up pending.
 
 ---
 
@@ -134,7 +144,9 @@ python -m http.server 8085
 | Mouse wheel | Zoom (ORBIT) / speed (WASD) |
 | `C` | Toggle ORBIT ↔ WASD |
 | `WASD` + `Space` | Move (WASD mode) |
-| `1` / `2` / `3` / `4` | Color variant |
+| `1` / `2` / `3` / `4` | Transfer-function preset (Gray / Tissue / Shell / Cool) |
+| Mode buttons | DVR · MIP · Isosurface |
+| Window sliders | Center / Width (window-level) |
 
 ---
 

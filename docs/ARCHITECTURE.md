@@ -14,8 +14,11 @@ A WebAssembly-first renderer whose primary goal is **DICOM volume ray casting**
 **mesh ray tracer** for a personal game engine. Both share the same ray-per-pixel
 foundation; they differ in what happens after the ray is cast.
 
-Today the code is at the **"triangle + camera"** stage — the foundation rung.
-Everything below describes what exists now.
+Today the code is a **working synthetic-volume ray caster** in both WebGL2 and
+WebGPU: per-pixel ray generation, a 3D volume texture (loaded from a raw file),
+front-to-back DVR with a transfer function, gradient shading, and DVR/MIP/
+Isosurface modes + window/level. The data is a 96³ phantom standing in for a real
+DICOM scan (Tier 3-A). Everything below describes what exists now.
 
 ---
 
@@ -139,27 +142,32 @@ once per frame — the C++ loop is the **single owner** of the frame (the shell 
 
 ## GLSL ES 3.0 vs WGSL — why both shaders by hand
 
-The same triangle is described twice: GLSL ES 3.00 (WebGL) and WGSL (WebGPU).
-This is intentional for learning — the two languages express the same ideas
-differently:
+The ray caster is written twice: `shaders/raygen.glsl` (GLSL ES 3.00, WebGL) and
+`shaders/raygen.wgsl` (WGSL, WebGPU). Same algorithm, two languages — intentional
+for learning. How resources reach the shader is the most instructive contrast:
 
 | Concept | GLSL ES 3.00 | WGSL |
 |---------|--------------|------|
 | Vertex input | `layout(location=0) in vec2 aPos;` | `@location(0) position: vec2f` |
 | Entry point | `void main()` | `@vertex fn vs_main(...) -> @builtin(position) vec4f` |
-| Uniform | `uniform vec4 color;` + `glUniform4fv` | `@group(0) @binding(0) var<uniform> u: Uniforms;` + `queue.writeBuffer` |
-| Color out | `out vec4 fragColor;` | `-> @location(0) vec4f` |
+| Scalar/vec uniform | `uniform mat4 m;` + `glUniformMatrix4fv` | `@group(0) @binding(0) var<uniform> ...` + `queue.writeBuffer` |
+| 3D texture sample | `texture(uVolume, p)` | `textureSampleLevel(volume, samp, p, 0.0)` |
+| Sampler | implicit in `sampler3D` | a separate `var ... : sampler` binding |
+| Resource wiring | individual `glUniform*` / texture units | one **bind group** = `{ buffers, textures, samplers }` |
 
-Notice the color path especially: WebGL recompiles the shader with the color
-baked in (a toy), while WebGPU writes the color into a **uniform buffer** —
-the deferred-mode way. That contrast is the point.
+The camera reaches the shader differently too: in C++/WebGL it's a direct
+`glUniformMatrix4fv`; in WebGPU the C++ marshals the matrix across the WASM↔JS
+boundary (`EM_ASM` → `queue.writeBuffer`) — the camera→WGSL bridge.
 
 ---
 
 ## Known limitations (today)
 
-- The WebGPU build draws a **static** triangle: the camera matrix is not yet
-  wired into WGSL. That plumbing arrives with fullscreen-quad ray marching
-  (LEARNING Tier 2), where the camera actually matters.
-- No DICOM, no 3D textures, no ray marching yet — that's the road ahead.
-- Native build is WebGL/OpenGL only; there is no native WebGPU path.
+- **No real DICOM yet** — the volume is a 96³ synthetic phantom loaded from
+  `volume.raw`. The DICOM parser (GDCM/DCMTK → WASM) is Tier 3-A.
+- **8-bit volume + voxel spacing not yet applied** — window/level works but over
+  an 8-bit range; non-cubic voxel spacing (B3) is next, real 16-bit data comes
+  with DICOM.
+- **WebGPU needs a GPU adapter** — `requestAdapter()` returns null where the
+  browser has no usable GPU (hardware accel off / blocklist / some Chrome setups);
+  the page shows a "not available" panel. Native build is WebGL/OpenGL only.
