@@ -203,19 +203,45 @@ static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 #include "engine/framebuffer.h"
 #include "embedded_shaders.h"   // generated from shaders/*.glsl by CMake
 
-// --- Tint (driven by the 1-4 buttons) ----------------------------------------
-// Multiplied with the scene texture in the pass-2 blit. Default white shows the
-// scene as-is; the buttons tint the whole image.
-static glm::vec4 g_tint(1.0f, 1.0f, 1.0f, 1.0f);
+// --- Transfer function (driven by the 1-4 buttons) ---------------------------
+// Selects how density maps to colour + opacity. g_tf_dirty triggers a LUT
+// rebuild in the render loop.
+static int  g_tf_preset = 1;
+static bool g_tf_dirty  = true;
 
-static glm::vec4 variant_color(int n) {
-    switch (n) {
-        case 1: return {0.0f, 1.0f, 0.5f, 1.0f};  // teal
-        case 2: return {1.0f, 0.0f, 0.0f, 1.0f};  // red
-        case 3: return {0.0f, 1.0f, 0.0f, 1.0f};  // green
-        case 4: return {1.0f, 1.0f, 0.0f, 1.0f};  // yellow
-        default: return {1.0f, 1.0f, 1.0f, 1.0f}; // white (no tint)
+// Build a 256-entry RGBA transfer LUT for the given preset.
+static std::vector<unsigned char> make_transfer_lut(int preset) {
+    std::vector<unsigned char> lut(256 * 4);
+    for (int i = 0; i < 256; ++i) {
+        float t = i / 255.0f;
+        glm::vec3 rgb;
+        float a;
+        switch (preset) {
+            case 2:  // "tissue": transparent low end, warm ramp
+                a = glm::smoothstep(0.15f, 0.50f, t);
+                rgb = glm::mix(glm::vec3(0.55f, 0.12f, 0.05f),
+                               glm::vec3(1.00f, 0.92f, 0.78f), t);
+                break;
+            case 3:  // "shell": only a narrow density band is opaque
+                a = (t > 0.30f && t < 0.55f) ? 0.9f : 0.0f;
+                rgb = glm::vec3(0.2f, 0.9f, 0.6f);
+                break;
+            case 4:  // "cool": blue -> cyan -> white
+                a = t;
+                rgb = glm::mix(glm::vec3(0.0f, 0.1f, 0.4f),
+                               glm::vec3(0.7f, 0.95f, 1.0f), t);
+                break;
+            default: // 1 "gray": density as grayscale
+                a = t;
+                rgb = glm::vec3(t);
+                break;
+        }
+        lut[i * 4 + 0] = static_cast<unsigned char>(glm::clamp(rgb.r, 0.0f, 1.0f) * 255.0f);
+        lut[i * 4 + 1] = static_cast<unsigned char>(glm::clamp(rgb.g, 0.0f, 1.0f) * 255.0f);
+        lut[i * 4 + 2] = static_cast<unsigned char>(glm::clamp(rgb.b, 0.0f, 1.0f) * 255.0f);
+        lut[i * 4 + 3] = static_cast<unsigned char>(glm::clamp(a,     0.0f, 1.0f) * 255.0f);
     }
+    return lut;
 }
 
 // Synthetic volume: a soft ball, density 1 at the centre falling to 0 at the
@@ -247,6 +273,7 @@ struct AppWebGL {
     std::unique_ptr<engine::VertexBuffer> vbo;
     std::unique_ptr<engine::ShaderProgram> shader;
     std::unique_ptr<engine::Texture3D> volume;
+    std::unique_ptr<engine::Texture2D> transferLut;   // 256x1 density->RGBA
 
     // Pass 2 (FBO -> screen): fullscreen quad + post shader
     std::unique_ptr<engine::VertexArray> postVao;
@@ -477,6 +504,13 @@ void AppWebGL::tick() {
 
     // ---- PASS 1: generate one ray per pixel INTO the offscreen framebuffer ----
     // The camera reaches the shader as the inverse view-projection matrix.
+    // Rebuild the transfer LUT if the preset changed.
+    if (g_tf_dirty) {
+        g_tf_dirty = false;
+        std::vector<unsigned char> lut = make_transfer_lut(g_tf_preset);
+        transferLut = std::make_unique<engine::Texture2D>(256, 1, lut.data());
+    }
+
     if (fbo) fbo->bind();
     glViewport(0, 0, fbW, fbH);
     renderer.clear();
@@ -484,9 +518,11 @@ void AppWebGL::tick() {
         shader->use();
         glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
         shader->setUniform("inv_view_projection", invVP);
-        shader->setUniform("uVolume", 0);   // sampler reads texture unit 0
+        shader->setUniform("uVolume", 0);     // 3D volume on unit 0
+        shader->setUniform("uTransfer", 1);   // transfer LUT on unit 1
     }
     if (volume) volume->bind(0);
+    if (transferLut) transferLut->bind(1);
     if (vao) renderer.draw(*vao, 6);  // fullscreen quad -> volume ray cast
 
     // ---- PASS 2: blit the ray-gen texture to the screen (tinted) ----
@@ -496,7 +532,7 @@ void AppWebGL::tick() {
     if (postShader && fbo && postVao) {
         postShader->use();
         postShader->setUniform("uScene", 0);
-        postShader->setUniform("uTint", g_tint);
+        postShader->setUniform("uTint", glm::vec4(1.0f));  // no tint; blit as-is
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fbo->getColorTexture());
         postVao->bind();
@@ -512,6 +548,7 @@ void AppWebGL::cleanup() {
     postShader.reset();
     postVao.reset();
     postVbo.reset();
+    transferLut.reset();
     volume.reset();
     shader.reset();
     vao.reset();
@@ -541,11 +578,13 @@ extern "C" {
     }
 
 #ifndef USE_WEBGPU
-    // Tint control (WebGL build only — WebGPU does color in JS). Sets the vec4
-    // multiplied with the sampled texture; out-of-range resets to white.
+    // Transfer-function preset (WebGL build only — WebGPU does it in JS).
     EMSCRIPTEN_KEEPALIVE
     void set_shader_variant(int variant_num) {
-        g_tint = variant_color(variant_num);
+        if (variant_num >= 1 && variant_num <= 4) {
+            g_tf_preset = variant_num;
+            g_tf_dirty = true;
+        }
     }
 #endif
 }

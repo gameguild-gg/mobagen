@@ -28,6 +28,7 @@ out vec4 fragColor;
 
 uniform mat4 inv_view_projection;
 uniform sampler3D uVolume;
+uniform sampler2D uTransfer;   // 1D transfer LUT (256x1): density -> RGBA
 
 // Ray vs axis-aligned box [-1,1]^3 (slab method). Returns entry/exit distances.
 bool intersectBox(vec3 ro, vec3 rd, out float t0, out float t1) {
@@ -65,10 +66,11 @@ void main() {
             vec3 tc = p * 0.5 + 0.5;                  // [-1,1] -> [0,1] texcoords
             float density = texture(uVolume, tc).r;
 
-            // Simple grayscale transfer (real transfer function is Tier 2.4):
-            // brighter where denser, opacity proportional to density.
-            float a = density * 0.15;                 // per-step opacity
-            vec3  c = vec3(density);
+            // Transfer function: map density -> colour + opacity via a 1D LUT.
+            // This is the knob that turns gray fog into selected structure.
+            vec4 tf = texture(uTransfer, vec2(density, 0.5));
+            float a = tf.a * 0.2;                      // per-step opacity
+            vec3  c = tf.rgb;
 
             acc.rgb += (1.0 - acc.a) * a * c;         // front-to-back compositing
             acc.a   += (1.0 - acc.a) * a;
