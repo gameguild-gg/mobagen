@@ -20,6 +20,16 @@ fn vs_main(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
   return out;
 }
 
+// Volume "normal" = gradient of the density field (central differences over one
+// voxel), pointing toward increasing density.
+fn volumeGradient(tc : vec3f) -> vec3f {
+  let h = 1.0 / 64.0;
+  return vec3f(
+    textureSampleLevel(volume, volSamp, tc + vec3f(h, 0.0, 0.0), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(h, 0.0, 0.0), 0.0).r,
+    textureSampleLevel(volume, volSamp, tc + vec3f(0.0, h, 0.0), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(0.0, h, 0.0), 0.0).r,
+    textureSampleLevel(volume, volSamp, tc + vec3f(0.0, 0.0, h), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(0.0, 0.0, h), 0.0).r);
+}
+
 // Ray vs axis-aligned box [-1,1]^3 (slab method).
 struct BoxHit { ok : bool, t0 : f32, t1 : f32 };
 fn intersectBox(ro : vec3f, rd : vec3f) -> BoxHit {
@@ -66,7 +76,17 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       // Transfer function: density -> colour + opacity via the 1D LUT.
       let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
       let a = tf.a * 0.2;                     // per-step opacity
-      let c = tf.rgb;
+      var c = tf.rgb;
+
+      // Gradient shading: light the sample by the density gradient.
+      let grad = volumeGradient(tc);
+      let gmag = length(grad);
+      if (gmag > 0.001) {
+        let n = -grad / gmag;
+        let diff = max(dot(n, normalize(vec3f(0.6, 0.8, 0.5))), 0.0);
+        c = c * (0.3 + 0.7 * diff);           // ambient + diffuse
+      }
+
       acc = vec4f(acc.rgb + (1.0 - acc.a) * a * c,
                   acc.a   + (1.0 - acc.a) * a);
       if (acc.a > 0.99) { break; }           // early ray termination

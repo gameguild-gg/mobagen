@@ -30,6 +30,16 @@ uniform mat4 inv_view_projection;
 uniform sampler3D uVolume;
 uniform sampler2D uTransfer;   // 1D transfer LUT (256x1): density -> RGBA
 
+// Volume "normal" = gradient of the density field (central differences over one
+// voxel). Points toward INCREASING density; we negate it for an outward normal.
+vec3 volumeGradient(vec3 tc) {
+    float h = 1.0 / 64.0;   // one voxel step in texture coords (volume is 64^3)
+    return vec3(
+        texture(uVolume, tc + vec3(h, 0.0, 0.0)).r - texture(uVolume, tc - vec3(h, 0.0, 0.0)).r,
+        texture(uVolume, tc + vec3(0.0, h, 0.0)).r - texture(uVolume, tc - vec3(0.0, h, 0.0)).r,
+        texture(uVolume, tc + vec3(0.0, 0.0, h)).r - texture(uVolume, tc - vec3(0.0, 0.0, h)).r);
+}
+
 // Ray vs axis-aligned box [-1,1]^3 (slab method). Returns entry/exit distances.
 bool intersectBox(vec3 ro, vec3 rd, out float t0, out float t1) {
     vec3 invD = 1.0 / rd;
@@ -71,6 +81,17 @@ void main() {
             vec4 tf = texture(uTransfer, vec2(density, 0.5));
             float a = tf.a * 0.2;                      // per-step opacity
             vec3  c = tf.rgb;
+
+            // Gradient shading: light the sample by the density gradient so the
+            // volume reads as a 3D solid instead of flat fog. Flat regions
+            // (tiny gradient) stay unlit (ambient only).
+            vec3 grad = volumeGradient(tc);
+            float gmag = length(grad);
+            if (gmag > 0.001) {
+                vec3 n = -grad / gmag;
+                float diff = max(dot(n, normalize(vec3(0.6, 0.8, 0.5))), 0.0);
+                c *= (0.3 + 0.7 * diff);              // ambient + diffuse
+            }
 
             acc.rgb += (1.0 - acc.a) * a * c;         // front-to-back compositing
             acc.a   += (1.0 - acc.a) * a;
