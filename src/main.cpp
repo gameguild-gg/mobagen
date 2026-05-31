@@ -209,6 +209,8 @@ static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 static int  g_tf_preset = 1;
 static bool g_tf_dirty  = true;
 static int  g_render_mode = 0;   // 0 = DVR, 1 = MIP, 2 = Isosurface
+static float g_window_center = 0.5f;
+static float g_window_width  = 1.0f;
 
 // Build a 256-entry RGBA transfer LUT for the given preset.
 static std::vector<unsigned char> make_transfer_lut(int preset) {
@@ -548,6 +550,7 @@ void AppWebGL::tick() {
         shader->setUniform("uVolume", 0);     // 3D volume on unit 0
         shader->setUniform("uTransfer", 1);   // transfer LUT on unit 1
         shader->setUniform("uMode", g_render_mode);
+        shader->setUniform("uWindow", glm::vec2(g_window_center, g_window_width));
     }
     if (volume) volume->bind(0);
     if (transferLut) transferLut->bind(1);
@@ -619,6 +622,13 @@ extern "C" {
     EMSCRIPTEN_KEEPALIVE
     void set_render_mode(int mode) {
         if (mode >= 0 && mode <= 2) g_render_mode = mode;
+    }
+
+    // Window/level (center, width) in normalized [0,1] density.
+    EMSCRIPTEN_KEEPALIVE
+    void set_window(float center, float width) {
+        g_window_center = center;
+        g_window_width = (width < 0.01f) ? 0.01f : width;
     }
 #endif
 }

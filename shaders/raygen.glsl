@@ -30,8 +30,17 @@ uniform mat4 inv_view_projection;
 uniform sampler3D uVolume;
 uniform sampler2D uTransfer;   // 1D transfer LUT (256x1): density -> RGBA
 uniform int uMode;             // 0 = DVR, 1 = MIP, 2 = Isosurface
+uniform vec2 uWindow;          // x = window center, y = window width
 
 const vec3 LIGHT_DIR = vec3(0.6, 0.8, 0.5);
+
+// Window/level: remap the band [center - width/2, center + width/2] to [0,1],
+// clipping outside. This is how radiologists isolate tissue ranges (bone window,
+// brain window, ...) from one scan.
+float applyWindow(float v) {
+    float lo = uWindow.x - uWindow.y * 0.5;
+    return clamp((v - lo) / uWindow.y, 0.0, 1.0);
+}
 
 // Volume "normal" = gradient of the density field (central differences over one
 // voxel). Points toward INCREASING density; we negate it for an outward normal.
@@ -90,7 +99,7 @@ void main() {
             float t = t0;
             for (int i = 0; i < STEPS; i++) {
                 vec3 tc = (ro + rd * t) * 0.5 + 0.5;
-                maxD = max(maxD, texture(uVolume, tc).r);
+                maxD = max(maxD, applyWindow(texture(uVolume, tc).r));
                 t += dt;
             }
             col = texture(uTransfer, vec2(maxD, 0.5)).rgb;
@@ -100,7 +109,7 @@ void main() {
             float t = t0;
             for (int i = 0; i < STEPS; i++) {
                 vec3 tc = (ro + rd * t) * 0.5 + 0.5;
-                float density = texture(uVolume, tc).r;
+                float density = applyWindow(texture(uVolume, tc).r);
                 if (density > ISO) {
                     vec3 base = texture(uTransfer, vec2(density, 0.5)).rgb;
                     col = shade(tc, base);
@@ -114,7 +123,7 @@ void main() {
             float t = t0;
             for (int i = 0; i < STEPS; i++) {
                 vec3 tc = (ro + rd * t) * 0.5 + 0.5;
-                float density = texture(uVolume, tc).r;
+                float density = applyWindow(texture(uVolume, tc).r);
                 vec4 tf = texture(uTransfer, vec2(density, 0.5));
                 float a = tf.a * 0.2;                  // per-step opacity
                 vec3  c = shade(tc, tf.rgb);

@@ -41,6 +41,13 @@
             <button id="mode-0" class="active" onclick="setMode(0)">DVR</button>
             <button id="mode-1" onclick="setMode(1)">MIP</button>
             <button id="mode-2" onclick="setMode(2)">Isosurface</button>
+            <h3 style="margin-top:10px;">Window</h3>
+            <div style="font-size:10px;">Center <span id="win-cl">0.50</span></div>
+            <input id="win-c" type="range" min="0" max="1" step="0.01" value="0.5"
+                   style="width:100%;" oninput="updateWindow()">
+            <div style="font-size:10px;">Width <span id="win-wl">1.00</span></div>
+            <input id="win-w" type="range" min="0.02" max="1" step="0.01" value="1"
+                   style="width:100%;" oninput="updateWindow()">
             <div class="hint">
                 Hold mouse + drag: rotate<br>
                 Wheel: zoom<br>
@@ -115,6 +122,13 @@
                     document.getElementById(`mode-${i}`).classList.toggle('active', i === m);
                 }
             }
+        }
+        function updateWindow() {
+            const c = parseFloat(document.getElementById('win-c').value);
+            const w = parseFloat(document.getElementById('win-w').value);
+            document.getElementById('win-cl').textContent = c.toFixed(2);
+            document.getElementById('win-wl').textContent = w.toFixed(2);
+            if (typeof Module._set_window === 'function') Module._set_window(c, w);
         }
         document.addEventListener('keydown', (e) => {
             if (e.key >= '1' && e.key <= '4') setColor(parseInt(e.key));
