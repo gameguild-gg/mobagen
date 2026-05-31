@@ -38,6 +38,10 @@
             <button id="color-2" onclick="setPreset(2)">2: Tissue</button>
             <button id="color-3" onclick="setPreset(3)">3: Shell</button>
             <button id="color-4" onclick="setPreset(4)">4: Cool</button>
+            <h3 style="margin-top:10px;">Mode</h3>
+            <button id="mode-0" class="active" onclick="setMode(0)">DVR</button>
+            <button id="mode-1" onclick="setMode(1)">MIP</button>
+            <button id="mode-2" onclick="setMode(2)">Isosurface</button>
             <div class="hint" style="margin-top:8px;">
                 Maps density → colour + opacity.<br>
                 Drag to orbit, wheel to zoom.
@@ -111,7 +115,7 @@ window.webgpuState = {
     device: null, queue: null, context: null, format: null, initialized: false,
     // Pass 1 (volume ray cast -> offscreen)
     raygenPipeline: null, sceneQuad: null, cameraBuffer: null, raygenBindGroup: null,
-    volumeTexture: null, volumeSampler: null, transferTexture: null,
+    volumeTexture: null, volumeSampler: null, transferTexture: null, modeBuffer: null,
     // Pass 2 (offscreen -> canvas)
     postPipeline: null, fullscreenBuffer: null, sceneSampler: null, tintBuffer: null,
     postBindGroup: null, sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0,
@@ -183,6 +187,17 @@ function setPreset(num) {
 document.addEventListener('keydown', (e) => {
     if (e.key >= '1' && e.key <= '4') setPreset(parseInt(e.key));
 });
+
+// Render mode: 0 = DVR, 1 = MIP, 2 = Isosurface.
+function setMode(m) {
+    const st = window.webgpuState;
+    if (st.modeBuffer) {
+        st.queue.writeBuffer(st.modeBuffer, 0, new Uint32Array([m, 0, 0, 0]));
+    }
+    for (let i = 0; i <= 2; i++) {
+        document.getElementById(`mode-${i}`).classList.toggle('active', i === m);
+    }
+}
 
 // Camera bridge: C++ calls this every frame (via EM_ASM) with the inverse
 // view-projection as 16 column-major floats; upload it to the camera uniform.
@@ -279,6 +294,11 @@ async function initWebGPU() {
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
         });
 
+        // Render-mode uniform (vec4<u32>; .x = 0 DVR / 1 MIP / 2 Iso).
+        st.modeBuffer = device.createBuffer({
+            size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
         st.raygenPipeline = device.createRenderPipeline({
             layout: 'auto',
             vertex: { module: raygenModule, entryPoint: 'vs_main', buffers: [QUAD_LAYOUT] },
@@ -292,6 +312,7 @@ async function initWebGPU() {
                 { binding: 1, resource: st.volumeTexture.createView({ dimension: '3d' }) },
                 { binding: 2, resource: st.volumeSampler },
                 { binding: 3, resource: st.transferTexture.createView() },
+                { binding: 4, resource: { buffer: st.modeBuffer } },
             ],
         });
 
@@ -315,6 +336,7 @@ async function initWebGPU() {
         st.initialized = true;
         st.queue.writeBuffer(st.tintBuffer, 0, new Float32Array([1, 1, 1, 1]));  // no tint
         setPreset(1);                   // load the initial transfer LUT
+        setMode(0);                     // default render mode = DVR
         resizeCanvas();
         console.log('WebGPU initialized (volume ray cast).');
         return true;

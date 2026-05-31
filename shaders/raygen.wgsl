@@ -6,6 +6,7 @@ struct Camera { invViewProj : mat4x4f };
 @group(0) @binding(1) var volume : texture_3d<f32>;
 @group(0) @binding(2) var volSamp : sampler;
 @group(0) @binding(3) var transferTex : texture_2d<f32>;  // 1D LUT: density -> RGBA
+@group(0) @binding(4) var<uniform> uMode : vec4<u32>;     // .x: 0=DVR 1=MIP 2=Iso
 
 struct VsOut {
   @builtin(position) pos : vec4f,
@@ -47,6 +48,18 @@ fn intersectBox(ro : vec3f, rd : vec3f) -> BoxHit {
   return h;
 }
 
+// Light a colour by the density gradient at tc (ambient + diffuse).
+fn shade(tc : vec3f, base : vec3f) -> vec3f {
+  let grad = volumeGradient(tc);
+  let gmag = length(grad);
+  var light = 0.3;                           // ambient
+  if (gmag > 0.001) {
+    let n = -grad / gmag;
+    light = light + 0.7 * max(dot(n, normalize(vec3f(0.6, 0.8, 0.5))), 0.0);
+  }
+  return base * light;
+}
+
 @fragment
 fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
   let ndc = uv * 2.0 - 1.0;
@@ -66,33 +79,47 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
     let steps = 128;
     let dt = (hit.t1 - t0) / f32(steps);
 
-    var acc = vec4f(0.0);                    // accumulated colour + opacity
-    var t = t0;
-    for (var i = 0; i < steps; i = i + 1) {
-      let p  = ro + rd * t;
-      let tc = p * 0.5 + 0.5;                // [-1,1] -> [0,1] texcoords
-      let density = textureSampleLevel(volume, volSamp, tc, 0.0).r;
-
-      // Transfer function: density -> colour + opacity via the 1D LUT.
-      let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
-      let a = tf.a * 0.2;                     // per-step opacity
-      var c = tf.rgb;
-
-      // Gradient shading: light the sample by the density gradient.
-      let grad = volumeGradient(tc);
-      let gmag = length(grad);
-      if (gmag > 0.001) {
-        let n = -grad / gmag;
-        let diff = max(dot(n, normalize(vec3f(0.6, 0.8, 0.5))), 0.0);
-        c = c * (0.3 + 0.7 * diff);           // ambient + diffuse
+    if (uMode.x == 1u) {
+      // --- MIP: brightest density along the ray ---
+      var maxD = 0.0;
+      var t = t0;
+      for (var i = 0; i < steps; i = i + 1) {
+        let tc = (ro + rd * t) * 0.5 + 0.5;
+        maxD = max(maxD, textureSampleLevel(volume, volSamp, tc, 0.0).r);
+        t = t + dt;
       }
-
-      acc = vec4f(acc.rgb + (1.0 - acc.a) * a * c,
-                  acc.a   + (1.0 - acc.a) * a);
-      if (acc.a > 0.99) { break; }           // early ray termination
-      t = t + dt;
+      col = textureSampleLevel(transferTex, volSamp, vec2f(maxD, 0.5), 0.0).rgb;
+    } else if (uMode.x == 2u) {
+      // --- Isosurface: first density above a threshold ---
+      let ISO = 0.40;
+      var t = t0;
+      for (var i = 0; i < steps; i = i + 1) {
+        let tc = (ro + rd * t) * 0.5 + 0.5;
+        let density = textureSampleLevel(volume, volSamp, tc, 0.0).r;
+        if (density > ISO) {
+          let base = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0).rgb;
+          col = shade(tc, base);
+          break;
+        }
+        t = t + dt;
+      }
+    } else {
+      // --- DVR: accumulate colour + opacity front-to-back ---
+      var acc = vec4f(0.0);
+      var t = t0;
+      for (var i = 0; i < steps; i = i + 1) {
+        let tc = (ro + rd * t) * 0.5 + 0.5;
+        let density = textureSampleLevel(volume, volSamp, tc, 0.0).r;
+        let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
+        let a = tf.a * 0.2;
+        let c = shade(tc, tf.rgb);
+        acc = vec4f(acc.rgb + (1.0 - acc.a) * a * c,
+                    acc.a   + (1.0 - acc.a) * a);
+        if (acc.a > 0.99) { break; }
+        t = t + dt;
+      }
+      col = mix(col, acc.rgb, acc.a);
     }
-    col = mix(col, acc.rgb, acc.a);          // composite over background
   }
 
   return vec4f(col, 1.0);

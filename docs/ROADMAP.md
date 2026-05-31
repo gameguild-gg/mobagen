@@ -219,8 +219,9 @@ void main() {
 
 | Step | Task | Status | Notes |
 |------|------|--------|-------|
-| 3.9 | MIP mode (Max Intensity Projection) | ❌ | Track max sample along ray |
-| 3.10 | Isosurface rendering (threshold crossing) | ❌ | Find first voxel > threshold |
+| 3.8 | Gradient shading | ✅ | both renderers; density-gradient normals |
+| 3.9 | MIP mode (Max Intensity Projection) | ✅ | both renderers; mode switch |
+| 3.10 | Isosurface rendering (threshold crossing) | ✅ | both renderers; mode switch |
 | 3.11 | Compositing modes (average IP, etc.) | ❌ | Different accumulation strategies |
 
 ---

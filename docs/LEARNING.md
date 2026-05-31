@@ -41,9 +41,18 @@ You are currently finishing **Tier 1**.
 6. **3D texture, synthetic volume.** A 64³ soft ball in a `TEXTURE_3D`; the ray
    marches the unit cube and accumulates density front-to-back (DVR). ✅ *(both
    renderers — a semi-transparent glowing ball. You are now volume rendering.)*
-7. **◀ NEXT — Transfer function + compositing.** A 1D LUT mapping intensity → RGBA
-   (the grayscale transfer is hardcoded for now). Change the LUT, watch "tissue"
-   appear. *This is the core of a clinical viewer.*
+7. **Transfer function + compositing.** A 1D LUT mapping density → RGBA, with 4
+   presets (Gray/Tissue/Shell/Cool). ✅ *(both renderers)*
+8. **Gradient shading + render modes.** Density-gradient normals for lit volume;
+   DVR / MIP / Isosurface mode switch. ✅ *(both renderers)*
+
+**Tier 2 complete.** A full synthetic-volume ray caster: rays → 3D texture →
+transfer function → shading → DVR/MIP/Iso, in WebGL2 and WebGPU.
+
+## Tier 3 — Real DICOM  *(◀ next)*
+The jump from toy to dissertation deliverable: load a real CT scan (GDCM/DCMTK
+→ WASM) into the 3D texture, Hounsfield windowing in-shader, spacing-correct
+volume, then refine the existing modes on real anatomy.
 
 ## Tier 3 — Real DICOM
 
