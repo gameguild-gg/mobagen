@@ -7,6 +7,13 @@ struct Camera { invViewProj : mat4x4f };
 @group(0) @binding(2) var volSamp : sampler;
 @group(0) @binding(3) var transferTex : texture_2d<f32>;  // 1D LUT: density -> RGBA
 @group(0) @binding(4) var<uniform> uMode : vec4<u32>;     // .x: 0=DVR 1=MIP 2=Iso
+@group(0) @binding(5) var<uniform> uWindow : vec4f;       // .x center, .y width
+
+// Window/level: remap [center-width/2, center+width/2] to [0,1], clip outside.
+fn applyWindow(v : f32) -> f32 {
+  let lo = uWindow.x - uWindow.y * 0.5;
+  return clamp((v - lo) / uWindow.y, 0.0, 1.0);
+}
 
 struct VsOut {
   @builtin(position) pos : vec4f,
@@ -85,7 +92,7 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       var t = t0;
       for (var i = 0; i < steps; i = i + 1) {
         let tc = (ro + rd * t) * 0.5 + 0.5;
-        maxD = max(maxD, textureSampleLevel(volume, volSamp, tc, 0.0).r);
+        maxD = max(maxD, applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r));
         t = t + dt;
       }
       col = textureSampleLevel(transferTex, volSamp, vec2f(maxD, 0.5), 0.0).rgb;
@@ -95,7 +102,7 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       var t = t0;
       for (var i = 0; i < steps; i = i + 1) {
         let tc = (ro + rd * t) * 0.5 + 0.5;
-        let density = textureSampleLevel(volume, volSamp, tc, 0.0).r;
+        let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
         if (density > ISO) {
           let base = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0).rgb;
           col = shade(tc, base);
@@ -109,7 +116,7 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       var t = t0;
       for (var i = 0; i < steps; i = i + 1) {
         let tc = (ro + rd * t) * 0.5 + 0.5;
-        let density = textureSampleLevel(volume, volSamp, tc, 0.0).r;
+        let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
         let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
         let a = tf.a * 0.2;
         let c = shade(tc, tf.rgb);

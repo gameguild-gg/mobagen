@@ -49,10 +49,14 @@ You are currently finishing **Tier 1**.
 **Tier 2 complete.** A full synthetic-volume ray caster: rays → 3D texture →
 transfer function → shading → DVR/MIP/Iso, in WebGL2 and WebGPU.
 
-## Tier 3 — Real DICOM  *(◀ next)*
-The jump from toy to dissertation deliverable: load a real CT scan (GDCM/DCMTK
-→ WASM) into the 3D texture, Hounsfield windowing in-shader, spacing-correct
-volume, then refine the existing modes on real anatomy.
+## Tier 3 — Real DICOM  *(in progress, path B: de-risk first)*
+- **B1 ✅** load the volume from a raw file (`volume.raw`), not generated in code —
+  the same load path real data will use (both renderers).
+- **B2 ✅** window/level in-shader (center+width sliders) — isolate density bands.
+- **B3 ◀ next** voxel spacing (non-cubic volume box).
+- **A** real DICOM parser (GDCM/DCMTK → WASM): parse a CT series, Hounsfield
+  rescale, stack into the 3D texture. The heavy lift; B has de-risked everything
+  downstream of it.
 
 ## Tier 3 — Real DICOM
 
