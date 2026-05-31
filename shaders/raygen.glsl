@@ -29,6 +29,9 @@ out vec4 fragColor;
 uniform mat4 inv_view_projection;
 uniform sampler3D uVolume;
 uniform sampler2D uTransfer;   // 1D transfer LUT (256x1): density -> RGBA
+uniform int uMode;             // 0 = DVR, 1 = MIP, 2 = Isosurface
+
+const vec3 LIGHT_DIR = vec3(0.6, 0.8, 0.5);
 
 // Volume "normal" = gradient of the density field (central differences over one
 // voxel). Points toward INCREASING density; we negate it for an outward normal.
@@ -52,6 +55,18 @@ bool intersectBox(vec3 ro, vec3 rd, out float t0, out float t1) {
     return t1 >= max(t0, 0.0);
 }
 
+// Light a colour by the density gradient at tc (ambient + diffuse).
+vec3 shade(vec3 tc, vec3 base) {
+    vec3 grad = volumeGradient(tc);
+    float gmag = length(grad);
+    float light = 0.3;                            // ambient
+    if (gmag > 0.001) {
+        vec3 n = -grad / gmag;
+        light += 0.7 * max(dot(n, normalize(LIGHT_DIR)), 0.0);
+    }
+    return base * light;
+}
+
 void main() {
     vec2 ndc = vUv * 2.0 - 1.0;                       // pixel -> clip space xy
 
@@ -69,36 +84,47 @@ void main() {
         const int STEPS = 128;
         float dt = (t1 - t0) / float(STEPS);
 
-        vec4 acc = vec4(0.0);                         // accumulated colour + opacity
-        float t = t0;
-        for (int i = 0; i < STEPS; i++) {
-            vec3 p  = ro + rd * t;
-            vec3 tc = p * 0.5 + 0.5;                  // [-1,1] -> [0,1] texcoords
-            float density = texture(uVolume, tc).r;
-
-            // Transfer function: map density -> colour + opacity via a 1D LUT.
-            // This is the knob that turns gray fog into selected structure.
-            vec4 tf = texture(uTransfer, vec2(density, 0.5));
-            float a = tf.a * 0.2;                      // per-step opacity
-            vec3  c = tf.rgb;
-
-            // Gradient shading: light the sample by the density gradient so the
-            // volume reads as a 3D solid instead of flat fog. Flat regions
-            // (tiny gradient) stay unlit (ambient only).
-            vec3 grad = volumeGradient(tc);
-            float gmag = length(grad);
-            if (gmag > 0.001) {
-                vec3 n = -grad / gmag;
-                float diff = max(dot(n, normalize(vec3(0.6, 0.8, 0.5))), 0.0);
-                c *= (0.3 + 0.7 * diff);              // ambient + diffuse
+        if (uMode == 1) {
+            // --- MIP: brightest density along the ray (e.g. angiography) ---
+            float maxD = 0.0;
+            float t = t0;
+            for (int i = 0; i < STEPS; i++) {
+                vec3 tc = (ro + rd * t) * 0.5 + 0.5;
+                maxD = max(maxD, texture(uVolume, tc).r);
+                t += dt;
             }
-
-            acc.rgb += (1.0 - acc.a) * a * c;         // front-to-back compositing
-            acc.a   += (1.0 - acc.a) * a;
-            if (acc.a > 0.99) break;                  // early ray termination
-            t += dt;
+            col = texture(uTransfer, vec2(maxD, 0.5)).rgb;
+        } else if (uMode == 2) {
+            // --- Isosurface: stop at the first density above a threshold ---
+            const float ISO = 0.40;
+            float t = t0;
+            for (int i = 0; i < STEPS; i++) {
+                vec3 tc = (ro + rd * t) * 0.5 + 0.5;
+                float density = texture(uVolume, tc).r;
+                if (density > ISO) {
+                    vec3 base = texture(uTransfer, vec2(density, 0.5)).rgb;
+                    col = shade(tc, base);
+                    break;
+                }
+                t += dt;
+            }
+        } else {
+            // --- DVR: accumulate colour + opacity front-to-back ---
+            vec4 acc = vec4(0.0);
+            float t = t0;
+            for (int i = 0; i < STEPS; i++) {
+                vec3 tc = (ro + rd * t) * 0.5 + 0.5;
+                float density = texture(uVolume, tc).r;
+                vec4 tf = texture(uTransfer, vec2(density, 0.5));
+                float a = tf.a * 0.2;                  // per-step opacity
+                vec3  c = shade(tc, tf.rgb);
+                acc.rgb += (1.0 - acc.a) * a * c;
+                acc.a   += (1.0 - acc.a) * a;
+                if (acc.a > 0.99) break;               // early ray termination
+                t += dt;
+            }
+            col = mix(col, acc.rgb, acc.a);
         }
-        col = mix(col, acc.rgb, acc.a);               // composite over background
     }
 
     fragColor = vec4(col, 1.0);

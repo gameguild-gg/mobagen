@@ -37,6 +37,10 @@
             <button id="color-2" onclick="setColor(2)">2: Tissue</button>
             <button id="color-3" onclick="setColor(3)">3: Shell</button>
             <button id="color-4" onclick="setColor(4)">4: Cool</button>
+            <h3 style="margin-top:10px;">Mode</h3>
+            <button id="mode-0" class="active" onclick="setMode(0)">DVR</button>
+            <button id="mode-1" onclick="setMode(1)">MIP</button>
+            <button id="mode-2" onclick="setMode(2)">Isosurface</button>
             <div class="hint">
                 Hold mouse + drag: rotate<br>
                 Wheel: zoom<br>
@@ -101,6 +105,14 @@
                 Module._set_shader_variant(num);
                 for (let i = 1; i <= 4; i++) {
                     document.getElementById(`color-${i}`).classList.toggle('active', i === num);
+                }
+            }
+        }
+        function setMode(m) {
+            if (typeof Module._set_render_mode === 'function') {
+                Module._set_render_mode(m);
+                for (let i = 0; i <= 2; i++) {
+                    document.getElementById(`mode-${i}`).classList.toggle('active', i === m);
                 }
             }
         }
