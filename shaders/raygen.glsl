@@ -31,6 +31,7 @@ uniform sampler3D uVolume;
 uniform sampler2D uTransfer;   // 1D transfer LUT (256x1): density -> RGBA
 uniform int uMode;             // 0 = DVR, 1 = MIP, 2 = Isosurface
 uniform vec2 uWindow;          // x = window center, y = window width
+uniform vec3 uBoxHalf;         // half-extents of the volume box (voxel spacing)
 
 const vec3 LIGHT_DIR = vec3(0.6, 0.8, 0.5);
 
@@ -52,11 +53,12 @@ vec3 volumeGradient(vec3 tc) {
         texture(uVolume, tc + vec3(0.0, 0.0, h)).r - texture(uVolume, tc - vec3(0.0, 0.0, h)).r);
 }
 
-// Ray vs axis-aligned box [-1,1]^3 (slab method). Returns entry/exit distances.
+// Ray vs the volume box (slab method). The box spans [-uBoxHalf, +uBoxHalf],
+// scaled per-axis by voxel spacing so non-cubic scans aren't squished.
 bool intersectBox(vec3 ro, vec3 rd, out float t0, out float t1) {
     vec3 invD = 1.0 / rd;
-    vec3 ta = (vec3(-1.0) - ro) * invD;
-    vec3 tb = (vec3( 1.0) - ro) * invD;
+    vec3 ta = (-uBoxHalf - ro) * invD;
+    vec3 tb = ( uBoxHalf - ro) * invD;
     vec3 tmin = min(ta, tb);
     vec3 tmax = max(ta, tb);
     t0 = max(max(tmin.x, tmin.y), tmin.z);
@@ -98,7 +100,7 @@ void main() {
             float maxD = 0.0;
             float t = t0;
             for (int i = 0; i < STEPS; i++) {
-                vec3 tc = (ro + rd * t) * 0.5 + 0.5;
+                vec3 tc = (ro + rd * t) / uBoxHalf * 0.5 + 0.5;
                 maxD = max(maxD, applyWindow(texture(uVolume, tc).r));
                 t += dt;
             }
@@ -108,7 +110,7 @@ void main() {
             const float ISO = 0.40;
             float t = t0;
             for (int i = 0; i < STEPS; i++) {
-                vec3 tc = (ro + rd * t) * 0.5 + 0.5;
+                vec3 tc = (ro + rd * t) / uBoxHalf * 0.5 + 0.5;
                 float density = applyWindow(texture(uVolume, tc).r);
                 if (density > ISO) {
                     vec3 base = texture(uTransfer, vec2(density, 0.5)).rgb;
@@ -122,7 +124,7 @@ void main() {
             vec4 acc = vec4(0.0);
             float t = t0;
             for (int i = 0; i < STEPS; i++) {
-                vec3 tc = (ro + rd * t) * 0.5 + 0.5;
+                vec3 tc = (ro + rd * t) / uBoxHalf * 0.5 + 0.5;
                 float density = applyWindow(texture(uVolume, tc).r);
                 vec4 tf = texture(uTransfer, vec2(density, 0.5));
                 float a = tf.a * 0.2;                  // per-step opacity

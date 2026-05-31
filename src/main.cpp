@@ -211,6 +211,7 @@ static bool g_tf_dirty  = true;
 static int  g_render_mode = 0;   // 0 = DVR, 1 = MIP, 2 = Isosurface
 static float g_window_center = 0.5f;
 static float g_window_width  = 1.0f;
+static glm::vec3 g_box_half(1.0f);   // volume box half-extents (from voxel spacing)
 
 // Build a 256-entry RGBA transfer LUT for the given preset.
 static std::vector<unsigned char> make_transfer_lut(int preset) {
@@ -386,6 +387,14 @@ bool AppWebGL::setupGeometry() {
         fprintf(stderr, "Failed to create volume texture\n");
         return false;
     }
+
+    // Voxel spacing -> box half-extents. Real CT slices are thicker than pixels
+    // are wide; we simulate that here (z = 1.5x) so the box reflects physical
+    // proportions instead of squishing. With DICOM this comes from the file;
+    // (1,1,1) would render a perfectly cubic box.
+    const glm::vec3 spacing(1.0f, 1.0f, 1.5f);
+    glm::vec3 phys = glm::vec3(static_cast<float>(N)) * spacing;
+    g_box_half = phys / glm::max(phys.x, glm::max(phys.y, phys.z));
     return true;
 }
 
@@ -551,6 +560,7 @@ void AppWebGL::tick() {
         shader->setUniform("uTransfer", 1);   // transfer LUT on unit 1
         shader->setUniform("uMode", g_render_mode);
         shader->setUniform("uWindow", glm::vec2(g_window_center, g_window_width));
+        shader->setUniform("uBoxHalf", g_box_half);
     }
     if (volume) volume->bind(0);
     if (transferLut) transferLut->bind(1);
