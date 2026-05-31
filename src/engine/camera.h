@@ -87,17 +87,20 @@ public:
     // INPUT HANDLERS (SDL2 events)
     // ========================================================================
 
-    // Keyboard input (WASD + arrow keys for FPS camera)
+    // Keyboard input. keys_pressed_ has 256 slots, but SDL keycodes for special
+    // keys (arrows, shift, ...) are ~1e9, so we MUST bounds-check or we write
+    // gigabytes out of bounds (a WASM "memory access out of bounds" trap). We
+    // only track the ASCII keys WASD movement uses (w/a/s/d/space), all < 256.
     void on_key_pressed(int key_code) {
-        if (mode_ == CameraMode::WASD) {
-            // 'w' = 119, 'a' = 97, 's' = 115, 'd' = 100
-            // Up Arrow = 1073741906, Down = 1073741905, etc.
+        if (mode_ == CameraMode::WASD && key_code >= 0 && key_code < 256) {
             keys_pressed_[key_code] = true;
         }
     }
 
     void on_key_released(int key_code) {
-        keys_pressed_[key_code] = false;
+        if (key_code >= 0 && key_code < 256) {
+            keys_pressed_[key_code] = false;
+        }
     }
 
     // Mouse motion (for orbit or freelook yaw/pitch)

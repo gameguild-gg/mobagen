@@ -599,13 +599,14 @@ extern "C" {
     // Called by the shell when the canvas is resized.
     EMSCRIPTEN_KEEPALIVE
     void on_canvas_resize(int width, int height) {
+        // Only RECORD the size (+ camera aspect). The render loop applies
+        // glViewport every frame from g_canvas_w/h. Calling GL here is unsafe:
+        // the shell fires this from onRuntimeInitialized, which runs BEFORE
+        // main() creates the GL context — glViewport would crash on a null
+        // context. (WebGPU reconfigures its context in JS.)
         g_canvas_w = width;
         g_canvas_h = height;
         g_camera.set_viewport(width, height);
-#ifndef USE_WEBGPU
-        glViewport(0, 0, width, height);
-#endif
-        // WebGPU build reconfigures its context in JS.
     }
 
 #ifndef USE_WEBGPU
