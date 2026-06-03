@@ -14,6 +14,12 @@ endif()
 set(CXX_STANDARD_TARGET "23" CACHE STRING "CXX standard" FORCE)
 include(external/compilerchecks.cmake)
 
+# Opt-in developer tooling (sanitizers / static analyzers / ccache), brought over
+# from master (cmake/tools.cmake). No-op for a normal build — only fires when
+# -DUSE_SANITIZER=Address (etc.), -DUSE_STATIC_ANALYZER=clang-tidy, or
+# -DUSE_CCACHE=YES is passed. ASan here would have caught the keys_pressed_ OOB.
+include(cmake/tools.cmake)
+
 # ----------------------------------------------------------------------------
 # Renderer selection (compile-time, NOT runtime).
 #
@@ -25,24 +31,41 @@ include(external/compilerchecks.cmake)
 # ----------------------------------------------------------------------------
 option(USE_WEBGPU "Build the WebGPU (G3) renderer instead of WebGL2 (G2)" OFF)
 
-# Organize output by build type
+# ----------------------------------------------------------------------------
+# Medical-imaging libraries (brought over from master). These are HEAVY source
+# builds, so each is gated behind an option and OFF by default — a normal
+# renderer build never pays for them. Enable per-build, e.g. -DUSE_GDCM=ON.
+#   USE_GDCM : DICOM parsing for the volume_io module — this is the Tier 3-A dep.
+#   USE_ITK  : full Insight Toolkit (bundles its own GDCM); not used yet.
+#   USE_VTK  : Visualization Toolkit; reference/benchmark only, never linked.
+# ----------------------------------------------------------------------------
+option(USE_GDCM "Build GDCM (DICOM parsing) for the volume_io module" OFF)
+option(USE_ITK  "Build ITK (medical image processing; bundles GDCM)"  OFF)
+option(USE_VTK  "Build VTK (visualization toolkit; reference only)"   OFF)
+
+# Learning prototypes (fibers, etc.) — small standalone demos, native only.
+option(BUILD_PROTOTYPES "Build learning prototypes under prototypes/" OFF)
+
+# Core engine modules (reactive / messaging / ecs / scene / jobs) + their demos.
+option(BUILD_CORE "Build the core engine modules and demos (native)" OFF)
+
+# Shell selection (Emscripten only). Each renderer/build already lives in its own
+# binary dir (build/wasm-webgl, build/wasm-webgpu, build/native), so output goes
+# straight to ${CMAKE_BINARY_DIR}/{bin,libs} — no per-type nesting (matches
+# master's convention; kills the old build/wasm-webgl/wasm-webgl/bin doubling).
 if(EMSCRIPTEN)
     if(USE_WEBGPU)
-        set(BUILD_TYPE_DIR "wasm-webgpu")
         # Generated below: the WGSL sources are substituted into the shell.
         set(SHELL_FILE "${CMAKE_BINARY_DIR}/generated/shell_webgpu.html")
     else()
-        set(BUILD_TYPE_DIR "wasm-webgl")
         set(SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgl.html")
     endif()
-else()
-    set(BUILD_TYPE_DIR "native")
 endif()
 
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${BUILD_TYPE_DIR}/libs)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${BUILD_TYPE_DIR}/libs)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${BUILD_TYPE_DIR}/bin)
-link_directories(${CMAKE_BINARY_DIR}/${BUILD_TYPE_DIR}/libs)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+link_directories(${CMAKE_BINARY_DIR}/libs)
 
 message(STATUS "Build output: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
@@ -122,6 +145,58 @@ else()
     message(STATUS "Renderer: WebGL2 (G2) — immediate-mode")
 endif()
 
+# ----------------------------------------------------------------------------
+# Optional medical-imaging dependencies (see options above). The .cmake files
+# are only included when enabled, so the heavy source build is skipped for a
+# normal renderer build. GDCM is wired up for the volume_io module (Tier 3-A):
+# when -DUSE_GDCM=ON, volume_io.cpp gets HAVE_GDCM and links the reader libs.
+# ----------------------------------------------------------------------------
+if(USE_GDCM)
+    include(external/gdcm.cmake)
+    target_compile_definitions(dicom_renderer PRIVATE HAVE_GDCM)
+    target_link_libraries(dicom_renderer PRIVATE
+        gdcmMSFF gdcmDSED gdcmDICT gdcmIOD gdcmCommon)
+endif()
+if(USE_ITK)
+    include(external/itk.cmake)
+    target_compile_definitions(dicom_renderer PRIVATE HAVE_ITK)
+endif()
+if(USE_VTK)
+    include(external/vtk.cmake)
+    target_compile_definitions(dicom_renderer PRIVATE HAVE_VTK)
+endif()
+
+# Standalone loader smoke test (native + GDCM only): a tiny console exe that
+# loads a DICOM series and prints its metadata, independent of the renderer.
+# Build: cmake --build build/native --target volume_io_test
+if(USE_GDCM AND NOT EMSCRIPTEN)
+    add_executable(volume_io_test
+        src/volume_io/volume_io_test.cpp
+        src/volume_io/volume_io.cpp)
+    target_include_directories(volume_io_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(volume_io_test PRIVATE HAVE_GDCM)
+    target_link_libraries(volume_io_test PRIVATE gdcmMSFF gdcmDSED gdcmDICT gdcmIOD gdcmCommon)
+endif()
+
+# Learning prototypes (native only — the stackful fiber demo uses Win32 fibers).
+if(BUILD_PROTOTYPES AND NOT EMSCRIPTEN)
+    add_subdirectory(prototypes/fibers)
+endif()
+
+# Core engine modules. jobs builds for both native and web (pthreads); the ecs
+# storage demo is native-only for now.
+if(BUILD_CORE)
+    if(NOT EMSCRIPTEN)
+        add_subdirectory(core/ecs)
+        add_subdirectory(core/reactive)
+        add_subdirectory(core/messaging)
+        add_subdirectory(core/scene)
+        add_subdirectory(core/net)
+        add_subdirectory(core/examples)   # ecs + jobs glued (systems-as-jobs)
+    endif()
+    add_subdirectory(core/jobs)
+endif()
+
 set(VOLUME_RAW ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.raw)
 
 if(EMSCRIPTEN)
@@ -155,3 +230,15 @@ else()
     target_compile_definitions(dicom_renderer PRIVATE VOLUME_PATH="${VOLUME_RAW}")
     target_link_libraries(dicom_renderer PRIVATE SDL2-static OpenGL::GL libglew_static)
 endif()
+
+# ----------------------------------------------------------------------------
+# Third-party license disclaimer (brought over from master). Collects the
+# license of every CPM dependency into build/third_party.txt — useful for the
+# dissertation's attribution. Runs at configure time over ${CPM_PACKAGES}.
+# ----------------------------------------------------------------------------
+CPMAddPackage(
+    NAME CPMLicenses.cmake
+    GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
+    VERSION 0.0.5
+)
+write_license_disclaimer("${CMAKE_BINARY_DIR}/third_party.txt" "${CPM_PACKAGES}")
