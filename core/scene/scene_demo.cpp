@@ -28,6 +28,7 @@ int main() {
     Entity grand = w.create();
     { Transform t; t.position = {0, 0, 2};  t.parent = child; w.add<Transform>(grand, t); }
 
+    ts.rebuild(w);   // build the flat parents-before-children order once
     ts.update(w);
     std::printf("built (root @10,0,0 ; child +0,5,0 ; grand +0,0,2):\n");
     print_pos("root", w.get<Transform>(root).world);

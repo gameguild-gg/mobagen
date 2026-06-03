@@ -43,7 +43,6 @@ int main() {
 
     // One frame:  drain events -> parallel spin system -> resolve transforms.
     auto tick = [&](float dt) {
-        bus.process();                                  // events (may spawn entities)
         const std::size_t n = world.count<scene::Transform>();
         jobs::WaitGroup wg;                             // systems-as-jobs:
         sched.parallel_for(n, 4096, [&](std::size_t lo, std::size_t hi) {
@@ -58,6 +57,8 @@ int main() {
 
     std::printf("== engine tick: all modules composed ==\n");
     bus.post(VolumeLoaded{100000});   // queue a "volume load"
+    bus.process();                    // drain now -> spawn the entities
+    transforms.rebuild(world);        // build the flat transform order once (structure set)
     window_center.set(20);            // reactive param change -> Effect re-fires
     window_width.set(600);
 
