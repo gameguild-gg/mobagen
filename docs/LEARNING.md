@@ -94,10 +94,16 @@ context now; don't build that layer yet.
 ## Build & run
 
 ### One-time toolchain setup (Windows, learned the hard way)
-- Emscripten env per shell:
+- Emscripten env per shell (use the **permanent** SDK, not the Temp one — Temp gets wiped):
   ```powershell
-  $env:EMSDK = "C:\Users\MatheusMartins\AppData\Local\Temp\emsdk"
-  $env:PATH  = "$env:EMSDK;$env:EMSDK\upstream\emscripten;$env:EMSDK\node\22.16.0_64bit\bin;$env:PATH"
+  $env:EMSDK = "C:\Users\MatheusMartins\emsdk"
+  $env:PATH  = "$env:EMSDK\upstream\emscripten;$env:EMSDK\node\22.16.0_64bit\bin;$env:PATH"
+  ```
+- `emcmake.ps1` trips PowerShell's native-stderr handling (cmake never runs). Bypass it by
+  calling cmake directly with the toolchain file (what emcmake just injects):
+  ```powershell
+  $tc = "$env:EMSDK\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake"
+  cmake -B build/<dir> -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DCMAKE_TOOLCHAIN_FILE="$tc" ...
   ```
 - A **real `ninja.exe`** is required (the npm `ninja` shim does not work). Installed via
   `python -m pip install ninja --trusted-host pypi.org --trusted-host files.pythonhosted.org`.
@@ -109,7 +115,7 @@ context now; don't build that layer yet.
 $ninja = "C:\Users\MatheusMartins\AppData\Local\Programs\Python\Python310\Scripts\ninja.exe"
 emcmake cmake -B build/wasm-webgl -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DCMAKE_BUILD_TYPE=Release
 cmake --build build/wasm-webgl
-cd build/wasm-webgl/wasm-webgl/bin ; python -m http.server 8083
+cd build/wasm-webgl/bin ; python -m http.server 8083
 # open http://localhost:8083/dicom_renderer.html
 ```
 
@@ -117,7 +123,7 @@ cd build/wasm-webgl/wasm-webgl/bin ; python -m http.server 8083
 ```powershell
 emcmake cmake -B build/wasm-webgpu -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build/wasm-webgpu
-cd build/wasm-webgpu/wasm-webgpu/bin ; python -m http.server 8084
+cd build/wasm-webgpu/bin ; python -m http.server 8084
 # open http://localhost:8084/dicom_renderer.html  (needs a WebGPU adapter; Chrome/Edge 113+ or recent Firefox)
 ```
 
@@ -125,15 +131,25 @@ cd build/wasm-webgpu/wasm-webgpu/bin ; python -m http.server 8084
 ```powershell
 cmake -B build/native -DCMAKE_BUILD_TYPE=Release
 cmake --build build/native --config Release
-build\native\native\bin\Release\dicom_renderer.exe
+build\native\bin\Release\dicom_renderer.exe
 ```
+
+### Optional build flags (brought over from master)
+- **DICOM (Tier 3-A):** `-DUSE_GDCM=ON` builds GDCM from source and links the
+  DICOM reader into `volume_io`. Heavy first build; OFF by default.
+- **Sanitizers (native):** `-DUSE_SANITIZER=Address` (or `Undefined`, `Thread`,
+  `Leak`, `"Address;Undefined"`) — catches OOB/UAF at runtime. Would have caught
+  the `keys_pressed_` overflow immediately.
+- **Static analysis:** `-DUSE_STATIC_ANALYZER=clang-tidy` (or `iwyu`, `cppcheck`).
+- **ccache:** `-DUSE_CCACHE=YES` to cache compiles.
+- `-DUSE_ITK=ON` / `-DUSE_VTK=ON` exist for later; not used yet.
+
+A `build/<type>/third_party.txt` listing every dependency's license is written
+each configure (CPMLicenses).
 
 > ⚠️ **After every rebuild, hard-refresh the browser** (Ctrl+Shift+R, or DevTools →
 > "Empty Cache and Hard Reload"). A soft refresh serves a stale cached `.wasm`/`.data`
 > against the new files and blanks the canvas — this is *not* a bug, just cache.
->
-> Note the doubled path (`build/wasm-webgl/wasm-webgl/bin`): the build-type dir is
-> appended under the build dir. Functional; tidy-up pending.
 
 ---
 

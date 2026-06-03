@@ -58,7 +58,7 @@ src/
     ├── vertex_buffer.*      RAII wrapper around a VBO.
     ├── vertex_array.*       RAII wrapper around a VAO + attribute layout.
     ├── renderer.*           Thin "clear + draw" abstraction (used by the WebGL build).
-    └── engine_c.*           C ABI boundary (STUDY MODULE — see below).
+    └── engine_c.*           ABIC  boundary (STUDY MODULE — see below).
 
 html/
 ├── shell_webgl.html         Emscripten shell for the WebGL2 build (canvas, FPS,
