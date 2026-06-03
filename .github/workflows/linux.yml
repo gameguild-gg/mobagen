@@ -9,47 +9,41 @@ on:
       - '*'
 
 env:
-  BUILD_TYPE: MinSizeRel
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
 
 jobs:
   linux-native:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: cache
-        uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
-          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           path: "**/cpm_modules"
+          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
-      - name: install dependencies
-        run: |
-          pip install jsonschema jinja2
-
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev python3-distutils libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev  
+          sudo apt install -y build-essential cmake \
+            mesa-common-dev libgl1-mesa-dev libx11-dev mesa-utils libgl-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+          pip install jsonschema jinja2
 
-      - name: Configure CMake
-        run: cmake -Bbuild -H. -DCMAKE_BUILD_TYPE=MinSizeRel
-
-      - name: Build
-#        run: cmake --build build/ --parallel
-        run: cmake --build build/
+      - name: Build (linux)
+        run: python build.py linux
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GHR_COMPRESS: zip
-          GHR_PATH: build/
+          GHR_PATH: build-linux/
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

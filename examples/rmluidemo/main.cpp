@@ -17,9 +17,15 @@ static const char kDemoRml[] = R"(
       font-family: AppFont;
       font-size: 16px;
       color: #e0e0e0;
-      background: #1a1a2e;
+    }
+    #fullbg {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
+      background: #1a1a2e;
+      z-index: -1;
     }
     #window {
       display: block;
@@ -80,6 +86,7 @@ static const char kDemoRml[] = R"(
   </style>
 </head>
 <body>
+  <div id="fullbg"></div>
   <div id="window">
     <h1>RmlUi + WebGPU</h1>
     <p>A retained-mode <strong>HTML/CSS</strong> UI rendered with a custom <em>WebGPU</em> backend</p>
@@ -106,6 +113,17 @@ int main(int, char**) {
   settings.useImGui = false;
   settings.useRmlUi = true;
   settings.vsync    = true;
+
+  // The RmlUi body element doesn't fill the viewport in our WebGPU backend
+  // (its box is determined by in-flow content; absolutely-positioned children
+  // are removed from flow, so the body collapses to ~0). Match the engine
+  // clear color to the RML body background to give a seamless, fullscreen
+  // look without black bars around the RmlUi content.
+  //   #1a1a2e (background) -> r=0x1a/255, g=0x1a/255, b=0x2e/255
+  settings.clearColor[0] = 0x1a / 255.0f;
+  settings.clearColor[1] = 0x1a / 255.0f;
+  settings.clearColor[2] = 0x2e / 255.0f;
+  settings.clearColor[3] = 1.0f;
 
   auto engine = new Engine(settings);
 

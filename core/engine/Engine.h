@@ -41,7 +41,9 @@ public:
 private:
   bool done = false;
 
-  // RGBA in 0..1; used to clear the WGPU surface each frame.
+  // Source of truth lives in `settings.clearColor`; kept here as a member
+  // so the render pass descriptor can read it without chasing the settings
+  // struct every frame.
   float clearColor[4] = {0.f, 0.f, 0.f, 1.f};
 
   // todo: move this to input class

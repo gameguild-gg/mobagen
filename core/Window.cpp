@@ -11,7 +11,7 @@
 #include <RmlUi/Debugger.h>
 #include "RmlUiWgpuRenderer.h"
 #include "RmlUi_Platform_SDL.h"
-#include "FontSource.h"
+#include <RmlUi/Debugger/FontSource.h>
 
 #include <cstdio>
 #include <stdexcept>
@@ -31,10 +31,12 @@ EM_JS(int, canvas_get_height, (), { return canvas.height; });
 // ---------------------------------------------------------------------------
 // Adapter / device acquisition
 //
-// Dawn's wgpuInstanceRequestAdapter is async even on native. We use a tiny
-// polling loop with wgpuInstanceProcessEvents() to block until the callback
-// fires. On the web (emdawnwebgpu) the same scheme works thanks to Asyncify
-// (emscripten_sleep yields to the JS event loop).
+// Dawn's wgpuInstanceRequestAdapter is async even on native. We use
+// WGPUCallbackMode_WaitAnyOnly and block on wgpuInstanceWaitAny, which works
+// uniformly on native (polling) and on Emscripten (yields to the JS event
+// loop via Asyncify).  On Emscripten emdawnwebgpu's wgpuInstanceWaitAny is
+// implemented in terms of Promise.race, so a timeout of UINT64_MAX is
+// equivalent to "wait forever" but lets the JS event loop make progress.
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -79,16 +81,6 @@ static void onUncapturedError(WGPUDevice const* /*device*/, WGPUErrorType type,
           (int)message.length, message.data ? message.data : "");
 }
 
-static void pumpUntil(WGPUInstance instance, bool& flag) {
-  while (!flag) {
-#ifdef __EMSCRIPTEN__
-    emscripten_sleep(1);
-#else
-    wgpuInstanceProcessEvents(instance);
-#endif
-  }
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -128,6 +120,16 @@ Window::Window(std::string title) {
 
   // WebGPU: instance -> adapter -> device -> queue.
   WGPUInstanceDescriptor instDesc = {};
+  // Enable TimedWaitAny so that wgpuInstanceWaitAny(... > 0) actually
+  // works. Without this, the Emscripten port logs a warning and aborts
+  // the program whenever a synchronous wait is requested with a non-zero
+  // timeout. UINT64_MAX (used as "wait forever" below) is a non-zero
+  // timeout, so this is required.
+  WGPUInstanceFeatureName requiredFeatures[] = {
+    WGPUInstanceFeatureName_TimedWaitAny,
+  };
+  instDesc.requiredFeatureCount = sizeof(requiredFeatures) / sizeof(requiredFeatures[0]);
+  instDesc.requiredFeatures     = requiredFeatures;
   wgpuInstance = wgpuCreateInstance(&instDesc);
   if (!wgpuInstance) {
     throw std::runtime_error("wgpuCreateInstance failed");
@@ -229,11 +231,16 @@ void Window::initDeviceAndQueue() {
   aOpts.powerPreference    = WGPUPowerPreference_HighPerformance;
 
   WGPURequestAdapterCallbackInfo aCb = {};
-  aCb.mode      = WGPUCallbackMode_AllowProcessEvents;
+  aCb.mode      = WGPUCallbackMode_WaitAnyOnly;
   aCb.callback  = onAdapter;
   aCb.userdata1 = &aReq;
-  wgpuInstanceRequestAdapter(wgpuInstance, &aOpts, aCb);
-  pumpUntil(wgpuInstance, aReq.done);
+  WGPUFuture aFuture = wgpuInstanceRequestAdapter(wgpuInstance, &aOpts, aCb);
+
+  WGPUFutureWaitInfo aWait = {};
+  aWait.future    = aFuture;
+  aWait.completed = WGPU_FALSE;
+  wgpuInstanceWaitAny(wgpuInstance, 1, &aWait, UINT64_MAX);
+
   if (!aReq.adapter) throw std::runtime_error("No WebGPU adapter available");
   wgpuAdapter = aReq.adapter;
 
@@ -244,11 +251,16 @@ void Window::initDeviceAndQueue() {
   dDesc.uncapturedErrorCallbackInfo.callback = onUncapturedError;
 
   WGPURequestDeviceCallbackInfo dCb = {};
-  dCb.mode      = WGPUCallbackMode_AllowProcessEvents;
+  dCb.mode      = WGPUCallbackMode_WaitAnyOnly;
   dCb.callback  = onDevice;
   dCb.userdata1 = &dReq;
-  wgpuAdapterRequestDevice(wgpuAdapter, &dDesc, dCb);
-  pumpUntil(wgpuInstance, dReq.done);
+  WGPUFuture dFuture = wgpuAdapterRequestDevice(wgpuAdapter, &dDesc, dCb);
+
+  WGPUFutureWaitInfo dWait = {};
+  dWait.future    = dFuture;
+  dWait.completed = WGPU_FALSE;
+  wgpuInstanceWaitAny(wgpuInstance, 1, &dWait, UINT64_MAX);
+
   if (!dReq.device) throw std::runtime_error("WebGPU device request failed");
   wgpuDevice = dReq.device;
 
@@ -377,10 +389,12 @@ void Window::InitRmlUi() {
       Rml::Vector2i(windowSize.x, windowSize.y));
 
   // Load default font from RmlUi's own embedded font (Courier Prime Code).
-  // The data lives in RmlUi/Source/Debugger/FontSource.h — already compiled
-  // into rmlui_debugger, so no extra font files in our repo, no filesystem
-  // access needed (works on WebAssembly too). We register it as a regular
-  // font family so demos can use it via CSS font-family.
+  // The data lives in RmlUi's debugger FontSource.h — exposed through a
+  // generated forwarding header at <RmlUi/Debugger/FontSource.h> (see
+  // external/rmlui.cmake). Already compiled into rmlui_debugger, so no
+  // extra font files in our repo, no filesystem access needed (works on
+  // WebAssembly too). We register it as a regular font family so demos
+  // can use it via CSS font-family.
   bool font_ok = true;
   {
     using namespace Rml;

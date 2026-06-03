@@ -27,6 +27,9 @@ Engine::Engine(EngineSettings settings) : window(nullptr), settings(settings) {
   if (!settings.headless) {
     SDL_Log("Engine Created");
   }
+  // Mirror the user-supplied clear color into our cached array so the
+  // per-frame render pass descriptor can read it directly.
+  for (int i = 0; i < 4; ++i) clearColor[i] = settings.clearColor[i];
   instance = this;
 }
 
@@ -98,9 +101,13 @@ void Engine::Tick() {
   WGPUTextureView        backbufferView = nullptr;
   WGPUCommandEncoder     encoder        = nullptr;
   WGPURenderPassEncoder  pass           = nullptr;
+  // Physical pixel dimensions — needed for HiDPI-correct scissor rects when
+  // using RmlUi. On non-HiDPI displays this equals the logical window size.
+  int physW = 0, physH = 0;
 
   if (!settings.headless) {
     window->Update();
+    SDL_GetWindowSizeInPixels(window->sdlWindow, &physW, &physH);
 
     wgpuSurfaceGetCurrentTexture(window->wgpuSurface, &surfaceTex);
     bool haveBackbuffer =
@@ -189,7 +196,8 @@ void Engine::Tick() {
       // wgpuQueueWriteBuffer ordering issues during the pass.
       if (settings.useRmlUi && window->rmlContext && window->rmlRenderer) {
         window->rmlRenderer->PrepareFrame(window->size().x,
-                                          window->size().y);
+                                          window->size().y,
+                                          physW, physH);
         window->rmlRenderer->BeginRenderPass(pass);
         window->rmlContext->Render();
         window->rmlRenderer->EndRenderPass();
