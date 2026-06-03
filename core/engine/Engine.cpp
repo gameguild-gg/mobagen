@@ -16,6 +16,11 @@
 #  include <emscripten.h>
 #endif
 
+// RmlUi platform headers (used for event processing)
+#include "RmlUi_Platform_SDL.h"
+#include <RmlUi/Core.h>
+#include "../RmlUiWgpuRenderer.h"
+
 using namespace std::chrono_literals;
 
 Engine::Engine(EngineSettings settings) : window(nullptr), settings(settings) {
@@ -72,6 +77,11 @@ bool Engine::Start(std::string title) {
       SDL_Log("Window Initialized");
     else
       exit(0);
+
+    // Initialize RmlUi if requested
+    if (settings.useRmlUi) {
+      window->InitRmlUi();
+    }
   } else {
     SDL_Log("Starting in headless mode - no window created");
     window = nullptr;
@@ -125,9 +135,11 @@ void Engine::Tick() {
       pass = wgpuCommandEncoderBeginRenderPass(encoder, &passDesc);
     }
 
-    ImGui_ImplWGPU_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
-    ImGui::NewFrame();
+    if (settings.useImGui) {
+      ImGui_ImplWGPU_NewFrame();
+      ImGui_ImplSDL3_NewFrame();
+      ImGui::NewFrame();
+    }
   }
 
   processInput();
@@ -140,18 +152,51 @@ void Engine::Tick() {
 
   for (auto go : gameObjects) go->Update(deltaTime);
 
+  // Game rendering (OnGui, OnDraw) requires ImGui because Renderer2D is
+  // backed by an ImDrawList. If the user opted out of ImGui but registered
+  // game objects, surface a one-shot warning so the empty viewport isn't
+  // mysterious. See the constraint documented in EngineSettings.h.
+  if (!settings.useImGui && !gameObjects.empty()) {
+    static bool warned = false;
+    if (!warned) {
+      SDL_Log("Engine: %zu game object(s) registered but useImGui=false; "
+              "their OnGui/OnDraw will not run. Enable useImGui in "
+              "EngineSettings to render them.",
+              gameObjects.size());
+      warned = true;
+    }
+  }
+
   if (!settings.headless) {
-    for (auto go : gameObjects)         go->OnGui(window->imGuiContext);
-    for (auto go : scriptableObjects)   go->OnGui(window->imGuiContext);
+    if (settings.useImGui) {
+      for (auto go : gameObjects)         go->OnGui(window->imGuiContext);
+      for (auto go : scriptableObjects)   go->OnGui(window->imGuiContext);
 
-    Renderer2D r(ImGui::GetBackgroundDrawList(),
-                 window->size().x, window->size().y);
-    for (auto go : gameObjects) go->OnDraw(r);
+      Renderer2D r(ImGui::GetBackgroundDrawList(),
+                   window->size().x, window->size().y);
+      for (auto go : gameObjects) go->OnDraw(r);
 
-    ImGui::Render();
+      ImGui::Render();
+    }
+
+    // RmlUi Update must be called every frame to process animations, etc.
+    if (settings.useRmlUi && window->rmlContext) {
+      window->rmlContext->Update();
+    }
 
     if (pass) {
-      ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
+      // RmlUi Render — uses dynamic uniform offsets to avoid
+      // wgpuQueueWriteBuffer ordering issues during the pass.
+      if (settings.useRmlUi && window->rmlContext && window->rmlRenderer) {
+        window->rmlRenderer->PrepareFrame(window->size().x,
+                                          window->size().y);
+        window->rmlRenderer->BeginRenderPass(pass);
+        window->rmlContext->Render();
+        window->rmlRenderer->EndRenderPass();
+      }
+      if (settings.useImGui) {
+        ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
+      }
       wgpuRenderPassEncoderEnd(pass);
       wgpuRenderPassEncoderRelease(pass);
 
@@ -196,7 +241,15 @@ void Engine::processInput() {
 
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
-    ImGui_ImplSDL3_ProcessEvent(&event);
+    if (settings.useImGui) {
+      ImGui_ImplSDL3_ProcessEvent(&event);
+    }
+
+    // Feed events to RmlUi
+    if (settings.useRmlUi && window->rmlContext) {
+      RmlSDL::InputEventHandler(window->rmlContext, window->sdlWindow, event);
+    }
+
     if (event.type == SDL_EVENT_QUIT) done = true;
     if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
         event.window.windowID == SDL_GetWindowID(window->sdlWindow))

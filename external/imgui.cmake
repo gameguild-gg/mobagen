@@ -6,7 +6,7 @@
 #   * imgui_impl_wgpu      (renderer; Dawn flavor on both native and web)
 #
 # Requires: SDL3::SDL3-static (external/sdl.cmake)
-#           mobagen::webgpu   (external/dawn.cmake)
+#           dawn::webgpu      (external/dawn.cmake)
 # ============================================================================
 
 string(TIMESTAMP BEFORE "%s")
@@ -43,7 +43,7 @@ if(IMGUI_ADDED)
   target_link_libraries(IMGUI
     PUBLIC
       SDL3::SDL3-static
-      mobagen::webgpu
+      dawn::webgpu
       ${CMAKE_DL_LIBS}
   )
 
