@@ -3,7 +3,7 @@
 #
 # Provides one interface target:
 #
-#   mobagen::webgpu
+#   dawn::webgpu
 #       - Native (macOS/Win/Linux): links Dawn (webgpu_dawn) and exposes
 #         <webgpu/webgpu.h> + <webgpu/webgpu_cpp.h>.
 #       - Emscripten: pulls in the emdawnwebgpu port from the Dawn tree
@@ -15,8 +15,8 @@
 #   * Building Dawn from source on native takes a while (~5-10 min cold).
 # ============================================================================
 
-add_library(mobagen_webgpu INTERFACE)
-add_library(mobagen::webgpu ALIAS mobagen_webgpu)
+add_library(dawn_webgpu INTERFACE)
+add_library(dawn::webgpu ALIAS dawn_webgpu)
 
 # ---------------------------------------------------------------------------
 # Native-only build options. Must be set BEFORE CPMAddPackage so Dawn picks
@@ -95,10 +95,10 @@ if(EMSCRIPTEN)
   message(STATUS "Using emdawnwebgpu port: ${_EMDAWN_PORT}")
 
   # The port replaces the old -sUSE_WEBGPU=1 path; emdawnwebgpu requires Asyncify.
-  target_compile_options(mobagen_webgpu INTERFACE
+  target_compile_options(dawn_webgpu INTERFACE
     "SHELL:--use-port=${_EMDAWN_PORT}"
   )
-  target_link_options(mobagen_webgpu INTERFACE
+  target_link_options(dawn_webgpu INTERFACE
     "SHELL:--use-port=${_EMDAWN_PORT}"
     "SHELL:-sASYNCIFY"
   )
@@ -110,12 +110,12 @@ else()
     )
   endif()
 
-  target_link_libraries(mobagen_webgpu INTERFACE webgpu_dawn)
-  target_include_directories(mobagen_webgpu INTERFACE
+  target_link_libraries(dawn_webgpu INTERFACE webgpu_dawn)
+  target_include_directories(dawn_webgpu INTERFACE
     "${dawn_SOURCE_DIR}/include"
     "${dawn_BINARY_DIR}/gen/include"
   )
-  target_compile_definitions(mobagen_webgpu INTERFACE
+  target_compile_definitions(dawn_webgpu INTERFACE
     WEBGPU_BACKEND_DAWN=1
   )
 endif()

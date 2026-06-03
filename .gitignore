@@ -78,3 +78,11 @@ ehthumbs.db
 Thumbs.db
 
 external/*/
+
+# agentmemory iii-engine live event streams (local cache, do not commit)
+# Pinned to this exact directory so unrelated `data/...` files in demos are
+# not accidentally swallowed. Owned by the agentmemory tool — do not commit
+# anything that lands here.
+data/stream_store/
+# agentmemory iii-engine KV state (local cache, do not commit). Same rationale.
+data/state_store.db

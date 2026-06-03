@@ -8,6 +8,12 @@
 #include <imgui.h>
 #include <string>
 
+namespace Rml {
+class Context;
+class SystemInterface;
+}
+class RmlUiWgpuRenderer;
+
 // A thin owner of the OS window + WebGPU surface/device used by the engine.
 // No SDL_Renderer anymore — all drawing goes through WebGPU + ImGui.
 class Window {
@@ -25,6 +31,10 @@ public:
   // adapt ImGui font scale. Called by Engine::Tick.
   void Update();
 
+  // Initialize RmlUi (HTML/CSS UI). Call once after construction.
+  // Creates the SystemInterface, RenderInterface, context, and loads fonts.
+  void InitRmlUi();
+
   // --- public for the Engine; demos shouldn't touch these directly ---
   SDL_Window*       sdlWindow     = nullptr;
   ImGuiContext*     imGuiContext  = nullptr;
@@ -38,6 +48,12 @@ public:
 
   // Backed by SDL_Metal_CreateView on macOS; nullptr elsewhere.
   SDL_MetalView     metalView     = nullptr;
+
+  // RmlUi. RmlUi holds non-owning pointers to the system and render
+  // interfaces, so we keep them alive and free them after Rml::Shutdown().
+  Rml::Context*           rmlContext          = nullptr;
+  RmlUiWgpuRenderer*      rmlRenderer         = nullptr;
+  void*                   rmlSystemInterface  = nullptr;  // SystemInterface_SDL*
 
 private:
   void createSurface();

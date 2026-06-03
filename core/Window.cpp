@@ -7,6 +7,12 @@
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_wgpu.h>
 
+#include <RmlUi/Core.h>
+#include <RmlUi/Debugger.h>
+#include "RmlUiWgpuRenderer.h"
+#include "RmlUi_Platform_SDL.h"
+#include "FontSource.h"
+
 #include <cstdio>
 #include <stdexcept>
 #include <string>
@@ -292,10 +298,34 @@ void Window::Update() {
     if (imGuiContext) {
       ImGui::GetIO().FontGlobalScale = static_cast<float>(minDim) / 500.f;
     }
+    // RmlUi context resize
+    if (rmlContext) {
+      rmlContext->SetDimensions(Rml::Vector2i(logW, logH));
+    }
   }
 }
 
 Window::~Window() {
+  // Tear down RmlUi in the proper order:
+  //   1. Remove the context (triggers Release* calls on the render interface).
+  //   2. Shutdown RmlUi (releases all global resources, drops references to
+  //      our system/render interfaces).
+  //   3. Only then delete the system and render interfaces (RmlUi no longer
+  //      references them).
+  if (rmlContext) {
+    Rml::RemoveContext("main");
+    rmlContext = nullptr;
+  }
+  Rml::Shutdown();
+  if (rmlSystemInterface) {
+    delete static_cast<SystemInterface_SDL*>(rmlSystemInterface);
+    rmlSystemInterface = nullptr;
+  }
+  if (rmlRenderer) {
+    delete rmlRenderer;
+    rmlRenderer = nullptr;
+  }
+
   ImGui_ImplWGPU_Shutdown();
   ImGui_ImplSDL3_Shutdown();
   ImGui::DestroyContext(imGuiContext);
@@ -314,4 +344,59 @@ Window::~Window() {
 
   if (sdlWindow) { SDL_DestroyWindow(sdlWindow); sdlWindow = nullptr; }
   SDL_Quit();
+}
+
+// ---------------------------------------------------------------------------
+// RmlUi initialization
+// ---------------------------------------------------------------------------
+
+void Window::InitRmlUi() {
+  // Create the SDL system interface (from RmlUi's built-in SDL platform backend).
+  // RmlUi takes a non-owning pointer; we own and free it in ~Window.
+  auto* system = new SystemInterface_SDL();
+  system->SetWindow(sdlWindow);
+  rmlSystemInterface = system;
+  Rml::SetSystemInterface(system);
+
+  // Initialize RmlUi. A false return means the font engine (or another
+  // global) could not initialize; subsequent Rml::CreateContext() will
+  // return nullptr and the user would otherwise just see a black window.
+  if (!Rml::Initialise()) {
+    SDL_Log("Window: Rml::Initialise() failed — RmlUi will not be available.");
+    return;
+  }
+
+  // Create the WebGPU renderer
+  rmlRenderer = new RmlUiWgpuRenderer(wgpuDevice, wgpuQueue, surfaceFormat);
+
+  // Install our render interface
+  Rml::SetRenderInterface(rmlRenderer);
+
+  // Create main context sized to window
+  rmlContext = Rml::CreateContext("main",
+      Rml::Vector2i(windowSize.x, windowSize.y));
+
+  // Load default font from RmlUi's own embedded font (Courier Prime Code).
+  // The data lives in RmlUi/Source/Debugger/FontSource.h — already compiled
+  // into rmlui_debugger, so no extra font files in our repo, no filesystem
+  // access needed (works on WebAssembly too). We register it as a regular
+  // font family so demos can use it via CSS font-family.
+  bool font_ok = true;
+  {
+    using namespace Rml;
+    const Span<const byte> data_reg(courier_prime_code, sizeof(courier_prime_code));
+    const Span<const byte> data_it(courier_prime_code_italic, sizeof(courier_prime_code_italic));
+
+    bool r1 = LoadFontFace(data_reg, "AppFont", Style::FontStyle::Normal, Style::FontWeight::Normal);
+    bool r2 = LoadFontFace(data_it,  "AppFont", Style::FontStyle::Italic, Style::FontWeight::Normal);
+    font_ok = r1 || r2;
+  }
+  if (!font_ok) {
+    SDL_Log("RmlUi: WARNING — embedded font failed to load. Text will not render.");
+  }
+
+  // Debugger (optional, helps during development)
+  Rml::Debugger::Initialise(rmlContext);
+
+  SDL_Log("RmlUi initialized (context %dx%d)", windowSize.x, windowSize.y);
 }

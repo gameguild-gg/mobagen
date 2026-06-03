@@ -19,14 +19,22 @@ set(CORE_INC_DIR
 
 add_library(core STATIC ${CORE_SRC} ${CORE_INC})
 
-# IMGUI already PUBLIC-links SDL3::SDL3-static + mobagen::webgpu, so consumers
+# Collect optional RmlUi libraries if available
+set(RMLUI_LIBS "")
+if(TARGET rmlui_all)
+  list(APPEND RMLUI_LIBS rmlui_all)
+  message(STATUS "RmlUi linked to core")
+endif()
+
+# IMGUI already PUBLIC-links SDL3::SDL3-static + dawn::webgpu, so consumers
 # of `core` get SDL3, WebGPU (Dawn / emdawnwebgpu) and ImGui transitively.
 target_link_libraries(core
   PUBLIC
     SDL3::SDL3-static
     SDL3_image::SDL3_image-static
     IMGUI
-    mobagen::webgpu
+    dawn::webgpu
+    ${RMLUI_LIBS}
 )
 
 # If(NOT EMSCRIPTEN AND NOT ANDROID) add_definitions(-DGLEW_STATIC) #  add_definitions(-DGLEW_BUILD)

@@ -14,6 +14,7 @@
 #include <vector>
 
 class Renderer2D;
+namespace Rml { class Context; }
 
 class Engine {
 private:
