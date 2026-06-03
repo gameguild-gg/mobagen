@@ -62,6 +62,16 @@ public:
     std::size_t size() const { return dense_.size(); }
     const std::uint32_t* ids() const { return dense_.data(); }  // packed id array
 
+    // Swap the two dense positions i and j (and fix sparse). Used by Group to
+    // co-order pools. Both positions must hold present ids.
+    void swap_ids(std::uint32_t i, std::uint32_t j) {
+        const std::uint32_t a = dense_[i], b = dense_[j];
+        sparse_ref(a) = j;
+        sparse_ref(b) = i;
+        dense_[i] = b;
+        dense_[j] = a;
+    }
+
 protected:
     static constexpr std::uint32_t page_size = 1024;
 

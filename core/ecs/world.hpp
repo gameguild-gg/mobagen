@@ -33,6 +33,8 @@ template <class T> std::size_t component_id() { static const std::size_t id = ne
 }  // namespace detail
 
 class World {
+    template <class, class> friend class Group;  // Group co-orders our component pools
+
 public:
     Entity create() {
         std::uint32_t idx;
@@ -94,13 +96,10 @@ public:
     // components are added/removed during the pass.
     template <class A, class B, class Fn>
     void apply_range(std::size_t begin, std::size_t end, Fn&& fn) {
-        auto& sa = storage<A>();
         auto& sb = storage<B>();
-        const std::uint32_t* ids = sa.ids();
-        for (std::size_t i = begin; i < end; ++i) {
-            const std::uint32_t id = ids[i];
-            if (sb.contains(id)) fn(make_entity(id, generations_[id]), sa.data_at(i), sb.get(id));
-        }
+        storage<A>().each_range(begin, end, [&](std::uint32_t id, A& a) {  // A-side chunk-aware
+            if (sb.contains(id)) fn(make_entity(id, generations_[id]), a, sb.get(id));
+        });
     }
 
 private:

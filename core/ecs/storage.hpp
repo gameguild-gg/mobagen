@@ -54,11 +54,38 @@ public:
     // Component at a dense position (lets a view be split into parallel ranges).
     T& data_at(std::size_t dense_index) { return at_ref(dense_index); }
 
-    // Packed iteration: fn(id, T&). Contiguous within each chunk.
+    // Swap entity + component at two dense positions (Group co-ordering).
+    void swap_dense(std::uint32_t i, std::uint32_t j) {
+        std::swap(at_ref(i), at_ref(j));
+        swap_ids(i, j);  // SparseSet
+    }
+
+    // Packed iteration: fn(id, T&). Walks each chunk's contiguous buffer through a
+    // raw T* (one deref, no per-element div/mod) — the hot data-plane loop.
     template <class Fn>
     void each(Fn&& fn) {
         const std::uint32_t* id = ids();
-        for (std::size_t i = 0, n = size(); i < n; ++i) fn(id[i], at_ref(i));
+        std::size_t i = 0;
+        for (auto& chunk : chunks_) {
+            T* base = chunk.data();
+            const std::size_t cnt = chunk.size();
+            for (std::size_t j = 0; j < cnt; ++j, ++i) fn(id[i], base[j]);
+        }
+    }
+
+    // Chunk-aware iteration over a dense [begin, end) sub-range (for parallel_for):
+    // div/mod only at chunk boundaries, then a raw-pointer stride within the chunk.
+    template <class Fn>
+    void each_range(std::size_t begin, std::size_t end, Fn&& fn) {
+        const std::uint32_t* id = ids();
+        std::size_t i = begin;
+        while (i < end) {
+            const std::size_t c = i / ChunkElems;
+            T* base = chunks_[c].data();
+            const std::size_t next = (c + 1) * ChunkElems;
+            const std::size_t stop = end < next ? end : next;
+            for (std::size_t o = i % ChunkElems; i < stop; ++i, ++o) fn(id[i], base[o]);
+        }
     }
 
     std::size_t chunk_count() const { return chunks_.size(); }
