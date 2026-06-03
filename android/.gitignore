@@ -1,0 +1,7 @@
+# Android build artifacts — generated/copied at build time by build.py
+local.properties
+build/
+.gradle/
+app/build/
+app/src/main/java/org/
+app/src/main/jniLibs/

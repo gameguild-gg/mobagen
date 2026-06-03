@@ -85,14 +85,14 @@ message(STATUS "Dawn fetch/configure TIME: ${DELTADAWN}s")
 # Wire the interface target according to platform.
 # ---------------------------------------------------------------------------
 if(EMSCRIPTEN)
-  set(_EMDAWN_PORT "${dawn_SOURCE_DIR}/third_party/emdawnwebgpu/pkg/emdawnwebgpu.port.py")
-  if(NOT EXISTS "${_EMDAWN_PORT}")
-    message(FATAL_ERROR
-      "emdawnwebgpu port not found at:\n  ${_EMDAWN_PORT}\n"
-      "Check the Dawn tag pinned in external/dawn.cmake."
-    )
-  endif()
-  message(STATUS "Using emdawnwebgpu port: ${_EMDAWN_PORT}")
+  # Emscripten 4.0.10+ ships a built-in "remote port" named simply
+  # `emdawnwebgpu`. Using it is the recommended path — it tells emcc/em++
+  # to download a pinned, pre-built emdawnwebgpu package and wire it up
+  # automatically. Avoids having to build Dawn's CMake target for the
+  # web target (we set DOWNLOAD_ONLY above, which would never produce
+  # the emdawnwebgpu_pkg that the Dawn source's port file requires).
+  set(_EMDAWN_PORT "emdawnwebgpu")
+  message(STATUS "Using emdawnwebgpu remote port (built into Emscripten 4.0.10+)")
 
   # The port replaces the old -sUSE_WEBGPU=1 path; emdawnwebgpu requires Asyncify.
   target_compile_options(dawn_webgpu INTERFACE

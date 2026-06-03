@@ -1,0 +1,77 @@
+// MoBaGEn Android app module build file
+// The ANDROID_MAIN_TARGET Gradle property selects which CMake example to package.
+// Set it via: ./gradlew assembleDebug -PANDROID_MAIN_TARGET=chess
+
+plugins {
+    id 'com.android.application'
+}
+
+// Default target if none passed via -P flag
+def mainTarget = project.findProperty('ANDROID_MAIN_TARGET') ?: 'headless'
+
+android {
+    namespace 'gg.gameguild.mobagen'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "gg.gameguild.mobagen"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.0.1"
+
+        ndk {
+            // Both ABIs — build.py copies per-ABI .so files into jniLibs before Gradle runs
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+
+        externalNativeBuild {
+            cmake {
+                // Path relative to this file (app/) to the root CMakeLists.txt
+                arguments "-DANDROID_MAIN_TARGET=${mainTarget}",
+                          "-DENABLE_TEST_COVERAGE=OFF",
+                          "-DANDROID_STL=c++_shared"
+                cppFlags "-std=c++20"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+        debug {
+            jniDebuggable true
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "../../CMakeLists.txt"
+            version "3.22.0+"
+        }
+    }
+
+    sourceSets {
+        main {
+            // jniLibs are pre-built by CMake + copied by build.py
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+}

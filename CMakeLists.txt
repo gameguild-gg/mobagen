@@ -85,4 +85,17 @@ CPMAddPackage(
 )
 write_license_disclaimer("third_party.txt" "${CPM_PACKAGES}")
 
+# Android: rename selected example target output to "main" so that
+# SDLActivity can load it via System.loadLibrary("main").
+# Set -DANDROID_MAIN_TARGET=<example_name> when configuring for Android.
+if(ANDROID AND DEFINED ANDROID_MAIN_TARGET)
+  if(TARGET ${ANDROID_MAIN_TARGET})
+    set_target_properties(${ANDROID_MAIN_TARGET} PROPERTIES OUTPUT_NAME "main")
+    message(STATUS "Android: '${ANDROID_MAIN_TARGET}' will be packaged as libmain.so")
+  else()
+    message(WARNING "ANDROID_MAIN_TARGET '${ANDROID_MAIN_TARGET}' is not a known target. "
+                    "Available examples: check examples/ subdirectories.")
+  endif()
+endif()
+
 # todo: follow https://github.com/TheLartians/ModernCppStarter
