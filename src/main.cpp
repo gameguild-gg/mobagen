@@ -168,10 +168,14 @@ void onUncapturedError(WGPUDevice const*, WGPUErrorType type, WGPUStringView msg
 }
 void pumpUntil(WGPUInstance inst, bool& flag) {
     while (!flag) {
+        // Emdawn marks adapter/device futures ready from JavaScript promises,
+        // but callbacks using AllowProcessEvents are delivered only when the
+        // app pumps WebGPU events. Without this call the browser build sits on
+        // the CSS-blue canvas forever: requestAdapter resolved, but our C++
+        // onAdapter/onDevice callback never runs.
+        wgpuInstanceProcessEvents(inst);
 #ifdef __EMSCRIPTEN__
         emscripten_sleep(1);
-#else
-        wgpuInstanceProcessEvents(inst);
 #endif
     }
 }

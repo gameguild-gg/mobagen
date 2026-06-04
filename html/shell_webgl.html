@@ -88,6 +88,17 @@
         // ---- Canvas resize ----------------------------------------------------
         const canvas = document.getElementById('canvas');
         const container = document.getElementById('container');
+        let wasmRuntimeReady = false;
+
+        function notifyNativeResize() {
+            // The HTML canvas can resize before the WASM runtime is ready. The
+            // exported C++ function exists as a stub at that point, but calling
+            // it early aborts the module, so the native viewport update is gated.
+            if (wasmRuntimeReady && typeof Module._on_canvas_resize === 'function') {
+                Module._on_canvas_resize(canvas.width, canvas.height);
+            }
+        }
+
         function resizeCanvas() {
             const rect = container.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;  // layout not ready
@@ -95,16 +106,17 @@
             canvas.width = Math.max(1, Math.round(rect.width * dpr));
             canvas.height = Math.max(1, Math.round(rect.height * dpr));
             console.log('[resize] canvas', canvas.width, canvas.height);
-            if (typeof Module._on_canvas_resize === 'function') {
-                Module._on_canvas_resize(canvas.width, canvas.height);
-            }
+            notifyNativeResize();
         }
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('orientationchange', resizeCanvas);
         resizeCanvas();
         // SDL_CreateWindow resets the canvas to its initial size during WASM
         // startup, so re-sync to the real window size once the module is ready.
-        Module.onRuntimeInitialized = () => resizeCanvas();
+        Module.onRuntimeInitialized = () => {
+            wasmRuntimeReady = true;
+            resizeCanvas();
+        };
 
         // ---- Color variants (calls into C++) ----------------------------------
         function setColor(num) {
