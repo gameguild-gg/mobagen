@@ -55,8 +55,9 @@ option(BUILD_CORE "Build the core engine modules and demos (native)" OFF)
 # master's convention; kills the old build/wasm-webgl/wasm-webgl/bin doubling).
 if(EMSCRIPTEN)
     if(USE_WEBGPU)
-        # Generated below: the WGSL sources are substituted into the shell.
-        set(SHELL_FILE "${CMAKE_BINARY_DIR}/generated/shell_webgpu.html")
+        # Dawn web renders in C++/wasm to #canvas; the shell is just a plain
+        # canvas host (the UI is ImGui, drawn in-canvas — no JS controls).
+        set(SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/html/shell_dawn.html")
     else()
         set(SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgl.html")
     endif()
@@ -121,18 +122,9 @@ endforeach()
 string(APPEND _gen "}  // namespace shaders\n")
 file(WRITE ${GEN_HEADER} "${_gen}")
 
-# WGSL: substitute the .wgsl sources into the WebGPU shell template (@ONLY so the
-# JS template-literal ${...} and the WGSL @attributes are left untouched).
-if(EMSCRIPTEN AND USE_WEBGPU)
-    file(READ ${SHADER_DIR}/raygen.wgsl RAYGEN_WGSL)
-    file(READ ${SHADER_DIR}/blit.wgsl   BLIT_WGSL)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgpu.html.in
-                   ${GEN_DIR}/shell_webgpu.html @ONLY)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        ${SHADER_DIR}/raygen.wgsl
-        ${SHADER_DIR}/blit.wgsl
-        ${CMAKE_CURRENT_SOURCE_DIR}/html/shell_webgpu.html.in)
-endif()
+# NOTE: WGSL is no longer substituted into a JS shell. With the Dawn host the
+# renderer runs in C++/wasm (not JS), so WGSL will be embedded C++-side (like the
+# GLSL above) when the DICOM ray-cast is ported. shaders/*.wgsl are kept for that.
 
 add_executable(dicom_renderer ${ENGINE_SOURCES})
 target_include_directories(dicom_renderer PRIVATE

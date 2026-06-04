@@ -72,12 +72,24 @@ math(EXPR DELTADAWN "${AFTER} - ${BEFORE}")
 message(STATUS "Dawn fetch/configure TIME: ${DELTADAWN}s")
 
 if(EMSCRIPTEN)
-  set(_EMDAWN_PORT "${dawn_SOURCE_DIR}/third_party/emdawnwebgpu/pkg/emdawnwebgpu.port.py")
-  if(NOT EXISTS "${_EMDAWN_PORT}")
+  # emdawnwebgpu's IN-TREE port.py refuses standalone use ("must sit in a built
+  # emdawnwebgpu_pkg"). em++ requires the BUILT package, which Dawn publishes as
+  # a release asset (emdawnwebgpu_pkg-<tag>.zip). Fetch + extract it and point
+  # --use-port at its emdawnwebgpu.port.py. The pkg is self-contained (ships the
+  # webgpu headers + JS), so the Dawn source tarball above isn't used on web.
+  CPMAddPackage(
+    NAME emdawnwebgpu_pkg
+    VERSION 20260423.175430
+    URL https://github.com/google/dawn/releases/download/v20260423.175430/emdawnwebgpu_pkg-v20260423.175430.zip
+    DOWNLOAD_ONLY YES
+  )
+  file(GLOB_RECURSE _EMDAWN_PORTS "${emdawnwebgpu_pkg_SOURCE_DIR}/*emdawnwebgpu.port.py")
+  if(NOT _EMDAWN_PORTS)
     message(FATAL_ERROR
-      "emdawnwebgpu port not found at:\n  ${_EMDAWN_PORT}\n"
-      "Check the Dawn tag pinned in external/dawn.cmake.")
+      "emdawnwebgpu.port.py not found in fetched emdawnwebgpu_pkg "
+      "(${emdawnwebgpu_pkg_SOURCE_DIR}). Check the release asset URL/tag.")
   endif()
+  list(GET _EMDAWN_PORTS 0 _EMDAWN_PORT)
   message(STATUS "Using emdawnwebgpu port: ${_EMDAWN_PORT}")
   target_compile_options(mobagen_webgpu INTERFACE "SHELL:--use-port=${_EMDAWN_PORT}")
   target_link_options(mobagen_webgpu INTERFACE
