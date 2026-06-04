@@ -72,10 +72,11 @@ So: we write C++ once; Emscripten makes it run in the browser. (We also build a
 **native** version for fast desktop testing — same C++, normal compiler.)
 
 ### JavaScript and the browser
-**JavaScript (JS)** is the language browsers run natively. It controls the web
-page, handles buttons, and — important here — is the only way to talk to **WebGPU**.
-So our project is part C++ (the engine) and part JS (the page + WebGPU calls), and
-they have to pass data back and forth (more on that in §9).
+**JavaScript (JS)** is the language browsers run natively. In this project it is
+mostly the Emscripten glue that loads the `.wasm` and gives us an HTML canvas.
+Earlier WebGPU experiments put the renderer in JS, but the current path uses
+**Dawn/emdawnwebgpu** so the WebGPU device, surface, and command recording live in
+C++ on both native and browser builds.
 
 ### What a "shader" is
 A **shader** is a tiny program that runs **on the GPU**, once per vertex or once
@@ -99,15 +100,19 @@ it runs in massive parallel. Shaders are where the actual image gets computed.
   GLSL, different spelling. Ours: [shaders/raygen.wgsl](../shaders/raygen.wgsl),
   [shaders/blit.wgsl](../shaders/blit.wgsl).
 
-We build the **same renderer twice** (WebGL+GLSL and WebGPU+WGSL) on purpose — to
-learn both, and because WebGL is the easy starting point and WebGPU is the goal.
+We keep the shader algorithms in both languages (WebGL+GLSL and WebGPU+WGSL) on
+purpose. WebGL is the easy starting point; Dawn/WebGPU is the destination we are
+porting the volume renderer onto.
 
 ### The helper libraries
-- **SDL2** — opens a window and gives us keyboard/mouse events, the same way on
+- **SDL3** — opens a window and gives us keyboard/mouse events, the same way on
   desktop and in the browser. (We never call browser/OS window code directly.)
 - **GLM** — a math library: vectors (`vec3`), matrices (`mat4`) and the operations
   on them. Graphics is *all* vector/matrix math; GLM provides it.
-- **GLEW** — on desktop only, finds the GPU driver's functions.
+- **GLEW** — on desktop WebGL/OpenGL only, finds the GPU driver's GL functions.
+- **Dawn / emdawnwebgpu** — the WebGPU implementation. Dawn gives native WebGPU;
+  emdawnwebgpu gives the same API shape when compiling to wasm.
+- **Dear ImGui** — immediate-mode UI drawn by the WebGPU host.
 - **CMake** — describes how to build the project (which files, which flags) so one
   description produces the native and both WASM builds.
 
@@ -164,7 +169,7 @@ shaders/
   blit.glsl/.wgsl     The "copy the offscreen image to the screen" shader.
 html/
   shell_webgl.html        The web page for the WebGL build (UI + canvas).
-  shell_webgpu.html.in    Template for the WebGPU page; CMake bakes the WGSL in.
+  shell_dawn.html         Plain canvas page for the Dawn/emdawnwebgpu build.
 ```
 
 ### Two words you'll see a lot
@@ -320,23 +325,23 @@ life. So you can't switch WebGL↔WebGPU live — each is its own **build** of t
 | Compute shaders? | ❌ | ✅ (needed later for fast DICOM processing) |
 | How resources reach the shader | individual calls + texture "units" | one **bind group** = {buffers, textures, samplers} |
 
-We write the ray caster in both languages (same algorithm) so the differences are
-visible side by side. WebGL is where you *learn*; WebGPU is where the research goes
-(it can run general parallel programs, not just draw).
+We keep the ray-caster shader in both languages (same algorithm) so the
+differences stay visible while porting. WebGL is where you *learn*; WebGPU is
+where the research goes (it can run general parallel programs, not just draw).
 
 ---
 
 ## 7. The awkward bits (and why they exist)
 
-- **C++ ↔ JavaScript bridge.** In the WebGPU build the renderer lives in JS, but the
-  camera lives in C++. So every frame C++ must *hand* JS the camera matrix (16
-  numbers). It does this by writing them into shared memory and calling a JS
-  function (`EM_ASM`). This is "the camera→WGSL bridge." It feels clunky because two
-  languages are cooperating across a boundary.
+- **Old C++ ↔ JavaScript bridge removed.** Earlier WebGPU prototypes rendered in JS
+  and needed C++ to hand camera matrices across the wasm/JS boundary. The current
+  Dawn host keeps the renderer in C++. The upcoming camera-to-WGSL path should be
+  a normal WebGPU uniform-buffer update, not an `EM_ASM` bridge.
 - **No filesystem in the browser.** C++ usually reads files with `fopen`. In the
   browser there's no disk. So for WebGL we *bundle* `volume.raw` into the wasm
   package (Emscripten `--preload-file`) and read it from a fake in-memory
-  filesystem; for WebGPU we `fetch()` it over HTTP. Same data, two delivery methods.
+  filesystem. The Dawn/WebGPU path currently copies `volume.raw` beside the output;
+  when the ray-cast is ported, it can fetch or package that same file explicitly.
 - **"Hard refresh or it's blank."** The browser caches the `.wasm`/`.data`. After a
   rebuild a normal refresh can load the *new* page with the *old* cached code →
   mismatch → blank canvas. Always Ctrl+Shift+R after building. (Not a bug; cache.)
@@ -373,8 +378,10 @@ WebGL build, one `tick()`:
    texture onto the canvas.
 6. Browser shows the canvas; ~16ms later, `tick()` again.
 
-WebGPU is the same flow, but steps 2/5 are expressed as WebGPU "render passes" in
-JavaScript, and the camera matrix arrives via the C++→JS bridge.
+The WebGPU path is moving toward the same flow, but expressed as Dawn/WebGPU
+objects in C++: buffers, textures, bind groups, render passes, and command
+submission. Today it proves the host by clearing the surface and drawing ImGui;
+the volume pass is the next layer.
 
 ---
 
@@ -409,6 +416,6 @@ JavaScript, and the camera matrix arrives via the C++→JS bridge.
 - **Window/level** — center+width that selects a value band to display.
 - **RAII** — C++ pattern: object owns and auto-frees a resource.
 - **Bind group** (WebGPU) — a bundle of resources handed to a shader.
-- **SDL2 / GLM / GLEW / CMake** — windowing+input / math / GL loader / build tool.
+- **SDL3 / GLM / GLEW / CMake** — windowing+input / math / GL loader / build tool.
 - **DICOM** — the medical-imaging file format (the real data, Tier 3-A).
 - **Hounsfield units** — CT's density scale (air −1000, water 0, bone +1000).

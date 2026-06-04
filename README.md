@@ -8,7 +8,8 @@ same ray-per-pixel foundation.
 Built as a learning project: the code grows one understandable rung at a time, and
 every step renders something you can see.
 
-**Current stage:** triangle + interactive camera (the foundation rung).
+**Current stage:** WebGL has the synthetic-volume ray caster; WebGPU has the
+Dawn/emdawnwebgpu + SDL3 + ImGui host that the DICOM renderer will move onto.
 **Goal:** see the north star in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
@@ -19,8 +20,9 @@ A browser `<canvas>` can only ever hold one context type, so WebGL and WebGPU
 cannot share a canvas at runtime. Each is therefore its **own build**:
 
 - **WebGL2 (G2)** — `build/wasm-webgl` — the learning rung (immediate-mode, GLSL ES 3.0)
-- **WebGPU (G3)** — `build/wasm-webgpu` — the destination (deferred-mode, WGSL, compute shaders for GPU-side DICOM work)
-- **Native** — `build/native` — fast desktop iteration (WebGL/OpenGL only)
+- **WebGPU (G3)** — `build/wasm-webgpu` — the destination (Dawn/emdawnwebgpu, deferred-mode, WGSL/compute next)
+- **Native WebGL/OpenGL** — `build/native` — fast desktop iteration for the WebGL path
+- **Native WebGPU** — `build/native-webgpu` — fast desktop iteration for Dawn + ImGui
 
 ---
 
@@ -28,8 +30,8 @@ cannot share a canvas at runtime. Each is therefore its **own build**:
 
 ```powershell
 # Emscripten env (once per shell)
-$env:EMSDK = "C:\Users\MatheusMartins\AppData\Local\Temp\emsdk"
-$env:PATH  = "$env:EMSDK;$env:EMSDK\upstream\emscripten;$env:EMSDK\node\22.16.0_64bit\bin;$env:PATH"
+$env:EMSDK = "C:\Users\MatheusMartins\emsdk"
+& "$env:EMSDK\emsdk_env.ps1"
 
 # WebGL2 build
 emcmake cmake -B build/wasm-webgl -DCMAKE_BUILD_TYPE=Release
@@ -39,7 +41,7 @@ cd build/wasm-webgl/bin ; python -m http.server 8083
 ```
 
 WebGPU build: add `-DUSE_WEBGPU=ON` and use a separate output dir. Full commands,
-controls, and the native build are in [docs/LEARNING.md](docs/LEARNING.md).
+controls, native builds, and caveats are in [docs/LEARNING.md](docs/LEARNING.md).
 
 ---
 
@@ -66,9 +68,10 @@ Hold mouse + drag to rotate · wheel to zoom · `C` toggles ORBIT/WASD ·
 ## Project layout
 
 ```
-src/engine/   RAII GL wrappers (shader/buffer/VAO), camera, renderer, C ABI
+src/engine/   RAII GL wrappers, camera, renderer helpers, C ABI study module
 src/main.cpp  entry point + the G2/G3 app variants (#ifdef USE_WEBGPU)
-html/         Emscripten shells (one per renderer) + standalone camera demo
-external/     CMake deps actually used: glm, sdl, glew (+ cpm, compilerchecks)
-docs/         ARCHITECTURE, LEARNING, archive/
+core/         DOD study core: jobs, ecs, reactive, messaging, scene, net
+html/         Emscripten shells (WebGL and Dawn WebGPU)
+external/     CMake deps: glm, SDL3, GLEW, Dawn/emdawnwebgpu, ImGui
+docs/         current docs plus archived historical notes
 ```

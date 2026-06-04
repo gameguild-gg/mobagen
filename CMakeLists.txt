@@ -129,6 +129,9 @@ file(WRITE ${GEN_HEADER} "${_gen}")
 add_executable(dicom_renderer ${ENGINE_SOURCES})
 target_include_directories(dicom_renderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ecs
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/scene
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/render
     ${GEN_DIR}
 )
 
@@ -196,6 +199,7 @@ if(BUILD_CORE)
         add_subdirectory(core/reactive)
         add_subdirectory(core/messaging)
         add_subdirectory(core/scene)
+        add_subdirectory(core/render)
         add_subdirectory(core/net)
         add_subdirectory(core/examples)   # ecs + jobs glued (systems-as-jobs)
     endif()

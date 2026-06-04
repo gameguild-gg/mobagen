@@ -42,8 +42,9 @@ the editor mid-flight). Instead:
    retire the OOP core.
 
 Capabilities still owed before the editor can sit on DOD: a stable **entity/scene
-API + serialization**, a **render bridge** (DOD scene → Dawn/ImGui draw), **input**,
-and **resource/asset** handling. These are the next units.
+API + serialization**, **input**, and **resource/asset** handling. The first
+render bridge rung now exists: DOD volume entities can be flattened into renderer
+commands; the next step is making Dawn consume those commands.
 
 ---
 
@@ -91,6 +92,19 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
   = local TRS + parent + cached world (GLM); TransformSystem resolves world = parent.world *
   local (recursive + per-pass memo). Verified (move root → subtree follows). Dirty-subtree skip
   + parallelize-over-scheduler are later optimizations.
+
+### render — `RenderBridge` / `VolumeRenderable`
+- **Goal:** turn DOD scene data into flat renderer commands without making the ECS
+  depend on WebGL, Dawn, ImGui, or DICOM parser internals.
+- **Learn:** render bridges, coarse data handoff, GPU-resource handles, why big
+  voxel arrays stay outside the ECS.
+- **Data structures:** `VolumeRenderable` ECS component + compact
+  `VolumeDrawCommand[]` output. A volume entity is `{Transform, VolumeRenderable}`;
+  the command stores the resolved world matrix, volume resource id, dimensions,
+  voxel spacing, scalar format, window/level, transfer preset, and render mode.
+- **Status:** ✅ skeleton built (`core/render/render_bridge.hpp`,
+  `render_bridge_demo`). It proves the DOD -> renderer seam with a DICOM-like
+  `512x512x300` UInt16 CT volume. GPU consumption by the Dawn host is next.
 
 ### jobs — `Task` / `WaitGroup` / `Scheduler` (coroutine work-stealing)  ⭐ active
 - **Goal:** a *fast* parallel job system — the engine's performance heart.
@@ -166,6 +180,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 | reactive (Signal/Computed/Effect) | ✅ (auto-track + change-detect, verified) |
 | messaging (Notifier sync + EventBus async) | ✅ (verified) |
 | scene (Transform + TransformSystem on ECS) | ✅ (hierarchy propagation verified, GLM) |
+| render bridge (VolumeRenderable -> VolumeDrawCommand) | ✅ (DOD-to-render seam, GPU consumption next) |
 | **engine composition** (`engine_demo`: all modules in one tick) | ✅ (reactive+events+ECS+jobs+scene) |
 | net / distributed seam (transport + serialization) | ✅ (offload verified) |
 | **ORCHESTRATION BACKBONE** | ✅ **complete** |

@@ -317,6 +317,7 @@ core/
   messaging/  events_c.h   | messaging.hpp   Notifier ; Event·EventBus      (§3,§4)
   ecs/        ecs_c.h      | ecs.hpp          World·Entity·View·System       (§5)
   scene/      scene_c.h    | scene.hpp        Transform·TransformSystem      (§6)
+  render/     render_bridge.hpp              RenderBridge·Volume commands
   jobs/       jobs_c.h     | jobs.hpp         JobSystem·Job·Fiber·WaitGroup  (§7)
   net/        net_c.h      | net.hpp          (later) distributed backend    (§8)
   engine/     engine_c.h   | engine.hpp       Coordinator (frame loop)
@@ -334,6 +335,7 @@ prototypes/     learning spikes (fibers, …)
 | ecs | entity create · add/get/remove · **pool span** | `view<…>().each(...)`, systems |
 | reactive | create/set/read type-erased signal (scripting) | `Signal<T>`/`Computed<T>`/`Effect` graph |
 | scene | set_parent · world_matrix(entity) | `TransformSystem` propagation |
+| render | (next) expose draw-command spans | `RenderBridge`, GPU-resource handles |
 | volume_io ✓ | load_series → VolumeData · free | GDCM internals |
 | engine ✓ | create · step · run · wire modules | per-frame system schedule |
 
@@ -346,9 +348,10 @@ prototypes/     learning spikes (fibers, …)
 3. **Messaging** (`Notifier`, then `Event`/`EventBus`).
 4. **ECS** (`World`/`sparse_set`/`View`/`System`).
 5. **Scene** (`Transform` + `TransformSystem`).
-6. **JobSystem** dual-target (`Job`/`Fiber`/`WaitGroup`) + COOP/COEP dev server +
+6. **Render bridge** (`VolumeRenderable` -> flat draw commands).
+7. **JobSystem** dual-target (`Job`/`Fiber`/`WaitGroup`) + COOP/COEP dev server +
    single-thread fallback.
-7. **Distributed** seam.
+8. **Distributed** seam.
 
 Each rung ships its module as the three-file pattern (`<module>_c.h` facade +
 `<module>.hpp` + `.cpp`) plus a tiny demo proving it. Each is target-agnostic

@@ -34,21 +34,24 @@ You are currently in **Tier 3** (real-DICOM prep, path B — see below).
 ## Tier 2 — Ray marching (the heart of the thesis)
 
 4. **Fullscreen quad + ray generation.** One ray per pixel from the inverse
-   view-projection; ray direction shown as RGB. ✅ *(both renderers. This is where
-   the camera reaches the shader — in WebGPU via a C++→JS matrix bridge (EM_ASM).)*
+   view-projection; ray direction shown as RGB. ✅ *(WebGL path. The old JS WebGPU
+   bridge proved the idea; the current Dawn WebGPU host still needs the C++ WGSL
+   port.)*
 5. **March an implicit sphere (SDF).** `length(p) - r`; sphere-trace the ray,
-   gradient-normal + diffuse shading on hit. ✅ *(both renderers — a lit sphere
-   you can orbit. Identical loop to volume rendering, math instead of a texture.)*
-6. **3D texture, synthetic volume.** A 64³ soft ball in a `TEXTURE_3D`; the ray
-   marches the unit cube and accumulates density front-to-back (DVR). ✅ *(both
-   renderers — a semi-transparent glowing ball. You are now volume rendering.)*
+   gradient-normal + diffuse shading on hit. ✅ *(WebGL path; the old JS WebGPU
+   prototype also proved it. Identical loop to volume rendering, math instead of
+   a texture.)*
+6. **3D texture, synthetic volume.** A 64^3 soft ball in a `TEXTURE_3D`; the ray
+   marches the unit cube and accumulates density front-to-back (DVR). ✅ *(WebGL
+   path — a semi-transparent glowing ball. You are now volume rendering.)*
 7. **Transfer function + compositing.** A 1D LUT mapping density → RGBA, with 4
-   presets (Gray/Tissue/Shell/Cool). ✅ *(both renderers)*
+   presets (Gray/Tissue/Shell/Cool). ✅ *(WebGL path)*
 8. **Gradient shading + render modes.** Density-gradient normals for lit volume;
-   DVR / MIP / Isosurface mode switch. ✅ *(both renderers)*
+   DVR / MIP / Isosurface mode switch. ✅ *(WebGL path)*
 
-**Tier 2 complete.** A full synthetic-volume ray caster: rays → 3D texture →
-transfer function → shading → DVR/MIP/Iso, in WebGL2 and WebGPU.
+**Tier 2 complete for WebGL.** A full synthetic-volume ray caster: rays -> 3D
+texture -> transfer function -> shading -> DVR/MIP/Iso. The current WebGPU task is
+to port this algorithm onto the Dawn host.
 
 ## Tier 3 — Real DICOM  *(in progress; path B = de-risk the data path first)*
 
@@ -58,8 +61,9 @@ the loader gets proven on a stand-in phantom first.
 
 - **B1 ✅** Load the volume from a **file** (`volume.raw`), not generated in code —
   the same path real data will use. WebGL reads it from the WASM FS (Emscripten
-  `--preload-file`); WebGPU `fetch()`es it; native reads an absolute path. A
-  96³ "head" phantom (`tools/gen_phantom.py`) stands in for a real scan.
+  `--preload-file`); native reads an absolute path. The Dawn/WebGPU path copies
+  the same file beside the output for the upcoming WGSL port. A 96^3 "head"
+  phantom (`tools/gen_phantom.py`) stands in for a real scan.
 9. **B2 ✅** **Window/level** in the shader (center+width sliders) — remap a band
    of density to [0,1], clipping outside. The "bone window / brain window" knob.
 10. **B3 ✅** **Voxel spacing** — the volume box scales per-axis by voxel spacing
@@ -127,12 +131,23 @@ cd build/wasm-webgpu/bin ; python -m http.server 8084
 # open http://localhost:8084/dicom_renderer.html  (needs a WebGPU adapter; Chrome/Edge 113+ or recent Firefox)
 ```
 
-### Native (fast desktop iteration, WebGL/OpenGL only — no WebGPU)
+### Native WebGL/OpenGL
 ```powershell
 cmake -B build/native -DCMAKE_BUILD_TYPE=Release
 cmake --build build/native --config Release
 build\native\bin\Release\dicom_renderer.exe
 ```
+
+### Native WebGPU (Dawn + ImGui)
+```powershell
+cmake -B build/native-webgpu -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build/native-webgpu --target dicom_renderer --config Release
+build\native-webgpu\bin\Release\dicom_renderer.exe
+```
+
+When building the full Dawn-generated Visual Studio solution, external Dawn
+targets can hit Windows file-lock races. Build the `dicom_renderer` target
+directly when verifying this project.
 
 ### Optional build flags (brought over from master)
 - **DICOM (Tier 3-A):** `-DUSE_GDCM=ON` builds GDCM from source and links the

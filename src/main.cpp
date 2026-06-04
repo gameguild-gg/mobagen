@@ -128,6 +128,8 @@ static void process_input(bool& running) {
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_wgpu.h>
+#include "render_bridge.hpp"
+#include "transform_system.hpp"
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -186,6 +188,10 @@ struct AppWebGPU {
     int   cfgW = 0, cfgH = 0;
     float clearColor[4] = {0.10f, 0.20f, 0.50f, 1.0f};
 
+    ecs::World world;
+    scene::TransformSystem transforms;
+    render::RenderBridge renderBridge;
+
     bool init();
     void tick();
     void cleanup();
@@ -194,6 +200,7 @@ private:
     void createSurface();
     bool initDeviceAndQueue();
     void configureSurface(int w, int h);
+    void createStudyVolumeScene();
 };
 
 void AppWebGPU::createSurface() {
@@ -288,6 +295,37 @@ void AppWebGPU::configureSurface(int w, int h) {
     cfgW = w; cfgH = h;
 }
 
+void AppWebGPU::createStudyVolumeScene() {
+    // This is the first live DOD -> renderer handoff:
+    //   Entity + Transform + VolumeRenderable
+    // becomes, every frame:
+    //   VolumeDrawCommand[] consumed by the renderer host.
+    //
+    // The WebGPU host still only clears + draws ImGui. The important step here
+    // is architectural: the renderer no longer needs to query ECS storage while
+    // recording GPU commands. It receives a flat command list.
+    ecs::Entity phantom = world.create();
+
+    scene::Transform t;
+    t.scale = {1.0f, 1.0f, 1.5f};  // demonstrate non-cubic voxel spacing
+    world.add<scene::Transform>(phantom, t);
+
+    render::VolumeRenderable volume;
+    volume.source.id = 1;
+    volume.source.width = 96;
+    volume.source.height = 96;
+    volume.source.depth = 96;
+    volume.source.spacing_mm = {1.0f, 1.0f, 1.5f};
+    volume.source.format = render::VolumeScalarFormat::UInt8;
+    volume.display.window_center = 0.5f;
+    volume.display.window_width = 1.0f;
+    volume.display.transfer_preset = 1;
+    volume.display.mode = render::VolumeRenderMode::DVR;
+    world.add<render::VolumeRenderable>(phantom, volume);
+
+    transforms.rebuild(world);
+}
+
 bool AppWebGPU::init() {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -338,6 +376,8 @@ bool AppWebGPU::init() {
         return false;
     }
 
+    createStudyVolumeScene();
+
     printf("WebGPU (G3) initialized — Dawn + ImGui (surfaceFormat=%d)\n", (int)surfaceFormat);
     return true;
 }
@@ -381,6 +421,8 @@ void AppWebGPU::tick() {
         }
     }
     g_camera.update(measure_delta_seconds());
+    transforms.update(world);
+    renderBridge.build(world);
 
     // Reconfigure the surface on resize (device pixels, HiDPI-aware).
     int pxW = 0, pxH = 0;
@@ -428,7 +470,22 @@ void AppWebGPU::tick() {
         ImGui::Text("Camera: %s  (press C to toggle)",
                     g_camera.get_mode() == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
         ImGui::ColorEdit3("Clear color", clearColor);
-        ImGui::TextDisabled("DICOM ray-cast (WGSL) lands on this host next.");
+        ImGui::SeparatorText("DOD render bridge");
+        const auto& volumeCommands = renderBridge.volume_commands();
+        ImGui::Text("Volume commands: %d", static_cast<int>(volumeCommands.size()));
+        if (!volumeCommands.empty()) {
+            const auto& cmd = volumeCommands[0];
+            ImGui::Text("Volume id: %u", cmd.source.id);
+            ImGui::Text("Dims: %ux%ux%u",
+                        cmd.source.width, cmd.source.height, cmd.source.depth);
+            ImGui::Text("Spacing: %.2f %.2f %.2f mm",
+                        cmd.source.spacing_mm.x,
+                        cmd.source.spacing_mm.y,
+                        cmd.source.spacing_mm.z);
+            ImGui::Text("Window: %.2f / %.2f",
+                        cmd.display.window_center, cmd.display.window_width);
+        }
+        ImGui::TextDisabled("Next: consume this command with a Dawn WGSL volume pass.");
         ImGui::End();
     }
     ImGui::Render();

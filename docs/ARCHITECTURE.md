@@ -14,11 +14,17 @@ A WebAssembly-first renderer whose primary goal is **DICOM volume ray casting**
 **mesh ray tracer** for a personal game engine. Both share the same ray-per-pixel
 foundation; they differ in what happens after the ray is cast.
 
-Today the code is a **working synthetic-volume ray caster** in both WebGL2 and
-WebGPU: per-pixel ray generation, a 3D volume texture (loaded from a raw file),
-front-to-back DVR with a transfer function, gradient shading, and DVR/MIP/
-Isosurface modes + window/level. The data is a 96³ phantom standing in for a real
-DICOM scan (Tier 3-A). Everything below describes what exists now.
+Today the code has two renderer states:
+
+- **WebGL2/OpenGL:** a working synthetic-volume ray caster. It does per-pixel ray
+  generation, samples a 3D volume texture loaded from `volume.raw`, applies a
+  transfer function, gradient shading, DVR/MIP/Isosurface modes, and window/level.
+- **WebGPU:** a working **Dawn/emdawnwebgpu + SDL3 + Dear ImGui host**. It owns the
+  WebGPU device/surface/command encoder in C++ on both native and wasm. The volume
+  ray-cast is the next layer to port onto this host.
+
+The data is currently a 96^3 phantom standing in for a real DICOM scan (Tier 3-A).
+Everything below describes what exists now.
 
 ---
 
@@ -36,8 +42,9 @@ option, emitted into a separate output directory.
 | Build | CMake | Output | Role |
 |-------|-------|--------|------|
 | WebGL2 (G2) | `-DUSE_WEBGPU=OFF` (default) | `build/wasm-webgl/bin` | The learning rung — immediate-mode, widely supported |
-| WebGPU (G3) | `-DUSE_WEBGPU=ON` | `build/wasm-webgpu/bin` | The destination — deferred-mode, **compute shaders** for GPU-side DICOM processing |
-| Native | (no Emscripten) | `build/native/bin` | Fast desktop iteration; WebGL/OpenGL only |
+| WebGPU (G3) | `-DUSE_WEBGPU=ON` | `build/wasm-webgpu/bin` | The destination — Dawn/emdawnwebgpu host, **compute shaders** next |
+| Native WebGL/OpenGL | `-DUSE_WEBGPU=OFF` | `build/native/bin` | Fast desktop iteration for the WebGL/OpenGL path |
+| Native WebGPU | `-DUSE_WEBGPU=ON` | `build/native-webgpu/bin` | Fast desktop iteration for Dawn + ImGui |
 
 WebGL2 is where you learn the pipeline. WebGPU is the real target, because
 GPU-side volume processing (histograms, auto-windowing, wavefront ray casting)
@@ -63,20 +70,19 @@ src/
 html/
 ├── shell_webgl.html         Emscripten shell for the WebGL2 build (canvas, FPS,
 │                            color buttons that call into C++).
-├── shell_webgpu.html.in     WebGPU shell TEMPLATE (canvas, FPS, camera bridge).
-│                            CMake substitutes the .wgsl sources into it.
+├── shell_dawn.html          Plain canvas shell for the Dawn/emdawnwebgpu build.
+│                            The UI is Dear ImGui, drawn by C++ into the canvas.
 └── camera-test.html         Standalone JS camera demo (no build needed).
 
 shaders/                     Shader source of truth (one file per program).
 ├── raygen.glsl / blit.glsl  GLSL: BOTH stages in one file, gated by
 │                            VERTEX_SHADER / FRAGMENT_SHADER. Embedded at build
 │                            time into a generated header (compiled twice).
-└── raygen.wgsl / blit.wgsl  WGSL: one module each. Embedded at build time too —
-                             substituted into the WebGPU shell template
-                             (shell_webgpu.html.in) by CMake configure_file.
+└── raygen.wgsl / blit.wgsl  WGSL: one module each. Kept as the source for the
+                             upcoming Dawn/WebGPU ray-cast port.
 
-Both shader languages are embedded at build time: no runtime fetch, no runtime
-filesystem. Edit a shader and re-run CMake (auto-triggered by CMAKE_CONFIGURE_DEPENDS).
+GLSL is embedded at build time into a generated C++ header. WGSL is kept beside it
+so the WebGPU port can preserve the same algorithm in the WebGPU shader language.
 ```
 
 ### One class = one GPU object
@@ -133,10 +139,20 @@ Direct, immediate-mode: `renderer.clear()` → set `view_projection` uniform →
 browser, GLSL 3.30 core natively (same source, different `#version` header).
 
 ### WebGPU render path
-The device, pipeline and draw live in **JavaScript** (`shell_webgpu.html`),
-because WebGPU is a JS-first API. The C++ `tick()` calls `window.webgpu_render()`
-once per frame — the C++ loop is the **single owner** of the frame (the shell does
-*not* run its own `requestAnimationFrame`). Shaders are WGSL.
+The device, surface, command encoder, render pass, and ImGui draw now live in
+**C++** through Dawn's WebGPU C API. Native builds link Dawn directly; wasm builds
+use Dawn's `emdawnwebgpu` package. This replaces the earlier JavaScript WebGPU
+bridge and gives us one host model for native and browser.
+
+Current frame shape:
+
+```
+process SDL3 input -> update camera -> acquire WGPU surface texture
+  -> begin render pass -> clear + draw ImGui -> submit command buffer
+```
+
+The next renderer step is to add scene/volume draw commands before the ImGui draw
+inside that same render pass.
 
 ---
 
@@ -155,19 +171,18 @@ for learning. How resources reach the shader is the most instructive contrast:
 | Sampler | implicit in `sampler3D` | a separate `var ... : sampler` binding |
 | Resource wiring | individual `glUniform*` / texture units | one **bind group** = `{ buffers, textures, samplers }` |
 
-The camera reaches the shader differently too: in C++/WebGL it's a direct
-`glUniformMatrix4fv`; in WebGPU the C++ marshals the matrix across the WASM↔JS
-boundary (`EM_ASM` → `queue.writeBuffer`) — the camera→WGSL bridge.
+The camera reaches GLSL today through `glUniformMatrix4fv`. In the Dawn WebGPU
+port it will reach WGSL through a uniform buffer updated with `wgpuQueueWriteBuffer`.
 
 ---
 
 ## Known limitations (today)
 
-- **No real DICOM yet** — the volume is a 96³ synthetic phantom loaded from
+- **No real DICOM yet** — the volume is a 96^3 synthetic phantom loaded from
   `volume.raw`. The DICOM parser (GDCM/DCMTK → WASM) is Tier 3-A.
-- **8-bit volume + voxel spacing not yet applied** — window/level works but over
-  an 8-bit range; non-cubic voxel spacing (B3) is next, real 16-bit data comes
-  with DICOM.
-- **WebGPU needs a GPU adapter** — `requestAdapter()` returns null where the
-  browser has no usable GPU (hardware accel off / blocklist / some Chrome setups);
-  the page shows a "not available" panel. Native build is WebGL/OpenGL only.
+- **WebGPU volume ray-cast not ported yet** — Dawn + ImGui is green; the WGSL
+  pipeline, bind groups, 3D texture upload, and fullscreen draw are next.
+- **8-bit volume first** — the current phantom is 8-bit. Real DICOM will bring
+  16-bit values plus Hounsfield rescale.
+- **WebGPU needs a GPU adapter** — adapter creation can fail where the browser has
+  no usable GPU (hardware acceleration off, blocklist, or unsupported backend).
