@@ -24,6 +24,29 @@
 
 ---
 
+## Migration to master (greenfield, port the editor last)
+
+The engine core is **DOD** (*Data-Oriented Design* — entities are ids, components
+live in packed arrays, systems stream them). master's `core/` is the older OOP
+`Object/Component/Scene` model. Goal: the engine runs on DOD.
+
+**Chosen path: greenfield — do NOT rewrite master's core in place** (that breaks
+the editor mid-flight). Instead:
+1. **Build the DOD engine out fully** under its own tree (`orchestration/` on the
+   integration branch; `core/` here): jobs ✅ ecs ✅ reactive ✅ messaging ✅
+   scene ✅ net ✅ → then the capabilities the editor needs (below).
+2. **Keep master's OOP `core/` + editor running, untouched,** the whole time. The
+   `integration/orchestration-on-master` branch already does this: pure addition,
+   `BUILD_ORCHESTRATION` off by default — master's build + CI unchanged.
+3. **Last phase:** port the editor (+ examples/modules) onto the DOD core, then
+   retire the OOP core.
+
+Capabilities still owed before the editor can sit on DOD: a stable **entity/scene
+API + serialization**, a **render bridge** (DOD scene → Dawn/ImGui draw), **input**,
+and **resource/asset** handling. These are the next units.
+
+---
+
 ## Modules (curriculum)
 
 Each: **Goal · Learn · Data structures · Perf · Status.**

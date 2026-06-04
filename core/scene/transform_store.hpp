@@ -1,6 +1,6 @@
 #pragma once
 // ============================================================================
-// TransformStore — a dedicated Structure-of-Arrays transform store (DOTS-style).
+// TransformStore — a dedicated Structure-of-Arrays transform store (data-oriented).
 // ============================================================================
 // Transform data lives in flat, parallel arrays (not in a generic ECS component),
 // so update() is a PURE CONTIGUOUS SWEEP: no sparse probes, no entity indirection,

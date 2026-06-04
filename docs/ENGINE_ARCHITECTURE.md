@@ -9,8 +9,8 @@
 >
 > This document is the engine backbone for the **segmentation editor**: how state,
 > events, entities, scheduling, and (later) distribution fit together. Modeled on
-> master's `core/` (Unity-style `Object/Component/Scene`) but **data-oriented** —
-> we keep the vocabulary, replace the storage.
+> master's `core/` (Unity-style `Object/Component/Scene`) but **data-oriented
+> (DOD)** — we keep the vocabulary, replace the storage.
 
 ---
 
@@ -25,6 +25,11 @@ concept, zero collisions:**
 - **`WaitGroup`** = the atomic *job-dependency* tracker a `Fiber` waits on.
 
 If you catch yourself using "signal" for a callback or an event, stop.
+
+The data-oriented core itself is **DOD** (*Data-Oriented Design* — the
+Acton/Fabian term), **never "DOTS"** (that is Unity's trademark). DOD = entities
+are ids, components live in packed contiguous arrays, systems stream them. It is
+the thing that *replaces* the OOP `Object/Component` model in master's `core/`.
 
 ---
 
