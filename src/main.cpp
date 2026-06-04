@@ -1,4 +1,4 @@
-// Prevent SDL2 from redefining main() to SDL_main()
+// Prevent SDL from redefining main() to SDL_main()
 // We want to control the entry point ourselves
 #define SDL_MAIN_HANDLED
 
@@ -6,7 +6,7 @@
 #include <emscripten.h>
 #endif
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
@@ -69,14 +69,14 @@ static void process_input(bool& running) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 running = false;
                 break;
 
-            case SDL_KEYDOWN:
-                g_camera.on_key_pressed(event.key.keysym.sym);
+            case SDL_EVENT_KEY_DOWN:
+                g_camera.on_key_pressed(event.key.key);
                 // 'C' toggles between ORBIT (DICOM viewing) and WASD (engine fly).
-                if (event.key.keysym.sym == SDLK_c) {
+                if (event.key.key == SDLK_C) {
                     engine::CameraMode next =
                         (g_camera.get_mode() == engine::CameraMode::ORBIT)
                             ? engine::CameraMode::WASD
@@ -87,25 +87,25 @@ static void process_input(bool& running) {
                 }
                 break;
 
-            case SDL_KEYUP:
-                g_camera.on_key_released(event.key.keysym.sym);
+            case SDL_EVENT_KEY_UP:
+                g_camera.on_key_released(event.key.key);
                 break;
 
-            case SDL_MOUSEBUTTONDOWN:
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 g_mouse_look_active = true;
                 break;
 
-            case SDL_MOUSEBUTTONUP:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
                 g_mouse_look_active = false;
                 break;
 
-            case SDL_MOUSEMOTION:
+            case SDL_EVENT_MOUSE_MOTION:
                 if (g_mouse_look_active) {
                     g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
                 }
                 break;
 
-            case SDL_MOUSEWHEEL:
+            case SDL_EVENT_MOUSE_WHEEL:
                 g_camera.on_mouse_wheel(event.wheel.y);
                 break;
         }
@@ -132,15 +132,13 @@ struct AppWebGPU {
 
     bool init() {
         printf("WebGPU (G3) build — device/pipeline initialized in JavaScript.\n");
-        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        if (!SDL_Init(SDL_INIT_VIDEO)) {
             fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
             return false;
         }
         // No SDL_WINDOW_OPENGL: the canvas context is owned by WebGPU (JS side).
         // The SDL window exists so SDL can route keyboard/mouse events for input.
-        window = SDL_CreateWindow("DICOM Renderer (WebGPU)",
-                                  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                  800, 600, SDL_WINDOW_SHOWN);
+        window = SDL_CreateWindow("DICOM Renderer (WebGPU)", 800, 600, 0);
         if (!window) {
             fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
             SDL_Quit();
@@ -188,7 +186,6 @@ static constexpr const char* FRAG_GLSL =
     "#version 300 es\nprecision highp float;\nprecision highp sampler3D;\n";
 #else
 #include <GL/glew.h>
-#include <SDL2/SDL_opengl.h>
 static constexpr const char* VERT_GLSL = "#version 330 core\n";
 static constexpr const char* FRAG_GLSL = "#version 330 core\n";
 #endif
@@ -464,7 +461,7 @@ void AppWebGL::ensureFramebuffer(int w, int h) {
 }
 
 bool AppWebGL::init() {
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
@@ -482,8 +479,7 @@ bool AppWebGL::init() {
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     window = SDL_CreateWindow("DICOM Renderer (WebGL2)",
-                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                              800, 600, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+                              800, 600, SDL_WINDOW_OPENGL);
     if (!window) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -504,7 +500,7 @@ bool AppWebGL::init() {
     GLenum err = glewInit();
     if (err != GLEW_OK) {
         fprintf(stderr, "glewInit failed: %s\n", glewGetErrorString(err));
-        SDL_GL_DeleteContext(context);
+        SDL_GL_DestroyContext(context);
         SDL_DestroyWindow(window);
         SDL_Quit();
         return false;
@@ -534,7 +530,7 @@ void AppWebGL::tick() {
     w = g_canvas_w;
     h = g_canvas_h;
 #else
-    SDL_GL_GetDrawableSize(window, &w, &h);
+    SDL_GetWindowSizeInPixels(window, &w, &h);
 #endif
     if (w <= 0 || h <= 0) { w = 800; h = 600; }
     g_camera.set_viewport(w, h);   // keep aspect ratio in sync with the viewport
@@ -594,7 +590,7 @@ void AppWebGL::cleanup() {
     shader.reset();
     vao.reset();
     vbo.reset();
-    if (context) SDL_GL_DeleteContext(context);
+    if (context) SDL_GL_DestroyContext(context);
     if (window)  SDL_DestroyWindow(window);
     SDL_Quit();
 }

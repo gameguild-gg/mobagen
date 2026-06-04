@@ -201,10 +201,14 @@ set(VOLUME_RAW ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.raw)
 
 if(EMSCRIPTEN)
     message(STATUS "Shell file: ${SHELL_FILE}")
+    # SDL3 is built from source (external/sdl.cmake) and linked statically, so we
+    # pass -sUSE_SDL=0 to stop emscripten bundling its own (SDL2) port.
+    include(external/sdl.cmake)
+    target_link_libraries(dicom_renderer PRIVATE SDL3::SDL3-static)
     target_compile_options(dicom_renderer PRIVATE -O3)
     target_link_options(dicom_renderer PRIVATE
         -O3
-        -sUSE_SDL=2
+        -sUSE_SDL=0
         -sMIN_WEBGL_VERSION=2
         -sMAX_WEBGL_VERSION=2
         -sFULL_ES3=1
@@ -228,7 +232,7 @@ else()
     target_compile_definitions(dicom_renderer PRIVATE GLEW_STATIC)
     # Native reads the volume from its source path.
     target_compile_definitions(dicom_renderer PRIVATE VOLUME_PATH="${VOLUME_RAW}")
-    target_link_libraries(dicom_renderer PRIVATE SDL2-static OpenGL::GL libglew_static)
+    target_link_libraries(dicom_renderer PRIVATE SDL3::SDL3-static OpenGL::GL libglew_static)
 endif()
 
 # ----------------------------------------------------------------------------
