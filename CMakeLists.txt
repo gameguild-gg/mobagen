@@ -58,6 +58,15 @@ include(external/external.cmake)
 add_subdirectory(modules)
 add_subdirectory(core)
 
+# Data-oriented orchestration core (jobs/ecs/reactive/messaging/scene/net + demos),
+# brought from feat/wasm-dicom-raytracing-renderer. AUGMENTS the OOP core/ above —
+# lives entirely under orchestration/, touches nothing else. OFF by default so
+# master's normal build + CI are unchanged.
+option(BUILD_ORCHESTRATION "Build the data-oriented orchestration core (jobs/ecs/reactive/messaging/scene/net)" OFF)
+if(BUILD_ORCHESTRATION)
+  add_subdirectory(orchestration)
+endif()
+
 option(ENABLE_TEST_COVERAGE "ENABLE_TEST_COVERAGE" ON)
 if(ENABLE_TEST_COVERAGE)
   add_subdirectory(test)
