@@ -77,17 +77,23 @@ message(STATUS "Build output: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 #                       from C/Python/JS. Not yet consumed by a second front-end,
 #                       kept compiled so it stays correct as the engine evolves.
 # ----------------------------------------------------------------------------
-set(ENGINE_SOURCES
-    src/main.cpp
-    src/engine/shader_program.cpp
-    src/engine/vertex_buffer.cpp
-    src/engine/vertex_array.cpp
-    src/engine/texture.cpp
-    src/engine/texture3d.cpp
-    src/engine/framebuffer.cpp
-    src/engine/renderer.cpp
-    src/engine/engine_c.cpp
-)
+# The WebGPU build (Dawn + ImGui) compiles only main.cpp — the src/engine/*.cpp
+# files are OpenGL and have no place in a WebGPU build. The WebGL2 build keeps them.
+if(USE_WEBGPU)
+    set(ENGINE_SOURCES src/main.cpp)
+else()
+    set(ENGINE_SOURCES
+        src/main.cpp
+        src/engine/shader_program.cpp
+        src/engine/vertex_buffer.cpp
+        src/engine/vertex_array.cpp
+        src/engine/texture.cpp
+        src/engine/texture3d.cpp
+        src/engine/framebuffer.cpp
+        src/engine/renderer.cpp
+        src/engine/engine_c.cpp
+    )
+endif()
 
 # ----------------------------------------------------------------------------
 # Shaders — both GLSL and WGSL are EMBEDDED at build time (no runtime fetch).
@@ -140,7 +146,14 @@ target_link_libraries(dicom_renderer PRIVATE glm)
 
 if(USE_WEBGPU)
     target_compile_definitions(dicom_renderer PRIVATE USE_WEBGPU)
-    message(STATUS "Renderer: WebGPU (G3) — deferred-mode, compute-capable")
+    # WebGPU host = Dawn (native: D3D12/Metal/Vulkan) or emdawnwebgpu (web), with
+    # Dear ImGui via imgui_impl_sdl3 + imgui_impl_wgpu. IMGUI already links SDL3 +
+    # mobagen::webgpu transitively; named explicitly for clarity.
+    include(external/dawn.cmake)
+    include(external/sdl.cmake)
+    include(external/imgui.cmake)
+    target_link_libraries(dicom_renderer PRIVATE IMGUI mobagen::webgpu SDL3::SDL3-static)
+    message(STATUS "Renderer: WebGPU (G3) — Dawn + ImGui")
 else()
     message(STATUS "Renderer: WebGL2 (G2) — immediate-mode")
 endif()
@@ -201,23 +214,35 @@ set(VOLUME_RAW ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.raw)
 
 if(EMSCRIPTEN)
     message(STATUS "Shell file: ${SHELL_FILE}")
-    # SDL3 is built from source (external/sdl.cmake) and linked statically, so we
-    # pass -sUSE_SDL=0 to stop emscripten bundling its own (SDL2) port.
-    include(external/sdl.cmake)
-    target_link_libraries(dicom_renderer PRIVATE SDL3::SDL3-static)
     target_compile_options(dicom_renderer PRIVATE -O3)
-    target_link_options(dicom_renderer PRIVATE
-        -O3
-        -sUSE_SDL=0
-        -sMIN_WEBGL_VERSION=2
-        -sMAX_WEBGL_VERSION=2
-        -sFULL_ES3=1
-        -sASSERTIONS=1
-        -sALLOW_MEMORY_GROWTH=1
-        --shell-file ${SHELL_FILE}
-    )
     if(USE_WEBGPU)
-        # WebGPU reads the volume in JS via fetch — serve it beside the output.
+        # Dawn web (emdawnwebgpu): the WebGPU port + ASYNCIFY arrive via
+        # mobagen::webgpu (external/dawn.cmake); SDL3 is already linked above.
+        # No WebGL flags. -sUSE_SDL=0 keeps emscripten from bundling its own SDL.
+        target_link_options(dicom_renderer PRIVATE
+            -O3
+            -sUSE_SDL=0
+            -sASSERTIONS=1
+            -sALLOW_MEMORY_GROWTH=1
+            --shell-file ${SHELL_FILE}
+        )
+    else()
+        # WebGL2 build: SDL3 from source (-sUSE_SDL=0) + WebGL2 / GLES3.
+        include(external/sdl.cmake)
+        target_link_libraries(dicom_renderer PRIVATE SDL3::SDL3-static)
+        target_link_options(dicom_renderer PRIVATE
+            -O3
+            -sUSE_SDL=0
+            -sMIN_WEBGL_VERSION=2
+            -sMAX_WEBGL_VERSION=2
+            -sFULL_ES3=1
+            -sASSERTIONS=1
+            -sALLOW_MEMORY_GROWTH=1
+            --shell-file ${SHELL_FILE}
+        )
+    endif()
+    if(USE_WEBGPU)
+        # WebGPU reads the volume beside the output (served over HTTP).
         configure_file(${VOLUME_RAW} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/volume.raw COPYONLY)
     else()
         # WebGL reads it in C++ from the WASM virtual FS — preload it there.
@@ -226,13 +251,18 @@ if(EMSCRIPTEN)
     endif()
     set_target_properties(dicom_renderer PROPERTIES SUFFIX ".html")
 else()
-    # Native build is WebGL/OpenGL only (no WebGPU path off the web).
-    include(external/external.cmake)
-    find_package(OpenGL REQUIRED)
-    target_compile_definitions(dicom_renderer PRIVATE GLEW_STATIC)
-    # Native reads the volume from its source path.
+    # Native build.
     target_compile_definitions(dicom_renderer PRIVATE VOLUME_PATH="${VOLUME_RAW}")
-    target_link_libraries(dicom_renderer PRIVATE SDL3::SDL3-static OpenGL::GL libglew_static)
+    if(USE_WEBGPU)
+        # Dawn native (D3D12/Metal/Vulkan): IMGUI + mobagen::webgpu + SDL3 are
+        # already linked above. No OpenGL/GLEW in a WebGPU build.
+    else()
+        # WebGL2 / OpenGL native build.
+        include(external/external.cmake)
+        find_package(OpenGL REQUIRED)
+        target_compile_definitions(dicom_renderer PRIVATE GLEW_STATIC)
+        target_link_libraries(dicom_renderer PRIVATE SDL3::SDL3-static OpenGL::GL libglew_static)
+    endif()
 endif()
 
 # ----------------------------------------------------------------------------

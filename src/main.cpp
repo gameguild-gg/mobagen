@@ -114,65 +114,355 @@ static void process_input(bool& running) {
 
 #ifdef USE_WEBGPU
 // ============================================================================
-// G3: WebGPU BUILD (deferred-mode, the destination)
+// G3: WebGPU BUILD — Dawn (native) / emdawnwebgpu (web) + Dear ImGui
 // ============================================================================
 //
-// The WebGPU device, pipeline and draw are implemented in JavaScript
-// (html/shell_webgpu.html), because WebGPU is a JS-first API and Emscripten's
-// C bindings are still in flux. This C++ side owns the main loop and input;
-// it asks JS to render one frame per tick via window.webgpu_render().
-//
-// Camera->WGSL wiring is intentionally NOT done yet: the current WGSL just
-// draws a static triangle. The matrix plumbing arrives when we move to
-// fullscreen-quad ray marching (see docs/LEARNING.md, Tier 2).
+// The device, surface and per-frame render pass live HERE in C++ now (WebGPU
+// C API), identical on native (Dawn / D3D12·Metal·Vulkan) and web
+// (emdawnwebgpu). Adapted from master's core/Window.cpp + Engine::Tick; this
+// replaces the earlier JS-shell stub. For now it clears the surface and drives
+// an ImGui control panel — proving the full SDL3 -> Dawn -> ImGui path end to
+// end. The DICOM ray-cast (WGSL) lands on top of this host in a later step.
+
+#include <webgpu/webgpu.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_wgpu.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
+#if defined(SDL_PLATFORM_APPLE)
+#include <SDL3/SDL_metal.h>
+#endif
+
+namespace {
+
+// Dawn's wgpuInstanceRequestAdapter / RequestDevice are async even on native.
+// Pump events until the callback fires (emscripten_sleep yields to JS on web).
+struct AdapterReq { WGPUAdapter adapter = nullptr; bool done = false; };
+void onAdapter(WGPURequestAdapterStatus status, WGPUAdapter adapter,
+               WGPUStringView msg, void* ud1, void*) {
+    auto* r = static_cast<AdapterReq*>(ud1);
+    if (status == WGPURequestAdapterStatus_Success) r->adapter = adapter;
+    else SDL_Log("RequestAdapter failed: %.*s", (int)msg.length, msg.data ? msg.data : "");
+    r->done = true;
+}
+struct DeviceReq { WGPUDevice device = nullptr; bool done = false; };
+void onDevice(WGPURequestDeviceStatus status, WGPUDevice device,
+              WGPUStringView msg, void* ud1, void*) {
+    auto* r = static_cast<DeviceReq*>(ud1);
+    if (status == WGPURequestDeviceStatus_Success) r->device = device;
+    else SDL_Log("RequestDevice failed: %.*s", (int)msg.length, msg.data ? msg.data : "");
+    r->done = true;
+}
+void onUncapturedError(WGPUDevice const*, WGPUErrorType type, WGPUStringView msg, void*, void*) {
+    SDL_Log("[WGPU error type=%d]: %.*s", (int)type, (int)msg.length, msg.data ? msg.data : "");
+}
+void pumpUntil(WGPUInstance inst, bool& flag) {
+    while (!flag) {
+#ifdef __EMSCRIPTEN__
+        emscripten_sleep(1);
+#else
+        wgpuInstanceProcessEvents(inst);
+#endif
+    }
+}
+
+}  // namespace
 
 struct AppWebGPU {
     SDL_Window* window = nullptr;
     bool running = true;
 
-    bool init() {
-        printf("WebGPU (G3) build — device/pipeline initialized in JavaScript.\n");
-        if (!SDL_Init(SDL_INIT_VIDEO)) {
-            fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-            return false;
-        }
-        // No SDL_WINDOW_OPENGL: the canvas context is owned by WebGPU (JS side).
-        // The SDL window exists so SDL can route keyboard/mouse events for input.
-        window = SDL_CreateWindow("DICOM Renderer (WebGPU)", 800, 600, 0);
-        if (!window) {
-            fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
-            SDL_Quit();
-            return false;
-        }
-        return true;
-    }
-
-    void tick() {
-        process_input(running);
-        g_camera.update(measure_delta_seconds());
-
-#ifdef __EMSCRIPTEN__
-        // The camera->WGSL bridge: the camera lives here in C++/WASM, but the
-        // WebGPU renderer runs in JS. So each frame we marshal the inverse
-        // view-projection (16 column-major floats) across the boundary into the
-        // camera uniform buffer, then ask JS to record + submit one frame.
-        // (shell_webgpu.html does NOT run its own requestAnimationFrame loop.)
-        glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
-        const float* m = &invVP[0][0];  // 16 contiguous floats
-        EM_ASM({
-            if (window.webgpu_set_camera) {
-                window.webgpu_set_camera(HEAPF32.subarray($0 >> 2, ($0 >> 2) + 16));
-            }
-            if (window.webgpu_render) { window.webgpu_render(); }
-        }, m);
+    WGPUInstance      instance      = nullptr;
+    WGPUAdapter       adapter       = nullptr;
+    WGPUDevice        device        = nullptr;
+    WGPUQueue         queue         = nullptr;
+    WGPUSurface       surface       = nullptr;
+    WGPUTextureFormat surfaceFormat = WGPUTextureFormat_Undefined;
+#if defined(SDL_PLATFORM_APPLE)
+    SDL_MetalView     metalView     = nullptr;
 #endif
+    int   cfgW = 0, cfgH = 0;
+    float clearColor[4] = {0.10f, 0.20f, 0.50f, 1.0f};
+
+    bool init();
+    void tick();
+    void cleanup();
+
+private:
+    void createSurface();
+    bool initDeviceAndQueue();
+    void configureSurface(int w, int h);
+};
+
+void AppWebGPU::createSurface() {
+    WGPUSurfaceDescriptor desc = {};
+#if defined(__EMSCRIPTEN__)
+    WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvasDesc = {};
+    canvasDesc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
+    canvasDesc.selector    = {"#canvas", WGPU_STRLEN};
+    desc.nextInChain       = &canvasDesc.chain;
+    surface = wgpuInstanceCreateSurface(instance, &desc);
+#elif defined(SDL_PLATFORM_WIN32)
+    WGPUSurfaceSourceWindowsHWND hwndDesc = {};
+    hwndDesc.chain.sType = WGPUSType_SurfaceSourceWindowsHWND;
+    hwndDesc.hinstance   = SDL_GetPointerProperty(SDL_GetWindowProperties(window),
+                               SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr);
+    hwndDesc.hwnd        = SDL_GetPointerProperty(SDL_GetWindowProperties(window),
+                               SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+    desc.nextInChain     = &hwndDesc.chain;
+    surface = wgpuInstanceCreateSurface(instance, &desc);
+#elif defined(SDL_PLATFORM_APPLE)
+    metalView = SDL_Metal_CreateView(window);
+    WGPUSurfaceSourceMetalLayer metalDesc = {};
+    metalDesc.chain.sType = WGPUSType_SurfaceSourceMetalLayer;
+    metalDesc.layer       = SDL_Metal_GetLayer(metalView);
+    desc.nextInChain      = &metalDesc.chain;
+    surface = wgpuInstanceCreateSurface(instance, &desc);
+#elif defined(SDL_PLATFORM_LINUX)
+    void* xdisplay = SDL_GetPointerProperty(SDL_GetWindowProperties(window),
+                         SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
+    uint64_t xwindow = (uint64_t)SDL_GetNumberProperty(SDL_GetWindowProperties(window),
+                         SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
+    WGPUSurfaceSourceXlibWindow xlibDesc = {};
+    xlibDesc.chain.sType = WGPUSType_SurfaceSourceXlibWindow;
+    xlibDesc.display     = xdisplay;
+    xlibDesc.window      = xwindow;
+    desc.nextInChain     = &xlibDesc.chain;
+    surface = wgpuInstanceCreateSurface(instance, &desc);
+#else
+#  error "Unsupported platform for WebGPU surface creation"
+#endif
+    if (!surface) fprintf(stderr, "wgpuInstanceCreateSurface failed\n");
+}
+
+bool AppWebGPU::initDeviceAndQueue() {
+    AdapterReq aReq;
+    WGPURequestAdapterOptions aOpts = {};
+    aOpts.compatibleSurface = surface;
+    aOpts.powerPreference   = WGPUPowerPreference_HighPerformance;
+    WGPURequestAdapterCallbackInfo aCb = {};
+    aCb.mode      = WGPUCallbackMode_AllowProcessEvents;
+    aCb.callback  = onAdapter;
+    aCb.userdata1 = &aReq;
+    wgpuInstanceRequestAdapter(instance, &aOpts, aCb);
+    pumpUntil(instance, aReq.done);
+    if (!aReq.adapter) { fprintf(stderr, "No WebGPU adapter\n"); return false; }
+    adapter = aReq.adapter;
+
+    DeviceReq dReq;
+    WGPUDeviceDescriptor dDesc = {};
+    dDesc.label = {"dicom_renderer device", WGPU_STRLEN};
+    dDesc.uncapturedErrorCallbackInfo.callback = onUncapturedError;
+    WGPURequestDeviceCallbackInfo dCb = {};
+    dCb.mode      = WGPUCallbackMode_AllowProcessEvents;
+    dCb.callback  = onDevice;
+    dCb.userdata1 = &dReq;
+    wgpuAdapterRequestDevice(adapter, &dDesc, dCb);
+    pumpUntil(instance, dReq.done);
+    if (!dReq.device) { fprintf(stderr, "WebGPU device request failed\n"); return false; }
+    device = dReq.device;
+    queue  = wgpuDeviceGetQueue(device);
+
+    WGPUSurfaceCapabilities caps = {};
+    wgpuSurfaceGetCapabilities(surface, adapter, &caps);
+    surfaceFormat = (caps.formatCount > 0 && caps.formats) ? caps.formats[0]
+                                                           : WGPUTextureFormat_BGRA8Unorm;
+    wgpuSurfaceCapabilitiesFreeMembers(caps);
+    SDL_Log("WebGPU device ready (surfaceFormat=%d)", (int)surfaceFormat);
+    return true;
+}
+
+void AppWebGPU::configureSurface(int w, int h) {
+    if (w <= 0 || h <= 0) return;
+    WGPUSurfaceConfiguration cfg = {};
+    cfg.device      = device;
+    cfg.format      = surfaceFormat;
+    cfg.usage       = WGPUTextureUsage_RenderAttachment;
+    cfg.alphaMode   = WGPUCompositeAlphaMode_Auto;
+    cfg.width       = (uint32_t)w;
+    cfg.height      = (uint32_t)h;
+    cfg.presentMode = WGPUPresentMode_Fifo;
+    wgpuSurfaceConfigure(surface, &cfg);
+    cfgW = w; cfgH = h;
+}
+
+bool AppWebGPU::init() {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+    int w = 800, h = 600;
+#ifdef __EMSCRIPTEN__
+    double cw = 0, ch = 0;
+    if (emscripten_get_element_css_size("#canvas", &cw, &ch) == EMSCRIPTEN_RESULT_SUCCESS
+        && cw > 0 && ch > 0) { w = (int)cw; h = (int)ch; }
+#endif
+    window = SDL_CreateWindow("DICOM Renderer (WebGPU)", w, h,
+                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    if (!window) {
+        fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return false;
     }
 
-    void cleanup() {
-        if (window) SDL_DestroyWindow(window);
-        SDL_Quit();
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    ImGui::StyleColorsDark();
+
+    WGPUInstanceDescriptor instDesc = {};
+    instance = wgpuCreateInstance(&instDesc);
+    if (!instance) { fprintf(stderr, "wgpuCreateInstance failed\n"); return false; }
+
+    createSurface();
+    if (!surface) return false;
+    if (!initDeviceAndQueue()) return false;
+
+    int pxW = 0, pxH = 0;
+    SDL_GetWindowSizeInPixels(window, &pxW, &pxH);
+    configureSurface(pxW, pxH);
+    g_camera.set_viewport(pxW > 0 ? pxW : w, pxH > 0 ? pxH : h);
+
+    ImGui_ImplSDL3_InitForOther(window);
+    ImGui_ImplWGPU_InitInfo wgpuInit = {};
+    wgpuInit.Device             = device;
+    wgpuInit.NumFramesInFlight  = 3;
+    wgpuInit.RenderTargetFormat = surfaceFormat;
+    wgpuInit.DepthStencilFormat = WGPUTextureFormat_Undefined;
+    if (!ImGui_ImplWGPU_Init(&wgpuInit)) {
+        fprintf(stderr, "ImGui_ImplWGPU_Init failed\n");
+        return false;
     }
-};
+
+    printf("WebGPU (G3) initialized — Dawn + ImGui (surfaceFormat=%d)\n", (int)surfaceFormat);
+    return true;
+}
+
+void AppWebGPU::tick() {
+    ImGuiIO& io = ImGui::GetIO();
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        ImGui_ImplSDL3_ProcessEvent(&event);
+        if (event.type == SDL_EVENT_QUIT) running = false;
+        if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+            event.window.windowID == SDL_GetWindowID(window)) running = false;
+        switch (event.type) {
+            case SDL_EVENT_KEY_DOWN:
+                if (!io.WantCaptureKeyboard) {
+                    g_camera.on_key_pressed(event.key.key);
+                    if (event.key.key == SDLK_C) {
+                        engine::CameraMode next =
+                            (g_camera.get_mode() == engine::CameraMode::ORBIT)
+                                ? engine::CameraMode::WASD : engine::CameraMode::ORBIT;
+                        g_camera.set_mode(next);
+                    }
+                }
+                break;
+            case SDL_EVENT_KEY_UP:
+                if (!io.WantCaptureKeyboard) g_camera.on_key_released(event.key.key);
+                break;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                if (!io.WantCaptureMouse) g_mouse_look_active = true;
+                break;
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                g_mouse_look_active = false;
+                break;
+            case SDL_EVENT_MOUSE_MOTION:
+                if (g_mouse_look_active && !io.WantCaptureMouse)
+                    g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                break;
+            case SDL_EVENT_MOUSE_WHEEL:
+                if (!io.WantCaptureMouse) g_camera.on_mouse_wheel(event.wheel.y);
+                break;
+        }
+    }
+    g_camera.update(measure_delta_seconds());
+
+    // Reconfigure the surface on resize (device pixels, HiDPI-aware).
+    int pxW = 0, pxH = 0;
+    SDL_GetWindowSizeInPixels(window, &pxW, &pxH);
+    if (pxW > 0 && pxH > 0 && (pxW != cfgW || pxH != cfgH)) {
+        configureSurface(pxW, pxH);
+        g_camera.set_viewport(pxW, pxH);
+    }
+
+    WGPUSurfaceTexture st = {};
+    wgpuSurfaceGetCurrentTexture(surface, &st);
+    bool ok = (st.status == WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal ||
+               st.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) && st.texture;
+    if (!ok) { if (st.texture) wgpuTextureRelease(st.texture); return; }
+
+    WGPUTextureViewDescriptor vd = {};
+    vd.format          = wgpuTextureGetFormat(st.texture);
+    vd.dimension       = WGPUTextureViewDimension_2D;
+    vd.mipLevelCount   = 1;
+    vd.arrayLayerCount = 1;
+    vd.aspect          = WGPUTextureAspect_All;
+    WGPUTextureView view = wgpuTextureCreateView(st.texture, &vd);
+
+    WGPUCommandEncoderDescriptor edesc = {};
+    WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(device, &edesc);
+
+    WGPURenderPassColorAttachment color = {};
+    color.view       = view;
+    color.loadOp     = WGPULoadOp_Clear;
+    color.storeOp    = WGPUStoreOp_Store;
+    color.clearValue = {clearColor[0], clearColor[1], clearColor[2], clearColor[3]};
+    color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+    WGPURenderPassDescriptor pd = {};
+    pd.colorAttachmentCount = 1;
+    pd.colorAttachments     = &color;
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(enc, &pd);
+
+    // ImGui frame (drawn into the same render pass, after any scene geometry).
+    ImGui_ImplWGPU_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+    {
+        ImGui::Begin("DICOM Renderer — WebGPU (Dawn)");
+        ImGui::Text("Dawn + ImGui live — %.1f FPS", io.Framerate);
+        ImGui::Text("Camera: %s  (press C to toggle)",
+                    g_camera.get_mode() == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
+        ImGui::ColorEdit3("Clear color", clearColor);
+        ImGui::TextDisabled("DICOM ray-cast (WGSL) lands on this host next.");
+        ImGui::End();
+    }
+    ImGui::Render();
+    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
+
+    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderRelease(pass);
+    WGPUCommandBufferDescriptor cbd = {};
+    WGPUCommandBuffer cb = wgpuCommandEncoderFinish(enc, &cbd);
+    wgpuQueueSubmit(queue, 1, &cb);
+    wgpuCommandBufferRelease(cb);
+    wgpuCommandEncoderRelease(enc);
+#ifndef __EMSCRIPTEN__
+    wgpuSurfacePresent(surface);
+#endif
+    wgpuTextureViewRelease(view);
+    wgpuTextureRelease(st.texture);
+}
+
+void AppWebGPU::cleanup() {
+    ImGui_ImplWGPU_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
+    if (queue)    wgpuQueueRelease(queue);
+    if (device)   wgpuDeviceRelease(device);
+    if (adapter)  wgpuAdapterRelease(adapter);
+    if (surface)  { wgpuSurfaceUnconfigure(surface); wgpuSurfaceRelease(surface); }
+    if (instance) wgpuInstanceRelease(instance);
+#if defined(SDL_PLATFORM_APPLE)
+    if (metalView) SDL_Metal_DestroyView(metalView);
+#endif
+    if (window) SDL_DestroyWindow(window);
+    SDL_Quit();
+}
 
 #else
 // ============================================================================
