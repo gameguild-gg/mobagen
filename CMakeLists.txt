@@ -101,17 +101,19 @@ endif()
 # shaders/ is the source of truth; one file per program holds both stages.
 # Editing any shader re-runs CMake via CMAKE_CONFIGURE_DEPENDS.
 #
-# GLSL (C++ side): baked into a generated header (build/generated/embedded_shaders.h),
-#   compiled twice with VERTEX_SHADER / FRAGMENT_SHADER.
-# WGSL (JS side): substituted into the WebGPU shell at configure time
-#   (build/generated/shell_webgpu.html), so the shell carries the WGSL inline.
+# GLSL + WGSL (C++ side): baked into a generated header
+#   (build/generated/embedded_shaders.h). WebGL compiles GLSL; WebGPU compiles
+#   WGSL through Dawn. Keeping both in one generated header means shaders stay
+#   source-controlled under shaders/ and the executable never fetches them at
+#   runtime.
 # ----------------------------------------------------------------------------
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(GLSL_SHADERS raygen.glsl blit.glsl)
+set(WGSL_SHADERS raygen.wgsl blit.wgsl)
 set(GEN_DIR ${CMAKE_BINARY_DIR}/generated)
 set(GEN_HEADER ${GEN_DIR}/embedded_shaders.h)
 
-set(_gen "#pragma once\n// AUTO-GENERATED from shaders/*.glsl. Edit those, not this.\nnamespace shaders {\n\n")
+set(_gen "#pragma once\n// AUTO-GENERATED from shaders/*.glsl and shaders/*.wgsl. Edit those, not this.\nnamespace shaders {\n\n")
 foreach(_f ${GLSL_SHADERS})
     file(READ ${SHADER_DIR}/${_f} _content)
     string(MAKE_C_IDENTIFIER ${_f} _id)
@@ -119,12 +121,15 @@ foreach(_f ${GLSL_SHADERS})
     string(APPEND _gen "inline constexpr const char* ${_id} = R\"GLSL(\n${_content})GLSL\";\n\n")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SHADER_DIR}/${_f})
 endforeach()
+foreach(_f ${WGSL_SHADERS})
+    file(READ ${SHADER_DIR}/${_f} _content)
+    string(MAKE_C_IDENTIFIER ${_f} _id)
+    string(TOUPPER ${_id} _id)
+    string(APPEND _gen "inline constexpr const char* ${_id} = R\"WGSL(\n${_content})WGSL\";\n\n")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SHADER_DIR}/${_f})
+endforeach()
 string(APPEND _gen "}  // namespace shaders\n")
 file(WRITE ${GEN_HEADER} "${_gen}")
-
-# NOTE: WGSL is no longer substituted into a JS shell. With the Dawn host the
-# renderer runs in C++/wasm (not JS), so WGSL will be embedded C++-side (like the
-# GLSL above) when the DICOM ray-cast is ported. shaders/*.wgsl are kept for that.
 
 add_executable(dicom_renderer ${ENGINE_SOURCES})
 target_include_directories(dicom_renderer PRIVATE

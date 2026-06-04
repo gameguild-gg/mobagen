@@ -1,5 +1,12 @@
 # Learning Path
 
+> Current WebGPU status: the Dawn host now consumes DOD `RenderBridge` commands
+> directly. It embeds `shaders/raygen.wgsl`, uploads a 96^3 synthetic phantom as
+> a WebGPU 3D texture, uploads the transfer LUT as a WebGPU texture, and passes
+> camera/window/mode/spacing data as uniforms. The learning point is the handoff:
+> ECS owns scene metadata, `RenderBridge` flattens it, and the renderer records
+> GPU commands from that flat packet.
+
 The road from "triangle on screen" to "DICOM volume ray caster" (and later, a
 mesh ray tracer). Each rung **produces something visible** and feeds the DICOM
 goal. A rung is done when it renders *and* you can explain why it works.

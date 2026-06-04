@@ -1,5 +1,10 @@
 # Engine Study Roadmap (Core)
 
+> Current render-bridge status: Dawn/WebGPU now consumes `VolumeDrawCommand`
+> directly. The renderer binds embedded `raygen.wgsl`, camera/window/mode
+> uniforms, a 96^3 phantom 3D texture, and a transfer LUT. The next resource step
+> is replacing the phantom bytes with real loader/DICOM output.
+
 > **A teaching roadmap, not just a todo list.** This project is building a
 > **performance-driven engine core** (a modular, dual-target engine backbone) —
 > *not* a renderer right now. Each module is a learning unit: what it is, the

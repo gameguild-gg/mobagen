@@ -12,8 +12,10 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "engine/camera.h"
 
@@ -124,12 +126,16 @@ static void process_input(bool& running) {
 // an ImGui control panel — proving the full SDL3 -> Dawn -> ImGui path end to
 // end. The DICOM ray-cast (WGSL) lands on top of this host in a later step.
 
+// Current state: this host now records a WGSL volume pass from RenderBridge
+// commands, then draws ImGui as an overlay. The next resource step is replacing
+// the synthetic phantom bytes with real DICOM loader output.
 #include <webgpu/webgpu.h>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_wgpu.h>
 #include "render_bridge.hpp"
 #include "transform_system.hpp"
+#include "embedded_shaders.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -170,6 +176,134 @@ void pumpUntil(WGPUInstance inst, bool& flag) {
     }
 }
 
+// Uniform buffers in WebGPU are read in 16-byte chunks. These tiny structs make
+// that ABI rule visible in code: vec4f and vec4u are the smallest safe packets.
+struct alignas(16) GpuVec4f {
+    float x, y, z, w;
+};
+
+struct alignas(16) GpuVec4u {
+    std::uint32_t x, y, z, w;
+};
+
+static std::uint32_t alignUp(std::uint32_t value, std::uint32_t alignment) {
+    return (value + alignment - 1u) & ~(alignment - 1u);
+}
+
+static WGPUBuffer createBuffer(WGPUDevice device,
+                               const char* label,
+                               std::uint64_t size,
+                               WGPUBufferUsage usage) {
+    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+    desc.label = {label, WGPU_STRLEN};
+    desc.size = size;
+    desc.usage = usage;
+    return wgpuDeviceCreateBuffer(device, &desc);
+}
+
+static std::vector<unsigned char> makePhantomVolume(int n) {
+    std::vector<unsigned char> v(static_cast<std::size_t>(n) * n * n);
+    for (int z = 0; z < n; ++z) {
+        for (int y = 0; y < n; ++y) {
+            for (int x = 0; x < n; ++x) {
+                const glm::vec3 p =
+                    (glm::vec3(x, y, z) / static_cast<float>(n - 1) - 0.5f) * 2.0f;
+
+                // A phantom is not "real DICOM"; it is predictable input for
+                // validating the renderer. Core + shell + two small lobes make
+                // camera motion and transfer functions easier to see than a
+                // single flat sphere.
+                const float r = glm::length(p);
+                float density = glm::smoothstep(0.95f, 0.10f, r) * 0.55f;
+                density += glm::smoothstep(0.62f, 0.54f, std::abs(r - 0.62f)) * 0.35f;
+                density += glm::smoothstep(0.22f, 0.02f, glm::length(p - glm::vec3(-0.24f, 0.05f, 0.10f))) * 0.45f;
+                density += glm::smoothstep(0.18f, 0.02f, glm::length(p - glm::vec3( 0.26f, 0.02f,-0.12f))) * 0.38f;
+                density = glm::clamp(density, 0.0f, 1.0f);
+
+                v[(static_cast<std::size_t>(z) * n + y) * n + x] =
+                    static_cast<unsigned char>(density * 255.0f);
+            }
+        }
+    }
+    return v;
+}
+
+static std::vector<unsigned char> makeTransferLut(std::uint32_t preset) {
+    std::vector<unsigned char> lut(256 * 4);
+    for (int i = 0; i < 256; ++i) {
+        const float t = i / 255.0f;
+        glm::vec3 rgb;
+        float a;
+        switch (preset) {
+            case 2:
+                a = glm::smoothstep(0.15f, 0.50f, t);
+                rgb = glm::mix(glm::vec3(0.55f, 0.12f, 0.05f),
+                               glm::vec3(1.00f, 0.92f, 0.78f), t);
+                break;
+            case 3:
+                a = (t > 0.30f && t < 0.55f) ? 0.9f : 0.0f;
+                rgb = glm::vec3(0.2f, 0.9f, 0.6f);
+                break;
+            case 4:
+                a = t;
+                rgb = glm::mix(glm::vec3(0.0f, 0.1f, 0.4f),
+                               glm::vec3(0.7f, 0.95f, 1.0f), t);
+                break;
+            default:
+                a = t;
+                rgb = glm::vec3(t);
+                break;
+        }
+        lut[i * 4 + 0] = static_cast<unsigned char>(glm::clamp(rgb.r, 0.0f, 1.0f) * 255.0f);
+        lut[i * 4 + 1] = static_cast<unsigned char>(glm::clamp(rgb.g, 0.0f, 1.0f) * 255.0f);
+        lut[i * 4 + 2] = static_cast<unsigned char>(glm::clamp(rgb.b, 0.0f, 1.0f) * 255.0f);
+        lut[i * 4 + 3] = static_cast<unsigned char>(glm::clamp(a,     0.0f, 1.0f) * 255.0f);
+    }
+    return lut;
+}
+
+static std::vector<unsigned char> padTextureRows(const std::vector<unsigned char>& src,
+                                                 std::uint32_t width,
+                                                 std::uint32_t height,
+                                                 std::uint32_t depth,
+                                                 std::uint32_t bytesPerPixel,
+                                                 std::uint32_t& outBytesPerRow) {
+    const std::uint32_t tightBytesPerRow = width * bytesPerPixel;
+    outBytesPerRow = alignUp(tightBytesPerRow, 256u);
+    std::vector<unsigned char> padded(
+        static_cast<std::size_t>(outBytesPerRow) * height * depth);
+
+    for (std::uint32_t z = 0; z < depth; ++z) {
+        for (std::uint32_t y = 0; y < height; ++y) {
+            const std::size_t srcOffset =
+                (static_cast<std::size_t>(z) * height + y) * tightBytesPerRow;
+            const std::size_t dstOffset =
+                (static_cast<std::size_t>(z) * height + y) * outBytesPerRow;
+            std::memcpy(padded.data() + dstOffset, src.data() + srcOffset, tightBytesPerRow);
+        }
+    }
+    return padded;
+}
+
+static std::uint32_t modeToGpu(render::VolumeRenderMode mode) {
+    switch (mode) {
+        case render::VolumeRenderMode::MIP:        return 1u;
+        case render::VolumeRenderMode::Isosurface: return 2u;
+        case render::VolumeRenderMode::DVR:
+        default:                                   return 0u;
+    }
+}
+
+static glm::vec3 boxHalfFromSource(const render::VolumeSource& source) {
+    glm::vec3 dims(static_cast<float>(source.width),
+                   static_cast<float>(source.height),
+                   static_cast<float>(source.depth));
+    glm::vec3 physical = dims * source.spacing_mm;
+    const float longest = glm::max(physical.x, glm::max(physical.y, physical.z));
+    if (longest <= 0.0f) return glm::vec3(1.0f);
+    return physical / longest;
+}
+
 }  // namespace
 
 struct AppWebGPU {
@@ -192,6 +326,23 @@ struct AppWebGPU {
     scene::TransformSystem transforms;
     render::RenderBridge renderBridge;
 
+    WGPUShaderModule     volumeShader         = nullptr;
+    WGPUBindGroupLayout  volumeBindGroupLayout = nullptr;
+    WGPUPipelineLayout   volumePipelineLayout = nullptr;
+    WGPURenderPipeline   volumePipeline       = nullptr;
+    WGPUBuffer           fullscreenVbo        = nullptr;
+    WGPUBuffer           cameraBuffer         = nullptr;
+    WGPUBuffer           modeBuffer           = nullptr;
+    WGPUBuffer           windowBuffer         = nullptr;
+    WGPUBuffer           boxHalfBuffer        = nullptr;
+    WGPUSampler          volumeSampler        = nullptr;
+    WGPUTexture          volumeTexture        = nullptr;
+    WGPUTextureView      volumeTextureView    = nullptr;
+    WGPUTexture          transferTexture      = nullptr;
+    WGPUTextureView      transferTextureView  = nullptr;
+    WGPUBindGroup        volumeBindGroup      = nullptr;
+    std::uint32_t        uploadedTransferPreset = 0;
+
     bool init();
     void tick();
     void cleanup();
@@ -201,6 +352,10 @@ private:
     bool initDeviceAndQueue();
     void configureSurface(int w, int h);
     void createStudyVolumeScene();
+    bool initVolumeRenderer();
+    void uploadTransferLut(std::uint32_t preset);
+    void drawVolume(WGPURenderPassEncoder pass);
+    void releaseVolumeRenderer();
 };
 
 void AppWebGPU::createSurface() {
@@ -307,7 +462,7 @@ void AppWebGPU::createStudyVolumeScene() {
     ecs::Entity phantom = world.create();
 
     scene::Transform t;
-    t.scale = {1.0f, 1.0f, 1.5f};  // demonstrate non-cubic voxel spacing
+    t.scale = {1.0f, 1.0f, 1.0f};
     world.add<scene::Transform>(phantom, t);
 
     render::VolumeRenderable volume;
@@ -324,6 +479,344 @@ void AppWebGPU::createStudyVolumeScene() {
     world.add<render::VolumeRenderable>(phantom, volume);
 
     transforms.rebuild(world);
+}
+
+bool AppWebGPU::initVolumeRenderer() {
+    WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
+    wgsl.code = {shaders::RAYGEN_WGSL, WGPU_STRLEN};
+    WGPUShaderModuleDescriptor shaderDesc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+    shaderDesc.label = {"volume raygen.wgsl", WGPU_STRLEN};
+    shaderDesc.nextInChain = &wgsl.chain;
+    volumeShader = wgpuDeviceCreateShaderModule(device, &shaderDesc);
+    if (!volumeShader) {
+        fprintf(stderr, "Failed to create WGSL shader module\n");
+        return false;
+    }
+
+    // Fullscreen triangle list: the vertex shader only needs clip-space xy and
+    // uv. Every pixel in the surface runs the ray-marching fragment shader.
+    const float quad[] = {
+        -1.0f, -1.0f, 0.0f, 0.0f,
+         1.0f, -1.0f, 1.0f, 0.0f,
+         1.0f,  1.0f, 1.0f, 1.0f,
+
+        -1.0f, -1.0f, 0.0f, 0.0f,
+         1.0f,  1.0f, 1.0f, 1.0f,
+        -1.0f,  1.0f, 0.0f, 1.0f,
+    };
+    fullscreenVbo = createBuffer(device, "fullscreen volume quad",
+                                 sizeof(quad),
+                                 WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst);
+    cameraBuffer = createBuffer(device, "camera inv view-projection",
+                                sizeof(glm::mat4),
+                                WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
+    modeBuffer = createBuffer(device, "volume mode",
+                              sizeof(GpuVec4u),
+                              WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
+    windowBuffer = createBuffer(device, "window level",
+                                sizeof(GpuVec4f),
+                                WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
+    boxHalfBuffer = createBuffer(device, "volume box half extents",
+                                 sizeof(GpuVec4f),
+                                 WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
+    if (!fullscreenVbo || !cameraBuffer || !modeBuffer || !windowBuffer || !boxHalfBuffer) {
+        fprintf(stderr, "Failed to create WebGPU buffers\n");
+        return false;
+    }
+    wgpuQueueWriteBuffer(queue, fullscreenVbo, 0, quad, sizeof(quad));
+
+    WGPUSamplerDescriptor samplerDesc = WGPU_SAMPLER_DESCRIPTOR_INIT;
+    samplerDesc.label = {"volume linear sampler", WGPU_STRLEN};
+    samplerDesc.addressModeU = WGPUAddressMode_ClampToEdge;
+    samplerDesc.addressModeV = WGPUAddressMode_ClampToEdge;
+    samplerDesc.addressModeW = WGPUAddressMode_ClampToEdge;
+    samplerDesc.magFilter = WGPUFilterMode_Linear;
+    samplerDesc.minFilter = WGPUFilterMode_Linear;
+    samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
+    volumeSampler = wgpuDeviceCreateSampler(device, &samplerDesc);
+    if (!volumeSampler) {
+        fprintf(stderr, "Failed to create volume sampler\n");
+        return false;
+    }
+
+    const auto& commands = renderBridge.volume_commands();
+    const render::VolumeSource source =
+        commands.empty() ? render::VolumeSource{1u, 96u, 96u, 96u, glm::vec3(1.0f, 1.0f, 1.5f)}
+                         : commands[0].source;
+
+    WGPUTextureDescriptor volumeDesc = WGPU_TEXTURE_DESCRIPTOR_INIT;
+    volumeDesc.label = {"phantom volume R8", WGPU_STRLEN};
+    volumeDesc.dimension = WGPUTextureDimension_3D;
+    volumeDesc.size.width = source.width;
+    volumeDesc.size.height = source.height;
+    volumeDesc.size.depthOrArrayLayers = source.depth;
+    volumeDesc.format = WGPUTextureFormat_R8Unorm;
+    volumeDesc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+    volumeTexture = wgpuDeviceCreateTexture(device, &volumeDesc);
+    if (!volumeTexture) {
+        fprintf(stderr, "Failed to create 3D volume texture\n");
+        return false;
+    }
+
+    std::vector<unsigned char> voxels = makePhantomVolume(static_cast<int>(source.width));
+    std::uint32_t volumeBytesPerRow = 0;
+    std::vector<unsigned char> paddedVoxels =
+        padTextureRows(voxels, source.width, source.height, source.depth, 1u, volumeBytesPerRow);
+    WGPUTexelCopyTextureInfo volumeDst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    volumeDst.texture = volumeTexture;
+    volumeDst.aspect = WGPUTextureAspect_All;
+    WGPUTexelCopyBufferLayout volumeLayout = WGPU_TEXEL_COPY_BUFFER_LAYOUT_INIT;
+    volumeLayout.bytesPerRow = volumeBytesPerRow;
+    volumeLayout.rowsPerImage = source.height;
+    WGPUExtent3D volumeWrite = WGPU_EXTENT_3D_INIT;
+    volumeWrite.width = source.width;
+    volumeWrite.height = source.height;
+    volumeWrite.depthOrArrayLayers = source.depth;
+    wgpuQueueWriteTexture(queue, &volumeDst,
+                          paddedVoxels.data(), paddedVoxels.size(),
+                          &volumeLayout, &volumeWrite);
+
+    WGPUTextureViewDescriptor volumeViewDesc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+    volumeViewDesc.label = {"phantom volume view", WGPU_STRLEN};
+    volumeViewDesc.format = WGPUTextureFormat_R8Unorm;
+    volumeViewDesc.dimension = WGPUTextureViewDimension_3D;
+    volumeViewDesc.mipLevelCount = 1;
+    volumeViewDesc.arrayLayerCount = 1;
+    volumeViewDesc.aspect = WGPUTextureAspect_All;
+    volumeViewDesc.usage = WGPUTextureUsage_TextureBinding;
+    volumeTextureView = wgpuTextureCreateView(volumeTexture, &volumeViewDesc);
+
+    WGPUTextureDescriptor transferDesc = WGPU_TEXTURE_DESCRIPTOR_INIT;
+    transferDesc.label = {"transfer LUT RGBA8", WGPU_STRLEN};
+    transferDesc.dimension = WGPUTextureDimension_2D;
+    transferDesc.size.width = 256;
+    transferDesc.size.height = 1;
+    transferDesc.size.depthOrArrayLayers = 1;
+    transferDesc.format = WGPUTextureFormat_RGBA8Unorm;
+    transferDesc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+    transferTexture = wgpuDeviceCreateTexture(device, &transferDesc);
+    if (!transferTexture) {
+        fprintf(stderr, "Failed to create transfer LUT texture\n");
+        return false;
+    }
+
+    WGPUTextureViewDescriptor transferViewDesc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+    transferViewDesc.label = {"transfer LUT view", WGPU_STRLEN};
+    transferViewDesc.format = WGPUTextureFormat_RGBA8Unorm;
+    transferViewDesc.dimension = WGPUTextureViewDimension_2D;
+    transferViewDesc.mipLevelCount = 1;
+    transferViewDesc.arrayLayerCount = 1;
+    transferViewDesc.aspect = WGPUTextureAspect_All;
+    transferViewDesc.usage = WGPUTextureUsage_TextureBinding;
+    transferTextureView = wgpuTextureCreateView(transferTexture, &transferViewDesc);
+    uploadTransferLut(1u);
+
+    if (!volumeTextureView || !transferTextureView) {
+        fprintf(stderr, "Failed to create texture views\n");
+        return false;
+    }
+
+    WGPUBindGroupLayoutEntry layoutEntries[7];
+    for (WGPUBindGroupLayoutEntry& e : layoutEntries) {
+        e = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
+    }
+
+    layoutEntries[0].binding = 0;
+    layoutEntries[0].visibility = WGPUShaderStage_Fragment;
+    layoutEntries[0].buffer = WGPU_BUFFER_BINDING_LAYOUT_INIT;
+    layoutEntries[0].buffer.type = WGPUBufferBindingType_Uniform;
+    layoutEntries[0].buffer.minBindingSize = sizeof(glm::mat4);
+
+    layoutEntries[1].binding = 1;
+    layoutEntries[1].visibility = WGPUShaderStage_Fragment;
+    layoutEntries[1].texture = WGPU_TEXTURE_BINDING_LAYOUT_INIT;
+    layoutEntries[1].texture.sampleType = WGPUTextureSampleType_Float;
+    layoutEntries[1].texture.viewDimension = WGPUTextureViewDimension_3D;
+
+    layoutEntries[2].binding = 2;
+    layoutEntries[2].visibility = WGPUShaderStage_Fragment;
+    layoutEntries[2].sampler = WGPU_SAMPLER_BINDING_LAYOUT_INIT;
+    layoutEntries[2].sampler.type = WGPUSamplerBindingType_Filtering;
+
+    layoutEntries[3].binding = 3;
+    layoutEntries[3].visibility = WGPUShaderStage_Fragment;
+    layoutEntries[3].texture = WGPU_TEXTURE_BINDING_LAYOUT_INIT;
+    layoutEntries[3].texture.sampleType = WGPUTextureSampleType_Float;
+    layoutEntries[3].texture.viewDimension = WGPUTextureViewDimension_2D;
+
+    layoutEntries[4].binding = 4;
+    layoutEntries[4].visibility = WGPUShaderStage_Fragment;
+    layoutEntries[4].buffer = WGPU_BUFFER_BINDING_LAYOUT_INIT;
+    layoutEntries[4].buffer.type = WGPUBufferBindingType_Uniform;
+    layoutEntries[4].buffer.minBindingSize = sizeof(GpuVec4u);
+
+    layoutEntries[5].binding = 5;
+    layoutEntries[5].visibility = WGPUShaderStage_Fragment;
+    layoutEntries[5].buffer = WGPU_BUFFER_BINDING_LAYOUT_INIT;
+    layoutEntries[5].buffer.type = WGPUBufferBindingType_Uniform;
+    layoutEntries[5].buffer.minBindingSize = sizeof(GpuVec4f);
+
+    layoutEntries[6].binding = 6;
+    layoutEntries[6].visibility = WGPUShaderStage_Fragment;
+    layoutEntries[6].buffer = WGPU_BUFFER_BINDING_LAYOUT_INIT;
+    layoutEntries[6].buffer.type = WGPUBufferBindingType_Uniform;
+    layoutEntries[6].buffer.minBindingSize = sizeof(GpuVec4f);
+
+    WGPUBindGroupLayoutDescriptor bglDesc = WGPU_BIND_GROUP_LAYOUT_DESCRIPTOR_INIT;
+    bglDesc.label = {"volume bind group layout", WGPU_STRLEN};
+    bglDesc.entryCount = 7;
+    bglDesc.entries = layoutEntries;
+    volumeBindGroupLayout = wgpuDeviceCreateBindGroupLayout(device, &bglDesc);
+    if (!volumeBindGroupLayout) {
+        fprintf(stderr, "Failed to create volume bind group layout\n");
+        return false;
+    }
+
+    WGPUBindGroupEntry bgEntries[7];
+    for (WGPUBindGroupEntry& e : bgEntries) {
+        e = WGPU_BIND_GROUP_ENTRY_INIT;
+    }
+    bgEntries[0].binding = 0; bgEntries[0].buffer = cameraBuffer;  bgEntries[0].size = sizeof(glm::mat4);
+    bgEntries[1].binding = 1; bgEntries[1].textureView = volumeTextureView;
+    bgEntries[2].binding = 2; bgEntries[2].sampler = volumeSampler;
+    bgEntries[3].binding = 3; bgEntries[3].textureView = transferTextureView;
+    bgEntries[4].binding = 4; bgEntries[4].buffer = modeBuffer;    bgEntries[4].size = sizeof(GpuVec4u);
+    bgEntries[5].binding = 5; bgEntries[5].buffer = windowBuffer;  bgEntries[5].size = sizeof(GpuVec4f);
+    bgEntries[6].binding = 6; bgEntries[6].buffer = boxHalfBuffer; bgEntries[6].size = sizeof(GpuVec4f);
+
+    WGPUBindGroupDescriptor bgDesc = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
+    bgDesc.label = {"volume bind group", WGPU_STRLEN};
+    bgDesc.layout = volumeBindGroupLayout;
+    bgDesc.entryCount = 7;
+    bgDesc.entries = bgEntries;
+    volumeBindGroup = wgpuDeviceCreateBindGroup(device, &bgDesc);
+    if (!volumeBindGroup) {
+        fprintf(stderr, "Failed to create volume bind group\n");
+        return false;
+    }
+
+    WGPUPipelineLayoutDescriptor layoutDesc = WGPU_PIPELINE_LAYOUT_DESCRIPTOR_INIT;
+    layoutDesc.label = {"volume pipeline layout", WGPU_STRLEN};
+    layoutDesc.bindGroupLayoutCount = 1;
+    layoutDesc.bindGroupLayouts = &volumeBindGroupLayout;
+    volumePipelineLayout = wgpuDeviceCreatePipelineLayout(device, &layoutDesc);
+    if (!volumePipelineLayout) {
+        fprintf(stderr, "Failed to create volume pipeline layout\n");
+        return false;
+    }
+
+    WGPUVertexAttribute attributes[2];
+    attributes[0] = WGPU_VERTEX_ATTRIBUTE_INIT;
+    attributes[0].format = WGPUVertexFormat_Float32x2;
+    attributes[0].offset = 0;
+    attributes[0].shaderLocation = 0;
+    attributes[1] = WGPU_VERTEX_ATTRIBUTE_INIT;
+    attributes[1].format = WGPUVertexFormat_Float32x2;
+    attributes[1].offset = 2 * sizeof(float);
+    attributes[1].shaderLocation = 1;
+
+    WGPUVertexBufferLayout vertexLayout = WGPU_VERTEX_BUFFER_LAYOUT_INIT;
+    vertexLayout.arrayStride = 4 * sizeof(float);
+    vertexLayout.stepMode = WGPUVertexStepMode_Vertex;
+    vertexLayout.attributeCount = 2;
+    vertexLayout.attributes = attributes;
+
+    WGPUColorTargetState colorTarget = WGPU_COLOR_TARGET_STATE_INIT;
+    colorTarget.format = surfaceFormat;
+    colorTarget.writeMask = WGPUColorWriteMask_All;
+
+    WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
+    fragment.module = volumeShader;
+    fragment.entryPoint = {"fs_main", WGPU_STRLEN};
+    fragment.targetCount = 1;
+    fragment.targets = &colorTarget;
+
+    WGPURenderPipelineDescriptor pipelineDesc = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
+    pipelineDesc.label = {"volume ray-march pipeline", WGPU_STRLEN};
+    pipelineDesc.layout = volumePipelineLayout;
+    pipelineDesc.vertex.module = volumeShader;
+    pipelineDesc.vertex.entryPoint = {"vs_main", WGPU_STRLEN};
+    pipelineDesc.vertex.bufferCount = 1;
+    pipelineDesc.vertex.buffers = &vertexLayout;
+    pipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+    pipelineDesc.primitive.frontFace = WGPUFrontFace_CCW;
+    pipelineDesc.primitive.cullMode = WGPUCullMode_None;
+    pipelineDesc.fragment = &fragment;
+    volumePipeline = wgpuDeviceCreateRenderPipeline(device, &pipelineDesc);
+    if (!volumePipeline) {
+        fprintf(stderr, "Failed to create volume render pipeline\n");
+        return false;
+    }
+
+    printf("WebGPU volume renderer initialized (%ux%ux%u phantom)\n",
+           source.width, source.height, source.depth);
+    return true;
+}
+
+void AppWebGPU::uploadTransferLut(std::uint32_t preset) {
+    if (!transferTexture) return;
+    std::vector<unsigned char> lut = makeTransferLut(preset);
+    WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    dst.texture = transferTexture;
+    dst.aspect = WGPUTextureAspect_All;
+    WGPUTexelCopyBufferLayout layout = WGPU_TEXEL_COPY_BUFFER_LAYOUT_INIT;
+    layout.bytesPerRow = 256u * 4u;
+    layout.rowsPerImage = 1;
+    WGPUExtent3D writeSize = WGPU_EXTENT_3D_INIT;
+    writeSize.width = 256;
+    writeSize.height = 1;
+    writeSize.depthOrArrayLayers = 1;
+    wgpuQueueWriteTexture(queue, &dst, lut.data(), lut.size(), &layout, &writeSize);
+    uploadedTransferPreset = preset;
+}
+
+void AppWebGPU::drawVolume(WGPURenderPassEncoder pass) {
+    const auto& commands = renderBridge.volume_commands();
+    if (commands.empty() || !volumePipeline || !volumeBindGroup) return;
+
+    const render::VolumeDrawCommand& cmd = commands[0];
+    if (cmd.display.transfer_preset != uploadedTransferPreset) {
+        uploadTransferLut(cmd.display.transfer_preset);
+    }
+
+    const glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
+    const GpuVec4u mode = {modeToGpu(cmd.display.mode), 0u, 0u, 0u};
+    const GpuVec4f windowLevel = {
+        cmd.display.window_center,
+        glm::max(cmd.display.window_width, 0.001f),
+        cmd.display.iso_threshold,
+        0.0f
+    };
+    const glm::vec3 half = boxHalfFromSource(cmd.source);
+    const GpuVec4f boxHalf = {half.x, half.y, half.z, 0.0f};
+
+    wgpuQueueWriteBuffer(queue, cameraBuffer, 0, glm::value_ptr(invVP), sizeof(glm::mat4));
+    wgpuQueueWriteBuffer(queue, modeBuffer, 0, &mode, sizeof(mode));
+    wgpuQueueWriteBuffer(queue, windowBuffer, 0, &windowLevel, sizeof(windowLevel));
+    wgpuQueueWriteBuffer(queue, boxHalfBuffer, 0, &boxHalf, sizeof(boxHalf));
+
+    wgpuRenderPassEncoderSetPipeline(pass, volumePipeline);
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, volumeBindGroup, 0, nullptr);
+    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, fullscreenVbo, 0, 6u * 4u * sizeof(float));
+    wgpuRenderPassEncoderDraw(pass, 6, 1, 0, 0);
+}
+
+void AppWebGPU::releaseVolumeRenderer() {
+    if (volumeBindGroup)       { wgpuBindGroupRelease(volumeBindGroup); volumeBindGroup = nullptr; }
+    if (transferTextureView)   { wgpuTextureViewRelease(transferTextureView); transferTextureView = nullptr; }
+    if (transferTexture)       { wgpuTextureRelease(transferTexture); transferTexture = nullptr; }
+    if (volumeTextureView)     { wgpuTextureViewRelease(volumeTextureView); volumeTextureView = nullptr; }
+    if (volumeTexture)         { wgpuTextureRelease(volumeTexture); volumeTexture = nullptr; }
+    if (volumeSampler)         { wgpuSamplerRelease(volumeSampler); volumeSampler = nullptr; }
+    if (boxHalfBuffer)         { wgpuBufferRelease(boxHalfBuffer); boxHalfBuffer = nullptr; }
+    if (windowBuffer)          { wgpuBufferRelease(windowBuffer); windowBuffer = nullptr; }
+    if (modeBuffer)            { wgpuBufferRelease(modeBuffer); modeBuffer = nullptr; }
+    if (cameraBuffer)          { wgpuBufferRelease(cameraBuffer); cameraBuffer = nullptr; }
+    if (fullscreenVbo)         { wgpuBufferRelease(fullscreenVbo); fullscreenVbo = nullptr; }
+    if (volumePipeline)        { wgpuRenderPipelineRelease(volumePipeline); volumePipeline = nullptr; }
+    if (volumePipelineLayout)  { wgpuPipelineLayoutRelease(volumePipelineLayout); volumePipelineLayout = nullptr; }
+    if (volumeBindGroupLayout) { wgpuBindGroupLayoutRelease(volumeBindGroupLayout); volumeBindGroupLayout = nullptr; }
+    if (volumeShader)          { wgpuShaderModuleRelease(volumeShader); volumeShader = nullptr; }
 }
 
 bool AppWebGPU::init() {
@@ -377,6 +870,11 @@ bool AppWebGPU::init() {
     }
 
     createStudyVolumeScene();
+    renderBridge.build(world);
+    if (!initVolumeRenderer()) {
+        fprintf(stderr, "WebGPU volume renderer init failed\n");
+        return false;
+    }
 
     printf("WebGPU (G3) initialized — Dawn + ImGui (surfaceFormat=%d)\n", (int)surfaceFormat);
     return true;
@@ -460,6 +958,10 @@ void AppWebGPU::tick() {
     pd.colorAttachments     = &color;
     WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(enc, &pd);
 
+    // Scene pass: consume RenderBridge commands with the WGSL volume pipeline.
+    // ImGui is drawn afterwards, so the controls remain a normal overlay.
+    drawVolume(pass);
+
     // ImGui frame (drawn into the same render pass, after any scene geometry).
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -484,8 +986,29 @@ void AppWebGPU::tick() {
                         cmd.source.spacing_mm.z);
             ImGui::Text("Window: %.2f / %.2f",
                         cmd.display.window_center, cmd.display.window_width);
+            ImGui::Text("WGSL pass: raygen.wgsl -> 3D texture + transfer LUT");
         }
-        ImGui::TextDisabled("Next: consume this command with a Dawn WGSL volume pass.");
+
+        ImGui::SeparatorText("Volume display");
+        world.view<render::VolumeRenderable>(
+            [&](ecs::Entity, render::VolumeRenderable& volume) {
+                int mode = static_cast<int>(modeToGpu(volume.display.mode));
+                if (ImGui::Combo("Mode", &mode, "DVR\0MIP\0Isosurface\0\0")) {
+                    volume.display.mode =
+                        mode == 1 ? render::VolumeRenderMode::MIP :
+                        mode == 2 ? render::VolumeRenderMode::Isosurface :
+                                    render::VolumeRenderMode::DVR;
+                }
+
+                int preset = static_cast<int>(volume.display.transfer_preset);
+                if (ImGui::SliderInt("Transfer preset", &preset, 1, 4)) {
+                    volume.display.transfer_preset = static_cast<std::uint32_t>(preset);
+                }
+
+                ImGui::SliderFloat("Window center", &volume.display.window_center, 0.0f, 1.0f);
+                ImGui::SliderFloat("Window width", &volume.display.window_width, 0.05f, 2.0f);
+            });
+        ImGui::TextDisabled("Next: replace the phantom texture with a DICOM volume upload.");
         ImGui::End();
     }
     ImGui::Render();
@@ -506,6 +1029,7 @@ void AppWebGPU::tick() {
 }
 
 void AppWebGPU::cleanup() {
+    releaseVolumeRenderer();
     ImGui_ImplWGPU_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
