@@ -12,11 +12,14 @@
             position:absolute; background:rgba(0,0,0,0.95);
             border:2px solid #0f0; border-radius:5px; padding:12px; z-index:100; color:#0f0;
         }
-        #controls { top:10px; left:10px; max-width:200px; }
+        #controls {
+            top:10px; left:10px; width:220px; max-width:calc(100vw - 20px);
+            max-height:calc(100vh - 20px); overflow-y:auto;
+        }
         #stats    { top:10px; right:10px; text-align:right; font-size:12px; }
         h3 { font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
         button {
-            display:block; width:100%; padding:7px; margin:4px 0; background:#1a1a1a; color:#888;
+            display:block; width:100%; padding:6px; margin:4px 0; background:#1a1a1a; color:#888;
             border:1px solid #444; border-radius:3px; cursor:pointer; font-family:monospace;
             font-size:11px; font-weight:bold; transition:all .15s;
         }
@@ -24,6 +27,8 @@
         button.active { background:#0a3a0a; color:#0f0; border-color:#0f0; }
         #stat-fps { font-weight:bold; font-size:13px; }
         .hint { font-size:10px; color:#888; margin-top:8px; line-height:1.5; }
+        .row-label { font-size:10px; margin-top:6px; }
+        input[type="range"] { width:100%; accent-color:#0f0; }
     </style>
 </head>
 <body>
@@ -42,17 +47,31 @@
             <button id="mode-1" onclick="setMode(1)">MIP</button>
             <button id="mode-2" onclick="setMode(2)">Isosurface</button>
             <h3 style="margin-top:10px;">Window</h3>
-            <div style="font-size:10px;">Center <span id="win-cl">0.50</span></div>
+            <div class="row-label">Center <span id="win-cl">0.50</span></div>
             <input id="win-c" type="range" min="0" max="1" step="0.01" value="0.5"
-                   style="width:100%;" oninput="updateWindow()">
-            <div style="font-size:10px;">Width <span id="win-wl">1.00</span></div>
+                   oninput="updateWindow()">
+            <div class="row-label">Width <span id="win-wl">1.00</span></div>
             <input id="win-w" type="range" min="0.02" max="1" step="0.01" value="1"
-                   style="width:100%;" oninput="updateWindow()">
+                   oninput="updateWindow()">
+            <h3 style="margin-top:10px;">Ray debug</h3>
+            <button id="debug-0" class="active" onclick="setDebug(0)">Final image</button>
+            <button id="debug-1" onclick="setDebug(1)">Ray direction</button>
+            <button id="debug-2" onclick="setDebug(2)">Ray depth</button>
+            <button id="debug-3" onclick="setDebug(3)">Sample count</button>
+            <h3 style="margin-top:10px;">Sampling</h3>
+            <div class="row-label">Steps <span id="steps-l">128</span></div>
+            <input id="steps" type="range" min="16" max="512" step="16" value="128"
+                   oninput="updateSampling()">
+            <div class="row-label">Opacity <span id="opacity-l">0.20</span></div>
+            <input id="opacity" type="range" min="0.01" max="1" step="0.01" value="0.2"
+                   oninput="updateSampling()">
             <div class="hint">
                 Hold mouse + drag: rotate<br>
+                Right/middle drag: pan<br>
                 Wheel: zoom<br>
                 C: ORBIT / WASD<br>
-                WASD + Space: move (WASD)
+                R: reset · P: pointer lock<br>
+                WASD + Space + Shift/Ctrl: move
             </div>
         </div>
 
@@ -143,6 +162,23 @@
             document.getElementById('win-cl').textContent = c.toFixed(2);
             document.getElementById('win-wl').textContent = w.toFixed(2);
             if (typeof Module._set_window === 'function') Module._set_window(c, w);
+        }
+        function setDebug(mode) {
+            if (typeof Module._set_debug_mode === 'function') {
+                Module._set_debug_mode(mode);
+                for (let i = 0; i <= 3; i++) {
+                    document.getElementById(`debug-${i}`).classList.toggle('active', i === mode);
+                }
+            }
+        }
+        function updateSampling() {
+            const steps = parseInt(document.getElementById('steps').value, 10);
+            const opacity = parseFloat(document.getElementById('opacity').value);
+            document.getElementById('steps-l').textContent = steps;
+            document.getElementById('opacity-l').textContent = opacity.toFixed(2);
+            if (typeof Module._set_sampling === 'function') {
+                Module._set_sampling(steps, opacity);
+            }
         }
         document.addEventListener('keydown', (e) => {
             if (e.key >= '1' && e.key <= '4') setColor(parseInt(e.key));

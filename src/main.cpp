@@ -4,6 +4,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #endif
 
 #include <SDL3/SDL.h>
@@ -47,6 +48,8 @@ static engine::Camera g_camera(engine::CameraMode::ORBIT);
 // Mouse-look is GATED: the camera only rotates while a mouse button is held.
 // This lets the user move the cursor to click UI without spinning the camera.
 static bool g_mouse_look_active = false;
+enum class MouseDragAction { None, Rotate, Pan };
+static MouseDragAction g_mouse_drag_action = MouseDragAction::None;
 
 // Current canvas drawing-buffer size, pushed from the shell via on_canvas_resize
 // (the authoritative size; SDL's window size is stale on the web). 0 = not set.
@@ -86,6 +89,56 @@ static void get_drawable_size(SDL_Window* window, int& width, int& height) {
     }
 }
 
+static void toggle_pointer_lock() {
+#ifdef __EMSCRIPTEN__
+    EmscriptenPointerlockChangeEvent status;
+    if (emscripten_get_pointerlock_status(&status) == EMSCRIPTEN_RESULT_SUCCESS &&
+        status.isActive) {
+        emscripten_exit_pointerlock();
+        printf("Pointer lock: off\n");
+    } else {
+        emscripten_request_pointerlock("#canvas", EM_TRUE);
+        printf("Pointer lock: requested\n");
+    }
+#else
+    printf("Pointer lock is browser-only; native SDL already receives relative motion while dragging.\n");
+#endif
+}
+
+static bool is_descend_key(SDL_Keycode key) {
+    return key == SDLK_LSHIFT || key == SDLK_RSHIFT ||
+           key == SDLK_LCTRL || key == SDLK_RCTRL;
+}
+
+static void handle_camera_key_down(SDL_Keycode key) {
+    g_camera.on_key_pressed(key);
+    if (is_descend_key(key)) {
+        g_camera.set_descend_active(true);
+    }
+
+    if (key == SDLK_C) {
+        engine::CameraMode next =
+            (g_camera.get_mode() == engine::CameraMode::ORBIT)
+                ? engine::CameraMode::WASD
+                : engine::CameraMode::ORBIT;
+        g_camera.set_mode(next);
+        printf("Camera mode: %s\n",
+               next == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
+    } else if (key == SDLK_R) {
+        g_camera.reset();
+        printf("Camera reset\n");
+    } else if (key == SDLK_P) {
+        toggle_pointer_lock();
+    }
+}
+
+static void handle_camera_key_up(SDL_Keycode key) {
+    g_camera.on_key_released(key);
+    if (is_descend_key(key)) {
+        g_camera.set_descend_active(false);
+    }
+}
+
 // Poll SDL events: quit, keyboard, mouse. Updates the shared camera.
 // Works identically in native and Emscripten (SDL abstracts the event source).
 static void process_input(bool& running) {
@@ -97,34 +150,34 @@ static void process_input(bool& running) {
                 break;
 
             case SDL_EVENT_KEY_DOWN:
-                g_camera.on_key_pressed(event.key.key);
-                // 'C' toggles between ORBIT (DICOM viewing) and WASD (engine fly).
-                if (event.key.key == SDLK_C) {
-                    engine::CameraMode next =
-                        (g_camera.get_mode() == engine::CameraMode::ORBIT)
-                            ? engine::CameraMode::WASD
-                            : engine::CameraMode::ORBIT;
-                    g_camera.set_mode(next);
-                    printf("Camera mode: %s\n",
-                           next == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
-                }
+                handle_camera_key_down(event.key.key);
                 break;
 
             case SDL_EVENT_KEY_UP:
-                g_camera.on_key_released(event.key.key);
+                handle_camera_key_up(event.key.key);
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 g_mouse_look_active = true;
+                g_mouse_drag_action =
+                    (event.button.button == SDL_BUTTON_RIGHT ||
+                     event.button.button == SDL_BUTTON_MIDDLE)
+                        ? MouseDragAction::Pan
+                        : MouseDragAction::Rotate;
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 g_mouse_look_active = false;
+                g_mouse_drag_action = MouseDragAction::None;
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
                 if (g_mouse_look_active) {
-                    g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                    if (g_mouse_drag_action == MouseDragAction::Pan) {
+                        g_camera.on_mouse_pan(event.motion.xrel, event.motion.yrel);
+                    } else {
+                        g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                    }
                 }
                 break;
 
@@ -156,7 +209,11 @@ static void process_input(bool& running) {
 #include <imgui_impl_wgpu.h>
 #include "render_bridge.hpp"
 #include "transform_system.hpp"
+#include "volume/volume_buffer.h"
 #include "embedded_shaders.h"
+#ifdef HAVE_GDCM
+#include "volume_io/volume_io.h"
+#endif
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -278,6 +335,59 @@ static std::vector<unsigned char> makePhantomVolume(int n) {
     return v;
 }
 
+static volume::VolumeBuffer makePhantomVolumeBuffer() {
+    constexpr std::uint32_t n = 96;
+    volume::VolumeMetadata meta;
+    meta.width = n;
+    meta.height = n;
+    meta.depth = n;
+    meta.spacing_mm = {1.0f, 1.0f, 1.5f};
+    meta.window_center = 0.5f;
+    meta.window_width = 1.0f;
+    meta.value_min = 0.0f;
+    meta.value_max = 255.0f;
+    std::vector<unsigned char> bytes = makePhantomVolume(static_cast<int>(n));
+    return volume::VolumeBuffer::from_u8(meta, bytes.data());
+}
+
+static volume::VolumeBuffer tryLoadDicomVolumeBuffer(bool& loadedFromDicom) {
+    loadedFromDicom = false;
+#ifdef HAVE_GDCM
+#ifdef MOBAGEN_DICOM_PATH
+    const char* dicomDir = MOBAGEN_DICOM_PATH;
+#else
+    const char* dicomDir = "assets/dicom";
+#endif
+    VolumeData dicom = volume_io_load_series(dicomDir);
+    if (!dicom.voxels) {
+        printf("DICOM load skipped/failed at %s; using synthetic phantom\n", dicomDir);
+        return {};
+    }
+
+    volume::VolumeMetadata meta;
+    meta.width = static_cast<std::uint32_t>(dicom.width);
+    meta.height = static_cast<std::uint32_t>(dicom.height);
+    meta.depth = static_cast<std::uint32_t>(dicom.depth);
+    meta.spacing_mm = {dicom.spacing_x, dicom.spacing_y, dicom.spacing_z};
+    meta.rescale_slope = dicom.rescale_slope;
+    meta.rescale_intercept = dicom.rescale_intercept;
+    meta.window_center = dicom.window_center;
+    meta.window_width = dicom.window_width;
+    meta.value_min = dicom.value_min;
+    meta.value_max = dicom.value_max;
+
+    volume::VolumeBuffer buffer =
+        volume::VolumeBuffer::from_u16_windowed(meta, dicom.voxels);
+    printf("Loaded DICOM volume %ux%ux%u from %s -> normalized R8 upload\n",
+           meta.width, meta.height, meta.depth, dicomDir);
+    volume_io_free(&dicom);
+    loadedFromDicom = !buffer.empty();
+    return buffer;
+#else
+    return {};
+#endif
+}
+
 static std::vector<unsigned char> makeTransferLut(std::uint32_t preset) {
     std::vector<unsigned char> lut(256 * 4);
     for (int i = 0; i < 256; ++i) {
@@ -375,6 +485,8 @@ struct AppWebGPU {
     ecs::World world;
     scene::TransformSystem transforms;
     render::RenderBridge renderBridge;
+    volume::VolumeBuffer cpuVolume;
+    bool cpuVolumeFromDicom = false;
 
     WGPUShaderModule     volumeShader         = nullptr;
     WGPUBindGroupLayout  volumeBindGroupLayout = nullptr;
@@ -392,6 +504,9 @@ struct AppWebGPU {
     WGPUTextureView      transferTextureView  = nullptr;
     WGPUBindGroup        volumeBindGroup      = nullptr;
     std::uint32_t        uploadedTransferPreset = 0;
+    std::uint32_t        debugMode = 0;       // 0 final, 1 ray dir, 2 depth, 3 samples
+    std::uint32_t        sampleSteps = 128;   // ray-march samples; quality/cost knob
+    float                opacityScale = 0.20f;// per-sample opacity multiplier
 
     bool init();
     void tick();
@@ -525,6 +640,13 @@ void AppWebGPU::createStudyVolumeScene() {
     // The WebGPU host still only clears + draws ImGui. The important step here
     // is architectural: the renderer no longer needs to query ECS storage while
     // recording GPU commands. It receives a flat command list.
+    cpuVolume = tryLoadDicomVolumeBuffer(cpuVolumeFromDicom);
+    if (cpuVolume.empty()) {
+        cpuVolume = makePhantomVolumeBuffer();
+        cpuVolumeFromDicom = false;
+    }
+    const volume::VolumeMetadata& meta = cpuVolume.metadata();
+
     ecs::Entity phantom = world.create();
 
     scene::Transform t;
@@ -533,14 +655,17 @@ void AppWebGPU::createStudyVolumeScene() {
 
     render::VolumeRenderable volume;
     volume.source.id = 1;
-    volume.source.width = 96;
-    volume.source.height = 96;
-    volume.source.depth = 96;
-    volume.source.spacing_mm = {1.0f, 1.0f, 1.5f};
+    volume.source.width = meta.width;
+    volume.source.height = meta.height;
+    volume.source.depth = meta.depth;
+    volume.source.spacing_mm = meta.spacing_mm;
     volume.source.format = render::VolumeScalarFormat::UInt8;
+    // The CPU upload path normalizes DICOM HU/window data to R8. The shader
+    // then receives a normalized [0,1] density range, so its default window is
+    // also normalized even if the original DICOM metadata was in HU.
     volume.display.window_center = 0.5f;
     volume.display.window_width = 1.0f;
-    volume.display.transfer_preset = 1;
+    volume.display.transfer_preset = cpuVolumeFromDicom ? 2u : 1u;
     volume.display.mode = render::VolumeRenderMode::DVR;
     world.add<render::VolumeRenderable>(phantom, volume);
 
@@ -624,7 +749,12 @@ bool AppWebGPU::initVolumeRenderer() {
         return false;
     }
 
-    std::vector<unsigned char> voxels = makePhantomVolume(static_cast<int>(source.width));
+    std::vector<unsigned char> voxels;
+    if (!cpuVolume.empty()) {
+        voxels.assign(cpuVolume.data(), cpuVolume.data() + cpuVolume.size_bytes());
+    } else {
+        voxels = makePhantomVolume(static_cast<int>(source.width));
+    }
     std::uint32_t volumeBytesPerRow = 0;
     std::vector<unsigned char> paddedVoxels =
         padTextureRows(voxels, source.width, source.height, source.depth, 1u, volumeBytesPerRow);
@@ -814,8 +944,9 @@ bool AppWebGPU::initVolumeRenderer() {
         return false;
     }
 
-    printf("WebGPU volume renderer initialized (%ux%ux%u phantom)\n",
-           source.width, source.height, source.depth);
+    printf("WebGPU volume renderer initialized (%ux%ux%u %s)\n",
+           source.width, source.height, source.depth,
+           cpuVolumeFromDicom ? "DICOM" : "phantom");
     return true;
 }
 
@@ -846,12 +977,17 @@ void AppWebGPU::drawVolume(WGPURenderPassEncoder pass) {
     }
 
     const glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
-    const GpuVec4u mode = {modeToGpu(cmd.display.mode), 0u, 0u, 0u};
+    const GpuVec4u mode = {
+        modeToGpu(cmd.display.mode),
+        debugMode,
+        sampleSteps,
+        0u
+    };
     const GpuVec4f windowLevel = {
         cmd.display.window_center,
         glm::max(cmd.display.window_width, 0.001f),
         cmd.display.iso_threshold,
-        0.0f
+        opacityScale
     };
     const glm::vec3 half = boxHalfFromSource(cmd.source);
     const GpuVec4f boxHalf = {half.x, half.y, half.z, 0.0f};
@@ -968,27 +1104,34 @@ void AppWebGPU::tick() {
         switch (event.type) {
             case SDL_EVENT_KEY_DOWN:
                 if (!io.WantCaptureKeyboard) {
-                    g_camera.on_key_pressed(event.key.key);
-                    if (event.key.key == SDLK_C) {
-                        engine::CameraMode next =
-                            (g_camera.get_mode() == engine::CameraMode::ORBIT)
-                                ? engine::CameraMode::WASD : engine::CameraMode::ORBIT;
-                        g_camera.set_mode(next);
-                    }
+                    handle_camera_key_down(event.key.key);
                 }
                 break;
             case SDL_EVENT_KEY_UP:
-                if (!io.WantCaptureKeyboard) g_camera.on_key_released(event.key.key);
+                if (!io.WantCaptureKeyboard) handle_camera_key_up(event.key.key);
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if (!io.WantCaptureMouse) g_mouse_look_active = true;
+                if (!io.WantCaptureMouse) {
+                    g_mouse_look_active = true;
+                    g_mouse_drag_action =
+                        (event.button.button == SDL_BUTTON_RIGHT ||
+                         event.button.button == SDL_BUTTON_MIDDLE)
+                            ? MouseDragAction::Pan
+                            : MouseDragAction::Rotate;
+                }
                 break;
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 g_mouse_look_active = false;
+                g_mouse_drag_action = MouseDragAction::None;
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                if (g_mouse_look_active && !io.WantCaptureMouse)
-                    g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                if (g_mouse_look_active && !io.WantCaptureMouse) {
+                    if (g_mouse_drag_action == MouseDragAction::Pan) {
+                        g_camera.on_mouse_pan(event.motion.xrel, event.motion.yrel);
+                    } else {
+                        g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+                    }
+                }
                 break;
             case SDL_EVENT_MOUSE_WHEEL:
                 if (!io.WantCaptureMouse) g_camera.on_mouse_wheel(event.wheel.y);
@@ -1054,11 +1197,12 @@ void AppWebGPU::tick() {
                     g_camera.get_yaw_degrees(), g_camera.get_pitch_degrees());
         if (g_camera.get_mode() == engine::CameraMode::ORBIT) {
             ImGui::Text("Orbit radius: %.2f", g_camera.get_orbit_radius());
-            ImGui::TextDisabled("Orbit: hold mouse + drag; wheel zooms.");
+            ImGui::TextDisabled("Orbit: left-drag rotate; right/middle-drag pan; wheel zoom.");
         } else {
             ImGui::Text("Move speed: %.2f", g_camera.get_move_speed());
-            ImGui::TextDisabled("WASD: move; Space: up; hold mouse + drag to look.");
+            ImGui::TextDisabled("WASD: move; Space up; Shift/Ctrl down; left-drag look.");
         }
+        ImGui::TextDisabled("R resets camera. P requests browser pointer lock.");
         ImGui::ColorEdit3("Clear color", clearColor);
         ImGui::SeparatorText("DOD render bridge");
         const auto& volumeCommands = renderBridge.volume_commands();
@@ -1095,8 +1239,20 @@ void AppWebGPU::tick() {
 
                 ImGui::SliderFloat("Window center", &volume.display.window_center, 0.0f, 1.0f);
                 ImGui::SliderFloat("Window width", &volume.display.window_width, 0.05f, 2.0f);
+
+                int debug = static_cast<int>(debugMode);
+                if (ImGui::Combo("Debug view", &debug,
+                                 "Final\0Ray direction\0Ray depth\0Sample count\0\0")) {
+                    debugMode = static_cast<std::uint32_t>(glm::clamp(debug, 0, 3));
+                }
+
+                int steps = static_cast<int>(sampleSteps);
+                if (ImGui::SliderInt("Ray samples", &steps, 16, 512)) {
+                    sampleSteps = static_cast<std::uint32_t>(glm::clamp(steps, 16, 512));
+                }
+                ImGui::SliderFloat("Opacity scale", &opacityScale, 0.01f, 1.0f);
             });
-        ImGui::TextDisabled("Next: replace the phantom texture with a DICOM volume upload.");
+        ImGui::TextDisabled("Study knobs: debug exposes the ray math; samples trade quality for cost.");
         ImGui::End();
     }
     ImGui::Render();
@@ -1168,6 +1324,9 @@ static int  g_render_mode = 0;   // 0 = DVR, 1 = MIP, 2 = Isosurface
 static float g_window_center = 0.5f;
 static float g_window_width  = 1.0f;
 static glm::vec3 g_box_half(1.0f);   // volume box half-extents (from voxel spacing)
+static int g_debug_mode = 0;          // 0 final, 1 ray dir, 2 depth, 3 samples
+static int g_sample_steps = 128;      // ray-march samples; quality/cost knob
+static float g_opacity_scale = 0.20f; // per-sample opacity multiplier
 
 // Build a 256-entry RGBA transfer LUT for the given preset.
 static std::vector<unsigned char> make_transfer_lut(int preset) {
@@ -1506,6 +1665,9 @@ void AppWebGL::tick() {
         shader->setUniform("uVolume", 0);     // 3D volume on unit 0
         shader->setUniform("uTransfer", 1);   // transfer LUT on unit 1
         shader->setUniform("uMode", g_render_mode);
+        shader->setUniform("uDebug", g_debug_mode);
+        shader->setUniform("uSteps", g_sample_steps);
+        shader->setUniform("uOpacityScale", g_opacity_scale);
         shader->setUniform("uWindow", glm::vec2(g_window_center, g_window_width));
         shader->setUniform("uBoxHalf", g_box_half);
     }
@@ -1587,6 +1749,25 @@ extern "C" {
     void set_window(float center, float width) {
         g_window_center = center;
         g_window_width = (width < 0.01f) ? 0.01f : width;
+    }
+
+    // Debug view: 0 final image, 1 ray direction, 2 ray depth, 3 sample count.
+    EMSCRIPTEN_KEEPALIVE
+    void set_debug_mode(int mode) {
+        if (mode < 0) mode = 0;
+        if (mode > 3) mode = 3;
+        g_debug_mode = mode;
+    }
+
+    // Sampling controls. More steps reduce banding but cost more fragment work.
+    EMSCRIPTEN_KEEPALIVE
+    void set_sampling(int steps, float opacity) {
+        if (steps < 16) steps = 16;
+        if (steps > 512) steps = 512;
+        if (opacity < 0.01f) opacity = 0.01f;
+        if (opacity > 1.0f) opacity = 1.0f;
+        g_sample_steps = steps;
+        g_opacity_scale = opacity;
     }
 #endif
 }

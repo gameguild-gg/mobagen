@@ -6,8 +6,8 @@ struct Camera { invViewProj : mat4x4f };
 @group(0) @binding(1) var volume : texture_3d<f32>;
 @group(0) @binding(2) var volSamp : sampler;
 @group(0) @binding(3) var transferTex : texture_2d<f32>;  // 1D LUT: density -> RGBA
-@group(0) @binding(4) var<uniform> uMode : vec4<u32>;     // .x: 0=DVR 1=MIP 2=Iso
-@group(0) @binding(5) var<uniform> uWindow : vec4f;       // .x center, .y width
+@group(0) @binding(4) var<uniform> uMode : vec4<u32>;     // .x mode .y debug .z steps
+@group(0) @binding(5) var<uniform> uWindow : vec4f;       // .x center .y width .w opacity
 @group(0) @binding(6) var<uniform> uBoxHalf : vec4f;      // .xyz box half-extents
 
 // Window/level: remap [center-width/2, center+width/2] to [0,1], clip outside.
@@ -80,20 +80,31 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
   let rd = normalize(farP - ro);            // ray direction
 
   var col = vec3f(0.04, 0.05, 0.08);        // background
+  if (uMode.y == 1u) {
+    return vec4f(rd * 0.5 + 0.5, 1.0);
+  }
 
   let hit = intersectBox(ro, rd);
   if (hit.ok) {
     let t0 = max(hit.t0, 0.0);
-    let steps = 128;
+    let steps = i32(clamp(uMode.z, 16u, 512u));
     let dt = (hit.t1 - t0) / f32(steps);
+    var samples = 0;
+
+    if (uMode.y == 2u) {
+      let depth = clamp(t0 / 4.0, 0.0, 1.0);
+      return vec4f(vec3f(depth), 1.0);
+    }
 
     if (uMode.x == 1u) {
       // --- MIP: brightest density along the ray ---
       var maxD = 0.0;
       var t = t0;
-      for (var i = 0; i < steps; i = i + 1) {
+      for (var i = 0; i < 512; i = i + 1) {
+        if (i >= steps) { break; }
         let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
         maxD = max(maxD, applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r));
+        samples = samples + 1;
         t = t + dt;
       }
       col = textureSampleLevel(transferTex, volSamp, vec2f(maxD, 0.5), 0.0).rgb;
@@ -101,9 +112,11 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       // --- Isosurface: first density above a threshold ---
       let ISO = 0.40;
       var t = t0;
-      for (var i = 0; i < steps; i = i + 1) {
+      for (var i = 0; i < 512; i = i + 1) {
+        if (i >= steps) { break; }
         let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
         let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
+        samples = samples + 1;
         if (density > ISO) {
           let base = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0).rgb;
           col = shade(tc, base);
@@ -115,18 +128,24 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       // --- DVR: accumulate colour + opacity front-to-back ---
       var acc = vec4f(0.0);
       var t = t0;
-      for (var i = 0; i < steps; i = i + 1) {
+      for (var i = 0; i < 512; i = i + 1) {
+        if (i >= steps) { break; }
         let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
         let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
         let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
-        let a = tf.a * 0.2;
+        let a = tf.a * uWindow.w;
         let c = shade(tc, tf.rgb);
         acc = vec4f(acc.rgb + (1.0 - acc.a) * a * c,
                     acc.a   + (1.0 - acc.a) * a);
+        samples = samples + 1;
         if (acc.a > 0.99) { break; }
         t = t + dt;
       }
       col = mix(col, acc.rgb, acc.a);
+    }
+
+    if (uMode.y == 3u) {
+      col = vec3f(f32(samples) / f32(steps));
     }
   }
 

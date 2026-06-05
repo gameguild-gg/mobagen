@@ -28,20 +28,21 @@ cannot share a canvas at runtime. Each is therefore its **own build**:
 
 ## Quick start
 
-```powershell
-# Emscripten env (once per shell)
-$env:EMSDK = "C:\Users\MatheusMartins\emsdk"
-& "$env:EMSDK\emsdk_env.ps1"
-
+```bash
 # WebGL2 build
-emcmake cmake -B build/wasm-webgl -DCMAKE_BUILD_TYPE=Release
-cmake --build build/wasm-webgl
-cd build/wasm-webgl/bin ; python -m http.server 8083
-# open http://localhost:8083/dicom_renderer.html
+make wasm-webgl
+cd build/wasm-webgl/bin && python -m http.server 8083 --bind 127.0.0.1
+# open http://127.0.0.1:8083/dicom_renderer.html
+
+# WebGPU/Dawn build
+make wasm-webgpu
+cd build/wasm-webgpu/bin && python -m http.server 8084 --bind 127.0.0.1
+# open http://127.0.0.1:8084/dicom_renderer.html
 ```
 
-WebGPU build: add `-DUSE_WEBGPU=ON` and use a separate output dir. Full commands,
-controls, native builds, and caveats are in [docs/LEARNING.md](docs/LEARNING.md).
+The Makefile sets the Emscripten SDK variables and calls CMake with the
+Emscripten toolchain file directly. Full commands, controls, native builds, and
+caveats are in [docs/LEARNING.md](docs/LEARNING.md).
 
 ---
 
@@ -60,8 +61,10 @@ Superseded planning notes are kept in [docs/archive/](docs/archive/) for history
 
 ## Controls
 
-Hold mouse + drag to rotate · wheel to zoom · `C` toggles ORBIT/WASD ·
-`WASD`+`Space` to move · `1`–`4` change color.
+Hold mouse + drag to rotate · right/middle drag to pan · wheel to zoom · `C`
+toggles ORBIT/WASD · `WASD`+`Space`+`Shift/Ctrl` move in WASD mode · `1`–`4`
+change the transfer function. WebGL exposes ray-debug and sampling controls in
+HTML; WebGPU exposes the same study controls in the ImGui panel.
 
 ---
 

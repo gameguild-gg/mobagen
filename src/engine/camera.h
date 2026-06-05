@@ -50,7 +50,7 @@ public:
     glm::vec3 get_position() const { return position_; }
     glm::vec3 get_focal_point() const { return focal_point_; }
     glm::vec3 get_forward() const { return glm::normalize(focal_point_ - position_); }
-    glm::vec3 get_right() const { return glm::cross(get_forward(), up_); }
+    glm::vec3 get_right() const { return glm::normalize(glm::cross(get_forward(), up_)); }
     glm::vec3 get_up() const { return up_; }
 
     float get_fov() const { return fov_; }
@@ -118,6 +118,16 @@ public:
         }
     }
 
+    void on_mouse_pan(int dx, int dy) {
+        const float scale = orbit_radius_ * 0.0015f;
+        const glm::vec3 delta =
+            (-get_right() * static_cast<float>(dx) +
+             up_ * static_cast<float>(dy)) * scale;
+        position_ += delta;
+        focal_point_ += delta;
+        update_view_matrix();
+    }
+
     // Mouse wheel (zoom in/out)
     void on_mouse_wheel(int wheel_y) {
         if (mode_ == CameraMode::ORBIT) {
@@ -135,6 +145,10 @@ public:
         if (mode_ == CameraMode::WASD) {
             wasd_update(delta_time);
         }
+    }
+
+    void set_descend_active(bool active) {
+        descend_active_ = active;
     }
 
     // ========================================================================
@@ -196,6 +210,7 @@ private:
         if (keys_pressed_[100]) movement += right;    // D
         if (keys_pressed_[97])  movement -= right;    // A
         if (keys_pressed_[32])  movement += up_;      // Space
+        if (descend_active_)    movement -= up_;      // Shift/Ctrl
 
         // Normalize to prevent faster diagonal movement
         if (glm::length(movement) > 0.01f) {
@@ -250,6 +265,7 @@ private:
     // WASD mode
     float move_speed_;
     bool keys_pressed_[256] = {};  // Keyboard state
+    bool descend_active_ = false;
 
     // Projection
     float fov_;

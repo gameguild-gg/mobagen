@@ -1,9 +1,11 @@
 # Engine Study Roadmap (Core)
 
 > Current render-bridge status: Dawn/WebGPU now consumes `VolumeDrawCommand`
-> directly. The renderer binds embedded `raygen.wgsl`, camera/window/mode
-> uniforms, a 96^3 phantom 3D texture, and a transfer LUT. The next resource step
-> is replacing the phantom bytes with real loader/DICOM output.
+> directly. The renderer binds embedded `raygen.wgsl`, camera/window/mode/debug
+> uniforms, a 3D volume texture, and a transfer LUT. The native `USE_GDCM=ON`
+> path can now replace the phantom bytes with DICOM output normalized through
+> `VolumeBuffer`; the browser path still uses the raw phantom until we decide how
+> heavy a WASM DICOM parser dependency should be.
 
 > **A teaching roadmap, not just a todo list.** This project is building a
 > **performance-driven engine core** (a modular, dual-target engine backbone) —
@@ -176,7 +178,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 | Area | State |
 |---|---|
 | Build infra (CMake, GDCM v3.0.24, sanitizers, CPMLicenses) | ✅ |
-| DICOM loader (`volume_io`, native) | ✅ (renderer wiring deferred) |
+| DICOM loader (`volume_io`, native) | ✅ (native renderer upload path wired through `VolumeBuffer`) |
 | Orchestration design + locked vocabulary | ✅ ([ENGINE_ARCHITECTURE.md](ENGINE_ARCHITECTURE.md)) |
 | ECS storage core | ✅ |
 | **Jobs module (5a–5d): work-stealing + lock-free + dual-target + C ABI** | ✅ **complete** |

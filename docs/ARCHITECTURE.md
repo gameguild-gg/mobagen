@@ -20,10 +20,14 @@ Today the code has two renderer states:
   generation, samples a 3D volume texture loaded from `volume.raw`, applies a
   transfer function, gradient shading, DVR/MIP/Isosurface modes, and window/level.
 - **WebGPU:** a working **Dawn/emdawnwebgpu + SDL3 + Dear ImGui host**. It owns the
-  WebGPU device/surface/command encoder in C++ on both native and wasm. The volume
-  ray-cast is the next layer to port onto this host.
+  WebGPU device/surface/command encoder in C++ on both native and wasm, consumes
+  `RenderBridge` volume commands, uploads a 3D volume texture, and ray marches it
+  with `shaders/raygen.wgsl`.
 
-The data is currently a 96^3 phantom standing in for a real DICOM scan (Tier 3-A).
+The default data is still a 96^3 phantom standing in for a real DICOM scan, but
+the native `USE_GDCM=ON` path now has the first DICOM handoff: load a DICOM
+series, apply Hounsfield windowing on the CPU, normalize it to an R8
+`VolumeBuffer`, and upload that buffer through the same renderer path.
 Everything below describes what exists now.
 
 ---
@@ -59,13 +63,20 @@ src/
 ├── main.cpp                 Entry point + the two app variants (G2 / G3),
 │                            selected by #ifdef USE_WEBGPU. Owns the main loop,
 │                            input, and the shared camera.
+├── volume/
+│   ├── volume_buffer.h      CPU-side owned volume bytes + metadata. Starts with
+│   │                        std/pmr storage, then becomes the allocator study
+│   │                        point for large CT/MRI datasets.
+│   └── volume_buffer_test.cpp
+├── volume_io/               Native DICOM loader smoke-test path (GDCM when
+│                            USE_GDCM=ON).
 └── engine/
     ├── camera.h             Header-only camera: ORBIT (DICOM) + WASD (engine fly).
     ├── shader_program.*     RAII wrapper around a GL program (compile/link/uniforms).
     ├── vertex_buffer.*      RAII wrapper around a VBO.
     ├── vertex_array.*       RAII wrapper around a VAO + attribute layout.
     ├── renderer.*           Thin "clear + draw" abstraction (used by the WebGL build).
-    └── engine_c.*           ABIC  boundary (STUDY MODULE — see below).
+    └── engine_c.*           C ABI boundary (STUDY MODULE — see below).
 
 html/
 ├── shell_webgl.html         Emscripten shell for the WebGL2 build (canvas, FPS,
@@ -134,9 +145,10 @@ main()
   avoid jumps after a stall.
 
 ### WebGL2 render path
-Direct, immediate-mode: `renderer.clear()` → set `view_projection` uniform →
-`renderer.draw(vao, 3)` → `SDL_GL_SwapWindow`. Shaders are GLSL ES 3.00 in the
-browser, GLSL 3.30 core natively (same source, different `#version` header).
+Immediate-mode teaching path: render a fullscreen quad into an offscreen
+`Framebuffer`, run the GLSL ray marcher per pixel, then blit the result to the
+screen. Shaders are GLSL ES 3.00 in the browser and GLSL 3.30 core natively
+(same source, different `#version` header).
 
 ### WebGPU render path
 The device, surface, command encoder, render pass, and ImGui draw now live in
@@ -153,8 +165,29 @@ process SDL3 input -> update camera -> acquire WGPU surface texture
 ```
 
 The volume pass consumes a flat `RenderBridge` command list, writes camera/window
-settings to uniform buffers, samples the synthetic 3D phantom texture, and then
-draws ImGui on top so the controls stay inspectable.
+settings to uniform buffers, samples a 3D texture, and then draws ImGui on top so
+the controls stay inspectable. When GDCM is enabled natively, the texture bytes
+come from a DICOM series normalized into `VolumeBuffer`; otherwise they come from
+the synthetic phantom.
+
+### CPU volume memory path
+
+`volume::VolumeBuffer` is the current bridge between medical-image loading and
+GPU upload. It owns normalized R8 voxels plus `VolumeMetadata`:
+
+```
+DICOM UInt16 slices -> Hounsfield rescale -> window/level -> R8 VolumeBuffer
+                                                     -> WebGPU/WebGL 3D texture
+```
+
+For learning, `VolumeBuffer` supports two ownership modes:
+
+- default heap storage, using `std::pmr::vector<std::uint8_t>`;
+- arena-backed storage, using `VolumeArena` and `std::pmr::monotonic_buffer_resource`.
+
+That is the first concrete memory-management practice step: start with standard
+containers, then make the allocation policy explicit before introducing ECS
+resource handles or GPU residency management.
 
 ### Browser startup and resize contract
 
@@ -202,15 +235,16 @@ the same camera reaches WGSL through a uniform buffer updated with
 
 ## Known limitations (today)
 
-Current status: WebGPU ray-casting now renders the synthetic phantom. The
-remaining limitation is real DICOM input, not the existence of the WGSL pass.
+Current status: WebGPU ray-casting renders the volume path. The remaining
+limitation is making DICOM loading portable to WASM, not the existence of the
+WGSL pass.
 
-- **No real DICOM yet** — the volume is a 96^3 synthetic phantom loaded from
-  `volume.raw`. The DICOM parser (GDCM/DCMTK → WASM) is Tier 3-A.
-- **WebGPU volume ray-cast is synthetic** — Dawn + ImGui + WGSL ray marching are
-  green, but the input is still a generated phantom rather than a patient scan.
-- **8-bit volume first** — the current phantom is 8-bit. Real DICOM will bring
-  16-bit values plus Hounsfield rescale.
+- **DICOM is native-first** — `USE_GDCM=ON` is wired for native smoke tests and
+  renderer upload. The browser path still uses the prebuilt raw phantom until we
+  decide how much of GDCM/DCMTK should ship into WASM.
+- **R8 upload first** — DICOM UInt16/Hounsfield data is currently normalized on
+  CPU into R8 before upload. Later WebGPU work should preserve 16-bit or float
+  data and do more windowing/statistics on the GPU.
 - **WebGPU needs a GPU adapter** — adapter creation can fail where the browser has
   no usable GPU (hardware acceleration off, blocklist, or unsupported backend).
   The shell now shows a visible startup error instead of leaving only a blue

@@ -167,6 +167,11 @@ endif()
 if(USE_GDCM)
     include(external/gdcm.cmake)
     target_compile_definitions(dicom_renderer PRIVATE HAVE_GDCM)
+    target_sources(dicom_renderer PRIVATE src/volume_io/volume_io.cpp)
+    if(NOT EMSCRIPTEN)
+        target_compile_definitions(dicom_renderer PRIVATE
+            MOBAGEN_DICOM_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/dicom")
+    endif()
     target_link_libraries(dicom_renderer PRIVATE
         gdcmMSFF gdcmDSED gdcmDICT gdcmIOD gdcmCommon)
 endif()
@@ -189,6 +194,12 @@ if(USE_GDCM AND NOT EMSCRIPTEN)
     target_include_directories(volume_io_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_definitions(volume_io_test PRIVATE HAVE_GDCM)
     target_link_libraries(volume_io_test PRIVATE gdcmMSFF gdcmDSED gdcmDICT gdcmIOD gdcmCommon)
+endif()
+
+if(NOT EMSCRIPTEN)
+    add_executable(volume_buffer_test src/volume/volume_buffer_test.cpp)
+    target_include_directories(volume_buffer_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(volume_buffer_test PRIVATE glm)
 endif()
 
 # Learning prototypes (native only — the stackful fiber demo uses Win32 fibers).

@@ -30,6 +30,9 @@ uniform mat4 inv_view_projection;
 uniform sampler3D uVolume;
 uniform sampler2D uTransfer;   // 1D transfer LUT (256x1): density -> RGBA
 uniform int uMode;             // 0 = DVR, 1 = MIP, 2 = Isosurface
+uniform int uDebug;            // 0 = final, 1 = ray dir, 2 = depth, 3 = samples
+uniform int uSteps;            // ray samples; higher = smoother, slower
+uniform float uOpacityScale;   // per-sample opacity multiplier
 uniform vec2 uWindow;          // x = window center, y = window width
 uniform vec3 uBoxHalf;         // half-extents of the volume box (voxel spacing)
 
@@ -88,20 +91,33 @@ void main() {
     vec3 rd = normalize(farP - ro);                   // ray direction
 
     vec3 col = vec3(0.04, 0.05, 0.08);                // background
+    if (uDebug == 1) {
+        fragColor = vec4(rd * 0.5 + 0.5, 1.0);
+        return;
+    }
 
     float t0, t1;
     if (intersectBox(ro, rd, t0, t1)) {
         t0 = max(t0, 0.0);                            // start at the box / camera
-        const int STEPS = 128;
-        float dt = (t1 - t0) / float(STEPS);
+        int steps = clamp(uSteps, 16, 512);
+        float dt = (t1 - t0) / float(steps);
+        int samples = 0;
+
+        if (uDebug == 2) {
+            float depth = clamp(t0 / 4.0, 0.0, 1.0);
+            fragColor = vec4(vec3(depth), 1.0);
+            return;
+        }
 
         if (uMode == 1) {
             // --- MIP: brightest density along the ray (e.g. angiography) ---
             float maxD = 0.0;
             float t = t0;
-            for (int i = 0; i < STEPS; i++) {
+            for (int i = 0; i < 512; i++) {
+                if (i >= steps) break;
                 vec3 tc = (ro + rd * t) / uBoxHalf * 0.5 + 0.5;
                 maxD = max(maxD, applyWindow(texture(uVolume, tc).r));
+                samples++;
                 t += dt;
             }
             col = texture(uTransfer, vec2(maxD, 0.5)).rgb;
@@ -109,9 +125,11 @@ void main() {
             // --- Isosurface: stop at the first density above a threshold ---
             const float ISO = 0.40;
             float t = t0;
-            for (int i = 0; i < STEPS; i++) {
+            for (int i = 0; i < 512; i++) {
+                if (i >= steps) break;
                 vec3 tc = (ro + rd * t) / uBoxHalf * 0.5 + 0.5;
                 float density = applyWindow(texture(uVolume, tc).r);
+                samples++;
                 if (density > ISO) {
                     vec3 base = texture(uTransfer, vec2(density, 0.5)).rgb;
                     col = shade(tc, base);
@@ -123,18 +141,24 @@ void main() {
             // --- DVR: accumulate colour + opacity front-to-back ---
             vec4 acc = vec4(0.0);
             float t = t0;
-            for (int i = 0; i < STEPS; i++) {
+            for (int i = 0; i < 512; i++) {
+                if (i >= steps) break;
                 vec3 tc = (ro + rd * t) / uBoxHalf * 0.5 + 0.5;
                 float density = applyWindow(texture(uVolume, tc).r);
                 vec4 tf = texture(uTransfer, vec2(density, 0.5));
-                float a = tf.a * 0.2;                  // per-step opacity
+                float a = tf.a * uOpacityScale;        // per-step opacity
                 vec3  c = shade(tc, tf.rgb);
                 acc.rgb += (1.0 - acc.a) * a * c;
                 acc.a   += (1.0 - acc.a) * a;
+                samples++;
                 if (acc.a > 0.99) break;               // early ray termination
                 t += dt;
             }
             col = mix(col, acc.rgb, acc.a);
+        }
+
+        if (uDebug == 3) {
+            col = vec3(float(samples) / float(steps));
         }
     }
 

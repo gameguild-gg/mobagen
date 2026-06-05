@@ -1,11 +1,12 @@
 # Learning Path
 
 > Current WebGPU status: the Dawn host now consumes DOD `RenderBridge` commands
-> directly. It embeds `shaders/raygen.wgsl`, uploads a 96^3 synthetic phantom as
-> a WebGPU 3D texture, uploads the transfer LUT as a WebGPU texture, and passes
-> camera/window/mode/spacing data as uniforms. The learning point is the handoff:
-> ECS owns scene metadata, `RenderBridge` flattens it, and the renderer records
-> GPU commands from that flat packet.
+> directly. It embeds `shaders/raygen.wgsl`, uploads a 3D texture, uploads the
+> transfer LUT, and passes camera/window/mode/spacing/debug data as uniforms.
+> The default input is still a 96^3 phantom, but native `USE_GDCM=ON` can now
+> normalize a DICOM series into `VolumeBuffer` for the same upload path. The
+> learning point is the handoff: loader/ECS owns scene metadata, `RenderBridge`
+> flattens it, and the renderer records GPU commands from that flat packet.
 
 The road from "triangle on screen" to "DICOM volume ray caster" (and later, a
 mesh ray tracer). Each rung **produces something visible** and feeds the DICOM
@@ -16,7 +17,7 @@ north star in [ROADMAP.md](ROADMAP.md); the current code is in
 [ARCHITECTURE.md](ARCHITECTURE.md). **New to C++/GPUs/graphics? Read
 [CONCEPTS.md](CONCEPTS.md) first — it explains every idea here from zero.**
 
-You are currently in **Tier 3** (real-DICOM prep, path B — see below).
+You are currently in **Tier 3** (real-DICOM prep + CPU memory ownership).
 
 > Scope discipline: build the **volume ray caster first** (your dissertation
 > deliverable). The ray tracer and any job-system / ECS / fiber work come *after*
@@ -75,9 +76,14 @@ the loader gets proven on a stand-in phantom first.
    of density to [0,1], clipping outside. The "bone window / brain window" knob.
 10. **B3 ✅** **Voxel spacing** — the volume box scales per-axis by voxel spacing
     (uBoxHalf), so non-cubic scans aren't squished. (Phantom uses z=1.5 to show it.)
-11. **A ◀ NEXT** **Real DICOM parser** (GDCM/DCMTK → WASM): parse a CT series from
-    The Cancer Imaging Archive, apply the Hounsfield rescale, stack slices into
-    the 3D texture. The heavy lift — and B has de-risked everything after it.
+11. **A ✅ native-first** **Real DICOM parser handoff**: `volume_io` can read a
+    DICOM series with GDCM in native builds, apply the Hounsfield rescale/window
+    on CPU, normalize to `VolumeBuffer`, and upload through the WebGPU volume
+    path. Browser/WASM DICOM parsing is still a separate decision because shipping
+    GDCM/DCMTK into WASM is a heavy dependency choice.
+12. **Memory ownership ✅ first pass**: `VolumeBuffer` uses `std::pmr::vector`
+    and can allocate from a `VolumeArena`. This is the study bridge from "STD
+    until it hurts" toward arena/pool ownership for large scan data.
 
 > Note: instead of the classic "proxy-cube" two-pass for ray entry/exit, we do an
 > analytic **ray–AABB (slab) intersection** in the fragment shader — simpler and
@@ -85,16 +91,16 @@ the loader gets proven on a stand-in phantom first.
 
 ## Tier 4 — WebGPU + compute (the research contribution)
 
-12. Port the ray caster into a **WGSL compute shader** writing a storage texture.
-13. **GPU histogram + auto-windowing** with atomics — *impossible in WebGL2; this
+13. Port the ray caster into a **WGSL compute shader** writing a storage texture.
+14. **GPU histogram + auto-windowing** with atomics — *impossible in WebGL2; this
     is the concrete justification for WebGPU.*
-14. Optimizations: early-ray-termination (have it), empty-space skipping, adaptive step.
+15. Optimizations: early-ray-termination (have it), empty-space skipping, adaptive step.
 
 ## Tier 5 — *Only now* the systems material
 
-15. A **job system** to load/preprocess slices off the main thread — the first
+16. A **job system** to load/preprocess slices off the main thread — the first
     place coroutines/fibers earn their keep (see archive notes on HPC orchestration).
-16. The mesh **ray tracer**: Möller-Trumbore → BVH → shadow/reflection rays,
+17. The mesh **ray tracer**: Möller-Trumbore → BVH → shadow/reflection rays,
     reusing the Tier-2 ray generation.
 
 Tiers 4–5 are roughly a year out. Read the archived HPC/architecture notes for
@@ -104,52 +110,47 @@ context now; don't build that layer yet.
 
 ## Build & run
 
-### One-time toolchain setup (Windows, learned the hard way)
-- Emscripten env per shell (use the **permanent** SDK, not the Temp one — Temp gets wiped):
-  ```powershell
-  $env:EMSDK = "C:\Users\MatheusMartins\emsdk"
-  $env:PATH  = "$env:EMSDK\upstream\emscripten;$env:EMSDK\node\22.16.0_64bit\bin;$env:PATH"
-  ```
-- `emcmake.ps1` trips PowerShell's native-stderr handling (cmake never runs). Bypass it by
-  calling cmake directly with the toolchain file (what emcmake just injects):
-  ```powershell
-  $tc = "$env:EMSDK\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake"
-  cmake -B build/<dir> -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DCMAKE_TOOLCHAIN_FILE="$tc" ...
-  ```
-- A **real `ninja.exe`** is required (the npm `ninja` shim does not work). Installed via
-  `python -m pip install ninja --trusted-host pypi.org --trusted-host files.pythonhosted.org`.
-- The emsdk config (`upstream/emscripten/.emscripten`) had `BINARYEN_ROOT` pointing at
-  `upstream/bin`; it must be `upstream` (else `wasm-opt` is looked for at `bin/bin` and `-O3` link fails).
+### Bash-first workflow
+
+The project now has a Makefile because the working habit is **Bash + make**.
+The WASM targets export the Emscripten SDK variables and call CMake directly with
+`C:/Users/MatheusMartins/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake`.
+This avoids the Windows shell wrapper problems we hit with `emcmake` /
+`emsdk_env.sh`, while keeping the workflow pure Bash.
+
+```bash
+make help
+```
+
+If `make` is not on the machine yet, install GNU Make or run the commands inside
+the Makefile manually from a Bash shell. The project should not depend on
+PowerShell-specific setup.
 
 ### WebGL2 (G2) — the learning rung
-```powershell
-$ninja = "C:\Users\MatheusMartins\AppData\Local\Programs\Python\Python310\Scripts\ninja.exe"
-emcmake cmake -B build/wasm-webgl -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DCMAKE_BUILD_TYPE=Release
-cmake --build build/wasm-webgl
-cd build/wasm-webgl/bin ; python -m http.server 8083
-# open http://localhost:8083/dicom_renderer.html
+```bash
+make wasm-webgl
+cd build/wasm-webgl/bin && python -m http.server 8083 --bind 127.0.0.1
+# open http://127.0.0.1:8083/dicom_renderer.html
 ```
 
 ### WebGPU (G3) — the destination
-```powershell
-emcmake cmake -B build/wasm-webgpu -G Ninja -DCMAKE_MAKE_PROGRAM="$ninja" -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build/wasm-webgpu
-cd build/wasm-webgpu/bin ; python -m http.server 8084
-# open http://localhost:8084/dicom_renderer.html  (needs a WebGPU adapter; Chrome/Edge 113+ or recent Firefox)
+```bash
+make wasm-webgpu
+cd build/wasm-webgpu/bin && python -m http.server 8084 --bind 127.0.0.1
+# open http://127.0.0.1:8084/dicom_renderer.html
 ```
 
 ### Native WebGL/OpenGL
-```powershell
-cmake -B build/native -DCMAKE_BUILD_TYPE=Release
-cmake --build build/native --config Release
-build\native\bin\Release\dicom_renderer.exe
+```bash
+cmake -S . -B build/native -DCMAKE_BUILD_TYPE=Release
+cmake --build build/native --target dicom_renderer --config Release
+./build/native/bin/Release/dicom_renderer.exe
 ```
 
 ### Native WebGPU (Dawn + ImGui)
-```powershell
-cmake -B build/native-webgpu -DUSE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build/native-webgpu --target dicom_renderer --config Release
-build\native-webgpu\bin\Release\dicom_renderer.exe
+```bash
+make native-webgpu
+./build/native-webgpu/bin/Release/dicom_renderer.exe
 ```
 
 When building the full Dawn-generated Visual Studio solution, external Dawn
@@ -189,14 +190,23 @@ of leaving you with stale generated HTML.
 | Mouse wheel | Zoom (ORBIT) / speed (WASD) |
 | `C` | Toggle ORBIT ↔ WASD |
 | `WASD` + `Space` | Move (WASD mode) |
+| `Shift` / `Ctrl` | Descend in WASD mode |
+| Right/middle drag | Pan in ORBIT mode |
+| `R` | Reset the camera |
+| `P` | Request browser pointer lock |
 | `1` / `2` / `3` / `4` | Transfer-function preset (Gray / Tissue / Shell / Cool) |
 | Mode buttons | DVR · MIP · Isosurface |
 | Window sliders | Center / Width (window-level) |
+| Debug view | Final image · ray direction · ray depth · sample count |
+| Ray samples | Quality/cost knob for the ray-marching loop |
+| Opacity scale | Per-sample opacity multiplier for DVR compositing |
 
-The WebGPU ImGui panel prints the active camera mode, position, yaw/pitch, and
-either orbit radius or WASD speed. That is intentional study feedback: when you
-drag, scroll, or press `C`, you can see which state changed instead of guessing
-whether input reached the engine.
+WebGL exposes renderer controls in the HTML panel. WebGPU exposes them through
+ImGui inside the canvas, because the Dawn/WebGPU renderer owns its UI as part of
+the render pass. The WebGPU ImGui panel prints the active camera mode, position,
+yaw/pitch, and either orbit radius or WASD speed. That is intentional study
+feedback: when you drag, scroll, or press `C`, you can see which state changed
+instead of guessing whether input reached the engine.
 
 ---
 
