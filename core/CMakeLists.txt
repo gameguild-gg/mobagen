@@ -28,9 +28,19 @@ endif()
 
 # IMGUI already PUBLIC-links SDL3::SDL3-static + dawn::webgpu, so consumers
 # of `core` get SDL3, WebGPU (Dawn / emdawnwebgpu) and ImGui transitively.
+# IMGUI already PUBLIC-links SDL3 + dawn::webgpu, so consumers of `core`
+# get SDL3, WebGPU (Dawn / emdawnwebgpu) and ImGui transitively.
+# Android needs the shared SDL3 (loaded by SDLActivity via JNI); all
+# other platforms use the static variant.
+if(ANDROID)
+  set(_CORE_SDL_TARGET SDL3::SDL3-shared)
+else()
+  set(_CORE_SDL_TARGET SDL3::SDL3-static)
+endif()
+
 target_link_libraries(core
   PUBLIC
-    SDL3::SDL3-static
+    ${_CORE_SDL_TARGET}
     SDL3_image::SDL3_image-static
     IMGUI
     dawn::webgpu

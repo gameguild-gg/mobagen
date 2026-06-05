@@ -49,9 +49,17 @@ if(TARGET rmlui_core AND TARGET rmlui_debugger)
     RMLUI_STATIC_LIB
   )
 
+  # Android uses the shared SDL3 (loaded by SDLActivity via JNI);
+  # other platforms use the static variant.
+  if(ANDROID)
+    set(_RMLUI_SDL_TARGET SDL3::SDL3-shared)
+  else()
+    set(_RMLUI_SDL_TARGET SDL3::SDL3-static)
+  endif()
+
   target_link_libraries(rmlui_platform_sdl PUBLIC
     rmlui_core
-    SDL3::SDL3-static
+    ${_RMLUI_SDL_TARGET}
   )
 
   # Aggregate convenience target for linking by demos/examples.

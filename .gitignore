@@ -79,6 +79,7 @@ external/*/
 
 # Android — generated/copied at build time by build.py (do not commit)
 android/local.properties
+android/app/.cxx/
 android/app/build/
 android/.gradle/
 android/build/
