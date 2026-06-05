@@ -109,12 +109,8 @@ void Engine::Tick() {
 
   if (!settings.headless) {
     window->Update();
-    // Compute physical pixel size from logical size * display content scale
-    // instead of SDL_GetWindowSizeInPixels (which can be wrong on some
-    // platforms such as the iOS simulator).
-    float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(window->sdlWindow));
-    physW = static_cast<int>(window->size().x * scale + 0.5f);
-    physH = static_cast<int>(window->size().y * scale + 0.5f);
+    SDL_GetWindowSizeInPixels(window->sdlWindow, &physW, &physH);
+    if (physW <= 0 || physH <= 0) { physW = window->size().x; physH = window->size().y; }
 
     wgpuSurfaceGetCurrentTexture(window->wgpuSurface, &surfaceTex);
     bool haveBackbuffer =
