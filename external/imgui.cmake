@@ -40,16 +40,24 @@ if(IMGUI_ADDED)
     IMGUI_IMPL_WEBGPU_BACKEND_DAWN
   )
 
+  # Android uses the shared SDL3 (loaded by SDLActivity via JNI);
+  # other platforms use the static variant.
+  if(ANDROID)
+    set(_IMGUI_SDL_TARGET SDL3::SDL3-shared)
+  else()
+    set(_IMGUI_SDL_TARGET SDL3::SDL3-static)
+  endif()
+
   target_link_libraries(IMGUI
     PUBLIC
-      SDL3::SDL3-static
+      ${_IMGUI_SDL_TARGET}
       dawn::webgpu
       ${CMAKE_DL_LIBS}
   )
 
-  # On Apple, imgui_impl_wgpu.cpp uses Cocoa (CAMetalLayer) and must be
-  # compiled as Objective-C++.
-  if(APPLE AND NOT EMSCRIPTEN)
+  # On Apple, imgui_impl_wgpu.cpp uses Objective-C++.
+  # macOS uses Cocoa; iOS uses UIKit.
+  if(APPLE AND NOT EMSCRIPTEN AND NOT IOS)
     set_source_files_properties(
       ${IMGUI_SOURCE_DIR}/backends/imgui_impl_wgpu.cpp
       PROPERTIES
@@ -57,6 +65,17 @@ if(IMGUI_ADDED)
     )
     target_link_libraries(IMGUI PUBLIC
       "-framework Cocoa"
+      "-framework QuartzCore"
+      "-framework Metal"
+    )
+  elseif(IOS)
+    set_source_files_properties(
+      ${IMGUI_SOURCE_DIR}/backends/imgui_impl_wgpu.cpp
+      PROPERTIES
+        COMPILE_FLAGS "-x objective-c++ -fno-objc-arc"
+    )
+    target_link_libraries(IMGUI PUBLIC
+      "-framework UIKit"
       "-framework QuartzCore"
       "-framework Metal"
     )

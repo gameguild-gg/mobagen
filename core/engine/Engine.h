@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -69,5 +70,9 @@ public:
   void AddScriptableObject(ScriptableObject* pObject) { scriptableObjects.insert(pObject); };
 
   bool IsHeadless() const { return settings.headless; }
+
+  // Hook called at the end of every Tick() so examples can update per-frame
+  // diagnostics (e.g. RmlUi text showing current window/logical/pixel sizes).
+  std::function<void()> onTick;
 };
 #endif

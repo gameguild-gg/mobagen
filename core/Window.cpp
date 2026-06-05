@@ -94,20 +94,44 @@ Window::Window(std::string title) {
   }
   SDL_Log("SDL3 initialized");
 
-  int width  = 1280;
-  int height = 720;
+  int width  = 1280, height = 720;
+  {
+    SDL_DisplayID display = SDL_GetPrimaryDisplay();
+    if (display) {
+      SDL_Rect bounds = {};
+      // Use SDL_GetDisplayBounds (full display) instead of
+      // SDL_GetDisplayUsableBounds so we get the entire device screen,
+      // not a sub-area that might exclude status bar / safe areas.
+      if (SDL_GetDisplayBounds(display, &bounds) && bounds.w > 0 && bounds.h > 0) {
+        width  = bounds.w;
+        height = bounds.h;
+      }
+    }
+  }
 #ifdef __EMSCRIPTEN__
-  width  = canvas_get_width();
-  height = canvas_get_height();
+  { // Emscripten canvas overrides display bounds
+    int cw = canvas_get_width(), ch = canvas_get_height();
+    if (cw > 0 && ch > 0) { width = cw; height = ch; }
+  }
 #endif
 
+#if defined(SDL_PLATFORM_IOS)
+  // iOS: create a full-screen window using the native display resolution.
+  // Passing width=0, height=0 with SDL_WINDOW_FULLSCREEN tells SDL3 to
+  // use the native display size. This ensures the Metal view (CAMetalLayer)
+  // covers the entire device screen — without it, the view may be smaller
+  // on the iOS simulator, causing the WebGPU drawable to not be full-screen.
+  const SDL_WindowFlags flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+  sdlWindow = SDL_CreateWindow(title.c_str(), 0, 0, flags);
+#else
   const SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
   sdlWindow = SDL_CreateWindow(title.c_str(), width, height, flags);
+#endif
   if (!sdlWindow) {
     SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
     throw std::runtime_error("SDL_CreateWindow failed");
   }
-  SDL_Log("SDL3 window created (%dx%d)", width, height);
+  SDL_Log("SDL3 window created");
 
   // ImGui first so backends have a context to bind to.
   IMGUI_CHECKVERSION();
@@ -139,11 +163,16 @@ Window::Window(std::string title) {
   initDeviceAndQueue();
 
   // Now we know `surfaceFormat` and have a device; configure the surface.
-  int pxW = 0, pxH = 0;
-  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
   int logW = 0, logH = 0;
   SDL_GetWindowSize(sdlWindow, &logW, &logH);
   windowSize = {logW, logH};
+  // Compute physical pixel size from logical size * display content scale.
+  // SDL_GetWindowSizeInPixels can return incorrect values on some platforms
+  // (e.g. iOS simulator when HIGH_PIXEL_DENSITY doesn't work), so we compute
+  // it manually from the display's content scale factor instead.
+  float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(sdlWindow));
+  int pxW = static_cast<int>(logW * scale + 0.5f);
+  int pxH = static_cast<int>(logH * scale + 0.5f);
   configureSurface(pxW, pxH);
   // Set initial font scale based on logical size (same formula as Update()).
   const int minDim = logW < logH ? logW : logH;
@@ -213,6 +242,24 @@ void Window::createSurface() {
   xlibDesc.window      = xwindow;
   desc.nextInChain     = &xlibDesc.chain;
   wgpuSurface          = wgpuInstanceCreateSurface(wgpuInstance, &desc);
+
+#elif defined(SDL_PLATFORM_ANDROID)
+  // Android exposes the native window via the SDL_WindowProperties. The
+  // WebGPU surface is then created from that ANativeWindow using Dawn's
+  // Android surface source.
+  void* nativeWindow = SDL_GetPointerProperty(
+      SDL_GetWindowProperties(sdlWindow),
+      SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
+  if (!nativeWindow) {
+    throw std::runtime_error(std::string(
+      "SDL_GetPointerProperty(ANDROID_WINDOW) failed: ") + SDL_GetError());
+  }
+
+  WGPUSurfaceSourceAndroidNativeWindow androidDesc = {};
+  androidDesc.chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow;
+  androidDesc.window      = nativeWindow;
+  desc.nextInChain        = &androidDesc.chain;
+  wgpuSurface             = wgpuInstanceCreateSurface(wgpuInstance, &desc);
 
 #else
 #  error "Unsupported platform for WebGPU surface creation"
@@ -295,10 +342,12 @@ void Window::configureSurface(int widthPx, int heightPx) {
 }
 
 void Window::Update() {
-  int pxW = 0, pxH = 0;
-  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
   int logW = 0, logH = 0;
   SDL_GetWindowSize(sdlWindow, &logW, &logH);
+  // Compute physical pixel size from logical size * display content scale.
+  float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(sdlWindow));
+  int pxW = static_cast<int>(logW * scale + 0.5f);
+  int pxH = static_cast<int>(logH * scale + 0.5f);
 
   Point2D logSize{logW, logH};
   if (windowSize != logSize) {
@@ -312,7 +361,7 @@ void Window::Update() {
     }
     // RmlUi context resize
     if (rmlContext) {
-      rmlContext->SetDimensions(Rml::Vector2i(logW, logH));
+      rmlContext->SetDimensions(Rml::Vector2i(pxW, pxH));
     }
   }
 }
@@ -384,9 +433,17 @@ void Window::InitRmlUi() {
   // Install our render interface
   Rml::SetRenderInterface(rmlRenderer);
 
-  // Create main context sized to window
+  // Create main context sized to the physical (drawable) pixel dimensions.
+  // RmlUi is DPI-aware via SystemInterface_SDL::GetDpi(), so the context
+  // dimensions must match the physical framebuffer size to render correctly
+  // on Retina/HiDPI displays.
+  int logW = 0, logH = 0;
+  SDL_GetWindowSize(sdlWindow, &logW, &logH);
+  float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(sdlWindow));
+  int pxW = static_cast<int>(logW * scale + 0.5f);
+  int pxH = static_cast<int>(logH * scale + 0.5f);
   rmlContext = Rml::CreateContext("main",
-      Rml::Vector2i(windowSize.x, windowSize.y));
+      Rml::Vector2i(pxW, pxH));
 
   // Load default font from RmlUi's own embedded font (Courier Prime Code).
   // The data lives in RmlUi's debugger FontSource.h — exposed through a
@@ -412,5 +469,5 @@ void Window::InitRmlUi() {
   // Debugger (optional, helps during development)
   Rml::Debugger::Initialise(rmlContext);
 
-  SDL_Log("RmlUi initialized (context %dx%d)", windowSize.x, windowSize.y);
+  SDL_Log("RmlUi initialized (context %dx%d physical px)", pxW, pxH);
 }

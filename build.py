@@ -107,6 +107,10 @@ class BuildConfig:
     parallel: int = field(default_factory=lambda: os.cpu_count() or 4)
     run_after: bool = False
     simulator: bool = False
+    ios_team_id: Optional[str] = None          # iOS device signing
+    ios_bundle_id: str = "gg.gameguild.mobagen"  # iOS launch identifier
+    ios_device_udid: Optional[str] = None      # iOS physical device override
+    ios_deployment_target: str = "15.0"       # iOS minimum OS version
     abi: str = "both"                          # android only
     apk_target: Optional[str] = None           # android only
     extra_cmake: list[str] = field(default_factory=list)
@@ -259,7 +263,7 @@ class WebPlatform(Platform):
             shutil.rmtree(build_dir)
         build_dir.mkdir(parents=True, exist_ok=True)
 
-        env = self._source_env() if not shutil.which("emcmake") else None
+        env = None
         cmd = self.configure_args()
         if extra:
             cmd += extra
@@ -268,7 +272,7 @@ class WebPlatform(Platform):
         run(cmd, env=env)
 
     def build(self) -> None:
-        env = self._source_env() if not shutil.which("emcmake") else None
+        env = None
         cmd = ["cmake", "--build", str(self.cfg.build_dir),
                "--parallel", str(self.cfg.parallel)]
         if self.cfg.target != "all":
@@ -414,6 +418,37 @@ class WindowsPlatform(Platform):
 # iOS
 # ---------------------------------------------------------------------------
 class IosPlatform(Platform):
+    DEFAULT_BUNDLE_ID = "gg.gameguild.mobagen"
+    DEFAULT_DEPLOYMENT_TARGET = "15.0"
+
+    def _seed_dawn_generated_headers(self) -> None:
+        dst_dir = (self.cfg.build_dir / "_deps" / "dawn-build" / "gen" / "include").resolve()
+
+        source_include_dirs = [
+            p for p in sorted(REPO_ROOT.glob("build-*/_deps/dawn-build/gen/include")) if p.is_dir()
+        ]
+        for src in source_include_dirs:
+            src_resolved = src.resolve()
+            # Ignore this build's own destination and copy from another successful build.
+            if src_resolved == dst_dir:
+                continue
+            shutil.copytree(src_resolved, dst_dir, dirs_exist_ok=True)
+            return
+
+        # Fallback for first-ever iOS configure: seed only the compatibility
+        # header Dawn expects at configure time.
+        dawn_roots = sorted(REPO_ROOT.glob("external/dawn/*/include/webgpu/webgpu.h"))
+        if dawn_roots:
+            compat_dst = dst_dir / "dawn"
+            compat_dst.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dawn_roots[-1], compat_dst / "webgpu.h")
+            return
+
+        # Dawn's Xcode/iOS configure path can validate generated headers before
+        # the custom command runs. Seed the generated include tree from another
+        # successful build so configure can complete, then let Dawn regenerate
+        # it during the iOS build.
+
     def detect_toolchain(self) -> None:
         if platform.system() != "Darwin":
             die("iOS builds require a macOS host.")
@@ -424,11 +459,33 @@ class IosPlatform(Platform):
         if not self.cfg.simulator:
             warn(
                 "Device builds require code signing.\n"
-                "  Open the generated Xcode project and configure your team:\n"
-                f"    open {self.cfg.build_dir}/*.xcodeproj\n"
+                "  Pass --ios-team-id to auto-configure signing, or open the\n"
+                "  generated Xcode project and configure your team manually.\n"
                 "  Or use --simulator for unsigned simulator builds."
             )
+            if not self.cfg.ios_team_id:
+                warn(
+                    "No --ios-team-id provided. Device build can still work if your\n"
+                    "Xcode defaults already include signing for this project."
+                )
         ok(f"Xcode found at {xcode_path}.")
+
+    def _cmake_configure(self, extra: Optional[list[str]] = None) -> None:
+        build_dir = self.cfg.build_dir
+        if self.cfg.clean and build_dir.exists():
+            info(f"Cleaning {build_dir}")
+            shutil.rmtree(build_dir)
+        build_dir.mkdir(parents=True, exist_ok=True)
+
+        self._seed_dawn_generated_headers()
+
+        env = None
+        cmd = self.configure_args()
+        if extra:
+            cmd += extra
+        for kv in self.cfg.extra_cmake:
+            cmd.append(f"-D{kv}" if not kv.startswith("-D") else kv)
+        run(cmd, env=env)
 
     def configure_args(self) -> list[str]:
         args = [
@@ -436,6 +493,8 @@ class IosPlatform(Platform):
             "-G", "Xcode",
             f"-DCMAKE_BUILD_TYPE={self.cfg.build_type}",
             "-DCMAKE_SYSTEM_NAME=iOS",
+            f"-DCMAKE_OSX_DEPLOYMENT_TARGET={self.cfg.ios_deployment_target}",
+            f"-DIOS_DEPLOYMENT_TARGET={self.cfg.ios_deployment_target}",
             "-DENABLE_TEST_COVERAGE=OFF",
             "-H.", f"-B{self.cfg.build_dir}",
         ]
@@ -445,32 +504,115 @@ class IosPlatform(Platform):
                 "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64",
                 "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO",
                 "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=",
+                f"-DIOS_BUNDLE_ID={self.cfg.ios_bundle_id}",
             ]
         else:
             args += [
                 "-DCMAKE_OSX_ARCHITECTURES=arm64",
-                "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO",
+                "-DIOS_CODE_SIGN_STYLE=Automatic",
+                f"-DIOS_BUNDLE_ID={self.cfg.ios_bundle_id}",
             ]
+            if self.cfg.ios_team_id:
+                args += [f"-DIOS_DEVELOPMENT_TEAM={self.cfg.ios_team_id}"]
         return args
 
     def build(self) -> None:
         sdk = "iphonesimulator" if self.cfg.simulator else "iphoneos"
-        run([
+        cmd = [
             "cmake", "--build", str(self.cfg.build_dir),
-            "--", "-sdk", sdk,
-            "-allowProvisioningUpdates",
-        ])
+            "--config", self.cfg.build_type,
+        ]
+        if self.cfg.target != "all":
+            cmd += ["--target", self.cfg.target]
+        cmd += ["--", "-sdk", sdk, "-allowProvisioningUpdates"]
+        run(cmd)
+
+    def _find_app_bundle(self) -> Path:
+        app_bundles = sorted(self.cfg.build_dir.rglob("*.app"))
+        if not app_bundles:
+            die(f"No .app bundle found in {self.cfg.build_dir}")
+        preferred_name = f"{self.cfg.target}.app" if self.cfg.target != "all" else None
+        build_type = self.cfg.build_type  # e.g. "MinSizeRel"
+
+        # Helper: check if a bundle has the actual executable binary
+        def is_valid(app: Path) -> bool:
+            # The executable must exist inside the bundle (binary plist check is unreliable)
+            exec_name = app.stem  # e.g. "rmluidemo" from "rmluidemo.app"
+            return (app / exec_name).exists()
+
+        # 1. Prefer bundles matching target name AND build config directory AND valid plist
+        if preferred_name:
+            for app in app_bundles:
+                if app.name == preferred_name and build_type in app.parts and is_valid(app):
+                    return app
+            # 2. Any bundle matching target name that is valid
+            for app in app_bundles:
+                if app.name == preferred_name and is_valid(app):
+                    return app
+            # 3. Any bundle matching target name (even without plist, last resort)
+            for app in app_bundles:
+                if app.name == preferred_name:
+                    return app
+        # 4. First valid bundle
+        for app in app_bundles:
+            if is_valid(app):
+                return app
+        return app_bundles[0]
+
+    def _find_connected_device_udid(self) -> Optional[str]:
+        # xctrace output is simple plain text and available with Xcode CLT.
+        devices_out = capture(["xcrun", "xctrace", "list", "devices"])
+        if not devices_out:
+            return None
+
+        import re
+        in_devices_section = False
+        for line in devices_out.splitlines():
+            line = line.strip()
+            if line.startswith("=="):
+                in_devices_section = line == "== Devices =="
+                continue
+            if not in_devices_section:
+                continue
+            if not line or "Simulator" in line or "Mac" in line:
+                continue
+            if "iPhone" not in line and "iPad" not in line:
+                continue
+            match = re.search(r"\(([0-9A-Fa-f-]{8,})\)\s*$", line)
+            if match:
+                return match.group(1)
+        return None
+
+    def _run_on_device(self) -> None:
+        app_bundle = self._find_app_bundle()
+        info(f"Using app bundle: {app_bundle}")
+
+        udid = self.cfg.ios_device_udid or self._find_connected_device_udid()
+        if not udid:
+            die(
+                "No connected iOS device detected.\n"
+                "  Connect your iPad via USB, unlock it, and tap 'Trust'.\n"
+                "  You can also pass --ios-device-udid explicitly."
+            )
+
+        if not capture(["xcrun", "devicectl", "help"]):
+            die(
+                "xcrun devicectl is unavailable.\n"
+                "  Install/update Xcode (15+) and Command Line Tools."
+            )
+
+        bundle_id = self.cfg.ios_bundle_id or self.DEFAULT_BUNDLE_ID
+        run(["xcrun", "devicectl", "device", "install", "app", "--device", udid, str(app_bundle)])
+        run(["xcrun", "devicectl", "device", "process", "launch", "--device", udid, bundle_id])
+        ok(f"Launched {bundle_id} on iOS device {udid}")
 
     def run_target(self) -> None:
         if not self.cfg.simulator:
-            warn("Automated launch is only supported for simulator builds (--simulator).")
+            self._run_on_device()
             return
 
         # Find the .app bundle
-        app_bundles = list(self.cfg.build_dir.rglob("*.app"))
-        if not app_bundles:
-            die(f"No .app bundle found in {self.cfg.build_dir}")
-        app_bundle = app_bundles[0]
+        app_bundle = self._find_app_bundle()
         info(f"Using app bundle: {app_bundle}")
 
         # Boot a simulator if none is running
@@ -496,7 +638,7 @@ class IosPlatform(Platform):
                     break
 
         run(["xcrun", "simctl", "install", udid, str(app_bundle)])
-        bundle_id = "gg.gameguild.mobagen"
+        bundle_id = self.cfg.ios_bundle_id or self.DEFAULT_BUNDLE_ID
         run(["xcrun", "simctl", "launch", udid, bundle_id])
         info(f"Launched {bundle_id} on simulator {udid}")
 
@@ -761,20 +903,34 @@ class AndroidPlatform(Platform):
         ok(f"Copied SDL3 Java sources → {dst_java}")
 
     def _copy_so_files(self, abi_dirs: dict[str, Path]) -> None:
-        """Copy built .so files into android/app/src/main/jniLibs/<abi>/."""
+        """Copy built .so files into android/app/src/main/jniLibs/<abi>/.
+
+        Both `libmain.so` (the example target) and `libSDL3.so` (the SDL3
+        shared library that libmain.so links against) need to land in
+        jniLibs so Android's `System.loadLibrary` can find them at
+        runtime. AGP is configured NOT to run CMake itself
+        (no `externalNativeBuild` block) so it does not auto-merge
+        anything — we have to do it explicitly here.
+        """
+        # Files we always need: example binary + its SDL3 dependency.
+        # The example comes out as `libmain.so` (since we now build it as
+        # a SHARED library in CMakeLists.txt). SDL3 is built as part of
+        # CPM and lands next to the other libs in build/libs/.
+        required = ("libmain.so", "libSDL3.so")
+
         for abi, build_dir in abi_dirs.items():
             dest_dir = REPO_ROOT / "android" / "app" / "src" / "main" / "jniLibs" / abi
             dest_dir.mkdir(parents=True, exist_ok=True)
 
-            # Find libmain.so (OUTPUT_NAME was set to "main")
-            so_files = list(build_dir.rglob("libmain.so"))
-            if not so_files:
-                warn(f"libmain.so not found in {build_dir}. Searched recursively.")
-                continue
-            src = so_files[0]
-            dst = dest_dir / "libmain.so"
-            shutil.copy2(src, dst)
-            ok(f"Copied {src} → {dst}")
+            for name in required:
+                hits = list(build_dir.rglob(name))
+                if not hits:
+                    warn(f"{name} not found in {build_dir}. Searched recursively.")
+                    continue
+                src = hits[0]
+                dst = dest_dir / name
+                shutil.copy2(src, dst)
+                ok(f"Copied {src} → {dst}")
 
     def _write_local_properties(self) -> None:
         lp = REPO_ROOT / "android" / "local.properties"
@@ -916,12 +1072,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--run", dest="run_after", action="store_true",
         help=(
             "After building: web → serve on :8000 | "
-            "android → adb install+launch | ios → simctl launch."
+            "android → adb install+launch | ios → launch on simulator/device."
         ),
     )
     parser.add_argument(
         "--simulator", action="store_true",
         help="[ios/android] Target simulator/emulator instead of physical device.",
+    )
+    parser.add_argument(
+        "--ios-team-id", default=None,
+        help="[ios] Apple Developer Team ID for automatic code signing on device builds.",
+    )
+    parser.add_argument(
+        "--ios-bundle-id", default=IosPlatform.DEFAULT_BUNDLE_ID,
+        help=f"[ios] Product bundle identifier. [default: {IosPlatform.DEFAULT_BUNDLE_ID}]",
+    )
+    parser.add_argument(
+        "--ios-device-udid", default=None,
+        help="[ios] Physical device UDID override (uses first connected device by default).",
+    )
+    parser.add_argument(
+        "--ios-deployment-target", default=IosPlatform.DEFAULT_DEPLOYMENT_TARGET,
+        help=f"[ios] Minimum iOS version to target. [default: {IosPlatform.DEFAULT_DEPLOYMENT_TARGET}]",
     )
     parser.add_argument(
         "--abi", default="both",
@@ -958,6 +1130,10 @@ def main() -> None:
         parallel=args.parallel,
         run_after=args.run_after,
         simulator=args.simulator,
+        ios_team_id=args.ios_team_id,
+        ios_bundle_id=args.ios_bundle_id,
+        ios_device_udid=args.ios_device_udid,
+        ios_deployment_target=args.ios_deployment_target,
         abi=args.abi,
         apk_target=args.apk_target,
         extra_cmake=args.extra_cmake,

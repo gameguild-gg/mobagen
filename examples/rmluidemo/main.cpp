@@ -1,4 +1,4 @@
-#define SDL_MAIN_HANDLED true
+#include <SDL3/SDL_main.h>
 #include "engine/Engine.h"
 #include "engine/EngineSettings.h"
 
@@ -14,6 +14,8 @@ static const char kDemoRml[] = R"(
   <title>RmlUi + SDL3 + WebGPU Demo</title>
   <style>
     body {
+      width: 100%;
+      height: 100%;
       font-family: AppFont;
       font-size: 16px;
       color: #e0e0e0;
@@ -36,6 +38,18 @@ static const char kDemoRml[] = R"(
       background: #1e2a4a;
       padding: 28px 36px;
       text-align: center;
+    }
+    #diag {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      font-size: 11px;
+      color: #ff6;
+      font-family: monospace;
+      background: rgba(0,0,0,0.6);
+      padding: 4px 8px;
+      white-space: pre;
+      z-index: 100;
     }
     h1 {
       display: block;
@@ -101,6 +115,7 @@ static const char kDemoRml[] = R"(
     <p class="info">Press <kbd>F8</kbd> to toggle the RmlUi debugger</p>
     <p class="info">Press <kbd>ESC</kbd> or close the window to exit</p>
   </div>
+  <p id="diag" style="position:absolute; top:0; left:0; font-size:10px; color:#ff6; font-family:monospace; white-space:pre-wrap; text-align:left; background:rgba(0,0,0,0.7); padding:2px 4px; z-index:999;">diag: waiting...</p>
 </body>
 </rml>
 )";
@@ -114,15 +129,11 @@ int main(int, char**) {
   settings.useRmlUi = true;
   settings.vsync    = true;
 
-  // The RmlUi body element doesn't fill the viewport in our WebGPU backend
-  // (its box is determined by in-flow content; absolutely-positioned children
-  // are removed from flow, so the body collapses to ~0). Match the engine
-  // clear color to the RML body background to give a seamless, fullscreen
-  // look without black bars around the RmlUi content.
-  //   #1a1a2e (background) -> r=0x1a/255, g=0x1a/255, b=0x2e/255
-  settings.clearColor[0] = 0x1a / 255.0f;
-  settings.clearColor[1] = 0x1a / 255.0f;
-  settings.clearColor[2] = 0x2e / 255.0f;
+  // Match the document background color (#1a1a2e) so there's no flash
+  // if the WebGPU clear happens before RmlUi fills the viewport.
+  settings.clearColor[0] = 0.102f;
+  settings.clearColor[1] = 0.102f;
+  settings.clearColor[2] = 0.180f;
   settings.clearColor[3] = 1.0f;
 
   auto engine = new Engine(settings);
@@ -147,6 +158,28 @@ int main(int, char**) {
     return 1;
   }
   doc->Show();
+
+  // Diagnostic overlay showing actual window/pixel dimensions at runtime.
+  Rml::Element* diag = doc->GetElementById("diag");
+  engine->onTick = [window = engine->window, diag]() {
+    if (!diag) return;
+    int logW = 0, logH = 0;
+    SDL_GetWindowSize(window->sdlWindow, &logW, &logH);
+    int pxW = 0, pxH = 0;
+    SDL_GetWindowSizeInPixels(window->sdlWindow, &pxW, &pxH);
+    float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(window->sdlWindow));
+    char buf[256];
+    SDL_snprintf(buf, sizeof(buf),
+        "SDL_WindowSize: %dx%d\n"
+        "SDL_WindowSizeInPixels: %dx%d\n"
+        "DisplayContentScale: %.2f\n"
+        "ComputedPhys(log*scale): %.0fx%.0f",
+        logW, logH,
+        pxW, pxH,
+        scale,
+        logW * scale, logH * scale);
+    diag->SetInnerRML(buf);
+  };
 
   SDL_Log("RmlUi demo started. F8 = debugger, ESC = exit.");
 

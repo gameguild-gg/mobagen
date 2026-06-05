@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="gg.gameguild.mobagen">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -15,7 +14,7 @@
         <!--
             MoBaGenActivity extends SDLActivity (copied from SDL3 source by build.py).
             SDL's SDLActivity loads "libmain.so" via System.loadLibrary("main").
-            build.py renames the selected --apk-target .so to libmain.so before
+            build.py renames the selected apk target .so to libmain.so before
             running Gradle.
         -->
         <activity
