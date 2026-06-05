@@ -81,6 +81,15 @@ static void onUncapturedError(WGPUDevice const* /*device*/, WGPUErrorType type,
           (int)message.length, message.data ? message.data : "");
 }
 
+static void onDeviceLost(WGPUDevice const* /*device*/, WGPUDeviceLostReason reason,
+                         WGPUStringView message, void* /*ud1*/, void* /*ud2*/) {
+  // Reason 1 = Destroyed (expected on clean shutdown); log others as errors.
+  if (reason != WGPUDeviceLostReason_Destroyed) {
+    SDL_Log("[WGPU device lost reason=%d]: %.*s", (int)reason,
+            (int)message.length, message.data ? message.data : "");
+  }
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -166,13 +175,14 @@ Window::Window(std::string title) {
   int logW = 0, logH = 0;
   SDL_GetWindowSize(sdlWindow, &logW, &logH);
   windowSize = {logW, logH};
-  // Compute physical pixel size from logical size * display content scale.
-  // SDL_GetWindowSizeInPixels can return incorrect values on some platforms
-  // (e.g. iOS simulator when HIGH_PIXEL_DENSITY doesn't work), so we compute
-  // it manually from the display's content scale factor instead.
-  float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(sdlWindow));
-  int pxW = static_cast<int>(logW * scale + 0.5f);
-  int pxH = static_cast<int>(logH * scale + 0.5f);
+  // Use SDL_GetWindowSizeInPixels for the physical drawable size.
+  // SDL_GetDisplayContentScale can return 1.0 on iOS (real device and
+  // simulator) even on Retina displays, making the manual log*scale
+  // computation wrong.  SDL_GetWindowSizeInPixels always returns the true
+  // CAMetalLayer drawable size and is the authoritative source.
+  int pxW = 0, pxH = 0;
+  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
+  if (pxW <= 0 || pxH <= 0) { pxW = logW; pxH = logH; }
   configureSurface(pxW, pxH);
   // Set initial font scale based on logical size (same formula as Update()).
   const int minDim = logW < logH ? logW : logH;
@@ -296,6 +306,8 @@ void Window::initDeviceAndQueue() {
   WGPUDeviceDescriptor dDesc = {};
   dDesc.label = {"mobagen device", WGPU_STRLEN};
   dDesc.uncapturedErrorCallbackInfo.callback = onUncapturedError;
+  dDesc.deviceLostCallbackInfo.callback  = onDeviceLost;
+  dDesc.deviceLostCallbackInfo.mode      = WGPUCallbackMode_AllowProcessEvents;
 
   WGPURequestDeviceCallbackInfo dCb = {};
   dCb.mode      = WGPUCallbackMode_WaitAnyOnly;
@@ -344,24 +356,24 @@ void Window::configureSurface(int widthPx, int heightPx) {
 void Window::Update() {
   int logW = 0, logH = 0;
   SDL_GetWindowSize(sdlWindow, &logW, &logH);
-  // Compute physical pixel size from logical size * display content scale.
-  float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(sdlWindow));
-  int pxW = static_cast<int>(logW * scale + 0.5f);
-  int pxH = static_cast<int>(logH * scale + 0.5f);
+  int pxW = 0, pxH = 0;
+  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
+  if (pxW <= 0 || pxH <= 0) { pxW = logW; pxH = logH; }
+  float scale = (logW > 0) ? (float)pxW / (float)logW : 1.0f;
 
   Point2D logSize{logW, logH};
-  if (windowSize != logSize) {
-    windowSize = logSize;
-    // WebGPU surface is configured at device pixels (HiDPI-aware).
+  Point2D physSize{pxW, pxH};
+  if (windowSize != logSize || physicalSize != physSize) {
+    windowSize   = logSize;
+    physicalSize = physSize;
     configureSurface(pxW, pxH);
-    // Font scale is based on logical units so it stays consistent across DPI.
     const int minDim = logW < logH ? logW : logH;
     if (imGuiContext) {
       ImGui::GetIO().FontGlobalScale = static_cast<float>(minDim) / 500.f;
     }
-    // RmlUi context resize
     if (rmlContext) {
       rmlContext->SetDimensions(Rml::Vector2i(pxW, pxH));
+      rmlContext->SetDensityIndependentPixelRatio(scale);
     }
   }
 }
@@ -433,17 +445,14 @@ void Window::InitRmlUi() {
   // Install our render interface
   Rml::SetRenderInterface(rmlRenderer);
 
-  // Create main context sized to the physical (drawable) pixel dimensions.
-  // RmlUi is DPI-aware via SystemInterface_SDL::GetDpi(), so the context
-  // dimensions must match the physical framebuffer size to render correctly
-  // on Retina/HiDPI displays.
   int logW = 0, logH = 0;
   SDL_GetWindowSize(sdlWindow, &logW, &logH);
-  float scale = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(sdlWindow));
-  int pxW = static_cast<int>(logW * scale + 0.5f);
-  int pxH = static_cast<int>(logH * scale + 0.5f);
-  rmlContext = Rml::CreateContext("main",
-      Rml::Vector2i(pxW, pxH));
+  int pxW = 0, pxH = 0;
+  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
+  if (pxW <= 0 || pxH <= 0) { pxW = logW; pxH = logH; }
+  float scale = (logW > 0) ? (float)pxW / (float)logW : 1.0f;
+  rmlContext = Rml::CreateContext("main", Rml::Vector2i(pxW, pxH));
+  rmlContext->SetDensityIndependentPixelRatio(scale);
 
   // Load default font from RmlUi's own embedded font (Courier Prime Code).
   // The data lives in RmlUi's debugger FontSource.h — exposed through a
@@ -458,9 +467,16 @@ void Window::InitRmlUi() {
     const Span<const byte> data_reg(courier_prime_code, sizeof(courier_prime_code));
     const Span<const byte> data_it(courier_prime_code_italic, sizeof(courier_prime_code_italic));
 
-    bool r1 = LoadFontFace(data_reg, "AppFont", Style::FontStyle::Normal, Style::FontWeight::Normal);
-    bool r2 = LoadFontFace(data_it,  "AppFont", Style::FontStyle::Italic, Style::FontWeight::Normal);
-    font_ok = r1 || r2;
+    bool r1 = LoadFontFace(data_reg, "AppFont",   Style::FontStyle::Normal, Style::FontWeight::Normal);
+    bool r2 = LoadFontFace(data_it,  "AppFont",   Style::FontStyle::Italic, Style::FontWeight::Normal);
+    // Register the same font under generic fallback names so CSS rules that
+    // specify font-family: monospace (or sans-serif, serif) don't produce a
+    // "No font face defined" warning and fall back to invisible text.
+    bool r3 = LoadFontFace(data_reg, "monospace", Style::FontStyle::Normal, Style::FontWeight::Normal);
+    bool r4 = LoadFontFace(data_it,  "monospace", Style::FontStyle::Italic, Style::FontWeight::Normal);
+    bool r5 = LoadFontFace(data_reg, "sans-serif",Style::FontStyle::Normal, Style::FontWeight::Normal);
+    bool r6 = LoadFontFace(data_reg, "serif",     Style::FontStyle::Normal, Style::FontWeight::Normal);
+    font_ok = r1 || r2 || r3 || r4 || r5 || r6;
   }
   if (!font_ok) {
     SDL_Log("RmlUi: WARNING — embedded font failed to load. Text will not render.");
