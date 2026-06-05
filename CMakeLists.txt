@@ -109,7 +109,7 @@ endif()
 # ----------------------------------------------------------------------------
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(GLSL_SHADERS raygen.glsl blit.glsl)
-set(WGSL_SHADERS raygen.wgsl blit.wgsl)
+set(WGSL_SHADERS raygen.wgsl blit.wgsl histogram.wgsl)
 set(GEN_DIR ${CMAKE_BINARY_DIR}/generated)
 set(GEN_HEADER ${GEN_DIR}/embedded_shaders.h)
 

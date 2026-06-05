@@ -6,9 +6,11 @@
 > The default browser input is still a 96^3 phantom. Native `USE_GDCM=ON` can now
 > read a DICOM series into `VolumeBuffer` while preserving stored UInt16 voxels.
 > For WebGPU, those UInt16 values are packed into an `RG8Unorm` 3D texture and
-> reconstructed in WGSL before window/level is applied. The learning point is the
-> handoff: loader/ECS owns scene metadata, `RenderBridge` flattens it, and the
-> renderer records GPU commands from that flat packet.
+> reconstructed in WGSL before window/level is applied. The WebGPU path also has
+> a first compute shader histogram pass: one invocation per voxel, `atomicAdd`
+> into bins, read the bins back, then choose an automatic 1%-99% window. The
+> learning point is the handoff: loader/ECS owns scene metadata, `RenderBridge`
+> flattens it, and the renderer records GPU commands from that flat packet.
 
 The road from "triangle on screen" to "DICOM volume ray caster" (and later, a
 mesh ray tracer). Each rung **produces something visible** and feeds the DICOM
@@ -96,8 +98,11 @@ the loader gets proven on a stand-in phantom first.
 ## Tier 4 — WebGPU + compute (the research contribution)
 
 13. Port the ray caster into a **WGSL compute shader** writing a storage texture.
-14. **GPU histogram + auto-windowing** with atomics — *impossible in WebGL2; this
-    is the concrete justification for WebGPU.*
+14. **GPU histogram + auto-windowing ✅ first pass** with atomics — *impossible in
+    WebGL2; this is the concrete justification for WebGPU.* Current version:
+    `shaders/histogram.wgsl` builds a 256-bin R8 or 65,536-bin UInt16 histogram
+    in a storage buffer. C++ reads the bins back and applies a 1%-99% auto window.
+    Later version: do the percentile reduction fully on GPU.
 15. Optimizations: early-ray-termination (have it), empty-space skipping, adaptive step.
 
 ## Tier 5 — *Only now* the systems material
@@ -167,8 +172,10 @@ make native-webgpu
 ```
 
 When building the full Dawn-generated Visual Studio solution, external Dawn
-targets can hit Windows file-lock races. Build the `dicom_renderer` target
-directly when verifying this project.
+targets can hit Windows file-lock or MSBuild memory pressure. The Makefile builds
+the `dicom_renderer` target directly and passes `/m:1` through MSBuild with
+`MSYS_NO_PATHCONV=1`, which is slower but reliable for Dawn's large generated
+projects under Git Bash.
 
 ### Optional build flags (brought over from master)
 - **DICOM (Tier 3-A):** `-DUSE_GDCM=ON` builds GDCM from source and links the
@@ -193,6 +200,27 @@ It validates the native GDCM loader without requiring the full native WebGPU +
 GDCM renderer link. The current smoke sample reports a `96 x 96 x 96` volume,
 `1.000 x 1.000 x 1.500 mm` spacing, slope `1.000`, intercept `-1024.0`, and a
 center voxel of stored `1034 -> 10.0 HU`.
+
+The full native renderer + GDCM verification target is:
+
+```bash
+make native-dicom
+./build/native-dicom/bin/Release/dicom_renderer.exe
+```
+
+For command-line smoke testing without manually closing the window, run it in the
+background and kill it after startup:
+
+```bash
+./build/native-dicom/bin/Release/dicom_renderer.exe > build/native-dicom/runtime-smoke.log 2>&1 &
+pid=$!
+sleep 25
+kill "$pid" 2>/dev/null
+sed -n '1,120p' build/native-dicom/runtime-smoke.log
+```
+
+A successful initialization prints that WebGPU is ready, loads the DICOM sample,
+initializes the packed UInt16 RG8 volume renderer, and opens the ImGui panel.
 
 The HTML shell files are part of the Emscripten link step, not runtime assets.
 `CMakeLists.txt` marks `html/shell_dawn.html` and `html/shell_webgl.html` as

@@ -45,6 +45,10 @@ if(NOT EMSCRIPTEN)
     set(DAWN_ENABLE_METAL      OFF CACHE BOOL "" FORCE)
     set(DAWN_ENABLE_DESKTOP_GL OFF CACHE BOOL "" FORCE)
     set(DAWN_ENABLE_OPENGLES   OFF CACHE BOOL "" FORCE)
+    # Windows Dawn needs a shader compiler DLL for the D3D backends. On this
+    # machine d3dcompiler_47.dll is installed in System32, not copied beside the
+    # executable, so let Dawn load the system component explicitly.
+    set(DAWN_FORCE_SYSTEM_COMPONENT_LOAD ON CACHE BOOL "" FORCE)
   else() # Linux/BSD
     set(DAWN_ENABLE_VULKAN     ON  CACHE BOOL "" FORCE)
     set(DAWN_ENABLE_METAL      OFF CACHE BOOL "" FORCE)

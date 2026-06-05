@@ -9,9 +9,9 @@ Built as a learning project: the code grows one understandable rung at a time, a
 every step renders something you can see.
 
 **Current stage:** WebGL has the synthetic-volume ray caster; WebGPU has the
-Dawn/emdawnwebgpu + SDL3 + ImGui host, WGSL volume ray casting, and a native
-GDCM handoff that can upload stored DICOM UInt16 data as packed RG8 for
-GPU-side windowing.
+Dawn/emdawnwebgpu + SDL3 + ImGui host, WGSL volume ray casting, a native GDCM
+handoff that uploads stored DICOM UInt16 data as packed RG8, and a first GPU
+compute histogram used for auto-windowing.
 **Goal:** see the north star in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
@@ -70,7 +70,9 @@ Superseded planning notes are kept in [docs/archive/](docs/archive/) for history
 Hold mouse + drag to rotate · right/middle drag to pan · wheel to zoom · `C`
 toggles ORBIT/WASD · `WASD`+`Space`+`Shift/Ctrl` move in WASD mode · `1`–`4`
 change the transfer function. WebGL exposes ray-debug and sampling controls in
-HTML; WebGPU exposes the same study controls in the ImGui panel.
+HTML; WebGPU exposes the same study controls in the ImGui panel. In WebGPU,
+**Auto window from GPU histogram** runs a compute pass over the 3D texture, reads
+back the histogram, and sets the window to the 1%-99% scalar range.
 
 ---
 

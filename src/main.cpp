@@ -242,6 +242,18 @@ void onDevice(WGPURequestDeviceStatus status, WGPUDevice device,
     else SDL_Log("RequestDevice failed: %.*s", (int)msg.length, msg.data ? msg.data : "");
     r->done = true;
 }
+struct MapReq {
+    bool done = false;
+    bool ok = false;
+};
+void onBufferMapped(WGPUMapAsyncStatus status, WGPUStringView msg, void* ud1, void*) {
+    auto* r = static_cast<MapReq*>(ud1);
+    r->ok = status == WGPUMapAsyncStatus_Success;
+    if (!r->ok) {
+        SDL_Log("Buffer map failed: %.*s", (int)msg.length, msg.data ? msg.data : "");
+    }
+    r->done = true;
+}
 void onUncapturedError(WGPUDevice const*, WGPUErrorType type, WGPUStringView msg, void*, void*) {
     SDL_Log("[WGPU error type=%d]: %.*s", (int)type, (int)msg.length, msg.data ? msg.data : "");
 }
@@ -293,6 +305,14 @@ struct alignas(16) GpuVec4f {
 struct alignas(16) GpuVec4u {
     std::uint32_t x, y, z, w;
 };
+
+struct alignas(16) GpuHistogramParams {
+    GpuVec4u dims;
+    GpuVec4u mode;
+};
+
+static constexpr std::uint32_t kHistogramBinsR8 = 256u;
+static constexpr std::uint32_t kHistogramBinsU16 = 65536u;
 
 static std::uint32_t alignUp(std::uint32_t value, std::uint32_t alignment) {
     return (value + alignment - 1u) & ~(alignment - 1u);
@@ -463,6 +483,37 @@ static std::uint32_t scalarFormatToGpu(render::VolumeScalarFormat format) {
     }
 }
 
+static std::uint32_t histogramBinsForFormat(render::VolumeScalarFormat format) {
+    return format == render::VolumeScalarFormat::UInt16
+        ? kHistogramBinsU16
+        : kHistogramBinsR8;
+}
+
+static float histogramBinToScalar(std::uint32_t bin,
+                                  std::uint32_t binCount,
+                                  render::VolumeScalarFormat format) {
+    if (format == render::VolumeScalarFormat::UInt16) {
+        return static_cast<float>(bin);
+    }
+    const float denom = static_cast<float>(glm::max(binCount, 2u) - 1u);
+    return static_cast<float>(bin) / denom;
+}
+
+static std::uint32_t percentileBin(const std::vector<std::uint32_t>& bins,
+                                   double percentile,
+                                   std::uint64_t total) {
+    if (bins.empty() || total == 0) return 0;
+    const std::uint64_t target =
+        static_cast<std::uint64_t>(glm::clamp(percentile, 0.0, 1.0) *
+                                   static_cast<double>(total - 1));
+    std::uint64_t sum = 0;
+    for (std::uint32_t i = 0; i < bins.size(); ++i) {
+        sum += bins[i];
+        if (sum > target) return i;
+    }
+    return static_cast<std::uint32_t>(bins.size() - 1);
+}
+
 static glm::vec3 boxHalfFromSource(const render::VolumeSource& source) {
     glm::vec3 dims(static_cast<float>(source.width),
                    static_cast<float>(source.height),
@@ -512,6 +563,22 @@ struct AppWebGPU {
     WGPUTexture          transferTexture      = nullptr;
     WGPUTextureView      transferTextureView  = nullptr;
     WGPUBindGroup        volumeBindGroup      = nullptr;
+    WGPUShaderModule     histogramShader      = nullptr;
+    WGPUBindGroupLayout  histogramBindGroupLayout = nullptr;
+    WGPUPipelineLayout   histogramPipelineLayout = nullptr;
+    WGPUComputePipeline  histogramPipeline    = nullptr;
+    WGPUBuffer           histogramBuffer      = nullptr;
+    WGPUBuffer           histogramReadbackBuffer = nullptr;
+    WGPUBuffer           histogramParamsBuffer = nullptr;
+    WGPUBindGroup        histogramBindGroup   = nullptr;
+    std::uint32_t        histogramBinCount    = 0;
+    bool                 histogramAvailable   = false;
+    std::uint64_t        histogramTotal       = 0;
+    std::uint32_t        histogramLowBin      = 0;
+    std::uint32_t        histogramHighBin     = 0;
+    float                histogramLowValue    = 0.0f;
+    float                histogramHighValue   = 0.0f;
+    std::string          histogramStatus      = "GPU histogram not run yet.";
     std::uint32_t        uploadedTransferPreset = 0;
     std::uint32_t        debugMode = 0;       // 0 final, 1 ray dir, 2 depth, 3 samples
     std::uint32_t        sampleSteps = 128;   // ray-march samples; quality/cost knob
@@ -527,6 +594,8 @@ private:
     void configureSurface(int w, int h);
     void createStudyVolumeScene();
     bool initVolumeRenderer();
+    bool initHistogramResources(const render::VolumeSource& source);
+    bool runGpuHistogramAutoWindow(render::VolumeRenderable& volume);
     void uploadTransferLut(std::uint32_t preset);
     void drawVolume(WGPURenderPassEncoder pass);
     void releaseVolumeRenderer();
@@ -978,10 +1047,238 @@ bool AppWebGPU::initVolumeRenderer() {
         return false;
     }
 
+    if (!initHistogramResources(source)) {
+        fprintf(stderr, "Failed to create GPU histogram resources\n");
+        return false;
+    }
+
     printf("WebGPU volume renderer initialized (%ux%ux%u %s, %s)\n",
            source.width, source.height, source.depth,
            cpuVolumeFromDicom ? "DICOM" : "phantom",
            packedU16 ? "packed UInt16 RG8" : "R8 normalized");
+    return true;
+}
+
+bool AppWebGPU::initHistogramResources(const render::VolumeSource& source) {
+    histogramBinCount = histogramBinsForFormat(source.format);
+    const std::uint64_t histogramBytes =
+        static_cast<std::uint64_t>(histogramBinCount) * sizeof(std::uint32_t);
+
+    WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
+    wgsl.code = {shaders::HISTOGRAM_WGSL, WGPU_STRLEN};
+    WGPUShaderModuleDescriptor shaderDesc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+    shaderDesc.label = {"volume histogram.wgsl", WGPU_STRLEN};
+    shaderDesc.nextInChain = &wgsl.chain;
+    histogramShader = wgpuDeviceCreateShaderModule(device, &shaderDesc);
+    if (!histogramShader) return false;
+
+    histogramBuffer = createBuffer(device, "GPU histogram bins",
+                                   histogramBytes,
+                                   WGPUBufferUsage_Storage |
+                                   WGPUBufferUsage_CopyDst |
+                                   WGPUBufferUsage_CopySrc);
+    histogramReadbackBuffer = createBuffer(device, "GPU histogram readback",
+                                           histogramBytes,
+                                           WGPUBufferUsage_MapRead |
+                                           WGPUBufferUsage_CopyDst);
+    histogramParamsBuffer = createBuffer(device, "GPU histogram params",
+                                         sizeof(GpuHistogramParams),
+                                         WGPUBufferUsage_Uniform |
+                                         WGPUBufferUsage_CopyDst);
+    if (!histogramBuffer || !histogramReadbackBuffer || !histogramParamsBuffer) {
+        return false;
+    }
+
+    WGPUBindGroupLayoutEntry layoutEntries[3];
+    for (WGPUBindGroupLayoutEntry& e : layoutEntries) {
+        e = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
+    }
+
+    layoutEntries[0].binding = 0;
+    layoutEntries[0].visibility = WGPUShaderStage_Compute;
+    layoutEntries[0].texture = WGPU_TEXTURE_BINDING_LAYOUT_INIT;
+    layoutEntries[0].texture.sampleType = WGPUTextureSampleType_Float;
+    layoutEntries[0].texture.viewDimension = WGPUTextureViewDimension_3D;
+
+    layoutEntries[1].binding = 1;
+    layoutEntries[1].visibility = WGPUShaderStage_Compute;
+    layoutEntries[1].buffer = WGPU_BUFFER_BINDING_LAYOUT_INIT;
+    layoutEntries[1].buffer.type = WGPUBufferBindingType_Storage;
+    layoutEntries[1].buffer.minBindingSize = histogramBytes;
+
+    layoutEntries[2].binding = 2;
+    layoutEntries[2].visibility = WGPUShaderStage_Compute;
+    layoutEntries[2].buffer = WGPU_BUFFER_BINDING_LAYOUT_INIT;
+    layoutEntries[2].buffer.type = WGPUBufferBindingType_Uniform;
+    layoutEntries[2].buffer.minBindingSize = sizeof(GpuHistogramParams);
+
+    WGPUBindGroupLayoutDescriptor bglDesc = WGPU_BIND_GROUP_LAYOUT_DESCRIPTOR_INIT;
+    bglDesc.label = {"histogram bind group layout", WGPU_STRLEN};
+    bglDesc.entryCount = 3;
+    bglDesc.entries = layoutEntries;
+    histogramBindGroupLayout = wgpuDeviceCreateBindGroupLayout(device, &bglDesc);
+    if (!histogramBindGroupLayout) return false;
+
+    WGPUBindGroupEntry bgEntries[3];
+    for (WGPUBindGroupEntry& e : bgEntries) {
+        e = WGPU_BIND_GROUP_ENTRY_INIT;
+    }
+    bgEntries[0].binding = 0;
+    bgEntries[0].textureView = volumeTextureView;
+    bgEntries[1].binding = 1;
+    bgEntries[1].buffer = histogramBuffer;
+    bgEntries[1].size = histogramBytes;
+    bgEntries[2].binding = 2;
+    bgEntries[2].buffer = histogramParamsBuffer;
+    bgEntries[2].size = sizeof(GpuHistogramParams);
+
+    WGPUBindGroupDescriptor bgDesc = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
+    bgDesc.label = {"histogram bind group", WGPU_STRLEN};
+    bgDesc.layout = histogramBindGroupLayout;
+    bgDesc.entryCount = 3;
+    bgDesc.entries = bgEntries;
+    histogramBindGroup = wgpuDeviceCreateBindGroup(device, &bgDesc);
+    if (!histogramBindGroup) return false;
+
+    WGPUPipelineLayoutDescriptor layoutDesc = WGPU_PIPELINE_LAYOUT_DESCRIPTOR_INIT;
+    layoutDesc.label = {"histogram pipeline layout", WGPU_STRLEN};
+    layoutDesc.bindGroupLayoutCount = 1;
+    layoutDesc.bindGroupLayouts = &histogramBindGroupLayout;
+    histogramPipelineLayout = wgpuDeviceCreatePipelineLayout(device, &layoutDesc);
+    if (!histogramPipelineLayout) return false;
+
+    WGPUComputePipelineDescriptor pipelineDesc = WGPU_COMPUTE_PIPELINE_DESCRIPTOR_INIT;
+    pipelineDesc.label = {"volume histogram compute pipeline", WGPU_STRLEN};
+    pipelineDesc.layout = histogramPipelineLayout;
+    pipelineDesc.compute.module = histogramShader;
+    pipelineDesc.compute.entryPoint = {"cs_main", WGPU_STRLEN};
+    histogramPipeline = wgpuDeviceCreateComputePipeline(device, &pipelineDesc);
+    if (!histogramPipeline) return false;
+
+    histogramStatus = source.format == render::VolumeScalarFormat::UInt16
+        ? "GPU histogram ready: 65,536 UInt16 stored-value bins."
+        : "GPU histogram ready: 256 normalized R8 bins.";
+    return true;
+}
+
+bool AppWebGPU::runGpuHistogramAutoWindow(render::VolumeRenderable& volume) {
+    if (!histogramPipeline || !histogramBindGroup || !histogramBuffer ||
+        !histogramReadbackBuffer || !histogramParamsBuffer) {
+        histogramStatus = "GPU histogram resources are not initialized.";
+        return false;
+    }
+
+    histogramAvailable = false;
+    const std::uint32_t expectedBins = histogramBinsForFormat(volume.source.format);
+    if (expectedBins != histogramBinCount) {
+        histogramStatus = "GPU histogram bin count does not match this volume format.";
+        return false;
+    }
+
+    const std::uint64_t histogramBytes =
+        static_cast<std::uint64_t>(histogramBinCount) * sizeof(std::uint32_t);
+    const GpuHistogramParams params = {
+        {volume.source.width, volume.source.height, volume.source.depth, 0u},
+        {scalarFormatToGpu(volume.source.format), histogramBinCount, 0u, 0u}
+    };
+    wgpuQueueWriteBuffer(queue, histogramParamsBuffer, 0, &params, sizeof(params));
+
+    WGPUCommandEncoderDescriptor encDesc = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
+    encDesc.label = {"histogram command encoder", WGPU_STRLEN};
+    WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(device, &encDesc);
+    if (!enc) {
+        histogramStatus = "Failed to create histogram command encoder.";
+        return false;
+    }
+
+    // Clear is the "reset histogram" step. Without it, each run would add on
+    // top of the previous counts.
+    wgpuCommandEncoderClearBuffer(enc, histogramBuffer, 0, histogramBytes);
+
+    WGPUComputePassDescriptor passDesc = WGPU_COMPUTE_PASS_DESCRIPTOR_INIT;
+    passDesc.label = {"volume histogram compute pass", WGPU_STRLEN};
+    WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(enc, &passDesc);
+    wgpuComputePassEncoderSetPipeline(pass, histogramPipeline);
+    wgpuComputePassEncoderSetBindGroup(pass, 0, histogramBindGroup, 0, nullptr);
+    wgpuComputePassEncoderDispatchWorkgroups(
+        pass,
+        alignUp(volume.source.width, 8u) / 8u,
+        alignUp(volume.source.height, 8u) / 8u,
+        alignUp(volume.source.depth, 4u) / 4u);
+    wgpuComputePassEncoderEnd(pass);
+    wgpuComputePassEncoderRelease(pass);
+
+    wgpuCommandEncoderCopyBufferToBuffer(enc, histogramBuffer, 0,
+                                         histogramReadbackBuffer, 0,
+                                         histogramBytes);
+    WGPUCommandBufferDescriptor cbDesc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
+    cbDesc.label = {"histogram command buffer", WGPU_STRLEN};
+    WGPUCommandBuffer cb = wgpuCommandEncoderFinish(enc, &cbDesc);
+    wgpuQueueSubmit(queue, 1, &cb);
+    wgpuCommandBufferRelease(cb);
+    wgpuCommandEncoderRelease(enc);
+
+    MapReq mapReq;
+    WGPUBufferMapCallbackInfo mapCb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    mapCb.mode = WGPUCallbackMode_AllowProcessEvents;
+    mapCb.callback = onBufferMapped;
+    mapCb.userdata1 = &mapReq;
+    wgpuBufferMapAsync(histogramReadbackBuffer, WGPUMapMode_Read, 0,
+                       static_cast<size_t>(histogramBytes), mapCb);
+    if (!pumpUntil(instance, mapReq.done, "histogramReadback", 30000)) {
+        histogramStatus = "Timed out waiting for GPU histogram readback.";
+        return false;
+    }
+    if (!mapReq.ok) {
+        histogramStatus = "GPU histogram readback map failed.";
+        return false;
+    }
+
+    const void* mapped =
+        wgpuBufferGetConstMappedRange(histogramReadbackBuffer, 0,
+                                      static_cast<size_t>(histogramBytes));
+    if (!mapped) {
+        wgpuBufferUnmap(histogramReadbackBuffer);
+        histogramStatus = "GPU histogram mapped range was null.";
+        return false;
+    }
+
+    std::vector<std::uint32_t> bins(histogramBinCount);
+    std::memcpy(bins.data(), mapped, static_cast<size_t>(histogramBytes));
+    wgpuBufferUnmap(histogramReadbackBuffer);
+
+    histogramTotal = 0;
+    for (std::uint32_t count : bins) histogramTotal += count;
+    if (histogramTotal == 0) {
+        histogramStatus = "GPU histogram returned zero voxels.";
+        return false;
+    }
+
+    histogramLowBin = percentileBin(bins, 0.01, histogramTotal);
+    histogramHighBin = percentileBin(bins, 0.99, histogramTotal);
+    if (histogramHighBin <= histogramLowBin) {
+        histogramHighBin = glm::min(histogramLowBin + 1u, histogramBinCount - 1u);
+    }
+    histogramLowValue =
+        histogramBinToScalar(histogramLowBin, histogramBinCount, volume.source.format);
+    histogramHighValue =
+        histogramBinToScalar(histogramHighBin, histogramBinCount, volume.source.format);
+
+    const float minWidth = volume.source.format == render::VolumeScalarFormat::UInt16
+        ? 1.0f
+        : (1.0f / 255.0f);
+    volume.display.window_center = (histogramLowValue + histogramHighValue) * 0.5f;
+    volume.display.window_width = glm::max(histogramHighValue - histogramLowValue, minWidth);
+
+    char msg[192];
+    std::snprintf(msg, sizeof(msg),
+                  "GPU histogram auto-window: p01=%.3f p99=%.3f total=%llu bins=%u",
+                  histogramLowValue, histogramHighValue,
+                  static_cast<unsigned long long>(histogramTotal),
+                  histogramBinCount);
+    histogramStatus = msg;
+    histogramAvailable = true;
+    printf("%s\n", histogramStatus.c_str());
     return true;
 }
 
@@ -1039,6 +1336,10 @@ void AppWebGPU::drawVolume(WGPURenderPassEncoder pass) {
 }
 
 void AppWebGPU::releaseVolumeRenderer() {
+    if (histogramBindGroup)    { wgpuBindGroupRelease(histogramBindGroup); histogramBindGroup = nullptr; }
+    if (histogramReadbackBuffer) { wgpuBufferRelease(histogramReadbackBuffer); histogramReadbackBuffer = nullptr; }
+    if (histogramBuffer)       { wgpuBufferRelease(histogramBuffer); histogramBuffer = nullptr; }
+    if (histogramParamsBuffer) { wgpuBufferRelease(histogramParamsBuffer); histogramParamsBuffer = nullptr; }
     if (volumeBindGroup)       { wgpuBindGroupRelease(volumeBindGroup); volumeBindGroup = nullptr; }
     if (transferTextureView)   { wgpuTextureViewRelease(transferTextureView); transferTextureView = nullptr; }
     if (transferTexture)       { wgpuTextureRelease(transferTexture); transferTexture = nullptr; }
@@ -1054,6 +1355,10 @@ void AppWebGPU::releaseVolumeRenderer() {
     if (volumePipelineLayout)  { wgpuPipelineLayoutRelease(volumePipelineLayout); volumePipelineLayout = nullptr; }
     if (volumeBindGroupLayout) { wgpuBindGroupLayoutRelease(volumeBindGroupLayout); volumeBindGroupLayout = nullptr; }
     if (volumeShader)          { wgpuShaderModuleRelease(volumeShader); volumeShader = nullptr; }
+    if (histogramPipeline)     { wgpuComputePipelineRelease(histogramPipeline); histogramPipeline = nullptr; }
+    if (histogramPipelineLayout) { wgpuPipelineLayoutRelease(histogramPipelineLayout); histogramPipelineLayout = nullptr; }
+    if (histogramBindGroupLayout) { wgpuBindGroupLayoutRelease(histogramBindGroupLayout); histogramBindGroupLayout = nullptr; }
+    if (histogramShader)       { wgpuShaderModuleRelease(histogramShader); histogramShader = nullptr; }
 }
 
 bool AppWebGPU::init() {
@@ -1274,6 +1579,19 @@ void AppWebGPU::tick() {
                 int preset = static_cast<int>(volume.display.transfer_preset);
                 if (ImGui::SliderInt("Transfer preset", &preset, 1, 4)) {
                     volume.display.transfer_preset = static_cast<std::uint32_t>(preset);
+                }
+
+                if (ImGui::Button("Auto window from GPU histogram")) {
+                    runGpuHistogramAutoWindow(volume);
+                }
+                ImGui::SameLine();
+                ImGui::TextDisabled("compute pass + atomic bins");
+                ImGui::TextWrapped("%s", histogramStatus.c_str());
+                if (histogramAvailable) {
+                    ImGui::Text("p01 bin/value: %u / %.3f",
+                                histogramLowBin, histogramLowValue);
+                    ImGui::Text("p99 bin/value: %u / %.3f",
+                                histogramHighBin, histogramHighValue);
                 }
 
                 const bool packed =

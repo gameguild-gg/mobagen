@@ -5,8 +5,9 @@
 > uniforms, a 3D volume texture, and a transfer LUT. The native `USE_GDCM=ON`
 > path can now replace the phantom bytes with DICOM stored UInt16 data packed by
 > `VolumeBuffer` into RG8 for WebGPU upload; WGSL reconstructs the stored value
-> and applies window/level on the GPU. The browser path still uses the raw phantom
-> until we decide how heavy a WASM DICOM parser dependency should be.
+> and applies window/level on the GPU. A first WebGPU compute histogram pass now
+> builds scalar bins and feeds auto-windowing. The browser path still uses the raw
+> phantom until we decide how heavy a WASM DICOM parser dependency should be.
 
 > **A teaching roadmap, not just a todo list.** This project is building a
 > **performance-driven engine core** (a modular, dual-target engine backbone) —
@@ -181,6 +182,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 |---|---|
 | Build infra (CMake, GDCM v3.0.24, sanitizers, CPMLicenses) | ✅ |
 | DICOM loader (`volume_io`, native) | ✅ (`make dicom-smoke`; WebGPU upload preserves UInt16 as packed RG8) |
+| GPU histogram + auto-window | ✅ first pass (`histogram.wgsl` compute bins + CPU percentile readback) |
 | Orchestration design + locked vocabulary | ✅ ([ENGINE_ARCHITECTURE.md](ENGINE_ARCHITECTURE.md)) |
 | ECS storage core | ✅ |
 | **Jobs module (5a–5d): work-stealing + lock-free + dual-target + C ABI** | ✅ **complete** |

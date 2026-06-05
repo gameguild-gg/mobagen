@@ -6,6 +6,7 @@ EMSDK_NODE := $(EMSDK)/node/22.16.0_64bit/bin/node.exe
 EMSDK_PYTHON := $(EMSDK)/python/3.13.3_64bit/python.exe
 EMSCRIPTEN_TOOLCHAIN := $(EMSDK)/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
 EMSCRIPTEN_ENV := export EMSDK="$(EMSDK)"; export EMSDK_NODE="$(EMSDK_NODE)"; export EMSDK_PYTHON="$(EMSDK_PYTHON)"; export PATH="$(EMSDK):$(EMSDK)/upstream/emscripten:$$PATH";
+NATIVE_BUILD_ARGS ?= /m:1
 PORT ?= 8085
 DICOM_DIR ?= assets/dicom
 
@@ -54,12 +55,12 @@ configure-native-webgpu:
 
 .PHONY: native-webgpu
 native-webgpu: configure-native-webgpu
-	cmake --build build/native-webgpu --target dicom_renderer --config Release
+	MSYS_NO_PATHCONV=1 cmake --build build/native-webgpu --target dicom_renderer --config Release -- $(NATIVE_BUILD_ARGS)
 
 .PHONY: native-dicom
 native-dicom:
 	cmake -S . -B build/native-dicom -DUSE_WEBGPU=ON -DUSE_GDCM=ON
-	cmake --build build/native-dicom --target dicom_renderer --config Release
+	MSYS_NO_PATHCONV=1 cmake --build build/native-dicom --target dicom_renderer --config Release -- $(NATIVE_BUILD_ARGS)
 
 .PHONY: dicom-smoke
 dicom-smoke:

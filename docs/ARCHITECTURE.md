@@ -22,7 +22,8 @@ Today the code has two renderer states:
 - **WebGPU:** a working **Dawn/emdawnwebgpu + SDL3 + Dear ImGui host**. It owns the
   WebGPU device/surface/command encoder in C++ on both native and wasm, consumes
   `RenderBridge` volume commands, uploads a 3D volume texture, and ray marches it
-  with `shaders/raygen.wgsl`.
+  with `shaders/raygen.wgsl`. It also has a first compute pass,
+  `shaders/histogram.wgsl`, for GPU histogram + auto-windowing.
 
 The default data is still a 96^3 phantom standing in for a real DICOM scan, but
 the native `USE_GDCM=ON` path now has the first DICOM handoff: load a DICOM
@@ -171,6 +172,23 @@ the controls stay inspectable. When GDCM is enabled natively, WebGPU texture
 bytes can come from a DICOM series preserved as packed UInt16-in-RG8 data;
 otherwise they come from the synthetic phantom.
 
+The histogram pass is separate from the render pass and runs on demand from the
+ImGui button **Auto window from GPU histogram**:
+
+```
+clear histogram storage buffer
+  -> compute shader: one invocation per voxel
+  -> textureLoad(volume) -> scalar bin
+  -> atomicAdd(histogram[bin], 1)
+  -> copy histogram buffer to readback buffer
+  -> C++ maps readback and chooses p01/p99 window
+```
+
+This is deliberately the first WebGPU-only study rung. WebGL2 can sample the
+same volume, but it cannot run compute workgroups or use storage-buffer atomics.
+The percentile reduction still happens on CPU after readback; moving that
+reduction onto GPU is the next refinement.
+
 ### CPU volume memory path
 
 `volume::VolumeBuffer` is the current bridge between medical-image loading and
@@ -265,10 +283,9 @@ WGSL pass.
   UInt16 volume bytes, but the browser path still needs an explicit decision on
   whether GDCM/DCMTK belongs in WASM or whether DICOM conversion happens before
   upload.
-- **Full native WebGPU + GDCM build is heavy** — `make dicom-smoke` validates the
-  loader and `make native-webgpu` validates the renderer, but the combined
-  GDCM-enabled renderer target can take long enough that it should be run as a
-  dedicated verification step.
+- **Native WebGPU + GDCM build is heavy** — `make native-dicom` is verified but
+  intentionally throttled to single-threaded MSBuild in the Makefile to avoid
+  Dawn-generated project memory pressure.
 - **WebGPU needs a GPU adapter** — adapter creation can fail where the browser has
   no usable GPU (hardware acceleration off, blocklist, or unsupported backend).
   The shell now shows a visible startup error instead of leaving only a blue
