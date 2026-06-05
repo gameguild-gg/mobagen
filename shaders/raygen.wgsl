@@ -6,14 +6,31 @@ struct Camera { invViewProj : mat4x4f };
 @group(0) @binding(1) var volume : texture_3d<f32>;
 @group(0) @binding(2) var volSamp : sampler;
 @group(0) @binding(3) var transferTex : texture_2d<f32>;  // 1D LUT: density -> RGBA
-@group(0) @binding(4) var<uniform> uMode : vec4<u32>;     // .x mode .y debug .z steps
-@group(0) @binding(5) var<uniform> uWindow : vec4f;       // .x center .y width .w opacity
+@group(0) @binding(4) var<uniform> uMode : vec4<u32>;     // .x mode .y debug .z steps .w scalar format
+@group(0) @binding(5) var<uniform> uWindow : vec4f;       // .x center .y width .z iso .w opacity
 @group(0) @binding(6) var<uniform> uBoxHalf : vec4f;      // .xyz box half-extents
+
+// Raw scalar read. Format 0 = R8 normalized; format 1 = DICOM UInt16 packed as
+// little-endian RG8. This lets the GPU keep the original 16-bit stored values
+// instead of receiving CPU-windowed R8 bytes.
+fn sampleRaw(tc : vec3f) -> f32 {
+  let s = textureSampleLevel(volume, volSamp, tc, 0.0);
+  if (uMode.w == 1u) {
+    let lo = round(s.r * 255.0);
+    let hi = round(s.g * 255.0);
+    return lo + hi * 256.0;
+  }
+  return s.r;
+}
 
 // Window/level: remap [center-width/2, center+width/2] to [0,1], clip outside.
 fn applyWindow(v : f32) -> f32 {
   let lo = uWindow.x - uWindow.y * 0.5;
   return clamp((v - lo) / uWindow.y, 0.0, 1.0);
+}
+
+fn densityAt(tc : vec3f) -> f32 {
+  return applyWindow(sampleRaw(tc));
 }
 
 struct VsOut {
@@ -34,9 +51,9 @@ fn vs_main(@location(0) position : vec2f, @location(1) uv : vec2f) -> VsOut {
 fn volumeGradient(tc : vec3f) -> vec3f {
   let h = 1.0 / f32(textureDimensions(volume).x);   // one voxel step
   return vec3f(
-    textureSampleLevel(volume, volSamp, tc + vec3f(h, 0.0, 0.0), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(h, 0.0, 0.0), 0.0).r,
-    textureSampleLevel(volume, volSamp, tc + vec3f(0.0, h, 0.0), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(0.0, h, 0.0), 0.0).r,
-    textureSampleLevel(volume, volSamp, tc + vec3f(0.0, 0.0, h), 0.0).r - textureSampleLevel(volume, volSamp, tc - vec3f(0.0, 0.0, h), 0.0).r);
+    densityAt(tc + vec3f(h, 0.0, 0.0)) - densityAt(tc - vec3f(h, 0.0, 0.0)),
+    densityAt(tc + vec3f(0.0, h, 0.0)) - densityAt(tc - vec3f(0.0, h, 0.0)),
+    densityAt(tc + vec3f(0.0, 0.0, h)) - densityAt(tc - vec3f(0.0, 0.0, h)));
 }
 
 // Ray vs axis-aligned box [-1,1]^3 (slab method).
@@ -103,19 +120,19 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       for (var i = 0; i < 512; i = i + 1) {
         if (i >= steps) { break; }
         let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
-        maxD = max(maxD, applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r));
+        maxD = max(maxD, densityAt(tc));
         samples = samples + 1;
         t = t + dt;
       }
       col = textureSampleLevel(transferTex, volSamp, vec2f(maxD, 0.5), 0.0).rgb;
     } else if (uMode.x == 2u) {
       // --- Isosurface: first density above a threshold ---
-      let ISO = 0.40;
+      let ISO = uWindow.z;
       var t = t0;
       for (var i = 0; i < 512; i = i + 1) {
         if (i >= steps) { break; }
         let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
-        let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
+        let density = densityAt(tc);
         samples = samples + 1;
         if (density > ISO) {
           let base = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0).rgb;
@@ -131,7 +148,7 @@ fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
       for (var i = 0; i < 512; i = i + 1) {
         if (i >= steps) { break; }
         let tc = (ro + rd * t) / uBoxHalf.xyz * 0.5 + 0.5;
-        let density = applyWindow(textureSampleLevel(volume, volSamp, tc, 0.0).r);
+        let density = densityAt(tc);
         let tf = textureSampleLevel(transferTex, volSamp, vec2f(density, 0.5), 0.0);
         let a = tf.a * uWindow.w;
         let c = shade(tc, tf.rgb);

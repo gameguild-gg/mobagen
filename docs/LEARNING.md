@@ -3,10 +3,12 @@
 > Current WebGPU status: the Dawn host now consumes DOD `RenderBridge` commands
 > directly. It embeds `shaders/raygen.wgsl`, uploads a 3D texture, uploads the
 > transfer LUT, and passes camera/window/mode/spacing/debug data as uniforms.
-> The default input is still a 96^3 phantom, but native `USE_GDCM=ON` can now
-> normalize a DICOM series into `VolumeBuffer` for the same upload path. The
-> learning point is the handoff: loader/ECS owns scene metadata, `RenderBridge`
-> flattens it, and the renderer records GPU commands from that flat packet.
+> The default browser input is still a 96^3 phantom. Native `USE_GDCM=ON` can now
+> read a DICOM series into `VolumeBuffer` while preserving stored UInt16 voxels.
+> For WebGPU, those UInt16 values are packed into an `RG8Unorm` 3D texture and
+> reconstructed in WGSL before window/level is applied. The learning point is the
+> handoff: loader/ECS owns scene metadata, `RenderBridge` flattens it, and the
+> renderer records GPU commands from that flat packet.
 
 The road from "triangle on screen" to "DICOM volume ray caster" (and later, a
 mesh ray tracer). Each rung **produces something visible** and feeds the DICOM
@@ -77,10 +79,12 @@ the loader gets proven on a stand-in phantom first.
 10. **B3 ✅** **Voxel spacing** — the volume box scales per-axis by voxel spacing
     (uBoxHalf), so non-cubic scans aren't squished. (Phantom uses z=1.5 to show it.)
 11. **A ✅ native-first** **Real DICOM parser handoff**: `volume_io` can read a
-    DICOM series with GDCM in native builds, apply the Hounsfield rescale/window
-    on CPU, normalize to `VolumeBuffer`, and upload through the WebGPU volume
-    path. Browser/WASM DICOM parsing is still a separate decision because shipping
-    GDCM/DCMTK into WASM is a heavy dependency choice.
+    DICOM series with GDCM in native builds and pass stored UInt16 voxels into
+    `VolumeBuffer`. WebGPU uploads them as packed `RG8Unorm` bytes, reconstructs
+    the UInt16 stored value in WGSL, then applies window/level on the GPU. WebGL
+    and the browser phantom still use the simpler normalized R8 path. Browser/WASM
+    DICOM parsing is still a separate decision because shipping GDCM/DCMTK into
+    WASM is a heavy dependency choice.
 12. **Memory ownership ✅ first pass**: `VolumeBuffer` uses `std::pmr::vector`
     and can allocate from a `VolumeArena`. This is the study bridge from "STD
     until it hurts" toward arena/pool ownership for large scan data.
@@ -126,6 +130,15 @@ If `make` is not on the machine yet, install GNU Make or run the commands inside
 the Makefile manually from a Bash shell. The project should not depend on
 PowerShell-specific setup.
 
+On this Windows machine, GNU Make was installed with Winget as GnuWin32 Make.
+Fresh Git Bash sessions may still need this PATH line until the environment is
+refreshed:
+
+```bash
+export PATH="/c/Progra~2/GnuWin32/bin:$PATH"
+make help
+```
+
 ### WebGL2 (G2) — the learning rung
 ```bash
 make wasm-webgl
@@ -169,6 +182,17 @@ directly when verifying this project.
 
 A `build/<type>/third_party.txt` listing every dependency's license is written
 each configure (CPMLicenses).
+
+The lightweight DICOM verification target is:
+
+```bash
+make dicom-smoke
+```
+
+It validates the native GDCM loader without requiring the full native WebGPU +
+GDCM renderer link. The current smoke sample reports a `96 x 96 x 96` volume,
+`1.000 x 1.000 x 1.500 mm` spacing, slope `1.000`, intercept `-1024.0`, and a
+center voxel of stored `1034 -> 10.0 HU`.
 
 The HTML shell files are part of the Emscripten link step, not runtime assets.
 `CMakeLists.txt` marks `html/shell_dawn.html` and `html/shell_webgl.html` as

@@ -26,8 +26,9 @@ Today the code has two renderer states:
 
 The default data is still a 96^3 phantom standing in for a real DICOM scan, but
 the native `USE_GDCM=ON` path now has the first DICOM handoff: load a DICOM
-series, apply Hounsfield windowing on the CPU, normalize it to an R8
-`VolumeBuffer`, and upload that buffer through the same renderer path.
+series, preserve stored UInt16 voxels in `VolumeBuffer`, upload them to WebGPU as
+packed `RG8Unorm`, and do the window/level step in WGSL. WebGL and the browser
+phantom still use the simpler normalized R8 path.
 Everything below describes what exists now.
 
 ---
@@ -166,19 +167,37 @@ process SDL3 input -> update camera -> acquire WGPU surface texture
 
 The volume pass consumes a flat `RenderBridge` command list, writes camera/window
 settings to uniform buffers, samples a 3D texture, and then draws ImGui on top so
-the controls stay inspectable. When GDCM is enabled natively, the texture bytes
-come from a DICOM series normalized into `VolumeBuffer`; otherwise they come from
-the synthetic phantom.
+the controls stay inspectable. When GDCM is enabled natively, WebGPU texture
+bytes can come from a DICOM series preserved as packed UInt16-in-RG8 data;
+otherwise they come from the synthetic phantom.
 
 ### CPU volume memory path
 
 `volume::VolumeBuffer` is the current bridge between medical-image loading and
-GPU upload. It owns normalized R8 voxels plus `VolumeMetadata`:
+GPU upload. It owns bytes plus `VolumeMetadata`, and records what those bytes
+mean:
 
 ```
-DICOM UInt16 slices -> Hounsfield rescale -> window/level -> R8 VolumeBuffer
-                                                     -> WebGPU/WebGL 3D texture
+phantom / WebGL path:
+  density bytes -> R8 VolumeBuffer -> R8 3D texture -> shader window/level
+
+native DICOM / WebGPU path:
+  DICOM UInt16 slices -> U16PackedRG8 VolumeBuffer -> RG8 3D texture
+                       -> WGSL reconstruct UInt16 -> shader window/level
 ```
+
+The packed path stores one 16-bit voxel as two 8-bit texture channels:
+
+```
+R = low byte
+G = high byte
+stored = round(R * 255) + round(G * 255) * 256
+```
+
+Packed UInt16 textures use nearest sampling. Linear filtering would interpolate
+the individual bytes before reconstruction, which corrupts the stored value.
+The R8 phantom path can keep linear filtering because it is already normalized
+density data.
 
 For learning, `VolumeBuffer` supports two ownership modes:
 
@@ -242,9 +261,14 @@ WGSL pass.
 - **DICOM is native-first** — `USE_GDCM=ON` is wired for native smoke tests and
   renderer upload. The browser path still uses the prebuilt raw phantom until we
   decide how much of GDCM/DCMTK should ship into WASM.
-- **R8 upload first** — DICOM UInt16/Hounsfield data is currently normalized on
-  CPU into R8 before upload. Later WebGPU work should preserve 16-bit or float
-  data and do more windowing/statistics on the GPU.
+- **Browser DICOM is still undecided** — the WebGPU renderer can consume packed
+  UInt16 volume bytes, but the browser path still needs an explicit decision on
+  whether GDCM/DCMTK belongs in WASM or whether DICOM conversion happens before
+  upload.
+- **Full native WebGPU + GDCM build is heavy** — `make dicom-smoke` validates the
+  loader and `make native-webgpu` validates the renderer, but the combined
+  GDCM-enabled renderer target can take long enough that it should be run as a
+  dedicated verification step.
 - **WebGPU needs a GPU adapter** — adapter creation can fail where the browser has
   no usable GPU (hardware acceleration off, blocklist, or unsupported backend).
   The shell now shows a visible startup error instead of leaving only a blue

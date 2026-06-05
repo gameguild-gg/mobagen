@@ -33,6 +33,16 @@ int main() {
         return 1;
     }
 
-    std::printf("VolumeBuffer OK: heap + arena ownership paths normalize 16-bit HU to R8\n");
+    volume::VolumeBuffer packed = volume::VolumeBuffer::from_u16_packed_rg8(meta, stored);
+    if (packed.storage_format() != volume::VolumeStorageFormat::U16PackedRG8 ||
+        packed.bytes_per_voxel() != 2 ||
+        packed.size_bytes() != 8 ||
+        packed.data()[0] != static_cast<std::uint8_t>(824 & 0x00ffu) ||
+        packed.data()[1] != static_cast<std::uint8_t>(824 >> 8u)) {
+        std::printf("packed UInt16 VolumeBuffer conversion failed\n");
+        return 1;
+    }
+
+    std::printf("VolumeBuffer OK: R8 windowed + packed UInt16 ownership paths\n");
     return 0;
 }

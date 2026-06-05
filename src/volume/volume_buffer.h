@@ -11,6 +11,11 @@
 
 namespace volume {
 
+enum class VolumeStorageFormat : std::uint8_t {
+    R8,
+    U16PackedRG8
+};
+
 struct VolumeMetadata {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
@@ -54,9 +59,9 @@ private:
     std::pmr::monotonic_buffer_resource resource_;
 };
 
-// CPU-side normalized R8 volume ready for the current GPU upload path. The
-// important ownership point: this object owns the bytes. The renderer may upload
-// them to a GPU texture, but it does not own or free DICOM loader memory.
+// CPU-side volume bytes ready for GPU upload. The important ownership point:
+// this object owns the bytes. The renderer may upload them to a GPU texture, but
+// it does not own or free DICOM loader memory.
 class VolumeBuffer {
 public:
     using Storage = std::pmr::vector<std::uint8_t>;
@@ -64,8 +69,17 @@ public:
     VolumeBuffer() = default;
 
     VolumeBuffer(VolumeMetadata metadata, std::pmr::memory_resource* resource)
-        : metadata_(metadata), bytes_(resource) {
-        bytes_.resize(metadata.voxel_count());
+        : VolumeBuffer(metadata, VolumeStorageFormat::R8, 1, resource) {}
+
+    VolumeBuffer(VolumeMetadata metadata,
+                 VolumeStorageFormat format,
+                 std::uint32_t bytes_per_voxel,
+                 std::pmr::memory_resource* resource)
+        : metadata_(metadata),
+          format_(format),
+          bytes_per_voxel_(std::max(bytes_per_voxel, 1u)),
+          bytes_(resource) {
+        bytes_.resize(metadata.voxel_count() * bytes_per_voxel_);
     }
 
     static VolumeBuffer from_u8(VolumeMetadata metadata,
@@ -74,6 +88,28 @@ public:
         VolumeBuffer out(metadata, resource);
         if (src && !out.bytes_.empty()) {
             std::memcpy(out.bytes_.data(), src, out.bytes_.size());
+        }
+        return out;
+    }
+
+    // Preserve DICOM's 16-bit stored values for GPU-side windowing. WebGPU can
+    // sample RG8 textures everywhere, so we pack one little-endian UInt16 voxel
+    // into two normalized 8-bit channels:
+    //
+    //   R = low byte, G = high byte
+    //
+    // WGSL reconstructs: stored = round(R*255) + round(G*255)*256
+    static VolumeBuffer from_u16_packed_rg8(
+        VolumeMetadata metadata,
+        const std::uint16_t* src,
+        std::pmr::memory_resource* resource = std::pmr::get_default_resource()) {
+        VolumeBuffer out(metadata, VolumeStorageFormat::U16PackedRG8, 2, resource);
+        if (!src || out.bytes_.empty()) return out;
+
+        for (std::size_t i = 0; i < metadata.voxel_count(); ++i) {
+            const std::uint16_t value = src[i];
+            out.bytes_[i * 2 + 0] = static_cast<std::uint8_t>(value & 0x00ffu);
+            out.bytes_[i * 2 + 1] = static_cast<std::uint8_t>((value >> 8u) & 0x00ffu);
         }
         return out;
     }
@@ -97,6 +133,8 @@ public:
     }
 
     const VolumeMetadata& metadata() const { return metadata_; }
+    VolumeStorageFormat storage_format() const { return format_; }
+    std::uint32_t bytes_per_voxel() const { return bytes_per_voxel_; }
     const std::uint8_t* data() const { return bytes_.data(); }
     std::uint8_t* data() { return bytes_.data(); }
     std::size_t size_bytes() const { return bytes_.size(); }
@@ -104,6 +142,8 @@ public:
 
 private:
     VolumeMetadata metadata_{};
+    VolumeStorageFormat format_ = VolumeStorageFormat::R8;
+    std::uint32_t bytes_per_voxel_ = 1;
     Storage bytes_{std::pmr::get_default_resource()};
 };
 

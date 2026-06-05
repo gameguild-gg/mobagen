@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <cmath>
 #include <string>
 #include <memory>
 #include <vector>
@@ -377,8 +378,8 @@ static volume::VolumeBuffer tryLoadDicomVolumeBuffer(bool& loadedFromDicom) {
     meta.value_max = dicom.value_max;
 
     volume::VolumeBuffer buffer =
-        volume::VolumeBuffer::from_u16_windowed(meta, dicom.voxels);
-    printf("Loaded DICOM volume %ux%ux%u from %s -> normalized R8 upload\n",
+        volume::VolumeBuffer::from_u16_packed_rg8(meta, dicom.voxels);
+    printf("Loaded DICOM volume %ux%ux%u from %s -> packed UInt16 RG8 upload\n",
            meta.width, meta.height, meta.depth, dicomDir);
     volume_io_free(&dicom);
     loadedFromDicom = !buffer.empty();
@@ -451,6 +452,14 @@ static std::uint32_t modeToGpu(render::VolumeRenderMode mode) {
         case render::VolumeRenderMode::Isosurface: return 2u;
         case render::VolumeRenderMode::DVR:
         default:                                   return 0u;
+    }
+}
+
+static std::uint32_t scalarFormatToGpu(render::VolumeScalarFormat format) {
+    switch (format) {
+        case render::VolumeScalarFormat::UInt16: return 1u;
+        case render::VolumeScalarFormat::UInt8:
+        default:                                 return 0u;
     }
 }
 
@@ -659,12 +668,31 @@ void AppWebGPU::createStudyVolumeScene() {
     volume.source.height = meta.height;
     volume.source.depth = meta.depth;
     volume.source.spacing_mm = meta.spacing_mm;
-    volume.source.format = render::VolumeScalarFormat::UInt8;
-    // The CPU upload path normalizes DICOM HU/window data to R8. The shader
-    // then receives a normalized [0,1] density range, so its default window is
-    // also normalized even if the original DICOM metadata was in HU.
-    volume.display.window_center = 0.5f;
-    volume.display.window_width = 1.0f;
+    volume.source.format =
+        cpuVolume.storage_format() == ::volume::VolumeStorageFormat::U16PackedRG8
+            ? render::VolumeScalarFormat::UInt16
+            : render::VolumeScalarFormat::UInt8;
+
+    if (volume.source.format == render::VolumeScalarFormat::UInt16) {
+        // We preserve the DICOM stored UInt16 values on upload. The shader now
+        // reconstructs those values and applies window/level on the GPU. Window
+        // metadata arrives in HU, so convert the center/width to stored-value
+        // units for the current shader packet:
+        //
+        //   HU = stored*slope + intercept
+        //   stored_center = (HU_center - intercept) / slope
+        //   stored_width  = HU_width / abs(slope)
+        const float slope = std::abs(meta.rescale_slope) > 0.0001f
+            ? meta.rescale_slope
+            : 1.0f;
+        volume.display.window_center =
+            (meta.window_center - meta.rescale_intercept) / slope;
+        volume.display.window_width =
+            glm::max(meta.window_width / std::abs(slope), 1.0f);
+    } else {
+        volume.display.window_center = 0.5f;
+        volume.display.window_width = 1.0f;
+    }
     volume.display.transfer_preset = cpuVolumeFromDicom ? 2u : 1u;
     volume.display.mode = render::VolumeRenderMode::DVR;
     world.add<render::VolumeRenderable>(phantom, volume);
@@ -716,13 +744,24 @@ bool AppWebGPU::initVolumeRenderer() {
     }
     wgpuQueueWriteBuffer(queue, fullscreenVbo, 0, quad, sizeof(quad));
 
+    const auto& commands = renderBridge.volume_commands();
+    const render::VolumeSource source =
+        commands.empty() ? render::VolumeSource{1u, 96u, 96u, 96u, glm::vec3(1.0f, 1.0f, 1.5f)}
+                         : commands[0].source;
+    const bool packedU16 =
+        source.format == render::VolumeScalarFormat::UInt16 &&
+        cpuVolume.storage_format() == ::volume::VolumeStorageFormat::U16PackedRG8;
+    const std::uint32_t bytesPerVoxel = packedU16 ? 2u : 1u;
+    const WGPUTextureFormat volumeFormat =
+        packedU16 ? WGPUTextureFormat_RG8Unorm : WGPUTextureFormat_R8Unorm;
+
     WGPUSamplerDescriptor samplerDesc = WGPU_SAMPLER_DESCRIPTOR_INIT;
-    samplerDesc.label = {"volume linear sampler", WGPU_STRLEN};
+    samplerDesc.label = {packedU16 ? "volume nearest sampler" : "volume linear sampler", WGPU_STRLEN};
     samplerDesc.addressModeU = WGPUAddressMode_ClampToEdge;
     samplerDesc.addressModeV = WGPUAddressMode_ClampToEdge;
     samplerDesc.addressModeW = WGPUAddressMode_ClampToEdge;
-    samplerDesc.magFilter = WGPUFilterMode_Linear;
-    samplerDesc.minFilter = WGPUFilterMode_Linear;
+    samplerDesc.magFilter = packedU16 ? WGPUFilterMode_Nearest : WGPUFilterMode_Linear;
+    samplerDesc.minFilter = packedU16 ? WGPUFilterMode_Nearest : WGPUFilterMode_Linear;
     samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
     volumeSampler = wgpuDeviceCreateSampler(device, &samplerDesc);
     if (!volumeSampler) {
@@ -730,18 +769,13 @@ bool AppWebGPU::initVolumeRenderer() {
         return false;
     }
 
-    const auto& commands = renderBridge.volume_commands();
-    const render::VolumeSource source =
-        commands.empty() ? render::VolumeSource{1u, 96u, 96u, 96u, glm::vec3(1.0f, 1.0f, 1.5f)}
-                         : commands[0].source;
-
     WGPUTextureDescriptor volumeDesc = WGPU_TEXTURE_DESCRIPTOR_INIT;
-    volumeDesc.label = {"phantom volume R8", WGPU_STRLEN};
+    volumeDesc.label = {packedU16 ? "DICOM volume UInt16 packed RG8" : "volume R8", WGPU_STRLEN};
     volumeDesc.dimension = WGPUTextureDimension_3D;
     volumeDesc.size.width = source.width;
     volumeDesc.size.height = source.height;
     volumeDesc.size.depthOrArrayLayers = source.depth;
-    volumeDesc.format = WGPUTextureFormat_R8Unorm;
+    volumeDesc.format = volumeFormat;
     volumeDesc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
     volumeTexture = wgpuDeviceCreateTexture(device, &volumeDesc);
     if (!volumeTexture) {
@@ -757,7 +791,7 @@ bool AppWebGPU::initVolumeRenderer() {
     }
     std::uint32_t volumeBytesPerRow = 0;
     std::vector<unsigned char> paddedVoxels =
-        padTextureRows(voxels, source.width, source.height, source.depth, 1u, volumeBytesPerRow);
+        padTextureRows(voxels, source.width, source.height, source.depth, bytesPerVoxel, volumeBytesPerRow);
     WGPUTexelCopyTextureInfo volumeDst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
     volumeDst.texture = volumeTexture;
     volumeDst.aspect = WGPUTextureAspect_All;
@@ -773,8 +807,8 @@ bool AppWebGPU::initVolumeRenderer() {
                           &volumeLayout, &volumeWrite);
 
     WGPUTextureViewDescriptor volumeViewDesc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
-    volumeViewDesc.label = {"phantom volume view", WGPU_STRLEN};
-    volumeViewDesc.format = WGPUTextureFormat_R8Unorm;
+    volumeViewDesc.label = {packedU16 ? "DICOM packed UInt16 volume view" : "R8 volume view", WGPU_STRLEN};
+    volumeViewDesc.format = volumeFormat;
     volumeViewDesc.dimension = WGPUTextureViewDimension_3D;
     volumeViewDesc.mipLevelCount = 1;
     volumeViewDesc.arrayLayerCount = 1;
@@ -944,9 +978,10 @@ bool AppWebGPU::initVolumeRenderer() {
         return false;
     }
 
-    printf("WebGPU volume renderer initialized (%ux%ux%u %s)\n",
+    printf("WebGPU volume renderer initialized (%ux%ux%u %s, %s)\n",
            source.width, source.height, source.depth,
-           cpuVolumeFromDicom ? "DICOM" : "phantom");
+           cpuVolumeFromDicom ? "DICOM" : "phantom",
+           packedU16 ? "packed UInt16 RG8" : "R8 normalized");
     return true;
 }
 
@@ -981,7 +1016,7 @@ void AppWebGPU::drawVolume(WGPURenderPassEncoder pass) {
         modeToGpu(cmd.display.mode),
         debugMode,
         sampleSteps,
-        0u
+        scalarFormatToGpu(cmd.source.format)
     };
     const GpuVec4f windowLevel = {
         cmd.display.window_center,
@@ -1218,6 +1253,10 @@ void AppWebGPU::tick() {
                         cmd.source.spacing_mm.z);
             ImGui::Text("Window: %.2f / %.2f",
                         cmd.display.window_center, cmd.display.window_width);
+            ImGui::Text("Scalar: %s",
+                        cmd.source.format == render::VolumeScalarFormat::UInt16
+                            ? "packed UInt16 (GPU window)"
+                            : "R8 normalized");
             ImGui::Text("WGSL pass: raygen.wgsl -> 3D texture + transfer LUT");
         }
 
@@ -1237,8 +1276,17 @@ void AppWebGPU::tick() {
                     volume.display.transfer_preset = static_cast<std::uint32_t>(preset);
                 }
 
-                ImGui::SliderFloat("Window center", &volume.display.window_center, 0.0f, 1.0f);
-                ImGui::SliderFloat("Window width", &volume.display.window_width, 0.05f, 2.0f);
+                const bool packed =
+                    volume.source.format == render::VolumeScalarFormat::UInt16;
+                if (packed) {
+                    ImGui::SliderFloat("Window center (stored)", &volume.display.window_center,
+                                       0.0f, 65535.0f);
+                    ImGui::SliderFloat("Window width (stored)", &volume.display.window_width,
+                                       1.0f, 65535.0f);
+                } else {
+                    ImGui::SliderFloat("Window center", &volume.display.window_center, 0.0f, 1.0f);
+                    ImGui::SliderFloat("Window width", &volume.display.window_width, 0.05f, 2.0f);
+                }
 
                 int debug = static_cast<int>(debugMode);
                 if (ImGui::Combo("Debug view", &debug,

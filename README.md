@@ -9,7 +9,9 @@ Built as a learning project: the code grows one understandable rung at a time, a
 every step renders something you can see.
 
 **Current stage:** WebGL has the synthetic-volume ray caster; WebGPU has the
-Dawn/emdawnwebgpu + SDL3 + ImGui host that the DICOM renderer will move onto.
+Dawn/emdawnwebgpu + SDL3 + ImGui host, WGSL volume ray casting, and a native
+GDCM handoff that can upload stored DICOM UInt16 data as packed RG8 for
+GPU-side windowing.
 **Goal:** see the north star in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
@@ -29,6 +31,10 @@ cannot share a canvas at runtime. Each is therefore its **own build**:
 ## Quick start
 
 ```bash
+# If Git Bash cannot find make after installation, expose GnuWin32 Make first.
+export PATH="/c/Progra~2/GnuWin32/bin:$PATH"
+make help
+
 # WebGL2 build
 make wasm-webgl
 cd build/wasm-webgl/bin && python -m http.server 8083 --bind 127.0.0.1

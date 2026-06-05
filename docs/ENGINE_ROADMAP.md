@@ -3,9 +3,10 @@
 > Current render-bridge status: Dawn/WebGPU now consumes `VolumeDrawCommand`
 > directly. The renderer binds embedded `raygen.wgsl`, camera/window/mode/debug
 > uniforms, a 3D volume texture, and a transfer LUT. The native `USE_GDCM=ON`
-> path can now replace the phantom bytes with DICOM output normalized through
-> `VolumeBuffer`; the browser path still uses the raw phantom until we decide how
-> heavy a WASM DICOM parser dependency should be.
+> path can now replace the phantom bytes with DICOM stored UInt16 data packed by
+> `VolumeBuffer` into RG8 for WebGPU upload; WGSL reconstructs the stored value
+> and applies window/level on the GPU. The browser path still uses the raw phantom
+> until we decide how heavy a WASM DICOM parser dependency should be.
 
 > **A teaching roadmap, not just a todo list.** This project is building a
 > **performance-driven engine core** (a modular, dual-target engine backbone) —
@@ -111,7 +112,8 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
   voxel spacing, scalar format, window/level, transfer preset, and render mode.
 - **Status:** ✅ skeleton built (`core/render/render_bridge.hpp`,
   `render_bridge_demo`). It proves the DOD -> renderer seam with a DICOM-like
-  `512x512x300` UInt16 CT volume. GPU consumption by the Dawn host is next.
+  `512x512x300` UInt16 CT volume. The Dawn host now consumes the bridge command
+  for the volume ray-cast path.
 
 ### jobs — `Task` / `WaitGroup` / `Scheduler` (coroutine work-stealing)  ⭐ active
 - **Goal:** a *fast* parallel job system — the engine's performance heart.
@@ -178,7 +180,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 | Area | State |
 |---|---|
 | Build infra (CMake, GDCM v3.0.24, sanitizers, CPMLicenses) | ✅ |
-| DICOM loader (`volume_io`, native) | ✅ (native renderer upload path wired through `VolumeBuffer`) |
+| DICOM loader (`volume_io`, native) | ✅ (`make dicom-smoke`; WebGPU upload preserves UInt16 as packed RG8) |
 | Orchestration design + locked vocabulary | ✅ ([ENGINE_ARCHITECTURE.md](ENGINE_ARCHITECTURE.md)) |
 | ECS storage core | ✅ |
 | **Jobs module (5a–5d): work-stealing + lock-free + dual-target + C ABI** | ✅ **complete** |
@@ -187,7 +189,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 | reactive (Signal/Computed/Effect) | ✅ (auto-track + change-detect, verified) |
 | messaging (Notifier sync + EventBus async) | ✅ (verified) |
 | scene (Transform + TransformSystem on ECS) | ✅ (hierarchy propagation verified, GLM) |
-| render bridge (VolumeRenderable -> VolumeDrawCommand) | ✅ (DOD-to-render seam, GPU consumption next) |
+| render bridge (VolumeRenderable -> VolumeDrawCommand) | ✅ (DOD-to-render seam consumed by Dawn WebGPU host) |
 | **engine composition** (`engine_demo`: all modules in one tick) | ✅ (reactive+events+ECS+jobs+scene) |
 | net / distributed seam (transport + serialization) | ✅ (offload verified) |
 | **ORCHESTRATION BACKBONE** | ✅ **complete** |
