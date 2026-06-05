@@ -9,10 +9,20 @@
         #container { position:relative; width:100%; height:100%; }
         /* The C++ side (Dawn) owns this canvas; the UI is ImGui, drawn in-canvas. */
         canvas { display:block; width:100%; height:100%; background:#1a2a4a; outline:none; }
+        #startup-status {
+            position:absolute; left:12px; bottom:12px; z-index:10;
+            max-width:min(560px, calc(100vw - 24px));
+            padding:10px 12px; border:1px solid #4977b7; border-radius:4px;
+            background:rgba(5,9,16,.92); color:#dbeafe; font-size:13px;
+        }
+        #startup-status.error { border-color:#ff5a5a; color:#ffd6d6; }
     </style>
 </head>
 <body>
-    <div id="container"><canvas id="canvas" tabindex="0"></canvas></div>
+    <div id="container">
+        <canvas id="canvas" tabindex="0"></canvas>
+        <div id="startup-status">Loading WebGPU renderer...</div>
+    </div>
 
     <script>
         // emdawnwebgpu creates its surface from the element with id "canvas".
@@ -20,7 +30,14 @@
 
         const canvas = document.getElementById('canvas');
         const container = document.getElementById('container');
+        const startupStatus = document.getElementById('startup-status');
         let wasmRuntimeReady = false;
+
+        window.mobagenSetStatus = function(kind, message) {
+            startupStatus.textContent = message;
+            startupStatus.className = kind === 'error' ? 'error' : '';
+            startupStatus.style.display = kind === 'ready' ? 'none' : 'block';
+        };
 
         function notifyNativeResize() {
             // Emscripten exposes _on_canvas_resize before the runtime is fully
@@ -42,9 +59,11 @@
         }
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('orientationchange', resizeCanvas);
+        canvas.addEventListener('pointerdown', () => canvas.focus());
         // SDL_CreateWindow resets the canvas during WASM startup, so re-sync once ready.
         Module.onRuntimeInitialized = () => {
             wasmRuntimeReady = true;
+            canvas.focus();
             resizeCanvas();
         };
         resizeCanvas();

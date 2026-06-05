@@ -55,6 +55,10 @@ public:
 
     float get_fov() const { return fov_; }
     float get_aspect() const { return aspect_; }
+    float get_orbit_radius() const { return orbit_radius_; }
+    float get_move_speed() const { return move_speed_; }
+    float get_yaw_degrees() const { return glm::degrees(yaw_); }
+    float get_pitch_degrees() const { return glm::degrees(pitch_); }
 
     CameraMode get_mode() const { return mode_; }
 
@@ -92,12 +96,14 @@ public:
     // gigabytes out of bounds (a WASM "memory access out of bounds" trap). We
     // only track the ASCII keys WASD movement uses (w/a/s/d/space), all < 256.
     void on_key_pressed(int key_code) {
+        key_code = normalize_key(key_code);
         if (mode_ == CameraMode::WASD && key_code >= 0 && key_code < 256) {
             keys_pressed_[key_code] = true;
         }
     }
 
     void on_key_released(int key_code) {
+        key_code = normalize_key(key_code);
         if (key_code >= 0 && key_code < 256) {
             keys_pressed_[key_code] = false;
         }
@@ -145,6 +151,11 @@ public:
     }
 
 private:
+    static int normalize_key(int key_code) {
+        if (key_code >= 'A' && key_code <= 'Z') return key_code + ('a' - 'A');
+        return key_code;
+    }
+
     // ========================================================================
     // ORBIT MODE IMPLEMENTATION
     // ========================================================================

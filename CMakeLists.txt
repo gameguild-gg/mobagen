@@ -215,6 +215,11 @@ set(VOLUME_RAW ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.raw)
 
 if(EMSCRIPTEN)
     message(STATUS "Shell file: ${SHELL_FILE}")
+    # Emscripten injects the generated JS/WASM loader into --shell-file at link
+    # time. CMake does not infer that dependency from a linker flag, so teach the
+    # target that editing html/shell_*.html must relink dicom_renderer.html.
+    set_property(TARGET dicom_renderer APPEND PROPERTY LINK_DEPENDS "${SHELL_FILE}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SHELL_FILE}")
     target_compile_options(dicom_renderer PRIVATE -O3)
     if(USE_WEBGPU)
         # Dawn web (emdawnwebgpu): the WebGPU port + ASYNCIFY arrive via

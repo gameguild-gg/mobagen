@@ -148,11 +148,34 @@ Current frame shape:
 
 ```
 process SDL3 input -> update camera -> acquire WGPU surface texture
-  -> begin render pass -> clear + draw ImGui -> submit command buffer
+  -> begin render pass -> draw WGSL volume ray-cast -> draw ImGui overlay
+  -> submit command buffer
 ```
 
-The next renderer step is to add scene/volume draw commands before the ImGui draw
-inside that same render pass.
+The volume pass consumes a flat `RenderBridge` command list, writes camera/window
+settings to uniform buffers, samples the synthetic 3D phantom texture, and then
+draws ImGui on top so the controls stay inspectable.
+
+### Browser startup and resize contract
+
+The HTML shell owns the canvas element and knows the real drawing-buffer size
+after CSS layout and device-pixel-ratio are applied. The C++ renderer owns the
+GPU viewport and camera aspect ratio. The boundary is:
+
+```
+HTML resize -> canvas.width/height -> _on_canvas_resize(w, h)
+             -> g_canvas_w/h -> WebGL viewport or WebGPU surface configure
+```
+
+The shell may resize the canvas before the WASM runtime is callable, so it gates
+`_on_canvas_resize` behind `Module.onRuntimeInitialized`. Calling exported C++
+too early aborts Emscripten before `main()` has created the GL/WebGPU context.
+
+WebGPU adapter/device requests are async. The browser build uses Dawn's
+`AllowProcessEvents` callbacks, so the init loop must call
+`wgpuInstanceProcessEvents()` while yielding with `emscripten_sleep()`. Without
+that event pump, JavaScript resolves the request but C++ never receives the
+callback.
 
 ---
 
@@ -171,18 +194,24 @@ for learning. How resources reach the shader is the most instructive contrast:
 | Sampler | implicit in `sampler3D` | a separate `var ... : sampler` binding |
 | Resource wiring | individual `glUniform*` / texture units | one **bind group** = `{ buffers, textures, samplers }` |
 
-The camera reaches GLSL today through `glUniformMatrix4fv`. In the Dawn WebGPU
-port it will reach WGSL through a uniform buffer updated with `wgpuQueueWriteBuffer`.
+The camera reaches GLSL through `glUniformMatrix4fv`. In the Dawn WebGPU path,
+the same camera reaches WGSL through a uniform buffer updated with
+`wgpuQueueWriteBuffer`.
 
 ---
 
 ## Known limitations (today)
 
+Current status: WebGPU ray-casting now renders the synthetic phantom. The
+remaining limitation is real DICOM input, not the existence of the WGSL pass.
+
 - **No real DICOM yet** — the volume is a 96^3 synthetic phantom loaded from
   `volume.raw`. The DICOM parser (GDCM/DCMTK → WASM) is Tier 3-A.
-- **WebGPU volume ray-cast not ported yet** — Dawn + ImGui is green; the WGSL
-  pipeline, bind groups, 3D texture upload, and fullscreen draw are next.
+- **WebGPU volume ray-cast is synthetic** — Dawn + ImGui + WGSL ray marching are
+  green, but the input is still a generated phantom rather than a patient scan.
 - **8-bit volume first** — the current phantom is 8-bit. Real DICOM will bring
   16-bit values plus Hounsfield rescale.
 - **WebGPU needs a GPU adapter** — adapter creation can fail where the browser has
   no usable GPU (hardware acceleration off, blocklist, or unsupported backend).
+  The shell now shows a visible startup error instead of leaving only a blue
+  canvas.

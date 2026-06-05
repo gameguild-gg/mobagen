@@ -28,7 +28,7 @@
 </head>
 <body>
     <div id="container">
-        <canvas id="canvas"></canvas>
+        <canvas id="canvas" tabindex="0"></canvas>
 
         <div id="controls" class="panel">
             <h3>WebGL2 · G2</h3>
@@ -110,11 +110,13 @@
         }
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('orientationchange', resizeCanvas);
+        canvas.addEventListener('pointerdown', () => canvas.focus());
         resizeCanvas();
         // SDL_CreateWindow resets the canvas to its initial size during WASM
         // startup, so re-sync to the real window size once the module is ready.
         Module.onRuntimeInitialized = () => {
             wasmRuntimeReady = true;
+            canvas.focus();
             resizeCanvas();
         };
 

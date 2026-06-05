@@ -169,6 +169,11 @@ directly when verifying this project.
 A `build/<type>/third_party.txt` listing every dependency's license is written
 each configure (CPMLicenses).
 
+The HTML shell files are part of the Emscripten link step, not runtime assets.
+`CMakeLists.txt` marks `html/shell_dawn.html` and `html/shell_webgl.html` as
+link dependencies so a UI/template edit relinks `dicom_renderer.html` instead
+of leaving you with stale generated HTML.
+
 > ⚠️ **After every rebuild, hard-refresh the browser** (Ctrl+Shift+R, or DevTools →
 > "Empty Cache and Hard Reload"). A soft refresh serves a stale cached `.wasm`/`.data`
 > against the new files and blanks the canvas — this is *not* a bug, just cache.
@@ -179,6 +184,7 @@ each configure (CPMLicenses).
 
 | Input | Action |
 |-------|--------|
+| Click canvas | Focus browser input so SDL receives keys |
 | Hold mouse + drag | Rotate (ORBIT) / look (WASD) |
 | Mouse wheel | Zoom (ORBIT) / speed (WASD) |
 | `C` | Toggle ORBIT ↔ WASD |
@@ -186,6 +192,11 @@ each configure (CPMLicenses).
 | `1` / `2` / `3` / `4` | Transfer-function preset (Gray / Tissue / Shell / Cool) |
 | Mode buttons | DVR · MIP · Isosurface |
 | Window sliders | Center / Width (window-level) |
+
+The WebGPU ImGui panel prints the active camera mode, position, yaw/pitch, and
+either orbit radius or WASD speed. That is intentional study feedback: when you
+drag, scroll, or press `C`, you can see which state changed instead of guessing
+whether input reached the engine.
 
 ---
 

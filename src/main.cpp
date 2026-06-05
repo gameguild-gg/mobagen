@@ -65,8 +65,29 @@ static float measure_delta_seconds() {
     return dt;
 }
 
+static void get_drawable_size(SDL_Window* window, int& width, int& height) {
+    width = 0;
+    height = 0;
+#ifdef __EMSCRIPTEN__
+    // On the web, the HTML canvas drawing buffer is the authoritative viewport.
+    // SDL's window size can lag behind after CSS/device-pixel-ratio changes.
+    if (g_canvas_w > 0 && g_canvas_h > 0) {
+        width = g_canvas_w;
+        height = g_canvas_h;
+        return;
+    }
+#endif
+    if (window) {
+        SDL_GetWindowSizeInPixels(window, &width, &height);
+    }
+    if (width <= 0 || height <= 0) {
+        width = 800;
+        height = 600;
+    }
+}
+
 // Poll SDL events: quit, keyboard, mouse. Updates the shared camera.
-// Works identically in native and Emscripten (SDL2 abstracts the event source).
+// Works identically in native and Emscripten (SDL abstracts the event source).
 static void process_input(bool& running) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -166,7 +187,24 @@ void onDevice(WGPURequestDeviceStatus status, WGPUDevice device,
 void onUncapturedError(WGPUDevice const*, WGPUErrorType type, WGPUStringView msg, void*, void*) {
     SDL_Log("[WGPU error type=%d]: %.*s", (int)type, (int)msg.length, msg.data ? msg.data : "");
 }
-void pumpUntil(WGPUInstance inst, bool& flag) {
+
+void reportStartupStatus(const char* kind, const char* message) {
+    if (std::strcmp(kind, "error") == 0) {
+        SDL_Log("%s: %s", kind, message);
+    } else {
+        printf("[%s] %s\n", kind, message);
+    }
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        const kind = UTF8ToString($0);
+        const message = UTF8ToString($1);
+        if (globalThis.mobagenSetStatus) globalThis.mobagenSetStatus(kind, message);
+    }, kind, message);
+#endif
+}
+
+bool pumpUntil(WGPUInstance inst, bool& flag, const char* operation, Uint64 timeoutMs = 10000) {
+    const Uint64 start = SDL_GetTicks();
     while (!flag) {
         // Emdawn marks adapter/device futures ready from JavaScript promises,
         // but callbacks using AllowProcessEvents are delivered only when the
@@ -174,10 +212,18 @@ void pumpUntil(WGPUInstance inst, bool& flag) {
         // the CSS-blue canvas forever: requestAdapter resolved, but our C++
         // onAdapter/onDevice callback never runs.
         wgpuInstanceProcessEvents(inst);
+        if (SDL_GetTicks() - start > timeoutMs) {
+            SDL_Log("%s timed out after %llu ms", operation,
+                    static_cast<unsigned long long>(timeoutMs));
+            return false;
+        }
 #ifdef __EMSCRIPTEN__
         emscripten_sleep(1);
+#else
+        SDL_Delay(1);
 #endif
     }
+    return true;
 }
 
 // Uniform buffers in WebGPU are read in 16-byte chunks. These tiny structs make
@@ -412,9 +458,17 @@ bool AppWebGPU::initDeviceAndQueue() {
     aCb.mode      = WGPUCallbackMode_AllowProcessEvents;
     aCb.callback  = onAdapter;
     aCb.userdata1 = &aReq;
+    reportStartupStatus("loading", "Requesting WebGPU adapter...");
     wgpuInstanceRequestAdapter(instance, &aOpts, aCb);
-    pumpUntil(instance, aReq.done);
-    if (!aReq.adapter) { fprintf(stderr, "No WebGPU adapter\n"); return false; }
+    if (!pumpUntil(instance, aReq.done, "requestAdapter")) {
+        reportStartupStatus("error", "Timed out while requesting a WebGPU adapter.");
+        return false;
+    }
+    if (!aReq.adapter) {
+        reportStartupStatus("error", "No WebGPU adapter is available in this browser or GPU configuration.");
+        fprintf(stderr, "No WebGPU adapter\n");
+        return false;
+    }
     adapter = aReq.adapter;
 
     DeviceReq dReq;
@@ -425,9 +479,17 @@ bool AppWebGPU::initDeviceAndQueue() {
     dCb.mode      = WGPUCallbackMode_AllowProcessEvents;
     dCb.callback  = onDevice;
     dCb.userdata1 = &dReq;
+    reportStartupStatus("loading", "Requesting WebGPU device...");
     wgpuAdapterRequestDevice(adapter, &dDesc, dCb);
-    pumpUntil(instance, dReq.done);
-    if (!dReq.device) { fprintf(stderr, "WebGPU device request failed\n"); return false; }
+    if (!pumpUntil(instance, dReq.done, "requestDevice")) {
+        reportStartupStatus("error", "Timed out while requesting a WebGPU device.");
+        return false;
+    }
+    if (!dReq.device) {
+        reportStartupStatus("error", "WebGPU adapter was found, but device creation failed.");
+        fprintf(stderr, "WebGPU device request failed\n");
+        return false;
+    }
     device = dReq.device;
     queue  = wgpuDeviceGetQueue(device);
 
@@ -436,7 +498,7 @@ bool AppWebGPU::initDeviceAndQueue() {
     surfaceFormat = (caps.formatCount > 0 && caps.formats) ? caps.formats[0]
                                                            : WGPUTextureFormat_BGRA8Unorm;
     wgpuSurfaceCapabilitiesFreeMembers(caps);
-    SDL_Log("WebGPU device ready (surfaceFormat=%d)", (int)surfaceFormat);
+    printf("WebGPU device ready (surfaceFormat=%d)\n", (int)surfaceFormat);
     return true;
 }
 
@@ -851,14 +913,22 @@ bool AppWebGPU::init() {
 
     WGPUInstanceDescriptor instDesc = {};
     instance = wgpuCreateInstance(&instDesc);
-    if (!instance) { fprintf(stderr, "wgpuCreateInstance failed\n"); return false; }
+    if (!instance) {
+        reportStartupStatus("error", "Failed to create the WebGPU instance.");
+        fprintf(stderr, "wgpuCreateInstance failed\n");
+        return false;
+    }
 
+    reportStartupStatus("loading", "Creating WebGPU surface...");
     createSurface();
-    if (!surface) return false;
+    if (!surface) {
+        reportStartupStatus("error", "Failed to create a WebGPU surface for the canvas/window.");
+        return false;
+    }
     if (!initDeviceAndQueue()) return false;
 
     int pxW = 0, pxH = 0;
-    SDL_GetWindowSizeInPixels(window, &pxW, &pxH);
+    get_drawable_size(window, pxW, pxH);
     configureSurface(pxW, pxH);
     g_camera.set_viewport(pxW > 0 ? pxW : w, pxH > 0 ? pxH : h);
 
@@ -876,9 +946,12 @@ bool AppWebGPU::init() {
     createStudyVolumeScene();
     renderBridge.build(world);
     if (!initVolumeRenderer()) {
+        reportStartupStatus("error", "WebGPU started, but the volume renderer failed to initialize.");
         fprintf(stderr, "WebGPU volume renderer init failed\n");
         return false;
     }
+
+    reportStartupStatus("ready", "WebGPU renderer ready.");
 
     printf("WebGPU (G3) initialized — Dawn + ImGui (surfaceFormat=%d)\n", (int)surfaceFormat);
     return true;
@@ -928,7 +1001,7 @@ void AppWebGPU::tick() {
 
     // Reconfigure the surface on resize (device pixels, HiDPI-aware).
     int pxW = 0, pxH = 0;
-    SDL_GetWindowSizeInPixels(window, &pxW, &pxH);
+    get_drawable_size(window, pxW, pxH);
     if (pxW > 0 && pxH > 0 && (pxW != cfgW || pxH != cfgH)) {
         configureSurface(pxW, pxH);
         g_camera.set_viewport(pxW, pxH);
@@ -975,6 +1048,17 @@ void AppWebGPU::tick() {
         ImGui::Text("Dawn + ImGui live — %.1f FPS", io.Framerate);
         ImGui::Text("Camera: %s  (press C to toggle)",
                     g_camera.get_mode() == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
+        const glm::vec3 camPos = g_camera.get_position();
+        ImGui::Text("Camera pos: %.2f %.2f %.2f", camPos.x, camPos.y, camPos.z);
+        ImGui::Text("Yaw/Pitch: %.1f / %.1f deg",
+                    g_camera.get_yaw_degrees(), g_camera.get_pitch_degrees());
+        if (g_camera.get_mode() == engine::CameraMode::ORBIT) {
+            ImGui::Text("Orbit radius: %.2f", g_camera.get_orbit_radius());
+            ImGui::TextDisabled("Orbit: hold mouse + drag; wheel zooms.");
+        } else {
+            ImGui::Text("Move speed: %.2f", g_camera.get_move_speed());
+            ImGui::TextDisabled("WASD: move; Space: up; hold mouse + drag to look.");
+        }
         ImGui::ColorEdit3("Clear color", clearColor);
         ImGui::SeparatorText("DOD render bridge");
         const auto& volumeCommands = renderBridge.volume_commands();
@@ -1397,17 +1481,9 @@ void AppWebGL::tick() {
     process_input(running);
     g_camera.update(measure_delta_seconds());
 
-    // Match the offscreen target + viewport to the CURRENT canvas size.
-    // On the web the shell sets the canvas drawing buffer and tells us its size
-    // via on_canvas_resize (g_canvas_w/h); SDL's window size is stale there.
+    // Match the offscreen target + viewport to the CURRENT drawable size.
     int w = 0, h = 0;
-#ifdef __EMSCRIPTEN__
-    w = g_canvas_w;
-    h = g_canvas_h;
-#else
-    SDL_GetWindowSizeInPixels(window, &w, &h);
-#endif
-    if (w <= 0 || h <= 0) { w = 800; h = 600; }
+    get_drawable_size(window, w, h);
     g_camera.set_viewport(w, h);   // keep aspect ratio in sync with the viewport
     ensureFramebuffer(w, h);
 
