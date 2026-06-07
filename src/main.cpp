@@ -211,6 +211,7 @@ static void process_input(bool& running) {
 #include "render_bridge.hpp"
 #include "transform_system.hpp"
 #include "volume/volume_buffer.h"
+#include "volume/volume_file.h"
 #include "embedded_shaders.h"
 #ifdef HAVE_GDCM
 #include "volume_io/volume_io.h"
@@ -719,6 +720,25 @@ void AppWebGPU::createStudyVolumeScene() {
     // is architectural: the renderer no longer needs to query ECS storage while
     // recording GPU commands. It receives a flat command list.
     cpuVolume = tryLoadDicomVolumeBuffer(cpuVolumeFromDicom);
+    if (cpuVolume.empty()) {
+        // Web (and native without GDCM): load the offline-converted DICOM volume.
+        // tools/dicom_to_mvol.py turns the series into assets/volume.mvol (packed
+        // UInt16 RG8 + metadata); the wasm build preloads it into the FS. This is
+        // what brings REAL DICOM intensities (GPU window/level + histogram) to the
+        // browser, where GDCM is unavailable.
+#ifdef __EMSCRIPTEN__
+        const char* mvolPath = "/volume.mvol";
+#else
+        const char* mvolPath = "assets/volume.mvol";
+#endif
+        bool loadedFromFile = false;
+        volume::VolumeBuffer fileVolume = volume::load_volume_file(mvolPath, loadedFromFile);
+        if (loadedFromFile) {
+            cpuVolume = std::move(fileVolume);
+            cpuVolumeFromDicom = true;  // real intensities -> UInt16 GPU windowing path
+            printf("Loaded DICOM volume from %s -> packed UInt16 RG8 upload\n", mvolPath);
+        }
+    }
     if (cpuVolume.empty()) {
         cpuVolume = makePhantomVolumeBuffer();
         cpuVolumeFromDicom = false;

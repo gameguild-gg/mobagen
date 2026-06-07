@@ -223,6 +223,7 @@ if(BUILD_CORE)
 endif()
 
 set(VOLUME_RAW ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.raw)
+set(VOLUME_MVOL ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.mvol)
 
 if(EMSCRIPTEN)
     message(STATUS "Shell file: ${SHELL_FILE}")
@@ -259,10 +260,17 @@ if(EMSCRIPTEN)
         )
     endif()
     if(USE_WEBGPU)
-        # WebGPU reads the volume beside the output (served over HTTP).
-        configure_file(${VOLUME_RAW} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/volume.raw COPYONLY)
+        # WebGPU (Dawn) reads the offline-converted DICOM volume from the WASM FS.
+        # tools/dicom_to_mvol.py produces assets/volume.mvol (run it before building);
+        # without it, the renderer falls back to the synthetic phantom.
+        if(EXISTS ${VOLUME_MVOL})
+            target_link_options(dicom_renderer PRIVATE
+                "SHELL:--preload-file ${VOLUME_MVOL}@/volume.mvol")
+        else()
+            message(WARNING "assets/volume.mvol not found; web WebGPU build will use the phantom. Run: python tools/dicom_to_mvol.py")
+        endif()
     else()
-        # WebGL reads it in C++ from the WASM virtual FS — preload it there.
+        # WebGL reads volume.raw in C++ from the WASM virtual FS — preload it there.
         target_link_options(dicom_renderer PRIVATE
             "SHELL:--preload-file ${VOLUME_RAW}@/volume.raw")
     endif()
