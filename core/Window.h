@@ -24,7 +24,8 @@ public:
   Window(const Window&) = delete;
   Window& operator=(const Window&) = delete;
 
-  // Current window size in pixels (drawable size, HiDPI-aware).
+  // Current window size in logical (screen-coordinate) pixels.
+  // For the physical drawable size call SDL_GetWindowSizeInPixels.
   Point2D size() const { return windowSize; }
 
   // Per-frame housekeeping: detect resize, reconfigure WebGPU surface,
@@ -61,4 +62,5 @@ private:
   void initDeviceAndQueue();
 
   Point2D windowSize{0, 0};
+  Point2D physicalSize{0, 0};
 };

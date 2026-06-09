@@ -27,8 +27,13 @@ public:
   ~RmlUiWgpuRenderer() override;
 
   // Call BEFORE wgpuCommandEncoderBeginRenderPass each frame.
-  // Writes the projection uniform for the current viewport.
-  void PrepareFrame(int viewportWidth, int viewportHeight);
+  // viewportWidth/Height  — logical (CSS / context) pixels, used for the
+  //                         projection matrix so RmlUi coordinates map to NDC.
+  // physicalWidth/Height  — device pixels (SDL_GetWindowSizeInPixels), used
+  //                         for scissor rects which must be in device pixels.
+  //                         Pass the same as viewport on non-HiDPI displays.
+  void PrepareFrame(int viewportWidth, int viewportHeight,
+                    int physicalWidth, int physicalHeight);
 
   // Call AFTER wgpuCommandEncoderBeginRenderPass, before context->Render().
   void BeginRenderPass(WGPURenderPassEncoder pass);
@@ -83,6 +88,10 @@ private:
   WGPURenderPassEncoder mCurrentPass = nullptr;
   int  mViewportWidth  = 0;
   int  mViewportHeight = 0;
+  // Physical (device) pixel dimensions — matches the configured surface size.
+  // Used for scissor rects which must be in device pixels (WebGPU spec).
+  int  mPhysicalWidth  = 0;
+  int  mPhysicalHeight = 0;
   int  mDrawCount      = 0;  // number of draw calls this frame
   bool mWarnedThisFrame = false;  // set when we drop a draw past kMaxDrawsPerFrame
   bool mScissorEnabled = false;

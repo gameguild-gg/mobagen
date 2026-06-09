@@ -349,9 +349,13 @@ void RmlUiWgpuRenderer::createPerDrawUniforms() {
 
 // ---- PrepareFrame / BeginRenderPass / EndRenderPass ----
 
-void RmlUiWgpuRenderer::PrepareFrame(int viewportWidth, int viewportHeight) {
-  mViewportWidth = viewportWidth;
+void RmlUiWgpuRenderer::PrepareFrame(int viewportWidth, int viewportHeight,
+                                     int physicalWidth, int physicalHeight) {
+  mViewportWidth  = viewportWidth;
   mViewportHeight = viewportHeight;
+  // Fall back to logical size when physical is not provided (non-HiDPI).
+  mPhysicalWidth  = physicalWidth  > 0 ? physicalWidth  : viewportWidth;
+  mPhysicalHeight = physicalHeight > 0 ? physicalHeight : viewportHeight;
   mDrawCount = 0;
   mWarnedThisFrame = false;
   mScissorEnabled = false;
@@ -361,9 +365,10 @@ void RmlUiWgpuRenderer::PrepareFrame(int viewportWidth, int viewportHeight) {
 
 void RmlUiWgpuRenderer::BeginRenderPass(WGPURenderPassEncoder pass) {
   mCurrentPass = pass;
+  // Scissor rect must be in physical (device) pixels.
   wgpuRenderPassEncoderSetScissorRect(pass, 0, 0,
-                                      (uint32_t)mViewportWidth,
-                                      (uint32_t)mViewportHeight);
+                                      (uint32_t)mPhysicalWidth,
+                                      (uint32_t)mPhysicalHeight);
 }
 
 void RmlUiWgpuRenderer::EndRenderPass() {
@@ -654,15 +659,30 @@ void RmlUiWgpuRenderer::ReleaseTexture(Rml::TextureHandle textureHandle) {
 void RmlUiWgpuRenderer::EnableScissorRegion(bool enable) {
   mScissorEnabled = enable;
   if (!enable && mCurrentPass) {
+    // Reset to full physical viewport when disabling per-element scissor.
     wgpuRenderPassEncoderSetScissorRect(mCurrentPass, 0, 0,
-                                        (uint32_t)mViewportWidth,
-                                        (uint32_t)mViewportHeight);
+                                        (uint32_t)mPhysicalWidth,
+                                        (uint32_t)mPhysicalHeight);
   }
 }
 
 void RmlUiWgpuRenderer::SetScissorRegion(Rml::Rectanglei region) {
-  mScissorX = region.Left();
-  mScissorY = region.Top();
-  mScissorW = region.Width();
-  mScissorH = region.Height();
+  // RmlUi provides the scissor rect in logical (context) coordinates.
+  // WebGPU requires device (physical) pixel coordinates, so scale by the
+  // DPI factor (physical / logical).
+  const float scaleX = (mViewportWidth  > 0) ? (float)mPhysicalWidth  / (float)mViewportWidth  : 1.f;
+  const float scaleY = (mViewportHeight > 0) ? (float)mPhysicalHeight / (float)mViewportHeight : 1.f;
+
+  mScissorX = (int)(region.Left()   * scaleX);
+  mScissorY = (int)(region.Top()    * scaleY);
+  mScissorW = (int)(region.Width()  * scaleX);
+  mScissorH = (int)(region.Height() * scaleY);
+
+  // Clamp to physical viewport bounds to satisfy WebGPU validation.
+  if (mScissorX < 0) mScissorX = 0;
+  if (mScissorY < 0) mScissorY = 0;
+  if (mScissorX + mScissorW > mPhysicalWidth)  mScissorW = mPhysicalWidth  - mScissorX;
+  if (mScissorY + mScissorH > mPhysicalHeight) mScissorH = mPhysicalHeight - mScissorY;
+  if (mScissorW < 0) mScissorW = 0;
+  if (mScissorH < 0) mScissorH = 0;
 }

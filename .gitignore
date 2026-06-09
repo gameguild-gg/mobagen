@@ -33,8 +33,6 @@ cmake-build*
 
 *.stackdump
 
-bin-emscripten/
-
 build*/
 
 .DS_Store
@@ -78,6 +76,18 @@ ehthumbs.db
 Thumbs.db
 
 external/*/
+
+# Android — generated/copied at build time by build.py (do not commit)
+android/local.properties
+android/app/.cxx/
+android/app/build/
+android/.gradle/
+android/build/
+android/app/src/main/java/org/
+android/app/src/main/jniLibs/
+
+# Legacy Emscripten output dir (replaced by build-web/)
+bin-emscripten/
 
 # agentmemory iii-engine live event streams (local cache, do not commit)
 # Pinned to this exact directory so unrelated `data/...` files in demos are

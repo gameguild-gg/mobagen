@@ -1,15 +1,28 @@
 # ============================================================================
 # SDL3 + SDL3_image
 #
-# Provides:
+# Provides (desktop / Emscripten):
 #   SDL3::SDL3-static          (linked by `core`, transitively by examples/editor)
 #   SDL3_image::SDL3_image-static
+#
+# Provides (Android):
+#   SDL3::SDL3-shared          (Android requires a shared library loaded by SDLActivity)
 # ============================================================================
 
 if(NOT DEFINED EMSCRIPTEN)
   # required by SDL3 vendored deps (e.g. opus) on some platforms
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -fstack-protector-strong")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
+endif()
+
+# Android needs SDL3 as a shared library so SDLActivity can load it via JNI.
+# All other platforms use the static library.
+if(ANDROID)
+  set(_sdl_shared ON)
+  set(_sdl_static OFF)
+else()
+  set(_sdl_shared OFF)
+  set(_sdl_static ON)
 endif()
 
 # ---- SDL3 ------------------------------------------------------------------
@@ -20,8 +33,8 @@ CPMAddPackage(
   GIT_TAG release-3.4.0
   OPTIONS
     "SDL_DISABLE_INSTALL ON"
-    "SDL_SHARED OFF"
-    "SDL_STATIC ON"
+    "SDL_SHARED ${_sdl_shared}"
+    "SDL_STATIC ${_sdl_static}"
     "SDL_STATIC_PIC ON"
     "SDL_WERROR OFF"
     "SDL_TEST_LIBRARY OFF"

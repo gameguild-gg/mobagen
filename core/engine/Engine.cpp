@@ -27,6 +27,9 @@ Engine::Engine(EngineSettings settings) : window(nullptr), settings(settings) {
   if (!settings.headless) {
     SDL_Log("Engine Created");
   }
+  // Mirror the user-supplied clear color into our cached array so the
+  // per-frame render pass descriptor can read it directly.
+  for (int i = 0; i < 4; ++i) clearColor[i] = settings.clearColor[i];
   instance = this;
 }
 
@@ -72,11 +75,13 @@ void Engine::Run() {
 bool Engine::Start(std::string title) {
   if (!settings.headless) {
     SDL_Log("Initializing Window");
-    window = new Window(title);
-    if (window != nullptr)
-      SDL_Log("Window Initialized");
-    else
-      exit(0);
+    try {
+      window = new Window(title);
+    } catch (const std::exception& e) {
+      SDL_Log("Window creation failed: %s", e.what());
+      return false;
+    }
+    SDL_Log("Window Initialized");
 
     // Initialize RmlUi if requested
     if (settings.useRmlUi) {
@@ -98,9 +103,14 @@ void Engine::Tick() {
   WGPUTextureView        backbufferView = nullptr;
   WGPUCommandEncoder     encoder        = nullptr;
   WGPURenderPassEncoder  pass           = nullptr;
+  // Physical pixel dimensions — needed for HiDPI-correct scissor rects when
+  // using RmlUi. On non-HiDPI displays this equals the logical window size.
+  int physW = 0, physH = 0;
 
   if (!settings.headless) {
     window->Update();
+    SDL_GetWindowSizeInPixels(window->sdlWindow, &physW, &physH);
+    if (physW <= 0 || physH <= 0) { physW = window->size().x; physH = window->size().y; }
 
     wgpuSurfaceGetCurrentTexture(window->wgpuSurface, &surfaceTex);
     bool haveBackbuffer =
@@ -188,8 +198,11 @@ void Engine::Tick() {
       // RmlUi Render — uses dynamic uniform offsets to avoid
       // wgpuQueueWriteBuffer ordering issues during the pass.
       if (settings.useRmlUi && window->rmlContext && window->rmlRenderer) {
-        window->rmlRenderer->PrepareFrame(window->size().x,
-                                          window->size().y);
+        // Use physical pixel dimensions for RmlUi so the projection
+        // matrix maps context coordinates (also physical) to NDC correctly
+        // on HiDPI/Retina displays.
+        window->rmlRenderer->PrepareFrame(physW, physH,
+                                          physW, physH);
         window->rmlRenderer->BeginRenderPass(pass);
         window->rmlContext->Render();
         window->rmlRenderer->EndRenderPass();
@@ -222,6 +235,8 @@ void Engine::Tick() {
     }
     toDestroy.clear();
   }
+
+  if (onTick) onTick();
 }
 
 void Engine::Exit() {
