@@ -49,9 +49,17 @@ if(TARGET rmlui_core AND TARGET rmlui_debugger)
     RMLUI_STATIC_LIB
   )
 
+  # Android uses the shared SDL3 (loaded by SDLActivity via JNI);
+  # other platforms use the static variant.
+  if(ANDROID)
+    set(_RMLUI_SDL_TARGET SDL3::SDL3-shared)
+  else()
+    set(_RMLUI_SDL_TARGET SDL3::SDL3-static)
+  endif()
+
   target_link_libraries(rmlui_platform_sdl PUBLIC
     rmlui_core
-    SDL3::SDL3-static
+    ${_RMLUI_SDL_TARGET}
   )
 
   # Aggregate convenience target for linking by demos/examples.
@@ -62,22 +70,28 @@ if(TARGET rmlui_core AND TARGET rmlui_debugger)
     rmlui_debugger
     rmlui_platform_sdl
   )
-  # Expose the Debugger source directory so consumers can include
-  # FontSource.h (the embedded Courier Prime Code font used by the
-  # RmlUi debugger). This lets demos use the same font RmlUi ships
-  # with — no extra font files needed in the repo.
-  #
+  # Generate a forwarding header so the internal RmlUi debugger file
+  # `Source/Debugger/FontSource.h` can be included by consumers as
+  # <RmlUi/Debugger/FontSource.h> — matching the RmlUi convention
+  # (e.g. <RmlUi/Core.h>, <RmlUi/Debugger.h>) without leaking the
+  # private `Source/` tree onto the include path.
+  set(_font_forward_dir "${CMAKE_CURRENT_BINARY_DIR}/rmlui_gen/RmlUi/Debugger")
+  file(MAKE_DIRECTORY "${_font_forward_dir}")
+  file(WRITE "${_font_forward_dir}/FontSource.h"
+    "#include \"${RmlUi_SOURCE_DIR}/Source/Debugger/FontSource.h\"\n")
+
+  target_include_directories(rmlui_all INTERFACE
+    ${RmlUi_SOURCE_DIR}/Include
+    "${CMAKE_CURRENT_BINARY_DIR}/rmlui_gen"
+    ${RMLUI_SDL_PLATFORM_DIR}
+  )
+
   # NOTE: `Source/Debugger/FontSource.h` is an INTERNAL upstream file.
   # The path/contents can change in any RmlUi release. The pin on
   # `GIT_TAG 6.2` above is the only thing keeping this working; when
   # bumping RmlUi, check that FontSource.h still exposes the same
   # `courier_prime_code[]` / `courier_prime_code_italic[]` arrays, or
   # remove this include and switch to a different embedded font.
-  target_include_directories(rmlui_all INTERFACE
-    ${RmlUi_SOURCE_DIR}/Include
-    ${RmlUi_SOURCE_DIR}/Source/Debugger
-    ${RMLUI_SDL_PLATFORM_DIR}
-  )
 
   message(STATUS "RmlUi ${RMLUI_VERSION} configured (core + debugger + SDL3 platform)")
 else()

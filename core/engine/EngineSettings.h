@@ -25,6 +25,12 @@ struct EngineSettings {
   // Drive the RmlUi HTML/CSS pipeline (custom WebGPU backend). Independent
   // of ImGui — the two can run side-by-side. See the constraint above.
   bool useRmlUi : 1 = false;
+
+  // RGBA in 0..1; used to clear the WGPU surface each frame before
+  // rendering. Useful for RmlUi-only demos where the body element doesn't
+  // fill the viewport and would otherwise leave the engine's black clear
+  // color visible around the document. Default: opaque black.
+  float clearColor[4] = {0.f, 0.f, 0.f, 1.f};
 };
 
 #endif  // MOBAGEN_ENGINESETTINGS_H

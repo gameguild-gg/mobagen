@@ -1,0 +1,72 @@
+// MoBaGEn Android app module build file
+// The ANDROID_MAIN_TARGET Gradle property selects which CMake example to package.
+// Set it via: ./gradlew assembleDebug -PANDROID_MAIN_TARGET=chess
+
+plugins {
+    id 'com.android.application'
+}
+
+// Default target if none passed via -P flag
+def mainTarget = project.findProperty('ANDROID_MAIN_TARGET') ?: 'headless'
+
+android {
+    namespace 'gg.gameguild.mobagen'
+    compileSdk 34
+
+    // Pin NDK to the one installed via sdkmanager / brew. AGP 8.7 would
+    // otherwise default to 27.0.12077973 and complain that ndk.dir (set
+    // by build.py) disagrees with android.ndkVersion.
+    ndkVersion '30.0.14904198'
+
+    defaultConfig {
+        applicationId "gg.gameguild.mobagen"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.0.1"
+
+        ndk {
+            // Both ABIs — build.py copies per-ABI .so files into jniLibs before Gradle runs
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+        debug {
+            jniDebuggable true
+        }
+    }
+
+    // Note: no `externalNativeBuild { cmake { ... } }` block here. The
+    // native code is built by build.py using its own CMake invocation
+    // (out-of-band) and the resulting `libmain.so` is dropped into
+    // `app/src/main/jniLibs/<abi>/` before Gradle runs. Letting AGP
+    // run CMake too would cause it to also produce a libmain.so and
+    // fail with "DuplicateRelativeFileException" at packaging time.
+
+    sourceSets {
+        main {
+            // jniLibs are pre-built by CMake + copied by build.py
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+}

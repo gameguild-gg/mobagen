@@ -1,0 +1,35 @@
+// Top-level build file. Configuration for all sub-projects/modules.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.3'
+    }
+}
+
+// Repositories are declared in settings.gradle via
+// dependencyResolutionManagement, so we don't add them here too.
+
+// Force a single Kotlin stdlib version. AGP 8.7 ships with 1.9.x, but
+// some androidx libraries (notably appcompat 1.7.0) still pin 1.8.22,
+// and the old `kotlin-stdlib-jdk7` / `kotlin-stdlib-jdk8` shims (split
+// pre-1.8) are dragged in as transitive runtime-only dependencies, which
+// duplicates the JDK7PlatformImplementations / JDK8PlatformImplementations
+// classes between the old shim and the new stdlib. Forcing a single
+// version and excluding the old shims cleans that up.
+allprojects {
+    configurations.all {
+        resolutionStrategy {
+            force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24',
+                   'org.jetbrains.kotlin:kotlin-stdlib-common:1.9.24',
+                   'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24',
+                   'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24'
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

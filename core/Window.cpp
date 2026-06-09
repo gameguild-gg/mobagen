@@ -11,7 +11,7 @@
 #include <RmlUi/Debugger.h>
 #include "RmlUiWgpuRenderer.h"
 #include "RmlUi_Platform_SDL.h"
-#include "FontSource.h"
+#include <RmlUi/Debugger/FontSource.h>
 
 #include <cstdio>
 #include <stdexcept>
@@ -31,10 +31,12 @@ EM_JS(int, canvas_get_height, (), { return canvas.height; });
 // ---------------------------------------------------------------------------
 // Adapter / device acquisition
 //
-// Dawn's wgpuInstanceRequestAdapter is async even on native. We use a tiny
-// polling loop with wgpuInstanceProcessEvents() to block until the callback
-// fires. On the web (emdawnwebgpu) the same scheme works thanks to Asyncify
-// (emscripten_sleep yields to the JS event loop).
+// Dawn's wgpuInstanceRequestAdapter is async even on native. We use
+// WGPUCallbackMode_WaitAnyOnly and block on wgpuInstanceWaitAny, which works
+// uniformly on native (polling) and on Emscripten (yields to the JS event
+// loop via Asyncify).  On Emscripten emdawnwebgpu's wgpuInstanceWaitAny is
+// implemented in terms of Promise.race, so a timeout of UINT64_MAX is
+// equivalent to "wait forever" but lets the JS event loop make progress.
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -79,13 +81,12 @@ static void onUncapturedError(WGPUDevice const* /*device*/, WGPUErrorType type,
           (int)message.length, message.data ? message.data : "");
 }
 
-static void pumpUntil(WGPUInstance instance, bool& flag) {
-  while (!flag) {
-#ifdef __EMSCRIPTEN__
-    emscripten_sleep(1);
-#else
-    wgpuInstanceProcessEvents(instance);
-#endif
+static void onDeviceLost(WGPUDevice const* /*device*/, WGPUDeviceLostReason reason,
+                         WGPUStringView message, void* /*ud1*/, void* /*ud2*/) {
+  // Reason 1 = Destroyed (expected on clean shutdown); log others as errors.
+  if (reason != WGPUDeviceLostReason_Destroyed) {
+    SDL_Log("[WGPU device lost reason=%d]: %.*s", (int)reason,
+            (int)message.length, message.data ? message.data : "");
   }
 }
 
@@ -102,20 +103,44 @@ Window::Window(std::string title) {
   }
   SDL_Log("SDL3 initialized");
 
-  int width  = 1280;
-  int height = 720;
+  int width  = 1280, height = 720;
+  {
+    SDL_DisplayID display = SDL_GetPrimaryDisplay();
+    if (display) {
+      SDL_Rect bounds = {};
+      // Use SDL_GetDisplayBounds (full display) instead of
+      // SDL_GetDisplayUsableBounds so we get the entire device screen,
+      // not a sub-area that might exclude status bar / safe areas.
+      if (SDL_GetDisplayBounds(display, &bounds) && bounds.w > 0 && bounds.h > 0) {
+        width  = bounds.w;
+        height = bounds.h;
+      }
+    }
+  }
 #ifdef __EMSCRIPTEN__
-  width  = canvas_get_width();
-  height = canvas_get_height();
+  { // Emscripten canvas overrides display bounds
+    int cw = canvas_get_width(), ch = canvas_get_height();
+    if (cw > 0 && ch > 0) { width = cw; height = ch; }
+  }
 #endif
 
+#if defined(SDL_PLATFORM_IOS)
+  // iOS: create a full-screen window using the native display resolution.
+  // Passing width=0, height=0 with SDL_WINDOW_FULLSCREEN tells SDL3 to
+  // use the native display size. This ensures the Metal view (CAMetalLayer)
+  // covers the entire device screen — without it, the view may be smaller
+  // on the iOS simulator, causing the WebGPU drawable to not be full-screen.
+  const SDL_WindowFlags flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+  sdlWindow = SDL_CreateWindow(title.c_str(), 0, 0, flags);
+#else
   const SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
   sdlWindow = SDL_CreateWindow(title.c_str(), width, height, flags);
+#endif
   if (!sdlWindow) {
     SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
     throw std::runtime_error("SDL_CreateWindow failed");
   }
-  SDL_Log("SDL3 window created (%dx%d)", width, height);
+  SDL_Log("SDL3 window created");
 
   // ImGui first so backends have a context to bind to.
   IMGUI_CHECKVERSION();
@@ -128,6 +153,16 @@ Window::Window(std::string title) {
 
   // WebGPU: instance -> adapter -> device -> queue.
   WGPUInstanceDescriptor instDesc = {};
+  // Enable TimedWaitAny so that wgpuInstanceWaitAny(... > 0) actually
+  // works. Without this, the Emscripten port logs a warning and aborts
+  // the program whenever a synchronous wait is requested with a non-zero
+  // timeout. UINT64_MAX (used as "wait forever" below) is a non-zero
+  // timeout, so this is required.
+  WGPUInstanceFeatureName requiredFeatures[] = {
+    WGPUInstanceFeatureName_TimedWaitAny,
+  };
+  instDesc.requiredFeatureCount = sizeof(requiredFeatures) / sizeof(requiredFeatures[0]);
+  instDesc.requiredFeatures     = requiredFeatures;
   wgpuInstance = wgpuCreateInstance(&instDesc);
   if (!wgpuInstance) {
     throw std::runtime_error("wgpuCreateInstance failed");
@@ -137,11 +172,17 @@ Window::Window(std::string title) {
   initDeviceAndQueue();
 
   // Now we know `surfaceFormat` and have a device; configure the surface.
-  int pxW = 0, pxH = 0;
-  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
   int logW = 0, logH = 0;
   SDL_GetWindowSize(sdlWindow, &logW, &logH);
   windowSize = {logW, logH};
+  // Use SDL_GetWindowSizeInPixels for the physical drawable size.
+  // SDL_GetDisplayContentScale can return 1.0 on iOS (real device and
+  // simulator) even on Retina displays, making the manual log*scale
+  // computation wrong.  SDL_GetWindowSizeInPixels always returns the true
+  // CAMetalLayer drawable size and is the authoritative source.
+  int pxW = 0, pxH = 0;
+  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
+  if (pxW <= 0 || pxH <= 0) { pxW = logW; pxH = logH; }
   configureSurface(pxW, pxH);
   // Set initial font scale based on logical size (same formula as Update()).
   const int minDim = logW < logH ? logW : logH;
@@ -212,6 +253,24 @@ void Window::createSurface() {
   desc.nextInChain     = &xlibDesc.chain;
   wgpuSurface          = wgpuInstanceCreateSurface(wgpuInstance, &desc);
 
+#elif defined(SDL_PLATFORM_ANDROID)
+  // Android exposes the native window via the SDL_WindowProperties. The
+  // WebGPU surface is then created from that ANativeWindow using Dawn's
+  // Android surface source.
+  void* nativeWindow = SDL_GetPointerProperty(
+      SDL_GetWindowProperties(sdlWindow),
+      SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
+  if (!nativeWindow) {
+    throw std::runtime_error(std::string(
+      "SDL_GetPointerProperty(ANDROID_WINDOW) failed: ") + SDL_GetError());
+  }
+
+  WGPUSurfaceSourceAndroidNativeWindow androidDesc = {};
+  androidDesc.chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow;
+  androidDesc.window      = nativeWindow;
+  desc.nextInChain        = &androidDesc.chain;
+  wgpuSurface             = wgpuInstanceCreateSurface(wgpuInstance, &desc);
+
 #else
 #  error "Unsupported platform for WebGPU surface creation"
 #endif
@@ -229,11 +288,16 @@ void Window::initDeviceAndQueue() {
   aOpts.powerPreference    = WGPUPowerPreference_HighPerformance;
 
   WGPURequestAdapterCallbackInfo aCb = {};
-  aCb.mode      = WGPUCallbackMode_AllowProcessEvents;
+  aCb.mode      = WGPUCallbackMode_WaitAnyOnly;
   aCb.callback  = onAdapter;
   aCb.userdata1 = &aReq;
-  wgpuInstanceRequestAdapter(wgpuInstance, &aOpts, aCb);
-  pumpUntil(wgpuInstance, aReq.done);
+  WGPUFuture aFuture = wgpuInstanceRequestAdapter(wgpuInstance, &aOpts, aCb);
+
+  WGPUFutureWaitInfo aWait = {};
+  aWait.future    = aFuture;
+  aWait.completed = WGPU_FALSE;
+  wgpuInstanceWaitAny(wgpuInstance, 1, &aWait, UINT64_MAX);
+
   if (!aReq.adapter) throw std::runtime_error("No WebGPU adapter available");
   wgpuAdapter = aReq.adapter;
 
@@ -242,13 +306,20 @@ void Window::initDeviceAndQueue() {
   WGPUDeviceDescriptor dDesc = {};
   dDesc.label = {"mobagen device", WGPU_STRLEN};
   dDesc.uncapturedErrorCallbackInfo.callback = onUncapturedError;
+  dDesc.deviceLostCallbackInfo.callback  = onDeviceLost;
+  dDesc.deviceLostCallbackInfo.mode      = WGPUCallbackMode_AllowProcessEvents;
 
   WGPURequestDeviceCallbackInfo dCb = {};
-  dCb.mode      = WGPUCallbackMode_AllowProcessEvents;
+  dCb.mode      = WGPUCallbackMode_WaitAnyOnly;
   dCb.callback  = onDevice;
   dCb.userdata1 = &dReq;
-  wgpuAdapterRequestDevice(wgpuAdapter, &dDesc, dCb);
-  pumpUntil(wgpuInstance, dReq.done);
+  WGPUFuture dFuture = wgpuAdapterRequestDevice(wgpuAdapter, &dDesc, dCb);
+
+  WGPUFutureWaitInfo dWait = {};
+  dWait.future    = dFuture;
+  dWait.completed = WGPU_FALSE;
+  wgpuInstanceWaitAny(wgpuInstance, 1, &dWait, UINT64_MAX);
+
   if (!dReq.device) throw std::runtime_error("WebGPU device request failed");
   wgpuDevice = dReq.device;
 
@@ -283,24 +354,26 @@ void Window::configureSurface(int widthPx, int heightPx) {
 }
 
 void Window::Update() {
-  int pxW = 0, pxH = 0;
-  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
   int logW = 0, logH = 0;
   SDL_GetWindowSize(sdlWindow, &logW, &logH);
+  int pxW = 0, pxH = 0;
+  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
+  if (pxW <= 0 || pxH <= 0) { pxW = logW; pxH = logH; }
+  float scale = (logW > 0) ? (float)pxW / (float)logW : 1.0f;
 
   Point2D logSize{logW, logH};
-  if (windowSize != logSize) {
-    windowSize = logSize;
-    // WebGPU surface is configured at device pixels (HiDPI-aware).
+  Point2D physSize{pxW, pxH};
+  if (windowSize != logSize || physicalSize != physSize) {
+    windowSize   = logSize;
+    physicalSize = physSize;
     configureSurface(pxW, pxH);
-    // Font scale is based on logical units so it stays consistent across DPI.
     const int minDim = logW < logH ? logW : logH;
     if (imGuiContext) {
       ImGui::GetIO().FontGlobalScale = static_cast<float>(minDim) / 500.f;
     }
-    // RmlUi context resize
     if (rmlContext) {
-      rmlContext->SetDimensions(Rml::Vector2i(logW, logH));
+      rmlContext->SetDimensions(Rml::Vector2i(pxW, pxH));
+      rmlContext->SetDensityIndependentPixelRatio(scale);
     }
   }
 }
@@ -372,24 +445,38 @@ void Window::InitRmlUi() {
   // Install our render interface
   Rml::SetRenderInterface(rmlRenderer);
 
-  // Create main context sized to window
-  rmlContext = Rml::CreateContext("main",
-      Rml::Vector2i(windowSize.x, windowSize.y));
+  int logW = 0, logH = 0;
+  SDL_GetWindowSize(sdlWindow, &logW, &logH);
+  int pxW = 0, pxH = 0;
+  SDL_GetWindowSizeInPixels(sdlWindow, &pxW, &pxH);
+  if (pxW <= 0 || pxH <= 0) { pxW = logW; pxH = logH; }
+  float scale = (logW > 0) ? (float)pxW / (float)logW : 1.0f;
+  rmlContext = Rml::CreateContext("main", Rml::Vector2i(pxW, pxH));
+  rmlContext->SetDensityIndependentPixelRatio(scale);
 
   // Load default font from RmlUi's own embedded font (Courier Prime Code).
-  // The data lives in RmlUi/Source/Debugger/FontSource.h — already compiled
-  // into rmlui_debugger, so no extra font files in our repo, no filesystem
-  // access needed (works on WebAssembly too). We register it as a regular
-  // font family so demos can use it via CSS font-family.
+  // The data lives in RmlUi's debugger FontSource.h — exposed through a
+  // generated forwarding header at <RmlUi/Debugger/FontSource.h> (see
+  // external/rmlui.cmake). Already compiled into rmlui_debugger, so no
+  // extra font files in our repo, no filesystem access needed (works on
+  // WebAssembly too). We register it as a regular font family so demos
+  // can use it via CSS font-family.
   bool font_ok = true;
   {
     using namespace Rml;
     const Span<const byte> data_reg(courier_prime_code, sizeof(courier_prime_code));
     const Span<const byte> data_it(courier_prime_code_italic, sizeof(courier_prime_code_italic));
 
-    bool r1 = LoadFontFace(data_reg, "AppFont", Style::FontStyle::Normal, Style::FontWeight::Normal);
-    bool r2 = LoadFontFace(data_it,  "AppFont", Style::FontStyle::Italic, Style::FontWeight::Normal);
-    font_ok = r1 || r2;
+    bool r1 = LoadFontFace(data_reg, "AppFont",   Style::FontStyle::Normal, Style::FontWeight::Normal);
+    bool r2 = LoadFontFace(data_it,  "AppFont",   Style::FontStyle::Italic, Style::FontWeight::Normal);
+    // Register the same font under generic fallback names so CSS rules that
+    // specify font-family: monospace (or sans-serif, serif) don't produce a
+    // "No font face defined" warning and fall back to invisible text.
+    bool r3 = LoadFontFace(data_reg, "monospace", Style::FontStyle::Normal, Style::FontWeight::Normal);
+    bool r4 = LoadFontFace(data_it,  "monospace", Style::FontStyle::Italic, Style::FontWeight::Normal);
+    bool r5 = LoadFontFace(data_reg, "sans-serif",Style::FontStyle::Normal, Style::FontWeight::Normal);
+    bool r6 = LoadFontFace(data_reg, "serif",     Style::FontStyle::Normal, Style::FontWeight::Normal);
+    font_ok = r1 || r2 || r3 || r4 || r5 || r6;
   }
   if (!font_ok) {
     SDL_Log("RmlUi: WARNING — embedded font failed to load. Text will not render.");
@@ -398,5 +485,5 @@ void Window::InitRmlUi() {
   // Debugger (optional, helps during development)
   Rml::Debugger::Initialise(rmlContext);
 
-  SDL_Log("RmlUi initialized (context %dx%d)", windowSize.x, windowSize.y);
+  SDL_Log("RmlUi initialized (context %dx%d physical px)", pxW, pxH);
 }

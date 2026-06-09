@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -41,7 +42,9 @@ public:
 private:
   bool done = false;
 
-  // RGBA in 0..1; used to clear the WGPU surface each frame.
+  // Source of truth lives in `settings.clearColor`; kept here as a member
+  // so the render pass descriptor can read it without chasing the settings
+  // struct every frame.
   float clearColor[4] = {0.f, 0.f, 0.f, 1.f};
 
   // todo: move this to input class
@@ -67,5 +70,9 @@ public:
   void AddScriptableObject(ScriptableObject* pObject) { scriptableObjects.insert(pObject); };
 
   bool IsHeadless() const { return settings.headless; }
+
+  // Hook called at the end of every Tick() so examples can update per-frame
+  // diagnostics (e.g. RmlUi text showing current window/logical/pixel sizes).
+  std::function<void()> onTick;
 };
 #endif
