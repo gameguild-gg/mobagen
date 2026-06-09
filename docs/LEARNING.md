@@ -71,11 +71,12 @@ We chose **path B**: prove the load → window → spacing pipeline against a ra
 file *before* taking on the big DICOM-parser dependency. Everything downstream of
 the loader gets proven on a stand-in phantom first.
 
-- **B1 ✅** Load the volume from a **file** (`volume.raw`), not generated in code —
-  the same path real data will use. WebGL reads it from the WASM FS (Emscripten
-  `--preload-file`); native reads an absolute path. The Dawn/WebGPU path copies
-  the same file beside the output for the upcoming WGSL port. A 96^3 "head"
-  phantom (`tools/gen_phantom.py`) stands in for a real scan.
+- **B1 ✅** Load the volume from a **file** (`volume.raw` / `volume.mvol`), not
+  generated inside the renderer — the same path real data will use. WebGL reads
+  `volume.raw` from the WASM FS (Emscripten `--preload-file`); WebGPU reads
+  `volume.mvol`. These binary files are local asset-manager outputs, not Git
+  content: `make assets` reads `assets/assets.json`, downloads/verifies the
+  source dataset, and generates the renderer-ready files.
 9. **B2 ✅** **Window/level** in the shader (center+width sliders) — remap a band
    of density to [0,1], clipping outside. The "bone window / brain window" knob.
 10. **B3 ✅** **Voxel spacing** — the volume box scales per-axis by voxel spacing

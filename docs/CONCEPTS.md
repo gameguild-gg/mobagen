@@ -340,8 +340,9 @@ where the research goes (it can run general parallel programs, not just draw).
 - **No filesystem in the browser.** C++ usually reads files with `fopen`. In the
   browser there's no disk. So for WebGL we *bundle* `volume.raw` into the wasm
   package (Emscripten `--preload-file`) and read it from a fake in-memory
-  filesystem. The Dawn/WebGPU path currently copies `volume.raw` beside the output;
-  when the ray-cast is ported, it can fetch or package that same file explicitly.
+  filesystem. The Dawn/WebGPU path preloads `volume.mvol` the same way. Those
+  binary files are not in Git; `make assets` downloads/generates them from
+  `assets/assets.json`.
 - **"Hard refresh or it's blank."** The browser caches the `.wasm`/`.data`. After a
   rebuild a normal refresh can load the *new* page with the *old* cached code →
   mismatch → blank canvas. Always Ctrl+Shift+R after building. (Not a bug; cache.)

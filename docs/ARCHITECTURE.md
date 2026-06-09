@@ -25,6 +25,11 @@ Today the code has two renderer states:
   with `shaders/raygen.wgsl`. It also has a first compute pass,
   `shaders/histogram.wgsl`, for GPU histogram + auto-windowing.
 
+Binary volume files are not stored in Git. The checked-in source of truth is
+`assets/assets.json`: it records where to download public study data, expected
+hashes, dimensions, and the recipe for generated local files. Run `make assets`
+to materialize `assets/volume.raw` and `assets/volume.mvol`.
+
 The default data is still a 96^3 phantom standing in for a real DICOM scan, but
 the native `USE_GDCM=ON` path now has the first DICOM handoff: load a DICOM
 series, preserve stored UInt16 voxels in `VolumeBuffer`, upload them to WebGPU as
@@ -97,6 +102,20 @@ shaders/                     Shader source of truth (one file per program).
 GLSL is embedded at build time into a generated C++ header. WGSL is kept beside it
 so the WebGPU port can preserve the same algorithm in the WebGPU shader language.
 ```
+
+### Asset manager
+
+The project has the first small asset manager in `tools/assets.py`.
+
+It does four jobs:
+
+1. Reads `assets/assets.json`.
+2. Downloads large source datasets into `assets/cache/`.
+3. Verifies SHA-256 hashes before using them.
+4. Generates renderer-ready local files (`volume.raw`, `volume.mvol`).
+
+This keeps the repo lightweight and reproducible: code, manifests, hashes, and
+conversion recipes are versioned; binary payloads are local build artifacts.
 
 ### One class = one GPU object
 

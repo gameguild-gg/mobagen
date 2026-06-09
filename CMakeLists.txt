@@ -274,19 +274,23 @@ if(EMSCRIPTEN)
         )
     endif()
     if(USE_WEBGPU)
-        # WebGPU (Dawn) reads the offline-converted DICOM volume from the WASM FS.
-        # tools/dicom_to_mvol.py produces assets/volume.mvol (run it before building);
+        # WebGPU (Dawn) reads the offline-converted volume from the WASM FS.
+        # `make assets` materializes assets/volume.mvol from assets/assets.json;
         # without it, the renderer falls back to the synthetic phantom.
         if(EXISTS ${VOLUME_MVOL})
             target_link_options(dicom_renderer PRIVATE
                 "SHELL:--preload-file ${VOLUME_MVOL}@/volume.mvol")
         else()
-            message(WARNING "assets/volume.mvol not found; web WebGPU build will use the phantom. Run: python tools/dicom_to_mvol.py")
+            message(WARNING "assets/volume.mvol not found; web WebGPU build will use the phantom. Run: make assets")
         endif()
     else()
         # WebGL reads volume.raw in C++ from the WASM virtual FS — preload it there.
-        target_link_options(dicom_renderer PRIVATE
-            "SHELL:--preload-file ${VOLUME_RAW}@/volume.raw")
+        if(EXISTS ${VOLUME_RAW})
+            target_link_options(dicom_renderer PRIVATE
+                "SHELL:--preload-file ${VOLUME_RAW}@/volume.raw")
+        else()
+            message(WARNING "assets/volume.raw not found; web WebGL build will use the synthetic fallback. Run: make assets")
+        endif()
     endif()
     set_target_properties(dicom_renderer PROPERTIES SUFFIX ".html")
 else()

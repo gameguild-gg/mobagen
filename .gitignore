@@ -80,3 +80,11 @@ Thumbs.db
 external/*/
 # Generated DICOM test data (regenerate: python tools/gen_dicom.py)
 assets/dicom/
+
+# Asset manager outputs (regenerate/download: make assets)
+assets/cache/
+assets/*.zip
+assets/*.raw
+assets/*.mvol
+!assets/assets.json
+!assets/README.md

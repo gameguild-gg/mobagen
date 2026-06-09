@@ -20,6 +20,9 @@ help:
 	  '  make serve-webgpu            Serve build/wasm-webgpu/bin on PORT=8085' \
 	  '  make configure-wasm-webgl    Configure browser WebGL2 renderer' \
 	  '  make wasm-webgl              Build browser WebGL2 renderer' \
+	  '  make assets                  Download/generate local binary volume assets' \
+	  '  make assets-verify           Verify local asset hashes from assets/assets.json' \
+	  '  make assets-clean            Remove downloaded/generated local assets' \
 	  '  make native-webgpu           Build native WebGPU/Dawn renderer' \
 	  '  make native-dicom            Configure native renderer + GDCM DICOM loader' \
 	  '  make core                    Build reusable core library modules only' \
@@ -28,8 +31,20 @@ help:
 	  '  make volume-buffer-test      Build/run CPU volume memory ownership test' \
 	  '  make all-web                 Build both browser renderers'
 
+.PHONY: assets
+assets:
+	python tools/assets.py ensure
+
+.PHONY: assets-verify
+assets-verify:
+	python tools/assets.py verify
+
+.PHONY: assets-clean
+assets-clean:
+	python tools/assets.py clean
+
 .PHONY: configure-wasm-webgpu
-configure-wasm-webgpu:
+configure-wasm-webgpu: assets
 	$(EMSCRIPTEN_ENV) cmake -S . -B build/wasm-webgpu -G Ninja -DCMAKE_TOOLCHAIN_FILE="$(EMSCRIPTEN_TOOLCHAIN)" -DCMAKE_BUILD_TYPE=Release -DUSE_WEBGPU=ON
 
 .PHONY: wasm-webgpu
@@ -41,7 +56,7 @@ serve-webgpu:
 	cd build/wasm-webgpu/bin && python -m http.server "$(PORT)" --bind 127.0.0.1
 
 .PHONY: configure-wasm-webgl
-configure-wasm-webgl:
+configure-wasm-webgl: assets
 	$(EMSCRIPTEN_ENV) cmake -S . -B build/wasm-webgl -G Ninja -DCMAKE_TOOLCHAIN_FILE="$(EMSCRIPTEN_TOOLCHAIN)" -DCMAKE_BUILD_TYPE=Release -DUSE_WEBGPU=OFF
 
 .PHONY: wasm-webgl

@@ -34,6 +34,7 @@ cannot share a canvas at runtime. Each is therefore its **own build**:
 # If Git Bash cannot find make after installation, expose GnuWin32 Make first.
 export PATH="/c/Progra~2/GnuWin32/bin:$PATH"
 make help
+make assets
 
 # WebGL2 build
 make wasm-webgl
@@ -49,6 +50,11 @@ cd build/wasm-webgpu/bin && python -m http.server 8084 --bind 127.0.0.1
 The Makefile sets the Emscripten SDK variables and calls CMake with the
 Emscripten toolchain file directly. Full commands, controls, native builds, and
 caveats are in [docs/LEARNING.md](docs/LEARNING.md).
+
+Binary volume data is not committed to Git. `make assets` reads
+[assets/assets.json](assets/assets.json), downloads/verifies the public head
+dataset, and generates the local `assets/volume.raw` / `assets/volume.mvol`
+files consumed by the builds.
 
 ---
 
@@ -82,6 +88,7 @@ back the histogram, and sets the window to the 1%-99% scalar range.
 src/engine/   RAII GL wrappers, camera, renderer helpers, C ABI study module
 src/main.cpp  entry point + the G2/G3 app variants (#ifdef USE_WEBGPU)
 core/         DOD study core: jobs, ecs, reactive, messaging, scene, net
+assets/       asset manifest only; generated/downloaded binary volumes are ignored
 html/         Emscripten shells (WebGL and Dawn WebGPU)
 external/     CMake deps: glm, SDL3, GLEW, Dawn/emdawnwebgpu, ImGui
 docs/         current docs plus archived historical notes
