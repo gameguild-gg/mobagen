@@ -1,3 +1,18 @@
+# [1.18.0](https://github.com/InfiniBrains/mobagen/compare/v1.17.0...v1.18.0) (2026-06-09)
+
+
+### Bug Fixes
+
+* centering ui ([a9b2e73](https://github.com/InfiniBrains/mobagen/commit/a9b2e73565ea59dcc0ec490292c011d4f1768e4a))
+* ios build pipeline ([d8cd23c](https://github.com/InfiniBrains/mobagen/commit/d8cd23ca0a1790be3e02c0c94520ed17795f6052))
+* **rmlui:** dpi resilience for webgpu ([bc21e9b](https://github.com/InfiniBrains/mobagen/commit/bc21e9b138c1e497d1837510b341535d1a0798cc))
+* scaling issues ([1ca7ca2](https://github.com/InfiniBrains/mobagen/commit/1ca7ca29ab6774459a986ff6e10604f0013cefde))
+
+
+### Features
+
+* add rmlui - wip ([05ef8d6](https://github.com/InfiniBrains/mobagen/commit/05ef8d6a4569367a545c617275f47222afeee6d1))
+
 # [1.17.0](https://github.com/InfiniBrains/mobagen/compare/v1.16.0...v1.17.0) (2026-05-27)
 
 
