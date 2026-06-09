@@ -15,6 +15,13 @@ enum class CameraMode {
     WASD     // Free-look FPS style (for game engine)
 };
 
+// Projection: perspective (natural 3D, with FOV) vs orthographic (parallel rays,
+// true-to-scale — radiologists often prefer this for measurement).
+enum class Projection {
+    Perspective,
+    Orthographic
+};
+
 // ============================================================================
 // CAMERA: Unified interface supporting Orbit + WASD modes
 // ============================================================================
@@ -72,6 +79,12 @@ public:
 
     void set_fov(float fov) {
         fov_ = glm::clamp(fov, 10.0f, 120.0f);
+        update_projection_matrix();
+    }
+
+    Projection get_projection() const { return projection_; }
+    void set_projection(Projection p) {
+        projection_ = p;
         update_projection_matrix();
     }
 
@@ -134,6 +147,7 @@ public:
             orbit_radius_ -= wheel_y * 0.1f;
             orbit_radius_ = glm::clamp(orbit_radius_, 0.1f, 100.0f);
             update_view_matrix();
+            update_projection_matrix();   // ortho extent tracks orbit_radius
         } else if (mode_ == CameraMode::WASD) {
             move_speed_ += wheel_y * 0.5f;
             move_speed_ = glm::clamp(move_speed_, 1.0f, 50.0f);
@@ -236,12 +250,19 @@ private:
     }
 
     void update_projection_matrix() {
-        projection_matrix_ = glm::perspective(
-            glm::radians(fov_),
-            aspect_,
-            near_,
-            far_
-        );
+        if (projection_ == Projection::Orthographic) {
+            // Match the perspective framing at the focal distance so toggling keeps
+            // the volume the same on-screen size; wheel-zoom (orbit_radius) then
+            // scales the ortho extent.
+            const float dist = (mode_ == CameraMode::ORBIT)
+                ? orbit_radius_
+                : glm::length(focal_point_ - position_);
+            const float halfH = std::max(dist, 0.01f) * std::tan(glm::radians(fov_) * 0.5f);
+            const float halfW = halfH * aspect_;
+            projection_matrix_ = glm::ortho(-halfW, halfW, -halfH, halfH, near_, far_);
+        } else {
+            projection_matrix_ = glm::perspective(glm::radians(fov_), aspect_, near_, far_);
+        }
     }
 
     // ========================================================================
@@ -268,6 +289,7 @@ private:
     bool descend_active_ = false;
 
     // Projection
+    Projection projection_ = Projection::Perspective;
     float fov_;
     float aspect_;
     float near_;

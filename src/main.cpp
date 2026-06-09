@@ -1563,6 +1563,16 @@ void AppWebGPU::tick() {
             ImGui::TextDisabled("WASD: move; Space up; Shift/Ctrl down; left-drag look.");
         }
         ImGui::TextDisabled("R resets camera. P requests browser pointer lock.");
+        // Projection: live FOV (perspective) or true-to-scale orthographic.
+        int proj = (g_camera.get_projection() == engine::Projection::Perspective) ? 0 : 1;
+        if (ImGui::Combo("Projection", &proj, "Perspective\0Orthographic\0\0")) {
+            g_camera.set_projection(proj == 0 ? engine::Projection::Perspective
+                                              : engine::Projection::Orthographic);
+        }
+        if (g_camera.get_projection() == engine::Projection::Perspective) {
+            float fov = g_camera.get_fov();
+            if (ImGui::SliderFloat("FOV", &fov, 15.0f, 100.0f, "%.0f deg")) g_camera.set_fov(fov);
+        }
         ImGui::ColorEdit3("Clear color", clearColor);
         ImGui::SeparatorText("DOD render bridge");
         const auto& volumeCommands = renderBridge.volume_commands();
