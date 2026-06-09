@@ -13,11 +13,13 @@ static const char kDemoRml[] = R"(
 <head>
   <title>RmlUi + SDL3 + WebGPU Demo</title>
   <style>
+    /* Flex body: centers #window both axes without needing transform hacks.
+       #fullbg and #diag are position:absolute so they leave the flex flow. */
     body {
       width: 100%;
       height: 100%;
       font-family: AppFont;
-      font-size: 16px;
+      font-size: 1.5vw;
       color: #e0e0e0;
     }
     #fullbg {
@@ -29,38 +31,36 @@ static const char kDemoRml[] = R"(
       background: #1a1a2e;
       z-index: -1;
     }
+    /* Absolute full-screen flex layer: top/right/bottom/left:0 stretches to
+       the containing block without relying on height:100% percentage resolution. */
+    #center-layer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Box: 60% wide x 70% tall, auto-height content, centered by parent flex. */
     #window {
       display: block;
-      position: absolute;
-      left: 100px;
-      top: 100px;
-      width: 540px;
+      width: 60%;
       background: #1e2a4a;
-      padding: 28px 36px;
+      padding: 2em 2.5em;
       text-align: center;
-    }
-    #diag {
-      position: absolute;
-      bottom: 8px;
-      left: 8px;
-      font-size: 11px;
-      color: #ff6;
-      font-family: monospace;
-      background: rgba(0,0,0,0.6);
-      padding: 4px 8px;
-      white-space: pre;
-      z-index: 100;
     }
     h1 {
       display: block;
       color: #e94560;
-      font-size: 1.6em;
-      margin-bottom: 10px;
+      font-size: 2em;
+      margin-bottom: 0.5em;
     }
     p {
       display: block;
-      margin: 8px 0;
-      font-size: 0.95em;
+      margin: 0.4em 0;
+      font-size: 1em;
       line-height: 1.4;
     }
     strong { color: #e94560; }
@@ -70,26 +70,24 @@ static const char kDemoRml[] = R"(
       border: 0;
       height: 1px;
       background: #0f3460;
-      margin: 16px 0;
+      margin: 1em 0;
     }
     .feature-box {
       display: block;
       background: #16213e;
-      padding: 14px;
-      margin: 12px 0;
+      padding: 1em;
+      margin: 0.8em 0;
       text-align: left;
     }
     .feature-box p {
       font-size: 0.9em;
       color: #aab;
     }
-    .check {
-      color: #4ecca3;
-    }
+    .check { color: #4ecca3; }
     .info {
       font-size: 0.8em;
       color: #888;
-      margin-top: 14px;
+      margin-top: 0.8em;
     }
     kbd {
       background: #0f3460;
@@ -97,25 +95,39 @@ static const char kDemoRml[] = R"(
       padding: 1px 6px;
       font-size: 0.9em;
     }
+    #diag {
+      position: absolute;
+      top: 0;
+      left: 0;
+      font-size: 0.8vw;
+      color: #ff6;
+      font-family: monospace;
+      background: rgba(0,0,0,0.6);
+      padding: 4px 8px;
+      white-space: pre;
+      z-index: 100;
+    }
   </style>
 </head>
 <body>
   <div id="fullbg"></div>
-  <div id="window">
-    <h1>RmlUi + WebGPU</h1>
-    <p>A retained-mode <strong>HTML/CSS</strong> UI rendered with a custom <em>WebGPU</em> backend</p>
-    <hr />
-    <div class="feature-box">
-      <p><span class="check">&#x2022;</span> RmlUi core library (v6.2)</p>
-      <p><span class="check">&#x2022;</span> SDL3 platform backend</p>
-      <p><span class="check">&#x2022;</span> Custom WebGPU render backend</p>
-      <p><span class="check">&#x2022;</span> Dawn native WebGPU implementation</p>
-      <p><span class="check">&#x2022;</span> Zero ImGui usage in this demo</p>
+  <div id="center-layer">
+    <div id="window">
+      <h1>RmlUi + WebGPU</h1>
+      <p>A retained-mode <strong>HTML/CSS</strong> UI rendered with a custom <em>WebGPU</em> backend</p>
+      <hr />
+      <div class="feature-box">
+        <p><span class="check">&#x2022;</span> RmlUi core library (v6.2)</p>
+        <p><span class="check">&#x2022;</span> SDL3 platform backend</p>
+        <p><span class="check">&#x2022;</span> Custom WebGPU render backend</p>
+        <p><span class="check">&#x2022;</span> Dawn native WebGPU implementation</p>
+        <p><span class="check">&#x2022;</span> Zero ImGui usage in this demo</p>
+      </div>
+      <p class="info">Press <kbd>F8</kbd> to toggle the RmlUi debugger</p>
+      <p class="info">Press <kbd>ESC</kbd> or close the window to exit</p>
     </div>
-    <p class="info">Press <kbd>F8</kbd> to toggle the RmlUi debugger</p>
-    <p class="info">Press <kbd>ESC</kbd> or close the window to exit</p>
   </div>
-  <p id="diag" style="position:absolute; top:0; left:0; font-size:10px; color:#ff6; font-family:monospace; white-space:pre-wrap; text-align:left; background:rgba(0,0,0,0.7); padding:2px 4px; z-index:999;">diag: waiting...</p>
+  <p id="diag">diag: waiting...</p>
 </body>
 </rml>
 )";
