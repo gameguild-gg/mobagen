@@ -89,7 +89,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 - **Status:** ✅ **storage core** (`sparse_set`/`Storage<T>`, `ecs_demo`) — contiguous /
   stable / packed. ✅ **World** (`world.hpp`, `world_demo`) — generation-checked entities,
   index recycling, add/get/has/remove, single + two-component views, type-erased destroy,
-  tags. ✅ **systems-as-jobs** (`core/examples/systems_demo`): a movement system over
+  tags. ✅ **systems-as-jobs** (`examples/core/composition/systems_demo`): a movement system over
   **2M entities** runs **6.78× faster** through `Scheduler::parallel_for` + `World::apply_range`
   than the serial `view`, results verified identical — modules stay decoupled (the app glues
   them). ⏳ Group (locality) + `ecs_c.h` facade.
@@ -197,5 +197,6 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 | **ORCHESTRATION BACKBONE** | ✅ **complete** |
 | reactive / messaging / scene / net | ⏳ |
 
-Build the core demos/benches: `cmake -B build/native -DBUILD_CORE=ON ; cmake --build build/native --config Release`
+Build the core libraries: `make core`. Build the core demos/benches separately:
+`make core-examples`.
 then run `build/native/bin/Release/{ecs_demo,jobs_demo,jobs_bench}.exe`.

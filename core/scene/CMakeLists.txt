@@ -1,17 +1,6 @@
 # scene module — Transform + TransformSystem on the ECS. Header-only; needs glm.
-foreach(t scene_demo scene_bench)
-    add_executable(${t} ${t}.cpp)
-    target_include_directories(${t} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/core/ecs)
-    set_target_properties(${t} PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-    target_link_libraries(${t} PRIVATE glm)
-endforeach()
-
-# SIMD for the transform benchmark (glm intrinsics + AVX2 for the matrix math)
-target_compile_definitions(scene_bench PRIVATE GLM_FORCE_INTRINSICS)
-if(MSVC)
-    target_compile_options(scene_bench PRIVATE /arch:AVX2)
-else()
-    target_compile_options(scene_bench PRIVATE -mavx2)
-endif()
+add_library(mobagen_core_scene INTERFACE)
+add_library(mobagen::core_scene ALIAS mobagen_core_scene)
+target_include_directories(mobagen_core_scene INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mobagen_core_scene INTERFACE cxx_std_20)
+target_link_libraries(mobagen_core_scene INTERFACE mobagen::core_ecs glm)

@@ -2,7 +2,7 @@
 // pointers across growth, and packing after removal. Uses a tiny 4-per-chunk
 // Storage so chunk boundaries are visible with only a handful of elements.
 //
-//   cmake -B build/native -DBUILD_CORE=ON ; cmake --build build/native --target ecs_demo
+//   make core-examples
 //   build/native/bin/Release/ecs_demo.exe
 
 #include "sparse_set.hpp"

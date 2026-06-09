@@ -30,6 +30,7 @@ include(cmake/tools.cmake)
 # Declared BEFORE it is used below.
 # ----------------------------------------------------------------------------
 option(USE_WEBGPU "Build the WebGPU (G3) renderer instead of WebGL2 (G2)" OFF)
+option(BUILD_RENDERER "Build the dicom_renderer executable" ON)
 
 # ----------------------------------------------------------------------------
 # Medical-imaging libraries (brought over from master). These are HEAVY source
@@ -46,8 +47,13 @@ option(USE_VTK  "Build VTK (visualization toolkit; reference only)"   OFF)
 # Learning prototypes (fibers, etc.) — small standalone demos, native only.
 option(BUILD_PROTOTYPES "Build learning prototypes under prototypes/" OFF)
 
-# Core engine modules (reactive / messaging / ecs / scene / jobs) + their demos.
-option(BUILD_CORE "Build the core engine modules and demos (native)" OFF)
+# Core engine modules (reactive / messaging / ecs / scene / jobs).
+#
+# BUILD_CORE builds only reusable core targets. BUILD_CORE_EXAMPLES builds the
+# study/demo/test executables under examples/core. This keeps core as a library
+# layer instead of mixing examples into it.
+option(BUILD_CORE "Build the reusable core engine library modules" OFF)
+option(BUILD_CORE_EXAMPLES "Build core study examples/tests/benches under examples/core" OFF)
 
 # Shell selection (Emscripten only). Each renderer/build already lives in its own
 # binary dir (build/wasm-webgl, build/wasm-webgpu, build/native), so output goes
@@ -69,6 +75,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 link_directories(${CMAKE_BINARY_DIR}/libs)
 
 message(STATUS "Build output: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+
+# Load GLM (header-only math library) for renderer and core modules.
+include(external/glm.cmake)
+
+if(BUILD_RENDERER)
 
 # ----------------------------------------------------------------------------
 # Sources
@@ -140,8 +151,6 @@ target_include_directories(dicom_renderer PRIVATE
     ${GEN_DIR}
 )
 
-# Load GLM (header-only math library) for all builds
-include(external/glm.cmake)
 target_link_libraries(dicom_renderer PRIVATE glm)
 
 if(USE_WEBGPU)
@@ -158,6 +167,8 @@ else()
     message(STATUS "Renderer: WebGL2 (G2) — immediate-mode")
 endif()
 
+endif() # BUILD_RENDERER
+
 # ----------------------------------------------------------------------------
 # Optional medical-imaging dependencies (see options above). The .cmake files
 # are only included when enabled, so the heavy source build is skipped for a
@@ -166,22 +177,28 @@ endif()
 # ----------------------------------------------------------------------------
 if(USE_GDCM)
     include(external/gdcm.cmake)
-    target_compile_definitions(dicom_renderer PRIVATE HAVE_GDCM)
-    target_sources(dicom_renderer PRIVATE src/volume_io/volume_io.cpp)
-    if(NOT EMSCRIPTEN)
-        target_compile_definitions(dicom_renderer PRIVATE
-            MOBAGEN_DICOM_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/dicom")
+    if(BUILD_RENDERER)
+        target_compile_definitions(dicom_renderer PRIVATE HAVE_GDCM)
+        target_sources(dicom_renderer PRIVATE src/volume_io/volume_io.cpp)
+        if(NOT EMSCRIPTEN)
+            target_compile_definitions(dicom_renderer PRIVATE
+                MOBAGEN_DICOM_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/dicom")
+        endif()
+        target_link_libraries(dicom_renderer PRIVATE
+            gdcmMSFF gdcmDSED gdcmDICT gdcmIOD gdcmCommon)
     endif()
-    target_link_libraries(dicom_renderer PRIVATE
-        gdcmMSFF gdcmDSED gdcmDICT gdcmIOD gdcmCommon)
 endif()
 if(USE_ITK)
     include(external/itk.cmake)
-    target_compile_definitions(dicom_renderer PRIVATE HAVE_ITK)
+    if(BUILD_RENDERER)
+        target_compile_definitions(dicom_renderer PRIVATE HAVE_ITK)
+    endif()
 endif()
 if(USE_VTK)
     include(external/vtk.cmake)
-    target_compile_definitions(dicom_renderer PRIVATE HAVE_VTK)
+    if(BUILD_RENDERER)
+        target_compile_definitions(dicom_renderer PRIVATE HAVE_VTK)
+    endif()
 endif()
 
 # Standalone loader smoke test (native + GDCM only): a tiny console exe that
@@ -207,25 +224,20 @@ if(BUILD_PROTOTYPES AND NOT EMSCRIPTEN)
     add_subdirectory(prototypes/fibers)
 endif()
 
-# Core engine modules. jobs builds for both native and web (pthreads); the ecs
-# storage demo is native-only for now.
-if(BUILD_CORE)
-    if(NOT EMSCRIPTEN)
-        add_subdirectory(core/ecs)
-        add_subdirectory(core/reactive)
-        add_subdirectory(core/messaging)
-        add_subdirectory(core/scene)
-        add_subdirectory(core/render)
-        add_subdirectory(core/input)
-        add_subdirectory(core/resource)
-        add_subdirectory(core/net)
-        add_subdirectory(core/examples)   # ecs + jobs glued (systems-as-jobs)
-    endif()
-    add_subdirectory(core/jobs)
+# Core library targets and their optional examples. Examples intentionally live
+# outside core/; core/ should be safe to link from renderer/editor/wasm modules
+# without creating any executable study programs.
+if(BUILD_CORE OR BUILD_CORE_EXAMPLES)
+    add_subdirectory(core)
+endif()
+if(BUILD_CORE_EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
 set(VOLUME_RAW ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.raw)
 set(VOLUME_MVOL ${CMAKE_CURRENT_SOURCE_DIR}/assets/volume.mvol)
+
+if(BUILD_RENDERER)
 
 if(EMSCRIPTEN)
     message(STATUS "Shell file: ${SHELL_FILE}")
@@ -291,6 +303,8 @@ else()
         target_link_libraries(dicom_renderer PRIVATE SDL3::SDL3-static OpenGL::GL libglew_static)
     endif()
 endif()
+
+endif() # BUILD_RENDERER
 
 # ----------------------------------------------------------------------------
 # Third-party license disclaimer (brought over from master). Collects the

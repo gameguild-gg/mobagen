@@ -1,6 +1,6 @@
 # resource module — stable-handle asset store (header-only). Holds the big CPU
-# (later GPU) assets the renderer references by handle. Test verified via em++ +
-# node while the native toolchain is unavailable (see the test header).
-add_executable(resource_registry_test resource_registry_test.cpp)
-target_include_directories(resource_registry_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-set_target_properties(resource_registry_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+# (later GPU) assets the renderer references by handle.
+add_library(mobagen_core_resource INTERFACE)
+add_library(mobagen::core_resource ALIAS mobagen_core_resource)
+target_include_directories(mobagen_core_resource INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mobagen_core_resource INTERFACE cxx_std_20)

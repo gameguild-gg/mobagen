@@ -22,6 +22,8 @@ help:
 	  '  make wasm-webgl              Build browser WebGL2 renderer' \
 	  '  make native-webgpu           Build native WebGPU/Dawn renderer' \
 	  '  make native-dicom            Configure native renderer + GDCM DICOM loader' \
+	  '  make core                    Build reusable core library modules only' \
+	  '  make core-examples           Build core examples/tests/benches outside core' \
 	  '  make dicom-smoke             Build/run volume_io_test against DICOM_DIR' \
 	  '  make volume-buffer-test      Build/run CPU volume memory ownership test' \
 	  '  make all-web                 Build both browser renderers'
@@ -61,6 +63,16 @@ native-webgpu: configure-native-webgpu
 native-dicom:
 	cmake -S . -B build/native-dicom -DUSE_WEBGPU=ON -DUSE_GDCM=ON
 	MSYS_NO_PATHCONV=1 cmake --build build/native-dicom --target dicom_renderer --config Release -- $(NATIVE_BUILD_ARGS)
+
+.PHONY: core
+core:
+	cmake -S . -B build/core -DBUILD_RENDERER=OFF -DBUILD_CORE=ON -DBUILD_CORE_EXAMPLES=OFF
+	MSYS_NO_PATHCONV=1 cmake --build build/core --target mobagen_core --config Release -- $(NATIVE_BUILD_ARGS)
+
+.PHONY: core-examples
+core-examples:
+	cmake -S . -B build/core-examples -DBUILD_RENDERER=OFF -DBUILD_CORE_EXAMPLES=ON
+	MSYS_NO_PATHCONV=1 cmake --build build/core-examples --target mobagen_core_examples --config Release -- $(NATIVE_BUILD_ARGS)
 
 .PHONY: dicom-smoke
 dicom-smoke:

@@ -5,7 +5,7 @@
 //     worker than it suspended on (cross-thread resume).
 // Output ordering varies run to run — that's concurrency.
 //
-//   cmake -B build/native -DBUILD_CORE=ON ; cmake --build build/native --target jobs_demo
+//   make core-examples
 //   build/native/bin/Release/jobs_demo.exe
 
 #include "scheduler.hpp"

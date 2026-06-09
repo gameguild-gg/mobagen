@@ -1,4 +1,5 @@
 # messaging module — header-only (Notifier, Event/EventBus). No threads.
-add_executable(messaging_demo messaging_demo.cpp)
-target_include_directories(messaging_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-set_target_properties(messaging_demo PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+add_library(mobagen_core_messaging INTERFACE)
+add_library(mobagen::core_messaging ALIAS mobagen_core_messaging)
+target_include_directories(mobagen_core_messaging INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mobagen_core_messaging INTERFACE cxx_std_20)

@@ -7,7 +7,7 @@
 //   -> save/load round-trips the scene.
 // Proves the modules work together, ahead of the actual editor port. Native
 // toolchain is unavailable, so build with em++ + run under node:
-//   em++ -std=c++20 core/examples/dod_engine_slice.cpp -I core/ecs -I core/scene \
+//   em++ -std=c++20 examples/core/composition/dod_engine_slice.cpp -I core/ecs -I core/scene \
 //        -I core/render -I core/input -I core/resource -I <glm> -o build/slice.js
 //   node build/slice.js
 #include "world.hpp"
