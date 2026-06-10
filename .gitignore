@@ -78,13 +78,12 @@ ehthumbs.db
 Thumbs.db
 
 external/*/
-# Generated DICOM test data (regenerate: python tools/gen_dicom.py)
-assets/dicom/
+# Generated DICOM test data (regenerate: python scripts/gen_dicom.py)
+apps/dicom_viewer/assets/dicom/
 
 # Asset manager outputs (regenerate/download: make assets)
-assets/cache/
-assets/*.zip
-assets/*.raw
-assets/*.mvol
-!assets/assets.json
-!assets/README.md
+apps/dicom_viewer/assets/cache/
+apps/dicom_viewer/assets/*.zip
+apps/dicom_viewer/assets/*.raw
+apps/dicom_viewer/assets/*.mvol
+!apps/dicom_viewer/assets/assets.json

@@ -22,13 +22,14 @@ Today the code has two renderer states:
 - **WebGPU:** a working **Dawn/emdawnwebgpu + SDL3 + Dear ImGui host**. It owns the
   WebGPU device/surface/command encoder in C++ on both native and wasm, consumes
   `RenderBridge` volume commands, uploads a 3D volume texture, and ray marches it
-  with `shaders/raygen.wgsl`. It also has a first compute pass,
-  `shaders/histogram.wgsl`, for GPU histogram + auto-windowing.
+  with `apps/dicom_viewer/shaders/raygen.wgsl`. It also has a first compute pass,
+  `apps/dicom_viewer/shaders/histogram.wgsl`, for GPU histogram + auto-windowing.
 
 Binary volume files are not stored in Git. The checked-in source of truth is
-`assets/assets.json`: it records where to download public study data, expected
-hashes, dimensions, and the recipe for generated local files. Run `make assets`
-to materialize `assets/volume.raw` and `assets/volume.mvol`.
+`apps/dicom_viewer/assets/assets.json`: it records where to download public study
+data, expected hashes, dimensions, and the recipe for generated local files. Run
+`make assets` to materialize `apps/dicom_viewer/assets/volume.raw` and
+`apps/dicom_viewer/assets/volume.mvol`.
 
 The default data is still a 96^3 phantom standing in for a real DICOM scan, but
 the native `USE_GDCM=ON` path now has the first DICOM handoff: load a DICOM
@@ -66,38 +67,28 @@ needs compute shaders, which WebGL2 does not have.
 ## Source layout
 
 ```
-src/
-├── main.cpp                 Entry point + the two app variants (G2 / G3),
-│                            selected by #ifdef USE_WEBGPU. Owns the main loop,
-│                            input, and the shared camera.
-├── volume/
-│   ├── volume_buffer.h      CPU-side owned volume bytes + metadata. Starts with
-│   │                        std/pmr storage, then becomes the allocator study
-│   │                        point for large CT/MRI datasets.
-│   └── volume_buffer_test.cpp
-├── volume_io/               Native DICOM loader smoke-test path (GDCM when
-│                            USE_GDCM=ON).
-└── engine/
-    ├── camera.h             Header-only camera: ORBIT (DICOM) + WASD (engine fly).
-    ├── shader_program.*     RAII wrapper around a GL program (compile/link/uniforms).
-    ├── vertex_buffer.*      RAII wrapper around a VBO.
-    ├── vertex_array.*       RAII wrapper around a VAO + attribute layout.
-    ├── renderer.*           Thin "clear + draw" abstraction (used by the WebGL build).
-    └── engine_c.*           C ABI boundary (STUDY MODULE — see below).
+apps/
+├── dicom_viewer/            DICOM viewer executable, app-specific assets,
+│   ├── sources/main.cpp     G2/G3 app variants selected by #ifdef USE_WEBGPU.
+│   ├── assets/              Asset manifest; generated/downloaded volumes ignored.
+│   ├── shaders/             DICOM viewer GLSL/WGSL shader source of truth.
+│   └── htmls/               Emscripten shells and standalone camera test page.
+├── core_demos/              Core examples/tests/benches.
+├── dawn_probe/              Standalone Dawn risk-gate prototype.
+├── fibers_prototype/        Coroutine/fiber learning prototype.
+└── volume_demos/            Volume and DICOM-loader smoke tests.
 
-html/
-├── shell_webgl.html         Emscripten shell for the WebGL2 build (canvas, FPS,
-│                            color buttons that call into C++).
-├── shell_dawn.html          Plain canvas shell for the Dawn/emdawnwebgpu build.
-│                            The UI is Dear ImGui, drawn by C++ into the canvas.
-└── camera-test.html         Standalone JS camera demo (no build needed).
+core/
+├── sources/                 Shared engine code: camera, ecs, jobs, input,
+│                            messaging, net, reactive, render, resource, scene.
+├── assets/                  Shared assets every app should bundle.
+└── shaders/                 Shared shaders every app should bundle.
 
-shaders/                     Shader source of truth (one file per program).
-├── raygen.glsl / blit.glsl  GLSL: BOTH stages in one file, gated by
-│                            VERTEX_SHADER / FRAGMENT_SHADER. Embedded at build
-│                            time into a generated header (compiled twice).
-└── raygen.wgsl / blit.wgsl  WGSL: one module each. Kept as the source for the
-                             upcoming Dawn/WebGPU ray-cast port.
+modules/
+├── opengl_renderer/         RAII GL wrappers and C ABI study module.
+├── volume/                  CPU-side owned volume bytes + .mvol reader.
+└── volume_io/               Native DICOM loader module (GDCM when USE_GDCM=ON).
+```
 
 GLSL is embedded at build time into a generated C++ header. WGSL is kept beside it
 so the WebGPU port can preserve the same algorithm in the WebGPU shader language.
@@ -105,12 +96,12 @@ so the WebGPU port can preserve the same algorithm in the WebGPU shader language
 
 ### Asset manager
 
-The project has the first small asset manager in `tools/assets.py`.
+The project has the first small asset manager in `scripts/assets.py`.
 
 It does four jobs:
 
-1. Reads `assets/assets.json`.
-2. Downloads large source datasets into `assets/cache/`.
+1. Reads `apps/dicom_viewer/assets/assets.json`.
+2. Downloads large source datasets into `apps/dicom_viewer/assets/cache/`.
 3. Verifies SHA-256 hashes before using them.
 4. Generates renderer-ready local files (`volume.raw`, `volume.mvol`).
 
@@ -270,8 +261,8 @@ callback.
 
 ## GLSL ES 3.0 vs WGSL — why both shaders by hand
 
-The ray caster is written twice: `shaders/raygen.glsl` (GLSL ES 3.00, WebGL) and
-`shaders/raygen.wgsl` (WGSL, WebGPU). Same algorithm, two languages — intentional
+The ray caster is written twice: `apps/dicom_viewer/shaders/raygen.glsl` (GLSL ES 3.00, WebGL) and
+`apps/dicom_viewer/shaders/raygen.wgsl` (WGSL, WebGPU). Same algorithm, two languages — intentional
 for learning. How resources reach the shader is the most instructive contrast:
 
 | Concept | GLSL ES 3.00 | WGSL |

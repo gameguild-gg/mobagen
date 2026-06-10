@@ -67,7 +67,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 - **Data structures:** signal nodes + dependent lists; a thread-local "current consumer".
 - **Perf:** control-plane only — *never* per-voxel/ray. Bookkeeping cost is fine for
   tens–thousands of occasionally-changing values.
-- **Status:** ✅ built (`core/reactive/reactive.hpp`, `reactive_demo`). Eager push model
+- **Status:** ✅ built (`core/sources/reactive/reactive.hpp`, `reactive_demo`). Eager push model
   with auto-tracking + change-detection; verified (center.set → Computed recomputes →
   Effect re-fires). Enhancements deferred: lazy/glitch-free pull, dynamic-dep cleanup,
   unsubscribe-on-destroy, `reactive_c.h`.
@@ -76,7 +76,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 - **Goal:** `Notifier` = sync per-instance callback; `EventBus` = async, by-type, decoupled.
 - **Learn:** observer vs queued events; compile-time-typed dispatch (no string routing).
 - **Perf:** coarse events only (`VolumeLoaded`, not `RayHit`). EventBus drained at frame phases.
-- **Status:** ✅ built (`core/messaging/{notifier,event_bus}.hpp`, `messaging_demo`). Notifier
+- **Status:** ✅ built (`core/sources/messaging/{notifier,event_bus}.hpp`, `messaging_demo`). Notifier
   sync multicast (connect/emit/disconnect); EventBus async by-type (post queues, process drains),
   per-type channel, no string routing. Verified. `events_c.h` facade deferred.
 
@@ -89,7 +89,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 - **Status:** ✅ **storage core** (`sparse_set`/`Storage<T>`, `ecs_demo`) — contiguous /
   stable / packed. ✅ **World** (`world.hpp`, `world_demo`) — generation-checked entities,
   index recycling, add/get/has/remove, single + two-component views, type-erased destroy,
-  tags. ✅ **systems-as-jobs** (`examples/core/composition/systems_demo`): a movement system over
+  tags. ✅ **systems-as-jobs** (`apps/core_demos/sources/composition/systems_demo`): a movement system over
   **2M entities** runs **6.78× faster** through `Scheduler::parallel_for` + `World::apply_range`
   than the serial `view`, results verified identical — modules stay decoupled (the app glues
   them). ⏳ Group (locality) + `ecs_c.h` facade.
@@ -97,7 +97,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 ### scene — `Transform` + `TransformSystem`
 - **Goal:** scene graph as a layer *on* the ECS (not a separate tree).
 - **Learn:** hierarchy as components; world-matrix propagation; scene graph as a *system*.
-- **Status:** ✅ built (`core/scene/{transform,transform_system}.hpp`, `scene_demo`). Transform
+- **Status:** ✅ built (`core/sources/scene/{transform,transform_system}.hpp`, `scene_demo`). Transform
   = local TRS + parent + cached world (GLM); TransformSystem resolves world = parent.world *
   local (recursive + per-pass memo). Verified (move root → subtree follows). Dirty-subtree skip
   + parallelize-over-scheduler are later optimizations.
@@ -111,7 +111,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
   `VolumeDrawCommand[]` output. A volume entity is `{Transform, VolumeRenderable}`;
   the command stores the resolved world matrix, volume resource id, dimensions,
   voxel spacing, scalar format, window/level, transfer preset, and render mode.
-- **Status:** ✅ skeleton built (`core/render/render_bridge.hpp`,
+- **Status:** ✅ skeleton built (`core/sources/render/render_bridge.hpp`,
   `render_bridge_demo`). It proves the DOD -> renderer seam with a DICOM-like
   `512x512x300` UInt16 CT volume. The Dawn host now consumes the bridge command
   for the volume ray-cast path.
@@ -140,7 +140,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
   clock-pinned runs.
 - **Status: ✅ COMPLETE (5a–5d).** ✅ 5a scheduler+demo, ✅ 5b Chase-Lev lock-free +
   wake + bench, ✅ 5b-opt frame pool + lock-free WaitGroup + hot-loop extraction,
-  ✅ 5c dual-target (`Mode::Inline` fallback + `tools/serve.py` COOP/COEP + Emscripten
+  ✅ 5c dual-target (`Mode::Inline` fallback + `scripts/serve.py` COOP/COEP + Emscripten
   pthread build `build/wasm-jobs/bin/jobs_bench.html`), ✅ 5d `parallel_for` + `wait` +
   `jobs_c.h` C ABI facade (`jobs_c_demo` drives it via the C contract alone).
 
@@ -148,7 +148,7 @@ Each: **Goal · Learn · Data structures · Perf · Status.**
 - **Goal:** offload heavy compute (segmentation, preprocessing) to workers/nodes.
 - **Learn:** a `Job` as a remote unit; serialized component slices; client↔server on web.
 - **Perf/seam:** a `JobSystem` backend + a serialization boundary; transport last.
-- **Status:** ✅ seam built (`core/net/transport.hpp`, `net_demo`). `ITransport` +
+- **Status:** ✅ seam built (`core/sources/net/transport.hpp`, `net_demo`). `ITransport` +
   `LoopbackNode` (in-process node thread) + POD (de)serialization; offloaded a sum to
   a node and verified. Swap LoopbackNode for a socket/WebSocket = real distribution.
 

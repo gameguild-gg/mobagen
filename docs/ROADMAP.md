@@ -43,7 +43,7 @@ This document tracks what has been completed, what remains, and the structured l
 
 - ✅ **Repository cleanup**
   - Deleted 13 old build directories
-  - Removed `src/main.cpp.backup`
+  - Removed the old `main.cpp.backup` file
   - Removed `diagnostic.log`
   - Cleaned up stray log files
 
@@ -62,13 +62,13 @@ This document tracks what has been completed, what remains, and the structured l
 
 ### Camera System
 
-- ✅ **src/engine/camera.h** — Complete camera implementation
+- ✅ **core/sources/camera/camera.hpp** — Complete camera implementation
   - Orbit mode: Rotate around focal point, adjustable distance
   - WASD mode: Free movement with mouse look
   - Mouse wheel: Zoom (Orbit) or speed adjustment (WASD)
   - Mode toggle via 'C' key
 
-- ✅ **SDL2 Input Integration (src/main.cpp)**
+- ✅ **SDL Input Integration (apps/dicom_viewer/sources/main.cpp)**
   - Keyboard handlers: `on_key_pressed()`, `on_key_released()`
   - Mouse handlers: `on_mouse_motion()`, `on_mouse_wheel()`
   - Works identically in native and WASM builds
@@ -97,7 +97,9 @@ This document tracks what has been completed, what remains, and the structured l
   │   ├── CAMERA_*.md
   │   └── WEEK*.md
   ├── html/                  ← Test files + templates
-  ├── src/                   ← C++ source
+  ├── apps/                  ← app executables and app-specific source/assets
+  ├── core/sources/          ← shared engine C++ source
+  ├── modules/               ← reusable app-consumable modules
   ├── build/                 ← Organized outputs
   │   ├── native/bin
   │   ├── wasm-webgl/bin
@@ -366,9 +368,9 @@ Result: Medical scene with surgical guidance
 **Objective:** Get Phase 3, Step 3.1 working (fullscreen ray marching)
 
 1. **Scaffold project structure**
-   - Create `src/shaders/raycast.glsl` for fragment shader
-   - Create `src/renderer/raycast_renderer.h/cpp` for pipeline
-   - Update `src/main.cpp` to use new renderer
+  - Create `apps/dicom_viewer/shaders/raycast.glsl` for fragment shader
+  - Create `modules/opengl_renderer/sources/raycast_renderer.h/cpp` for pipeline
+  - Update `apps/dicom_viewer/sources/main.cpp` to use new renderer
 
 2. **Implement fullscreen quad**
    - Vertex shader: Pass screen UV to fragment shader

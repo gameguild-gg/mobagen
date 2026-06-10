@@ -1,21 +1,16 @@
-# Core is the engine library layer.
-#
-# Rule for this directory:
-#   - headers / library sources live under core/
-#   - demos, tests, and benches live under examples/core/
-#
-# That keeps the core usable as a dependency of the renderer, editor, wasm
-# module, or another language binding without accidentally compiling study apps.
+# Core is the shared engine library layer. All C++ sources and headers live
+# under core/sources; demos and prototypes live under apps.
 
-add_subdirectory(ecs)
-add_subdirectory(input)
-add_subdirectory(jobs)
-add_subdirectory(messaging)
-add_subdirectory(net)
-add_subdirectory(reactive)
-add_subdirectory(resource)
-add_subdirectory(scene)
-add_subdirectory(render)
+add_subdirectory(sources/camera)
+add_subdirectory(sources/ecs)
+add_subdirectory(sources/input)
+add_subdirectory(sources/jobs)
+add_subdirectory(sources/messaging)
+add_subdirectory(sources/net)
+add_subdirectory(sources/reactive)
+add_subdirectory(sources/resource)
+add_subdirectory(sources/scene)
+add_subdirectory(sources/render)
 
 # Aggregate target for Makefile/CI. Header-only modules have no object files, so
 # the only concrete dependency today is the jobs static library.

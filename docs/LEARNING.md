@@ -1,7 +1,7 @@
 # Learning Path
 
 > Current WebGPU status: the Dawn host now consumes DOD `RenderBridge` commands
-> directly. It embeds `shaders/raygen.wgsl`, uploads a 3D texture, uploads the
+> directly. It embeds `apps/dicom_viewer/shaders/raygen.wgsl`, uploads a 3D texture, uploads the
 > transfer LUT, and passes camera/window/mode/spacing/debug data as uniforms.
 > The default browser input is still a 96^3 phantom. Native `USE_GDCM=ON` can now
 > read a DICOM series into `VolumeBuffer` while preserving stored UInt16 voxels.
@@ -73,10 +73,10 @@ the loader gets proven on a stand-in phantom first.
 
 - **B1 ✅** Load the volume from a **file** (`volume.raw` / `volume.mvol`), not
   generated inside the renderer — the same path real data will use. WebGL reads
-  `volume.raw` from the WASM FS (Emscripten `--preload-file`); WebGPU reads
-  `volume.mvol`. These binary files are local asset-manager outputs, not Git
-  content: `make assets` reads `assets/assets.json`, downloads/verifies the
-  source dataset, and generates the renderer-ready files.
+   `volume.raw` from the WASM FS (Emscripten `--preload-file`); WebGPU reads
+   `volume.mvol`. These binary files are local asset-manager outputs, not Git
+   content: `make assets` reads `apps/dicom_viewer/assets/assets.json`,
+   downloads/verifies the source dataset, and generates the renderer-ready files.
 9. **B2 ✅** **Window/level** in the shader (center+width sliders) — remap a band
    of density to [0,1], clipping outside. The "bone window / brain window" knob.
 10. **B3 ✅** **Voxel spacing** — the volume box scales per-axis by voxel spacing
@@ -101,7 +101,7 @@ the loader gets proven on a stand-in phantom first.
 13. Port the ray caster into a **WGSL compute shader** writing a storage texture.
 14. **GPU histogram + auto-windowing ✅ first pass** with atomics — *impossible in
     WebGL2; this is the concrete justification for WebGPU.* Current version:
-    `shaders/histogram.wgsl` builds a 256-bin R8 or 65,536-bin UInt16 histogram
+   `apps/dicom_viewer/shaders/histogram.wgsl` builds a 256-bin R8 or 65,536-bin UInt16 histogram
     in a storage buffer. C++ reads the bins back and applies a 1%-99% auto window.
     Later version: do the percentile reduction fully on GPU.
 15. Optimizations: early-ray-termination (have it), empty-space skipping, adaptive step.
@@ -224,7 +224,7 @@ A successful initialization prints that WebGPU is ready, loads the DICOM sample,
 initializes the packed UInt16 RG8 volume renderer, and opens the ImGui panel.
 
 The HTML shell files are part of the Emscripten link step, not runtime assets.
-`CMakeLists.txt` marks `html/shell_dawn.html` and `html/shell_webgl.html` as
+`apps/dicom_viewer/CMakeLists.txt` marks `apps/dicom_viewer/htmls/shell_dawn.html` and `apps/dicom_viewer/htmls/shell_webgl.html` as
 link dependencies so a UI/template edit relinks `dicom_renderer.html` instead
 of leaving you with stale generated HTML.
 

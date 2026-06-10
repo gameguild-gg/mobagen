@@ -4,7 +4,7 @@
 # Bumped from SDL2 (release-2.32.8) to align with master's platform (SDL3 +
 # Dawn WebGPU + ImGui). SDL3 hosts the native GL / WebGL2 context exactly as
 # SDL2 did (SDL_GL_CreateContext, SDL_GL_SwapWindow, …); the renderer's SDL
-# calls were migrated to the SDL3 API in src/main.cpp.
+# calls were migrated to the SDL3 API in apps/dicom_viewer/sources/main.cpp.
 #
 # SDL3_image is intentionally NOT pulled: the renderer reads volume.raw directly,
 # so the dependency graph stays lean (no vendored opus -> no need for

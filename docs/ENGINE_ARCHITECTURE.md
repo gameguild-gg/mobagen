@@ -171,7 +171,7 @@ GPU ray-cast, not CPU iteration.
     GPU texture / arena buffer; the 150 MB voxels never become entities,
   - hot multi-component queries get archetype-like locality via optional **groups**
     (a partitioned, co-ordered subset of pools) — added only where a profile is hot.
-  - *Implemented:* `core/ecs/{sparse_set,storage}.hpp` (+ `ecs_demo`). `World`/`View`/
+  - *Implemented:* `core/sources/ecs/{sparse_set,storage}.hpp` (+ `ecs_demo`). `World`/`View`/
     `Group` and the `ecs_c.h` facade follow.
 - **`View<A,B>`** = iterate the *smallest* pool, gate others via sparse lookup.
 - **`System`** = a function over a `View`, run by the `Coordinator` (and wrappable
@@ -252,7 +252,7 @@ Task render() {
 
 > Coroutines handle *suspension* identically on both targets. Only the *threading*
 > differs (native `std::thread` vs Emscripten pthreads). The prototype
-> (`prototypes/fibers/`) validated the model: **`coro_demo` (stackless) is the
+> (`apps/fibers_prototype/`) validated the model: **`coro_demo` (stackless) is the
 > canonical basis**; `fiber_demo` (stackful Win32) stays as the educational contrast
 > — the road not taken (and why: it needs a stack per fiber + Asyncify on web).
 
@@ -312,18 +312,12 @@ core/<module>/
 
 **Layout:**
 ```
-core/
-  reactive/   reactive_c.h | reactive.hpp    Signal·Computed·Effect        (§2)
-  messaging/  events_c.h   | messaging.hpp   Notifier ; Event·EventBus      (§3,§4)
-  ecs/        ecs_c.h      | ecs.hpp          World·Entity·View·System       (§5)
-  scene/      scene_c.h    | scene.hpp        Transform·TransformSystem      (§6)
-  render/     render_bridge.hpp              RenderBridge·Volume commands
-  jobs/       jobs_c.h     | jobs.hpp         JobSystem·Job·Fiber·WaitGroup  (§7)
-  net/        net_c.h      | net.hpp          (later) distributed backend    (§8)
-  engine/     engine_c.h   | engine.hpp       Coordinator (frame loop)
-src/            renderer (existing; fronted by engine_c)
-src/volume_io/  volume_io.h   DICOM loader (existing module)
-prototypes/     learning spikes (fibers, …)
+core/sources/    shared engine code: reactive, messaging, ecs, scene, render,
+                 jobs, input, net, resource, camera
+modules/         optional app-consumable modules: volume, volume_io,
+                 opengl_renderer
+apps/            executables: dicom_viewer, core_demos, volume_demos,
+                 dawn_probe, fibers_prototype
 ```
 
 **What crosses each ABI (coarse) vs stays C++ (hot):**

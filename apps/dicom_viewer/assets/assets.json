@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "sources": {
+    "head256": {
+      "kind": "zip-raw-volume",
+      "url": "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/3d/head256x256x109.zip",
+      "sha256": "7d6d9c15a24a043114a9a2d07380b1afe24f4c45aa0a0da0c55bf764cb2cf906",
+      "cache": "apps/dicom_viewer/assets/cache/head256x256x109.zip",
+      "member": "head256x256x109",
+      "raw": "apps/dicom_viewer/assets/head256x256x109.raw",
+      "raw_sha256": "4729fb67ce7cd48df48cbd362937bb0082857638fdc67c24169c33bab08db999",
+      "dimensions": [256, 256, 109],
+      "dtype": "uint8",
+      "credit": "Scanned head data by Divine Augustine, used by the three.js 3D texture examples.",
+      "license": "CPOL 1.02; verify license before redistributing derived data."
+    }
+  },
+  "outputs": [
+    {
+      "id": "phantom-r8",
+      "kind": "phantom-r8",
+      "path": "apps/dicom_viewer/assets/volume.raw",
+      "sha256": "8c8aeaadf187358bf8054040c91dbd59bc64fe8f0516455fb7dfd8e6440368c2",
+      "dimensions": [96, 96, 96],
+      "description": "Synthetic head-like R8 phantom used by the WebGL learning path."
+    },
+    {
+      "id": "head-mvol",
+      "kind": "mvol-from-raw",
+      "source": "head256",
+      "path": "apps/dicom_viewer/assets/volume.mvol",
+      "sha256": "287c889650158a699b10e4abc1e4d4f57bb188a45d3bde64795f652b46adeffb",
+      "max_dimension": 160,
+      "flip": "y",
+      "spacing_mm": [1.0, 1.0, 1.0],
+      "description": "Downsampled web-friendly .mvol used by the WebGPU/Dawn path."
+    }
+  ]
+}

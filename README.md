@@ -52,9 +52,10 @@ Emscripten toolchain file directly. Full commands, controls, native builds, and
 caveats are in [docs/LEARNING.md](docs/LEARNING.md).
 
 Binary volume data is not committed to Git. `make assets` reads
-[assets/assets.json](assets/assets.json), downloads/verifies the public head
-dataset, and generates the local `assets/volume.raw` / `assets/volume.mvol`
-files consumed by the builds.
+[apps/dicom_viewer/assets/assets.json](apps/dicom_viewer/assets/assets.json),
+downloads/verifies the public head dataset, and generates the local
+`apps/dicom_viewer/assets/volume.raw` / `apps/dicom_viewer/assets/volume.mvol`
+files consumed by the DICOM viewer builds.
 
 ---
 
@@ -85,11 +86,11 @@ back the histogram, and sets the window to the 1%-99% scalar range.
 ## Project layout
 
 ```
-src/engine/   RAII GL wrappers, camera, renderer helpers, C ABI study module
-src/main.cpp  entry point + the G2/G3 app variants (#ifdef USE_WEBGPU)
-core/         DOD study core: jobs, ecs, reactive, messaging, scene, net
-assets/       asset manifest only; generated/downloaded binary volumes are ignored
-html/         Emscripten shells (WebGL and Dawn WebGPU)
-external/     CMake deps: glm, SDL3, GLEW, Dawn/emdawnwebgpu, ImGui
-docs/         current docs plus archived historical notes
+apps/          demos, prototypes, and app-specific assets/shaders/htmls
+core/          shared engine code under core/sources plus shared assets/shaders
+modules/       optional reusable modules apps can link, such as volume IO or OpenGL
+external/      CMake deps: glm, SDL3, GLEW, Dawn/emdawnwebgpu, ImGui
+scripts/       asset, conversion, serving, and demo automation
+docs/          current docs plus archived historical notes
+platforms/android/ Android boilerplate placeholder
 ```

@@ -49,7 +49,7 @@ project is exactly that hand-off.
   *you* manage memory by hand. Most operating systems and drivers are written in C.
 - **C++** is C plus higher-level features (classes/objects, templates, automatic
   cleanup). Still compiled to fast machine code, still manual memory, but more
-  ergonomic. **Our engine is C++** ([src/main.cpp](../src/main.cpp), [src/engine/](../src/engine/)).
+  ergonomic. **Our engine is C++** ([apps/dicom_viewer/sources/main.cpp](../apps/dicom_viewer/sources/main.cpp), [core/sources](../core/sources), [modules](../modules)).
 - "**Compiled**" means a tool (a *compiler*) translates the human-readable `.cpp`
   text into machine code the computer runs directly. (Contrast with JavaScript,
   which the browser reads and runs on the fly.)
@@ -89,16 +89,16 @@ it runs in massive parallel. Shaders are where the actual image gets computed.
 - **WebGL2** is OpenGL ES 3.0 exposed *inside the browser*. It's what we use for
   the "G2" build. Mature, runs almost everywhere.
 - **GLSL** ("GL Shading Language") is the language you write OpenGL/WebGL shaders
-  in. Our GLSL lives in [shaders/raygen.glsl](../shaders/raygen.glsl) and
-  [shaders/blit.glsl](../shaders/blit.glsl). It looks like C.
+  in. Our DICOM viewer GLSL lives in [apps/dicom_viewer/shaders/raygen.glsl](../apps/dicom_viewer/shaders/raygen.glsl) and
+  [apps/dicom_viewer/shaders/blit.glsl](../apps/dicom_viewer/shaders/blit.glsl). It looks like C.
 
 ### WebGPU / WGSL
 - **WebGPU** is the *modern* browser GPU API (successor to WebGL). It's lower-level,
   faster for big workloads, and — crucially for us — supports **compute shaders**
   (general GPU programs, needed later for fast DICOM processing).
 - **WGSL** ("WebGPU Shading Language") is WebGPU's shader language. Same ideas as
-  GLSL, different spelling. Ours: [shaders/raygen.wgsl](../shaders/raygen.wgsl),
-  [shaders/blit.wgsl](../shaders/blit.wgsl).
+  GLSL, different spelling. Ours: [apps/dicom_viewer/shaders/raygen.wgsl](../apps/dicom_viewer/shaders/raygen.wgsl),
+  [apps/dicom_viewer/shaders/blit.wgsl](../apps/dicom_viewer/shaders/blit.wgsl).
 
 We keep the shader algorithms in both languages (WebGL+GLSL and WebGPU+WGSL) on
 purpose. WebGL is the easy starting point; Dawn/WebGPU is the destination we are
@@ -123,7 +123,7 @@ porting the volume renderer onto.
 Almost all GPU drawing uses the same five ideas:
 
 1. **Vertices** — points in space (e.g. the 3 corners of a triangle). Stored in a
-   **vertex buffer** (a chunk of GPU memory). In our code: [vertex_buffer](../src/engine/vertex_buffer.h).
+  **vertex buffer** (a chunk of GPU memory). In our code: [vertex_buffer](../modules/opengl_renderer/sources/vertex_buffer.h).
 2. **The vertex shader** — runs once per vertex; decides where each vertex lands on
    screen.
 3. **Rasterization** — the GPU automatically fills in the pixels *between* the
@@ -139,7 +139,7 @@ Two more nouns you pass *into* shaders:
   (e.g. the camera matrix). Like global constants for that draw call.
 - **Textures** — images/data arrays the shader can *sample* (read) at any
   coordinate. A 2D texture is a picture; a **3D texture** is a stack of pictures =
-  our volume. In our code: [texture](../src/engine/texture.h), [texture3d](../src/engine/texture3d.h).
+  our volume. In our code: [texture](../modules/opengl_renderer/sources/texture.h), [texture3d](../modules/opengl_renderer/sources/texture3d.h).
 
 ### Coordinates: NDC
 The GPU's screen space is **NDC** ("normalized device coordinates"): x and y both
@@ -151,31 +151,25 @@ opposite. The vertex shader's job is ultimately to output NDC positions.
 ## 4. A tour of our code (what each file is)
 
 ```
-src/
-  main.cpp            The whole app: open window, the per-frame loop, input,
-                      and the renderer-specific code (#ifdef USE_WEBGPU picks one).
-  engine/
-    camera.h          Turns mouse/keys into the camera's view+projection matrices.
-    shader_program.*  RAII wrapper: compile GLSL, set uniforms (WebGL/native).
-    vertex_buffer.*   RAII wrapper: a chunk of vertex data on the GPU.
-    vertex_array.*    RAII wrapper: "how to read" that vertex data (the layout).
-    texture.*         RAII wrapper: a 2D GPU texture.
-    texture3d.*       RAII wrapper: a 3D GPU texture (the volume).
-    framebuffer.*     RAII wrapper: an offscreen render target (§6).
-    renderer.*        Small "clear + draw" helper used by the WebGL path.
-    engine_c.*        A C-style interface (study module; see §10).
-shaders/
-  raygen.glsl/.wgsl   The ray caster (the important shader): one file per language.
-  blit.glsl/.wgsl     The "copy the offscreen image to the screen" shader.
-html/
-  shell_webgl.html        The web page for the WebGL build (UI + canvas).
-  shell_dawn.html         Plain canvas page for the Dawn/emdawnwebgpu build.
+apps/dicom_viewer/
+  sources/main.cpp     The app: window, per-frame loop, input, and renderer-specific code.
+  shaders/             DICOM viewer GLSL/WGSL ray-cast and blit shaders.
+  htmls/               Emscripten shell pages.
+modules/opengl_renderer/sources/
+  shader_program.*     RAII wrapper: compile GLSL, set uniforms (WebGL/native).
+  vertex_buffer.*      RAII wrapper: a chunk of vertex data on the GPU.
+  vertex_array.*       RAII wrapper: "how to read" that vertex data.
+  texture*.h/cpp       RAII wrappers for 2D and 3D GPU textures.
+  framebuffer.*        RAII wrapper: an offscreen render target (§6).
+  renderer.*           Small "clear + draw" helper used by the WebGL path.
+core/sources/camera/
+  camera.hpp           Turns mouse/keys into the camera's view+projection matrices.
 ```
 
 ### Two words you'll see a lot
 - **RAII** ("Resource Acquisition Is Initialization") — a C++ habit: an object
   *grabs* a GPU resource when created and *frees* it automatically when it goes out
-  of scope. It means we don't leak GPU memory. Every `engine/*` wrapper is RAII:
+  of scope. It means we don't leak GPU memory. Every `modules/opengl_renderer/sources/*` wrapper is RAII:
   one C++ object = one GPU object.
 - **`#ifdef USE_WEBGPU`** — a compile-time switch. Code inside it is included only
   in the WebGPU build; the `#else` part only in the WebGL build. That's how one
@@ -212,7 +206,7 @@ grid of numbers that, when you multiply a point by it, *transforms* that point
   everything into NDC.
 
 Multiply them → **view-projection**. Multiply a 3D point by it → where that point
-lands on screen. [camera.h](../src/engine/camera.h) builds these from mouse/keys.
+lands on screen. [camera.hpp](../core/sources/camera/camera.hpp) builds these from mouse/keys.
 Two modes: **ORBIT** (rotate around the object — for inspecting a scan) and **WASD**
 (fly around — game-style).
 
@@ -230,7 +224,7 @@ Normally pixels go to the screen. A **framebuffer** lets you redirect them **int
 texture** instead. Then a *second* pass reads that texture and draws it to the
 screen. Why bother? Because once the whole image is in a texture you can *process*
 it (effects), and — the real reason — **the ray caster computes its result into a
-texture, then a "blit" pass copies it to the screen.** ([framebuffer.h](../src/engine/framebuffer.h),
+texture, then a "blit" pass copies it to the screen.** ([framebuffer.h](../modules/opengl_renderer/sources/framebuffer.h),
 and the "blit" shaders.) This is the Unity *RenderTexture* idea.
 
 ### 5.5 Ray generation (the turning point)
@@ -261,7 +255,7 @@ A **3D texture** is a cube of data — width × height × **depth** voxels — s
 a 3D coordinate. Our volume lives in the cube from (-1,-1,-1) to (1,1,1). We
 generate a fake one on the CPU (a soft ball, later a head-shaped phantom) and
 upload it. Now "what's here?" = *sample the 3D texture at this point*.
-([texture3d.h](../src/engine/texture3d.h); the data comes from `volume.raw`.)
+([texture3d.h](../modules/opengl_renderer/sources/texture3d.h); the data comes from `volume.raw`.)
 
 ### 5.8 Direct Volume Rendering (compositing)
 A scan has no hard surfaces — it's a cloud of densities. So instead of *stopping*
@@ -342,7 +336,7 @@ where the research goes (it can run general parallel programs, not just draw).
   package (Emscripten `--preload-file`) and read it from a fake in-memory
   filesystem. The Dawn/WebGPU path preloads `volume.mvol` the same way. Those
   binary files are not in Git; `make assets` downloads/generates them from
-  `assets/assets.json`.
+  `apps/dicom_viewer/assets/assets.json`.
 - **"Hard refresh or it's blank."** The browser caches the `.wasm`/`.data`. After a
   rebuild a normal refresh can load the *new* page with the *old* cached code →
   mismatch → blank canvas. Always Ctrl+Shift+R after building. (Not a bug; cache.)

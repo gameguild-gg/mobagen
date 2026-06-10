@@ -1,0 +1,5 @@
+add_library(mobagen_volume INTERFACE)
+add_library(mobagen::volume ALIAS mobagen_volume)
+target_include_directories(mobagen_volume INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
+target_compile_features(mobagen_volume INTERFACE cxx_std_20)
+target_link_libraries(mobagen_volume INTERFACE glm)

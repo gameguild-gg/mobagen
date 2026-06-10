@@ -8,7 +8,7 @@ EMSCRIPTEN_TOOLCHAIN := $(EMSDK)/upstream/emscripten/cmake/Modules/Platform/Emsc
 EMSCRIPTEN_ENV := export EMSDK="$(EMSDK)"; export EMSDK_NODE="$(EMSDK_NODE)"; export EMSDK_PYTHON="$(EMSDK_PYTHON)"; export PATH="$(EMSDK):$(EMSDK)/upstream/emscripten:$$PATH";
 NATIVE_BUILD_ARGS ?= /m:1
 PORT ?= 8085
-DICOM_DIR ?= assets/dicom
+DICOM_DIR ?= apps/dicom_viewer/assets/dicom
 
 .PHONY: help
 help:
@@ -21,7 +21,7 @@ help:
 	  '  make configure-wasm-webgl    Configure browser WebGL2 renderer' \
 	  '  make wasm-webgl              Build browser WebGL2 renderer' \
 	  '  make assets                  Download/generate local binary volume assets' \
-	  '  make assets-verify           Verify local asset hashes from assets/assets.json' \
+	  '  make assets-verify           Verify local asset hashes from apps/dicom_viewer/assets/assets.json' \
 	  '  make assets-clean            Remove downloaded/generated local assets' \
 	  '  make native-webgpu           Build native WebGPU/Dawn renderer' \
 	  '  make native-dicom            Configure native renderer + GDCM DICOM loader' \
@@ -33,15 +33,15 @@ help:
 
 .PHONY: assets
 assets:
-	python tools/assets.py ensure
+	python scripts/assets.py ensure
 
 .PHONY: assets-verify
 assets-verify:
-	python tools/assets.py verify
+	python scripts/assets.py verify
 
 .PHONY: assets-clean
 assets-clean:
-	python tools/assets.py clean
+	python scripts/assets.py clean
 
 .PHONY: configure-wasm-webgpu
 configure-wasm-webgpu: assets
@@ -81,7 +81,7 @@ native-dicom:
 
 .PHONY: core
 core:
-	cmake -S . -B build/core -DBUILD_RENDERER=OFF -DBUILD_CORE=ON -DBUILD_CORE_EXAMPLES=OFF
+	cmake -S . -B build/core -DBUILD_RENDERER=OFF -DBUILD_CORE=ON -DBUILD_CORE_EXAMPLES=OFF -DBUILD_VOLUME_DEMOS=OFF
 	MSYS_NO_PATHCONV=1 cmake --build build/core --target mobagen_core --config Release -- $(NATIVE_BUILD_ARGS)
 
 .PHONY: core-examples
@@ -91,12 +91,12 @@ core-examples:
 
 .PHONY: dicom-smoke
 dicom-smoke:
-	cmake -S . -B build/native-dicom -DUSE_GDCM=ON
+	cmake -S . -B build/native-dicom -DBUILD_RENDERER=OFF -DUSE_GDCM=ON -DBUILD_VOLUME_DEMOS=ON
 	cmake --build build/native-dicom --target volume_io_test --config Release
 	./build/native-dicom/bin/Release/volume_io_test.exe "$(DICOM_DIR)"
 
 .PHONY: volume-buffer-test
 volume-buffer-test:
-	cmake -S . -B build/native
+	cmake -S . -B build/native -DBUILD_RENDERER=OFF -DBUILD_VOLUME_DEMOS=ON
 	cmake --build build/native --target volume_buffer_test --config Release
 	./build/native/bin/Release/volume_buffer_test.exe
