@@ -1,3 +1,10 @@
+## [1.18.1](https://github.com/InfiniBrains/mobagen/compare/v1.18.0...v1.18.1) (2026-06-10)
+
+
+### Bug Fixes
+
+* folder restructure ([3db662c](https://github.com/InfiniBrains/mobagen/commit/3db662cde382f7fc7bf5d5355625ff4324098a86))
+
 # [1.18.0](https://github.com/InfiniBrains/mobagen/compare/v1.17.0...v1.18.0) (2026-06-09)
 
 
