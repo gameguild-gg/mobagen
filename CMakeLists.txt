@@ -29,7 +29,12 @@ include(cmake/tools.cmake)
 #   -DUSE_WEBGPU=ON            -> WebGPU build  -> build/wasm-webgpu
 # Declared BEFORE it is used below.
 # ----------------------------------------------------------------------------
-option(USE_WEBGPU "Build the WebGPU (G3) renderer instead of WebGL2 (G2)" OFF)
+set(DEFAULT_USE_WEBGPU OFF)
+if(APPLE AND NOT EMSCRIPTEN)
+    # OpenGL is deprecated on macOS; default to Dawn/Metal for native builds.
+    set(DEFAULT_USE_WEBGPU ON)
+endif()
+option(USE_WEBGPU "Build the WebGPU (G3) renderer instead of WebGL2 (G2)" ${DEFAULT_USE_WEBGPU})
 option(BUILD_RENDERER "Build the dicom_renderer executable" ON)
 
 # ----------------------------------------------------------------------------
@@ -300,6 +305,11 @@ else()
         # Dawn native (D3D12/Metal/Vulkan): IMGUI + mobagen::webgpu + SDL3 are
         # already linked above. No OpenGL/GLEW in a WebGPU build.
     else()
+        if(APPLE)
+            message(FATAL_ERROR
+                "Native OpenGL renderer is not supported on macOS (OpenGL is deprecated). "
+                "Configure with -DUSE_WEBGPU=ON to build with Dawn/Metal.")
+        endif()
         # WebGL2 / OpenGL native build.
         include(external/external.cmake)
         find_package(OpenGL REQUIRED)
