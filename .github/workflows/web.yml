@@ -30,7 +30,7 @@ jobs:
           python-version: '3.12'
 
       - name: Build (web)
-        run: python build.py web --install-deps
+        run: python scripts/build.py web --install-deps
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3

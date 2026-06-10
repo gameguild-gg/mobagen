@@ -33,7 +33,7 @@ jobs:
         run: pip install jsonschema jinja2
 
       - name: Build (osx)
-        run: python build.py osx
+        run: python scripts/build.py osx
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3

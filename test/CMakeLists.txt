@@ -20,7 +20,8 @@ CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
 file(GLOB sourcestest CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 add_executable(CoreTests ${sourcestest})
 target_link_libraries(CoreTests doctest::doctest core) # cpr)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../core/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../core/
+                    ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources/)
 set_target_properties(CoreTests PROPERTIES CXX_STANDARD 20)
 
 # enable compiler warnings if(NOT TEST_INSTALLED_VERSION) if(CMAKE_CXX_COMPILER_ID MATCHES "Clang"

@@ -4,7 +4,10 @@
   "mcp": {
     "agentmemory": {
       "type": "local",
-      "command": ["npx", "-y", "@agentmemory/mcp"]
+      "command": ["npx", "-y", "@agentmemory/mcp"],
+      "env": {
+        "NODE_OPTIONS": "--experimental-global-webcrypto"
+      }
     }
   }
 }

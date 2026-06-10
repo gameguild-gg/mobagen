@@ -31,15 +31,15 @@ from pathlib import Path
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Repo root (directory containing this script)
+# Repo root (parent of the scripts/ directory containing this script)
 # ---------------------------------------------------------------------------
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
-# Auto-discover example targets from examples/
+# Auto-discover app targets from apps/
 # ---------------------------------------------------------------------------
 def _discover_examples() -> list[str]:
-    examples_dir = REPO_ROOT / "examples"
+    examples_dir = REPO_ROOT / "apps"
     if not examples_dir.is_dir():
         return []
     return sorted(
@@ -891,7 +891,7 @@ class AndroidPlatform(Platform):
             return
 
         src_java = sdl_src / "android-project" / "app" / "src" / "main" / "java" / "org"
-        dst_java = REPO_ROOT / "android" / "app" / "src" / "main" / "java" / "org"
+        dst_java = REPO_ROOT / "platforms" / "android" / "app" / "src" / "main" / "java" / "org"
 
         if not src_java.is_dir():
             warn(f"SDL3 Java sources not found at expected path: {src_java}")
@@ -919,7 +919,7 @@ class AndroidPlatform(Platform):
         required = ("libmain.so", "libSDL3.so")
 
         for abi, build_dir in abi_dirs.items():
-            dest_dir = REPO_ROOT / "android" / "app" / "src" / "main" / "jniLibs" / abi
+            dest_dir = REPO_ROOT / "platforms" / "android" / "app" / "src" / "main" / "jniLibs" / abi
             dest_dir.mkdir(parents=True, exist_ok=True)
 
             for name in required:
@@ -933,7 +933,7 @@ class AndroidPlatform(Platform):
                 ok(f"Copied {src} → {dst}")
 
     def _write_local_properties(self) -> None:
-        lp = REPO_ROOT / "android" / "local.properties"
+        lp = REPO_ROOT / "platforms" / "android" / "local.properties"
         sdk_path = str(self._sdk).replace("\\", "\\\\")
         ndk_path = str(self._ndk).replace("\\", "\\\\")
         lp.write_text(
@@ -943,11 +943,11 @@ class AndroidPlatform(Platform):
         ok(f"Wrote {lp}")
 
     def _run_gradle(self) -> Path:
-        android_dir = REPO_ROOT / "android"
+        android_dir = REPO_ROOT / "platforms" / "android"
         gradlew = android_dir / ("gradlew.bat" if platform.system() == "Windows" else "gradlew")
         if not gradlew.exists():
             die(f"Gradle wrapper not found at {gradlew}. "
-                "Make sure the android/ scaffold exists.")
+                "Make sure the platforms/android/ scaffold exists.")
         gradlew.chmod(gradlew.stat().st_mode | 0o111)  # ensure executable
 
         run(
