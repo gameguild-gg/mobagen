@@ -78,7 +78,7 @@ if(EMSCRIPTEN)
       "${CMAKE_C_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
 
-  file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/html/*")
+  file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/htmls/*")
   file(COPY ${HTML} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
 
   set(ENABLE_TEST_COVERAGE OFF)
@@ -98,17 +98,12 @@ endif()
 
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 if(BUILD_EXAMPLES)
-  add_subdirectory(examples)
+  add_subdirectory(apps)
 endif()
 
 option(ENABLE_DOCUMENTATION "ENABLE_DOCUMENTATION" OFF)
 if(ENABLE_DOCUMENTATION)
   add_subdirectory(documentation)
-endif()
-
-option(ENABLE_EDITOR "ENABLE_EDITOR" ON)
-if(ENABLE_EDITOR)
-  add_subdirectory(editor)
 endif()
 
 CPMAddPackage(
@@ -162,7 +157,7 @@ if(ANDROID AND DEFINED ANDROID_MAIN_TARGET)
 
     set_target_properties(${_shim_name} PROPERTIES OUTPUT_NAME "main")
     target_sources(${_shim_name} PRIVATE
-      "${CMAKE_CURRENT_SOURCE_DIR}/core/android_main_wrapper.cpp"
+      "${CMAKE_CURRENT_SOURCE_DIR}/core/sources/android_main_wrapper.cpp"
     )
 
     # Empty out the original EXECUTABLE's sources so it doesn't try to
@@ -180,7 +175,7 @@ if(ANDROID AND DEFINED ANDROID_MAIN_TARGET)
     message(STATUS "Android: '${ANDROID_MAIN_TARGET}' will be packaged as libmain.so (via ${_shim_name})")
   else()
     message(WARNING "ANDROID_MAIN_TARGET '${ANDROID_MAIN_TARGET}' is not a known target. "
-                    "Available examples: check examples/ subdirectories.")
+                    "Available examples: check apps/ subdirectories.")
   endif()
 endif()
 

@@ -45,8 +45,7 @@ cmake --build buildStyle --target fix-format      # local auto-fix
 
 ### Emscripten / WebAssembly
 ```bash
-./scripts/emscripten-install.sh   # one-time: clones emsdk into external/emsdk/
-./scripts/emscripten-build.sh     # output lands in bin-emscripten/bin/
+python scripts/build.py web --install-deps   # installs emsdk + builds; output in build-web/bin/
 ```
 
 ## CMake Options Worth Knowing
@@ -54,16 +53,15 @@ cmake --build buildStyle --target fix-format      # local auto-fix
 | Option | Default | Notes |
 |---|---|---|
 | `ENABLE_TEST_COVERAGE` | ON (OFF on Win/Emscripten) | Adds coverage flags to `core` library, not the test binary |
-| `BUILD_EXAMPLES` | ON | Adds all subdirs under `examples/` |
-| `ENABLE_EDITOR` | ON | |
+| `BUILD_EXAMPLES` | ON | Adds all subdirs under `apps/` (examples + editor) |
 | `CXX_STANDARD_TARGET` | DETECT (≥20) | Override: `20`, `23`, or `26` |
 | `USE_SANITIZER` | — | Address/Thread/Undefined etc. |
 | `USE_CCACHE` | — | Enable ccache |
 
 ## Architecture
 
-- **`core/`** — static library. Publicly links SDL3, SDL3_image, ImGui, Dawn WebGPU (and optionally RmlUi). All consumers get these transitively; do **not** re-link them in example/editor CMakeLists.
-- **`examples/`** / **`modules/`** — each subdirectory is auto-discovered via `subdirlist` macro. Adding a new directory is sufficient; no parent CMakeLists edit needed.
+- **`core/`** — static library. Publicly links SDL3, SDL3_image, ImGui, Dawn WebGPU (and optionally RmlUi). All consumers get these transitively; do **not** re-link them in app/editor CMakeLists.
+- **`apps/`** / **`modules/`** — each subdirectory is auto-discovered via `subdirlist` macro. Adding a new directory is sufficient; no parent CMakeLists edit needed. `apps/` contains all demos and the scene editor.
 - **`test/`** — doctest 2.4.12. Single binary: `CoreTests`. Format targets are also configured here.
 - **`external/`** — one `.cmake` file per third-party lib. `external.cmake` is the aggregator. Several libs (assimp, bullet, glm, etc.) are present but commented out.
 
@@ -96,6 +94,6 @@ All workflows trigger on every push/PR. Key jobs: `linux.yml`, `osx.yml`, `windo
 
 ## Notes for Agents
 
-- Many examples under `examples/` are **intentionally incomplete** — they are student exercises. Do not "fix" stub implementations unless asked.
+- Many examples under `apps/` are **intentionally incomplete** — they are student exercises. Do not "fix" stub implementations unless asked.
 - `opencode.json` is configured at the repo root. It points `instructions` at this file and registers a local `agentmemory` MCP server (started via `npx -y @agentmemory/mcp`). `.opencode/` is empty.
 - Release is managed by semantic-release; `CHANGELOG.md` is auto-generated. Do not edit it manually.

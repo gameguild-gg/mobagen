@@ -13,11 +13,19 @@ file(
 )
 
 set(CORE_INC_DIR
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    CACHE PATH "CORE INCLUDE SOURCE PATH"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sources"
+    CACHE STRING "CORE INCLUDE SOURCE PATH"
 )
 
 add_library(core STATIC ${CORE_SRC} ${CORE_INC})
+
+# Expose both core/ root and core/sources/ so consumers can include headers
+# from either path without having to know the internal layout.
+target_include_directories(core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources
+)
 
 # Collect optional RmlUi libraries if available
 set(RMLUI_LIBS "")
