@@ -1,3 +1,10 @@
+## [1.18.2](https://github.com/InfiniBrains/mobagen/compare/v1.18.1...v1.18.2) (2026-06-11)
+
+
+### Bug Fixes
+
+* **rmlui:** fix font renderer ([c27eec1](https://github.com/InfiniBrains/mobagen/commit/c27eec181479431f8456f30c0e03d1b94268badb))
+
 ## [1.18.1](https://github.com/InfiniBrains/mobagen/compare/v1.18.0...v1.18.1) (2026-06-10)
 
 
