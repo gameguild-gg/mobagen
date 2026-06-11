@@ -186,6 +186,12 @@ static void onUncapturedError(WGPUDevice const*, WGPUErrorType type,
             msg.data ? msg.data : "");
 }
 
+static void onDeviceLost(WGPUDevice const*, WGPUDeviceLostReason reason,
+                          WGPUStringView msg, void*, void*) {
+    SDL_Log("[WGPU device lost reason=%d]: %.*s", (int)reason,
+            (int)msg.length, msg.data ? msg.data : "");
+}
+
 static bool pumpUntil(WGPUInstance inst, bool& flag, const char* op,
                       Uint64 timeoutMs = 10000) {
     const Uint64 start = SDL_GetTicks();
@@ -520,6 +526,7 @@ int main(int, char**) {
     WGPUDeviceDescriptor dDesc = {};
     dDesc.label = {"rmluidemo_device", WGPU_STRLEN};
     dDesc.uncapturedErrorCallbackInfo.callback = onUncapturedError;
+    dDesc.deviceLostCallbackInfo.callback = onDeviceLost;
     WGPURequestDeviceCallbackInfo dCb = {};
     dCb.mode      = WGPUCallbackMode_AllowProcessEvents;
     dCb.callback  = onDevice;
@@ -596,6 +603,24 @@ int main(int, char**) {
             reinterpret_cast<const Rml::byte*>(courier_prime_code),
             sizeof(courier_prime_code)),
         "AppFont",
+        Rml::Style::FontStyle::Normal,
+        Rml::Style::FontWeight::Normal);
+
+    // Load italic variant so <em> elements render correctly.
+    Rml::LoadFontFace(
+        Rml::Span<const Rml::byte>(
+            reinterpret_cast<const Rml::byte*>(courier_prime_code_italic),
+            sizeof(courier_prime_code_italic)),
+        "AppFont",
+        Rml::Style::FontStyle::Italic,
+        Rml::Style::FontWeight::Normal);
+
+    // Load monospace variant for the #diag diagnostic element.
+    Rml::LoadFontFace(
+        Rml::Span<const Rml::byte>(
+            reinterpret_cast<const Rml::byte*>(courier_prime_code),
+            sizeof(courier_prime_code)),
+        "monospace",
         Rml::Style::FontStyle::Normal,
         Rml::Style::FontWeight::Normal);
 
