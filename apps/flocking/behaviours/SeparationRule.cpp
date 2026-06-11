@@ -1,33 +1,20 @@
 #include "SeparationRule.h"
-#include "../gameobjects/Boid.h"
-#include "../gameobjects/World.h"
-#include "engine/Engine.h"
+#include "imgui.h"
+#include <glm/glm.hpp>
 
-Vector2f SeparationRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
-  // Try to avoid boids too close
-  Vector2f separatingForce = Vector2f::zero();
+glm::vec2 SeparationRule::computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
+  glm::vec2 separatingForce(0.f);
 
-  //    float desiredDistance = desiredMinimalDistance;
-  //
-  //    // todo: implement a force that if neighbor(s) enter the radius, moves the boid away from it/them
-  //    if (!neighborhood.empty()) {
-  //        Vector2f position = boid->transform.position;
-  //        int countCloseFlockmates = 0;
-  //        // todo: find and apply force only on the closest mates
-  //    }
-
-  separatingForce = Vector2f::normalized(separatingForce);
+  float len = glm::length(separatingForce);
+  if (len > 0.0001f) separatingForce = separatingForce / len;
 
   return separatingForce;
 }
 
 bool SeparationRule::drawImguiRuleExtra() {
-  ImGui::SetCurrentContext(world->engine->window->imGuiContext);
-  bool valusHasChanged = false;
-
+  bool valueHasChanged = false;
   if (ImGui::DragFloat("Desired Separation", &desiredMinimalDistance, 0.05f)) {
-    valusHasChanged = true;
+    valueHasChanged = true;
   }
-
-  return valusHasChanged;
+  return valueHasChanged;
 }

@@ -1,12 +1,9 @@
 #include "AlignmentRule.h"
-#include "../gameobjects/Boid.h"
+#include <glm/glm.hpp>
 
-Vector2f AlignmentRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
-  // Try to match the heading of neighbors = Average velocity
-  Vector2f averageVelocity = Vector2f::zero();
+glm::vec2 AlignmentRule::computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
+  glm::vec2 averageVelocity(0.f);
 
-  // todo: add your code here to align each boid in a neighborhood
-  // hint: iterate over the neighborhood
-
-  return Vector2f::normalized(averageVelocity);
+  float len = glm::length(averageVelocity);
+  return len > 0.0001f ? averageVelocity / len : glm::vec2(0.f);
 }

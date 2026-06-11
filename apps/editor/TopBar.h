@@ -1,16 +1,9 @@
 #ifndef MOBAGEN_TOPBAR_H
 #define MOBAGEN_TOPBAR_H
 
-#include "scene/ScriptableObject.h"
-
-class TopBar : public ScriptableObject {
-private:
+struct TopBar {
   bool enabled = true;
-
-public:
-  explicit TopBar() : ScriptableObject(){};
-
-  void OnGui(ImGuiContext* context) override;
+  void render_ui();
 };
 
 #endif  // MOBAGEN_TOPBAR_H

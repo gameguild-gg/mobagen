@@ -1,60 +1,47 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+// CatWorld — pure game-state logic for Catch The Cat.
+// No rendering, no engine dependency. Rendering and ECS bootstrap live in main.cpp.
+// Renamed from World to avoid collision with ecs::World from the DOD core.
+
 #include "Cat.h"
 #include "Catcher.h"
-#include "scene/GameObject.h"
-#include "Renderer2D.h"
-#include "math/Point2D.h"
 #include "Random.h"
-#include <bitset>
+#include <cstdint>
 #include <iostream>
 #include <vector>
 
-class World : GameObject {
-private:
-  float timeBetweenAITicks = 1;
-  float timeForNextTick = 1;
-  bool catTurn = true;
-  bool isSimulating = false;
-  Point2D catPosition = Point2D(0, 0);
-  bool catWon = false;
-  bool catcherWon = false;
+// Point2D is available transitively via Cat.h -> Agent.h -> glm::ivec2 alias.
 
-  Cat* cat;
-  Catcher* catcher;
+class CatWorld {
+ private:
+  float timeBetweenAITicks_ = 1.0f;
+  float timeForNextTick_ = 1.0f;
+  bool catTurn_ = true;
+  bool isSimulating_ = false;
+  Point2D catPosition_ = {0, 0};
+  bool catWon_ = false;
+  bool catcherWon_ = false;
 
-  // false means empty
-  // true means blocked
-  std::vector<bool> worldState;
+  Cat cat_;
+  Catcher catcher_;
 
-  // size of the side of the map
-  int sideSize = 0;
-  // todo: optimization make the world state only use 16 Bytes.
-  // hints on how to do it:
-  // the world have 11x11 size, so it needs 121 bits to represent it. in other words we need 16 bytes to fully represent it. bit representation: 0
-  // empty, 1 blocked. to represent the cat position we need only one byte. 4 bits for X and another 4 for Y create a structure holding one byte for
-  // cat position and 16 bytes for the blocked map.
+  std::vector<bool> worldState_;  // false = empty, true = blocked
+  int sideSize_ = 0;
 
-  // clears the world
   void clearWorld();
+  bool catWinVerification() const;
+  bool catcherWinVerification() const;
 
-  // check if cat won
-  bool catWinVerification();
-
-  // check if catcher won
-  bool catcherWinVerification();
-
-public:
-  Point2D lastMove = Point2D(0, 0);
+ public:
+  Point2D lastMove = {0, 0};
   int64_t moveDuration = 0;
-  
-  explicit World(Engine* pEngine, int size = 11);
-  explicit World(Engine* pEngine, int mapSideSize, bool isCatTurn, Point2D catPos, std::vector<bool> map);
 
-  ~World();
+  explicit CatWorld(int size = 11);
+  CatWorld(int mapSideSize, bool isCatTurn, Point2D catPos, std::vector<bool> map);
 
-  // directions
+  // Hex-grid direction helpers (offset coordinates, same parity convention as original)
   static Point2D NE(const Point2D& p);
   static Point2D NW(const Point2D& p);
   static Point2D E(const Point2D& p);
@@ -62,52 +49,45 @@ public:
   static Point2D SE(const Point2D& p);
   static Point2D SW(const Point2D& p);
 
-  // returns the cat position
-  Point2D getCat();
+  // Accessors
+  Point2D getCat() const { return catPosition_; }
+  int getWorldSideSize() const { return sideSize_; }
 
-  // returns the side of the map
-  int getWorldSideSize();
+  bool getContent(const Point2D& p) const {
+    return worldState_[(p.y + sideSize_ / 2) * sideSize_ + p.x + sideSize_ / 2];
+  }
+  bool getContent(int x, int y) const {
+    return worldState_[(y + sideSize_ / 2) * sideSize_ + x + sideSize_ / 2];
+  }
+  const std::vector<bool>& worldState() const { return worldState_; }
 
-  // the top left (x,y) is (-side/2,-side/2) the center is on (0,0);
-  // get the content of a given point
-  bool getContent(const Point2D& p) const { return worldState[(p.y + sideSize / 2) * (sideSize) + p.x + sideSize / 2]; }
-
-  // the top left (x,y) is (-5,-5) the center is on (0,0);
-  // get the content of a given
-  bool getContent(const int& x, const int& y) const { return worldState[(y + sideSize / 2) * (sideSize) + x + sideSize / 2]; }
-
-  // print the world state
-  void print();
-
-  // check if point is inside the world
-  bool isValidPosition(const Point2D& p);
-
+  void print() const;
+  bool isValidPosition(const Point2D& p) const;
   static bool isNeighbor(const Point2D& p1, const Point2D& p2);
 
-  void OnDraw(Renderer2D& r) override;
-  void OnGui(ImGuiContext* context) override;
-  void Update(float deltaTime) override;
-
+  // Game tick
   void step();
+  void update(float deltaTime);
 
-  // check if cat can move to the position required
+  // State accessors for GUI / ECS rendering in main.cpp
+  bool isCatTurn() const { return catTurn_; }
+  bool catWon() const { return catWon_; }
+  bool catcherWon() const { return catcherWon_; }
+  bool isSimulating() const { return isSimulating_; }
+  void setSimulating(bool v) { isSimulating_ = v; }
+  float timeBetweenAITicks() const { return timeBetweenAITicks_; }
+  float& timeBetweenAITicksRef() { return timeBetweenAITicks_; }
+  float timeForNextTick() const { return timeForNextTick_; }
+  void randomize() { clearWorld(); }
+  void setSizeAndReset(int n) { sideSize_ = n; clearWorld(); }
+
+  // Move validation (used by Cat / Catcher agents)
   bool catCanMoveToPosition(Point2D pos) const;
-
-  // check if catcher can move to the position required
   bool catcherCanMoveToPosition(Point2D pos) const;
-
-  // returns true if cat wins on the given space
-  bool catWinsOnSpace(Point2D point);
+  bool catWinsOnSpace(Point2D point) const;
 
   static std::vector<Point2D> neighbors(Point2D point) {
-    std::vector<Point2D> n;
-    n.push_back(NE(point));
-    n.push_back(NW(point));
-    n.push_back(E(point));
-    n.push_back(W(point));
-    n.push_back(SW(point));
-    n.push_back(SE(point));
-    return n;
+    return {NE(point), NW(point), E(point), W(point), SW(point), SE(point)};
   }
 };
 

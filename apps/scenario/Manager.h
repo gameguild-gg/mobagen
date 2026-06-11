@@ -1,39 +1,38 @@
 #ifndef SCENARIO_MANAGER_H
 #define SCENARIO_MANAGER_H
 
+#include "imgui.h"
 #include "math/ColorT.h"
-#include "scene/GameObject.h"
-#include "Texture.h"
-#include "Renderer2D.h"
 #include "GeneratorBase.h"
 
-// ref https://e2eml.school/transformers.html
+#include <vector>
 
-class Manager : public GameObject {
+class Manager {
 private:
   float accumulatedTime = 0;
-  int sideSize = 512;
-  Texture* texture = nullptr;
+  int sideSize = 128;
   bool isSimulating = false;
 
   std::vector<ScenarioGeneratorBase*> generators;
   int generatorId = 0;
 
+  std::vector<Color32> pixels;
+
   void step();
 
 public:
+  Manager();
   ~Manager();
-  explicit Manager(Engine* engine, int size);
 
-  void Start() override;
-  void OnGui(ImGuiContext* context) override;
-  void OnDraw(Renderer2D& r) override;
-  void Update(float deltaTime) override;
+  void Start();
+  void OnGui();
+  void OnDraw();
+  void Update(float deltaTime);
 
   void Clear();
   int GetSize() const;
 
-  void SetPixels(std::vector<Color32>& pixels);
+  void SetPixels(std::vector<Color32>& px);
 };
 
-#endif
+#endif  // SCENARIO_MANAGER_H

@@ -1,15 +1,3 @@
-# GLM
-string(TIMESTAMP BEFORE "%s")
-CPMAddPackage(
-  NAME GLM
-  GITHUB_REPOSITORY g-truc/glm
-  GIT_TAG master
-)
-include_directories(${GLM_SOURCE_DIR})
-string(TIMESTAMP AFTER "%s")
-math(EXPR DELTAGLM "${AFTER} - ${BEFORE}")
-message(STATUS "GLM TIME: ${DELTAGLM}s")
-
 file(
   GLOB
   SCENARIO_INC
@@ -35,4 +23,4 @@ install(FILES ${SCENARIO_INC} DESTINATION include/scenario)
 add_executable(scenario ${SCENARIO_SRC} ${SCENARIO_INC})
 
 target_include_directories(scenario PUBLIC ${CORE_INC_DIR})
-target_link_libraries(scenario PUBLIC core glm)
+target_link_libraries(scenario PUBLIC core)

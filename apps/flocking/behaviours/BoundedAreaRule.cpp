@@ -1,43 +1,35 @@
 #include "BoundedAreaRule.h"
-#include "../gameobjects/Boid.h"
-#include "../gameobjects/World.h"
-#include "engine/Engine.h"
+#include "imgui.h"
+#include <glm/glm.hpp>
+#include <algorithm>
 
-Vector2f BoundedAreaRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
-  // Return a force proportional to the proximity of the boids with the bounds, and opposed to it
-  Vector2f force = Vector2f::zero();  // zero
-
-  // todo: add here your code code here do make the boid follow the bounded box rule
-  // hint: use this->world->engine->window->size() and desiredDistance
-
+glm::vec2 BoundedAreaRule::computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
+  glm::vec2 force(0.f);
   return force;
 }
 
 bool BoundedAreaRule::drawImguiRuleExtra() {
-  ImGui::SetCurrentContext(world->engine->window->imGuiContext);
-  auto size = this->world->engine->window->size();
-  auto widthWindows = size.x;
-  auto heightWindows = size.y;
-  bool valueHasChanged = false;
+  ImVec2 displaySize    = ImGui::GetIO().DisplaySize;
+  float widthWindows    = displaySize.x > 0.f ? displaySize.x : 1280.f;
+  float heightWindows   = displaySize.y > 0.f ? displaySize.y : 800.f;
+  bool valueHasChanged  = false;
+  int minHeightWidth    = static_cast<int>(std::min(widthWindows, heightWindows));
 
-  // We cap the max separation as the third of the min of the width.height
-  auto minHeightWidth = std::min(widthWindows, heightWindows);
-
-  if (ImGui::SliderInt("Desired Distance From Borders", &desiredDistance, 0.0f, (int)(minHeightWidth / 3), "%i")) {
+  if (ImGui::SliderInt("Desired Distance From Borders", &desiredDistance, 0, minHeightWidth / 3, "%i")) {
     valueHasChanged = true;
   }
-
   return valueHasChanged;
 }
 
-void BoundedAreaRule::draw(const Boid& boid, Renderer2D& r) const {
-  FlockingRule::draw(boid, r);
-  auto size = this->world->engine->window->size();
-  auto dist = (float)desiredDistance;
+void BoundedAreaRule::drawWorldOverlay(ImDrawList* dl) const {
+  ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+  float w   = displaySize.x > 0.f ? displaySize.x : 1280.f;
+  float h   = displaySize.y > 0.f ? displaySize.y : 800.f;
+  float d   = static_cast<float>(desiredDistance);
+  ImU32 col = IM_COL32(128, 128, 128, 200);
 
-  // Draw a rectangle on the map
-  Polygon::DrawLine(r, Vector2f(dist, dist), Vector2f(size.x - dist, dist), Color::Gray);                    // TOP
-  Polygon::DrawLine(r, Vector2f(size.x - dist, dist), Vector2f(size.x - dist, size.y - dist), Color::Gray);  // RIGHT
-  Polygon::DrawLine(r, Vector2f(size.x - dist, size.y - dist), Vector2f(dist, size.y - dist), Color::Gray);  // Bottom
-  Polygon::DrawLine(r, Vector2f(dist, size.y - dist), Vector2f(dist, dist), Color::Gray);                    // LEFT
+  dl->AddLine({d, d},         {w - d, d},     col);
+  dl->AddLine({w - d, d},     {w - d, h - d}, col);
+  dl->AddLine({w - d, h - d}, {d, h - d},     col);
+  dl->AddLine({d, h - d},     {d, d},         col);
 }

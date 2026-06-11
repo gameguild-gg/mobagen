@@ -1,15 +1,106 @@
 set(BUILD_SHARED_LIBS FALSE)
 
-file(
-  GLOB_RECURSE CORE_INC CONFIGURE_DEPENDS
-  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-  *.h *.hpp
+# ---------------------------------------------------------------------------
+# SDL3 target selection
+# Android needs the shared variant (loaded by SDLActivity via JNI).
+# All other platforms use the static variant.
+# ---------------------------------------------------------------------------
+if(ANDROID)
+  set(_CORE_SDL_TARGET SDL3::SDL3-shared)
+else()
+  set(_CORE_SDL_TARGET SDL3::SDL3-static)
+endif()
+
+# ---------------------------------------------------------------------------
+# RmlUi — collect optional libraries if the target is available
+# ---------------------------------------------------------------------------
+set(RMLUI_LIBS "")
+if(TARGET rmlui_all)
+  list(APPEND RMLUI_LIBS rmlui_all)
+  message(STATUS "RmlUi linked to core")
+endif()
+
+# ---------------------------------------------------------------------------
+# 10 DOD subsystems (each defines their own mobagen::core_* target)
+# ---------------------------------------------------------------------------
+add_subdirectory(sources/ecs)
+add_subdirectory(sources/jobs)
+add_subdirectory(sources/reactive)
+add_subdirectory(sources/messaging)
+add_subdirectory(sources/scene)
+add_subdirectory(sources/camera)
+add_subdirectory(sources/input)
+add_subdirectory(sources/render)
+add_subdirectory(sources/resource)
+add_subdirectory(sources/net)
+
+# ---------------------------------------------------------------------------
+# Auxiliary subsystems
+# ---------------------------------------------------------------------------
+add_subdirectory(sources/datastructures)
+add_subdirectory(sources/error)
+
+option(BUILD_SCRIPT "Build script subsystem" OFF)
+if(BUILD_SCRIPT)
+  add_subdirectory(sources/script)
+endif()
+
+# WebRequest — source files live directly in sources/ (not a subdirectory).
+# Build as a standalone static library when opted in.
+option(BUILD_WEBREQUEST "Build WebRequest subsystem" OFF)
+if(BUILD_WEBREQUEST)
+  add_library(core_webrequest STATIC
+    sources/WebRequest.cpp
+    sources/WebRequest.h
+  )
+  add_library(mobagen::core_webrequest ALIAS core_webrequest)
+  target_include_directories(core_webrequest PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources
+  )
+endif()
+
+# android_main_wrapper.cpp is intentionally NOT compiled here.
+# It is injected by the root CMakeLists.txt Android shim to avoid
+# double-linking the SDL_main symbol.
+
+# Random.h / Random.cpp — standalone static helper, NOT part of the umbrella.
+# Link mobagen::core_random directly if needed.
+add_library(core_random STATIC
+  sources/Random.cpp
+  sources/Random.h
+)
+add_library(mobagen::core_random ALIAS core_random)
+target_include_directories(core_random PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/sources
 )
 
-file(
-  GLOB_RECURSE CORE_SRC CONFIGURE_DEPENDS
-  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-  *.c *.cpp
+# ---------------------------------------------------------------------------
+# Umbrella INTERFACE target — backward-compatible alias for all consumers
+# ---------------------------------------------------------------------------
+add_library(core INTERFACE)
+add_library(mobagen::core ALIAS core)
+
+target_link_libraries(core INTERFACE
+  mobagen::core_ecs
+  mobagen::core_jobs
+  mobagen::core_reactive
+  mobagen::core_messaging
+  mobagen::core_scene
+  mobagen::core_camera
+  mobagen::core_input
+  mobagen::core_render
+  mobagen::core_resource
+  mobagen::core_net
+  ${_CORE_SDL_TARGET}
+  SDL3_image::SDL3_image-static
+  IMGUI
+  dawn::webgpu
+  ${RMLUI_LIBS}
+)
+
+target_include_directories(core INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/sources
 )
 
 set(CORE_INC_DIR
@@ -18,73 +109,14 @@ set(CORE_INC_DIR
     CACHE STRING "CORE INCLUDE SOURCE PATH"
 )
 
-add_library(core STATIC ${CORE_SRC} ${CORE_INC})
-
-# Expose both core/ root and core/sources/ so consumers can include headers
-# from either path without having to know the internal layout.
-target_include_directories(core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/sources
-)
-
-# Collect optional RmlUi libraries if available
-set(RMLUI_LIBS "")
-if(TARGET rmlui_all)
-  list(APPEND RMLUI_LIBS rmlui_all)
-  message(STATUS "RmlUi linked to core")
-endif()
-
-# IMGUI already PUBLIC-links SDL3::SDL3-static + dawn::webgpu, so consumers
-# of `core` get SDL3, WebGPU (Dawn / emdawnwebgpu) and ImGui transitively.
-# IMGUI already PUBLIC-links SDL3 + dawn::webgpu, so consumers of `core`
-# get SDL3, WebGPU (Dawn / emdawnwebgpu) and ImGui transitively.
-# Android needs the shared SDL3 (loaded by SDLActivity via JNI); all
-# other platforms use the static variant.
-if(ANDROID)
-  set(_CORE_SDL_TARGET SDL3::SDL3-shared)
-else()
-  set(_CORE_SDL_TARGET SDL3::SDL3-static)
-endif()
-
-target_link_libraries(core
-  PUBLIC
-    ${_CORE_SDL_TARGET}
-    SDL3_image::SDL3_image-static
-    IMGUI
-    dawn::webgpu
-    ${RMLUI_LIBS}
-)
-
-# If(NOT EMSCRIPTEN AND NOT ANDROID) add_definitions(-DGLEW_STATIC) #  add_definitions(-DGLEW_BUILD)
-# set(GLEW_USE_STATIC_LIBS ON CACHE BOOL "bla") set(BUILD_SHARED_LIBS OFF CACHE BOOL "bla") set(
-# glew-cmake_BUILD_SHARED OFF CACHE BOOL "Build the shared glew library" ) set(
-# glew-cmake_BUILD_STATIC ON CACHE BOOL "Build the static glew library" ) set(
-# glew-cmake_BUILD_SINGLE_CONTEXT ON CACHE BOOL "Build the single context glew library" ) set(
-# glew-cmake_BUILD_MULTI_CONTEXT OFF CACHE BOOL "Build the multi context glew library" )
-#
-# message(STATUS "######################### ADDING GLEW #######################################")
-# hunter_add_package(glew) find_package(glew CONFIG REQUIRED)
-#
-# target_link_libraries (engine PUBLIC ${ENGINE_LIBS} glew::glew) ELSE() target_link_libraries
-# (engine PUBLIC ${ENGINE_LIBS}) ENDIF()
-
-# TODO: Check if this approach bellow is better IF (ANDROID) add_library (core STATIC ${CORE_SRC})
-# ELSE () add_library (core SHARED ${CORE_SRC}) ENDIF ()
-#
-# target_link_libraries (core ${ENGINE_LIBS}) set_target_properties(core PROPERTIES
-# COTIRE_CXX_PREFIX_HEADER_INIT "stdafx.h") cotire(core)
-
+# ---------------------------------------------------------------------------
+# Install rules
+# ---------------------------------------------------------------------------
 install(TARGETS core DESTINATION lib)
+
+file(
+  GLOB_RECURSE CORE_INC CONFIGURE_DEPENDS
+  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+  *.h *.hpp
+)
 install(FILES ${CORE_INC} DESTINATION include/core)
-
-# TODO: ADD THIS BACK WHEN NEEDED IF (NOT TARGET uninstall) # add make uninstall capability
-# configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/cmake_uninstall.cmake.in"
-# "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake" IMMEDIATE @ONLY) add_custom_target(uninstall
-# "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake") ENDIF()
-
-# include_directories(${SDL2_INCLUDE_DIR} core)
-
-option(ENABLE_CURL "ENABLE_WEB" ON)
-if(ENABLE_CURL)
-
-endif()

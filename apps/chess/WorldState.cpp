@@ -86,12 +86,12 @@ void WorldState::Move(Point2D from, Point2D to) {
   auto pieceTo = PieceAtPosition(to);
 
   if (pieceFrom.Piece() == PieceType::WRONG) {
-    std::cout << "Wrong FROM piece at position: " << from.to_string() << endl;
+    std::cout << "Wrong FROM piece at position: (" << from.x << "," << from.y << ")" << endl;
     return;
   }
 
   if (pieceFrom.Color() != turn) {
-    std::cout << "Piece color does not match the turn at position: " << from.to_string() << endl;
+    std::cout << "Piece color does not match the turn at position: (" << from.x << "," << from.y << ")" << endl;
     return;
   }
 
@@ -102,7 +102,7 @@ void WorldState::Move(Point2D from, Point2D to) {
     return;
   }
 
-  std::cout << "WRONG piece at position: " << from.to_string() << endl;
+  std::cout << "WRONG piece at position: (" << from.x << "," << from.y << ")" << endl;
 }
 
 char PieceData::toChar() {

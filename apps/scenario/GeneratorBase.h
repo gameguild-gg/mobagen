@@ -6,6 +6,7 @@
 
 class ScenarioGeneratorBase {
 public:
+  virtual ~ScenarioGeneratorBase() = default;
   virtual std::vector<Color32> Generate(int sideSize, float displacement = 0) = 0;
   virtual std::string GetName() = 0;
 };

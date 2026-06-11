@@ -1,28 +1,38 @@
 #include "Manager.h"
-#include "math/ColorT.h"
-#include "math/Point2D.h"
 #include "pieces/Bishop.h"
 #include "pieces/King.h"
 #include "pieces/Knight.h"
 #include "pieces/Pawn.h"
-#include "pieces/PieceSvg.h"
 #include "pieces/Queen.h"
 #include "pieces/Rook.h"
-#include <unordered_map>
 #include "Search.h"
 #include "Heuristics.h"
+#include <cmath>
+#include <iostream>
+#include <unordered_map>
 
-void Manager::OnGui(ImGuiContext* context) {
-  ImGui::SetCurrentContext(context);
+static const char* getPieceLabel(PieceData piece) {
+  bool w = piece.Color() == PieceColor::White;
+  switch (piece.Piece()) {
+    case PieceType::King:   return w ? "K" : "k";
+    case PieceType::Queen:  return w ? "Q" : "q";
+    case PieceType::Rook:   return w ? "R" : "r";
+    case PieceType::Bishop: return w ? "B" : "b";
+    case PieceType::Knight: return w ? "N" : "n";
+    case PieceType::Pawn:   return w ? "P" : "p";
+    default:                return nullptr;
+  }
+}
 
+void Manager::OnGui() {
   ImGui::Begin("Settings", nullptr);
   ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime,
               1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
   ImGui::Separator();
   if (ImGui::Button("Reset")) {
-    this->state.Reset();
+    state.Reset();
     score = Heuristics::MaterialScore(&state);
-  };
+  }
   ImGui::SameLine();
   if (ImGui::Button("Undo") && !previousStates.empty()) {
     validMoves = {};
@@ -49,7 +59,7 @@ void Manager::OnGui(ImGuiContext* context) {
   }
   ImGui::LabelText(state.GetTurn() == PieceColor::White ? "White" : "Black", "Turn:");
 
-  ImGui::End();  // end settings
+  ImGui::End();
 
   static Point2D lastIndexClicked = {INT32_MIN, INT32_MIN};
   if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
@@ -64,10 +74,9 @@ void Manager::OnGui(ImGuiContext* context) {
 
       auto piece = state.PieceAtPosition(index);
 
-      if (selected.x == INT32_MIN || !validMoves.contains(index)) {  // if not selected
+      if (selected.x == INT32_MIN || !validMoves.contains(index)) {
         selected = index;
         if (piece.Piece() != PieceType::NONE && piece.Color() == state.GetTurn()) {
-          // todo: create isincheck behavior and reject valid moves that maintain king in check
           validMoves = getMoves(piece.Piece(), index);
           if (validMoves.empty()) {
             validMoves = {};
@@ -79,10 +88,8 @@ void Manager::OnGui(ImGuiContext* context) {
         }
       } else if (validMoves.contains(index)) {
         previousStates.push(state);
-
         state.Move(selected, index);
         score = Heuristics::MaterialScore(&state);
-
         cout << state.toString() << endl;
         validMoves = {};
         selected = {INT32_MIN, INT32_MIN};
@@ -98,123 +105,103 @@ void Manager::OnGui(ImGuiContext* context) {
 }
 
 Point2D Manager::mousePositionToIndex(ImVec2& pos) {
-  auto windowSize = engine->window->size();
-  auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
-  float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
-  auto lineColor = Color::LightGray;
-  auto squareSide = minDimension / 8;
-  auto sideSideOver2 = 8 / 2.0f;
+  ImVec2 ws = ImGui::GetIO().DisplaySize;
+  glm::vec2 center(ws.x / 2.0f, ws.y / 2.0f);
+  float minDimension = std::min(ws.x, ws.y) * 0.99f;
+  float squareSide = minDimension / 8.0f;
 
-  Vector2f relativePosFloat(pos.x - center.x, pos.y - center.y);
+  glm::vec2 rel(pos.x - center.x, pos.y - center.y);
+  rel *= 0.99f;
+  rel += glm::vec2(minDimension / 2.0f, minDimension / 2.0f);
+  rel /= squareSide;
 
-  relativePosFloat *= 0.99f;
-  relativePosFloat += Vector2f{minDimension / 2, minDimension / 2};
-  relativePosFloat /= squareSide;
-
-  return {static_cast<int>(relativePosFloat.x), static_cast<int>(8 - relativePosFloat.y)};
+  return {static_cast<int>(rel.x), static_cast<int>(8 - rel.y)};
 }
 
-void Manager::OnDraw(Renderer2D& r) {
-  auto windowSize = engine->window->size();
-  auto center = Point2D(windowSize.x / 2, windowSize.y / 2);
-  float minDimension = std::min(windowSize.x, windowSize.y) * 0.99f;
-  auto squareSide = minDimension / 8;
-  auto squareSideOver2 = squareSide / 2;
-  auto sideSideOver2 = 8 / 2.0f;
+void Manager::OnDraw() {
+  auto* dl = ImGui::GetBackgroundDrawList();
+  ImVec2 ws = ImGui::GetIO().DisplaySize;
+  glm::vec2 center(ws.x / 2.0f, ws.y / 2.0f);
+  float minDimension = std::min(ws.x, ws.y) * 0.99f;
+  float squareSide = minDimension / 8.0f;
+  float squareSideOver2 = squareSide / 2.0f;
+  float sideSideOver2 = 8 / 2.0f;
 
-  auto whiteCell = Color::LightBlue.Light();
-  auto blackCell = Color::Brown.Light();
-  auto movesCell = Color::Yellow.Dark();
-  auto selectedCell = Color::Yellow.Light();
+  const ImU32 whiteCell    = IM_COL32(230, 230, 250, 255);
+  const ImU32 blackCell    = IM_COL32(140,  90,  50, 255);
+  const ImU32 movesCell    = IM_COL32(180, 150,   0, 255);
+  const ImU32 selectedCell = IM_COL32(240, 240,   0, 255);
+
   for (int line = 0; line < 8; line++) {
     for (int column = 0; column < 8; column++) {
-      Rect2D rect = {(float)ceil(center.x + (column - sideSideOver2) * squareSide),
-                     (float)ceil(center.y + (-line - 1 + sideSideOver2) * squareSide),
-                     (float)ceil(squareSide), (float)ceil(squareSide)};
+      float rx = std::ceil(center.x + (column - sideSideOver2) * squareSide);
+      float ry = std::ceil(center.y + (-line - 1 + sideSideOver2) * squareSide);
+      ImVec2 rmin(rx, ry);
+      ImVec2 rmax(rx + std::ceil(squareSide), ry + std::ceil(squareSide));
 
       if (selected.y == line && selected.x == column)
-        drawSquare(r, selectedCell, rect);
+        drawSquare(selectedCell, rmin, rmax);
       else if (validMoves.contains(Point2D(column, line)))
-        drawSquare(r, movesCell, rect);
+        drawSquare(movesCell, rmin, rmax);
       else if ((line + column) % 2 == 0)
-        drawSquare(r, blackCell, rect);
+        drawSquare(blackCell, rmin, rmax);
       else
-        drawSquare(r, whiteCell, rect);
+        drawSquare(whiteCell, rmin, rmax);
 
-      drawPiece(r, state.PieceAtPosition({column, line}),
-                {rect.x + squareSideOver2, rect.y + squareSideOver2},
-                Vector2f::identity() * squareSide);
+      drawPiece(state.PieceAtPosition({column, line}),
+                ImVec2(rx + squareSideOver2, ry + squareSideOver2),
+                squareSide);
     }
   }
 }
 
 unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
   switch (t) {
-    case PieceType::Pawn:
-      return Pawn::PossibleMoves(state, point);
-    case PieceType::Rook:
-      return Rook::AttackMoves(state, point);
-    case PieceType::Knight:
-      return Knight::AttackMoves(state, point);
-    case PieceType::Bishop:
-      return Bishop::AttackMoves(state, point);
-    case PieceType::Queen:
-      return Queen::AttackMoves(state, point);
-    case PieceType::King:
-      return King::AttackMoves(state, point);
-    default:
-      return {};
-  }
-}
-void Manager::drawSquare(Renderer2D& r, Color32& color, Rect2D& rect) {
-  r.SetDrawColor(color.r, color.g, color.b, 255);
-  r.DrawFilledRect(rect);
-}
-void Manager::drawPiece(Renderer2D& r, PieceData piece, Vector2f location, Vector2f scale) {
-  if (piecePackedToTexture.contains(piece.Pack())) {
-    auto tex = piecePackedToTexture[piece.Pack()];
-    tex->Draw(r, location, scale / Vector2f(tex->dimensions.x, tex->dimensions.y));
+    case PieceType::Pawn:   return Pawn::PossibleMoves(state, point);
+    case PieceType::Rook:   return Rook::AttackMoves(state, point);
+    case PieceType::Knight: return Knight::AttackMoves(state, point);
+    case PieceType::Bishop: return Bishop::AttackMoves(state, point);
+    case PieceType::Queen:  return Queen::AttackMoves(state, point);
+    case PieceType::King:   return King::AttackMoves(state, point);
+    default:                return {};
   }
 }
 
-Manager::Manager(Engine* pEngine) : GameObject(pEngine) {
+void Manager::drawSquare(ImU32 color, ImVec2 min, ImVec2 max) {
+  ImGui::GetBackgroundDrawList()->AddRectFilled(min, max, color);
+}
+
+void Manager::drawPiece(PieceData piece, ImVec2 center, float /*size*/) {
+  const char* text = getPieceLabel(piece);
+  if (!text) return;
+
+  auto* dl = ImGui::GetBackgroundDrawList();
+  ImVec2 textSize = ImGui::CalcTextSize(text);
+  ImVec2 pos(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f);
+
+  bool isWhite = piece.Color() == PieceColor::White;
+  ImU32 outline = isWhite ? IM_COL32(0, 0, 0, 200) : IM_COL32(255, 255, 255, 200);
+  ImU32 fill    = isWhite ? IM_COL32(255, 255, 255, 255) : IM_COL32(20, 20, 20, 255);
+
+  dl->AddText(ImVec2(pos.x - 1, pos.y - 1), outline, text);
+  dl->AddText(ImVec2(pos.x + 1, pos.y - 1), outline, text);
+  dl->AddText(ImVec2(pos.x - 1, pos.y + 1), outline, text);
+  dl->AddText(ImVec2(pos.x + 1, pos.y + 1), outline, text);
+  dl->AddText(pos, fill, text);
+}
+
+Manager::Manager() {
   state.Reset();
   cout << state.toString() << endl;
-  // todo: use asset subsystem loading!
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(PawnSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Pawn).Pack()] = Texture::LoadSVGFromString(PawnSvgBlack);
-
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Knight).Pack()]
-      = Texture::LoadSVGFromString(KnightSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Knight).Pack()]
-      = Texture::LoadSVGFromString(KnightSvgBlack);
-
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Bishop).Pack()]
-      = Texture::LoadSVGFromString(BishopSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Bishop).Pack()]
-      = Texture::LoadSVGFromString(BishopSvgBlack);
-
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(RookSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Rook).Pack()] = Texture::LoadSVGFromString(RookSvgBlack);
-
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::Queen).Pack()]
-      = Texture::LoadSVGFromString(QueenSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::Queen).Pack()]
-      = Texture::LoadSVGFromString(QueenSvgBlack);
-
-  piecePackedToTexture[PieceData(PieceColor::White, PieceType::King).Pack()] = Texture::LoadSVGFromString(KingSvgWhite);
-  piecePackedToTexture[PieceData(PieceColor::Black, PieceType::King).Pack()] = Texture::LoadSVGFromString(KingSvgBlack);
-
   score = Heuristics::MaterialScore(&state);
 }
 
-Manager::~Manager() {
-  for (auto e : piecePackedToTexture) delete e.second;
-}
+Manager::~Manager() {}
 
 void Manager::Start() {}
 
 void Manager::Update(float deltaTime) {
+  (void)deltaTime;
   if (aiEnabled && aiColor == state.GetTurn()) {
     auto move = Search::NextMove(state);
     state.Move(move.From(), move.To());

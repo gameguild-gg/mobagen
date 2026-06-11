@@ -1,12 +1,14 @@
 #ifndef LIFE_MANAGER_H
 #define LIFE_MANAGER_H
 
-#include "scene/GameObject.h"
-#include "Renderer2D.h"
+#include "imgui.h"
 #include "RuleBase.h"
 #include "World.h"
 
-class Manager : GameObject {
+#include <glm/glm.hpp>
+#include <vector>
+
+class Manager {
 private:
   int sideSize = 13;
   World world;
@@ -17,16 +19,16 @@ private:
   void clear();
   std::vector<RuleBase*> rules;
   int ruleId = 0;
-  Point2D mousePositionToIndex(ImVec2& pos);
+  glm::ivec2 mousePositionToIndex(ImVec2& pos);
 
 public:
-  explicit Manager(Engine* pEngine);
+  Manager();
   ~Manager();
 
-  void Start() override;
-  void OnGui(ImGuiContext* context) override;
-  void OnDraw(Renderer2D& r) override;
-  void Update(float deltaTime) override;
+  void Start();
+  void OnGui();
+  void OnDraw();
+  void Update(float deltaTime);
 };
 
-#endif  // MOBAGEN_MANAGER_H
+#endif  // LIFE_MANAGER_H

@@ -17,7 +17,7 @@ void PrimExample::Clear(World* world) {
 std::vector<Point2D> PrimExample::getVisitables(World* w, const Point2D& p) {
   auto sideOver2 = w->GetSize() / 2;
   std::vector<Point2D> visitables;
-  auto clearColor = Color::DarkGray;
+  auto clearColor = Color32(169.0f / 255.0f, 169.0f / 255.0f, 169.0f / 255.0f, 1.0f);  // dark gray
 
   // todo: code this
 
@@ -25,7 +25,7 @@ std::vector<Point2D> PrimExample::getVisitables(World* w, const Point2D& p) {
 }
 
 std::vector<Point2D> PrimExample::getVisitedNeighbors(World* w, const Point2D& p) {
-  std::vector<Point2D> deltas = {Point2D::UP, Point2D::DOWN, Point2D::LEFT, Point2D::RIGHT};
+  std::vector<Point2D> deltas = {Point2D(0, -1), Point2D(0, 1), Point2D(-1, 0), Point2D(1, 0)};  // N, S, W, E
   auto sideOver2 = w->GetSize() / 2;
   std::vector<Point2D> neighbors;
 

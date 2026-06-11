@@ -31,6 +31,9 @@ endif()
 # compiler checks
 include(external/compilerchecks.cmake)
 
+# developer tooling (sanitizers / ccache / static analyzers) — no-op for normal builds
+include(cmake/tools.cmake)
+
 # set output dirs
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/libs)
@@ -86,10 +89,34 @@ endif()
 
 include(cmake/subdirlist.cmake)
 
+# Medical-imaging library options (heavy source builds; OFF by default)
+option(USE_GDCM "Build GDCM (DICOM parsing) for the volume_io module" OFF)
+option(USE_ITK  "Build ITK (medical image processing; bundles GDCM)"   OFF)
+option(USE_VTK  "Build VTK (visualization toolkit; reference only)"    OFF)
+
+# App-group build switches
+option(BUILD_CORE_DEMOS    "Build engine learning demos under apps/core_demos"    ON)
+option(BUILD_VOLUME_DEMOS  "Build volume smoke tests under apps/volume_demos"     ON)
+option(BUILD_DICOM_VIEWER  "Build the DICOM viewer app"                           ON)
+option(BUILD_PROTOTYPES    "Build learning prototypes (dawn_probe, fibers)"       OFF)
+
 include(external/external.cmake)
 
-add_subdirectory(modules)
+if(USE_GDCM)
+  include(external/gdcm.cmake)
+endif()
+if(USE_ITK)
+  include(external/itk.cmake)
+endif()
+if(USE_VTK)
+  include(external/vtk.cmake)
+endif()
+
+# GLM must be available before core/ — all DOD headers use it globally
+include(external/glm.cmake)
+
 add_subdirectory(core)
+add_subdirectory(modules)
 
 option(ENABLE_TEST_COVERAGE "ENABLE_TEST_COVERAGE" ON)
 if(ENABLE_TEST_COVERAGE)

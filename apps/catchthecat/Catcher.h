@@ -4,9 +4,9 @@
 #include "Agent.h"
 
 class Catcher : public Agent {
-public:
+ public:
   explicit Catcher() : Agent(){};
-  Point2D Move(World*) override;
+  Point2D Move(CatWorld*) override;
 };
 
 #endif  // CATCHER_H

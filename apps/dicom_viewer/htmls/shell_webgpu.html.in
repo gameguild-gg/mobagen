@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>DICOM Renderer — WebGPU (G3)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background:#111; height:100vh; font-family:monospace; overflow:hidden; }
+        #container { position:relative; width:100%; height:100%; }
+        canvas { display:block; width:100%; height:100%; background:#1a2a4a; }
+        .panel {
+            position:absolute; background:rgba(0,0,0,0.95);
+            border:2px solid #0cf; border-radius:5px; padding:12px; z-index:100; color:#0cf;
+        }
+        #controls { top:10px; left:10px; max-width:210px; }
+        #stats    { top:10px; right:10px; text-align:right; font-size:12px; }
+        h3 { font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+        button {
+            display:block; width:100%; padding:7px; margin:4px 0; background:#1a1a1a; color:#888;
+            border:1px solid #444; border-radius:3px; cursor:pointer; font-family:monospace;
+            font-size:11px; font-weight:bold; transition:all .15s;
+        }
+        button:hover { transform:scale(1.02); }
+        button.active { background:#073a3a; color:#0cf; border-color:#0cf; }
+        #stat-fps { font-weight:bold; font-size:13px; }
+        .hint { font-size:10px; color:#888; margin-top:8px; line-height:1.5; }
+        #warn { top:50%; left:50%; transform:translate(-50%,-50%); border-color:#f00; color:#f00; display:none; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+
+        <div id="controls" class="panel">
+            <h3>WebGPU · G3</h3>
+            <h3 style="margin-top:4px;">Transfer function</h3>
+            <button id="color-1" class="active" onclick="setPreset(1)">1: Gray</button>
+            <button id="color-2" onclick="setPreset(2)">2: Tissue</button>
+            <button id="color-3" onclick="setPreset(3)">3: Shell</button>
+            <button id="color-4" onclick="setPreset(4)">4: Cool</button>
+            <h3 style="margin-top:10px;">Mode</h3>
+            <button id="mode-0" class="active" onclick="setMode(0)">DVR</button>
+            <button id="mode-1" onclick="setMode(1)">MIP</button>
+            <button id="mode-2" onclick="setMode(2)">Isosurface</button>
+            <h3 style="margin-top:10px;">Window</h3>
+            <div style="font-size:10px;">Center <span id="win-cl">0.50</span></div>
+            <input id="win-c" type="range" min="0" max="1" step="0.01" value="0.5"
+                   style="width:100%;" oninput="updateWindow()">
+            <div style="font-size:10px;">Width <span id="win-wl">1.00</span></div>
+            <input id="win-w" type="range" min="0.02" max="1" step="0.01" value="1"
+                   style="width:100%;" oninput="updateWindow()">
+            <div class="hint" style="margin-top:8px;">
+                Maps density → colour + opacity.<br>
+                Drag to orbit, wheel to zoom.
+            </div>
+        </div>
+
+        <div id="stats" class="panel">
+            <div id="stat-renderer">WebGPU (G3)</div>
+            <div id="stat-fps">FPS: 60</div>
+            <div id="stat-frametime" style="font-size:10px; color:#888;">Frame: 16.7ms</div>
+        </div>
+
+        <div id="warn" class="panel">
+            WebGPU not available in this browser.<br>
+            Use Chrome/Edge 113+ (or enable the flag).
+        </div>
+    </div>
+
+    <script>
+        var Module = { canvas: document.getElementById('canvas') };
+
+        // ---- Performance stats ------------------------------------------------
+        let frameCount = 0, lastTime = performance.now(), lastFpsTime = lastTime;
+        function statsLoop() {
+            const now = performance.now();
+            const frameTime = now - lastTime;
+            lastTime = now; frameCount++;
+            if (now - lastFpsTime >= 500) {
+                const fps = Math.round(frameCount / (now - lastFpsTime) * 1000);
+                frameCount = 0; lastFpsTime = now;
+                const c = fps >= 55 ? '#0cf' : fps >= 30 ? '#ff0' : '#f00';
+                const el = document.getElementById('stat-fps');
+                el.textContent = `FPS: ${fps}`; el.style.color = c;
+                document.getElementById('stat-frametime').textContent =
+                    `Frame: ${frameTime.toFixed(1)}ms`;
+            }
+            requestAnimationFrame(statsLoop);
+        }
+        statsLoop();
+
+        // ---- Canvas resize ----------------------------------------------------
+        const canvas = document.getElementById('canvas');
+        const container = document.getElementById('container');
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            if (typeof Module._on_canvas_resize === 'function') {
+                Module._on_canvas_resize(canvas.width, canvas.height);
+            }
+            const st = window.webgpuState;
+            if (st && st.context && st.device) {
+                st.context.configure({ device: st.device, format: st.format });
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+    </script>
+
+    <!-- ===================== WebGPU (G3) implementation ===================== -->
+    <script>
+// WGSL shader sources are embedded at build time: CMake substitutes the
+// contents of shaders/raygen.wgsl and shaders/blit.wgsl into the @...@ markers
+// below (configure_file @ONLY). This file is a template (shell_webgpu.html.in);
+// the generated shell lives in build/generated/.
+const WGSL_RAYGEN = `@RAYGEN_WGSL@`;
+const WGSL_POST   = `@BLIT_WGSL@`;
+
+window.webgpuState = {
+    device: null, queue: null, context: null, format: null, initialized: false,
+    // Pass 1 (volume ray cast -> offscreen)
+    raygenPipeline: null, sceneQuad: null, cameraBuffer: null, raygenBindGroup: null,
+    volumeTexture: null, volumeSampler: null, transferTexture: null, modeBuffer: null, windowBuffer: null, boxHalfBuffer: null,
+    // Pass 2 (offscreen -> canvas)
+    postPipeline: null, fullscreenBuffer: null, sceneSampler: null, tintBuffer: null,
+    postBindGroup: null, sceneTexture: null, sceneView: null, sceneW: 0, sceneH: 0,
+};
+
+// Load the raw R8 volume served beside this page; fall back to synthetic.
+async function loadVolume(n) {
+    try {
+        const resp = await fetch('volume.raw');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        if (buf.length === n * n * n) return buf;
+        console.warn('volume.raw wrong size', buf.length);
+    } catch (e) {
+        console.warn('volume.raw load failed, using synthetic:', e);
+    }
+    return makeVolume(n);
+}
+
+// Synthetic fallback volume — a soft ball (same as C++ make_volume), R8 voxels.
+function makeVolume(n) {
+    const v = new Uint8Array(n * n * n);
+    for (let z = 0; z < n; z++) {
+        for (let y = 0; y < n; y++) {
+            for (let x = 0; x < n; x++) {
+                const cx = (x / (n - 1) - 0.5) * 2.0;
+                const cy = (y / (n - 1) - 0.5) * 2.0;
+                const cz = (z / (n - 1) - 0.5) * 2.0;
+                const r = Math.sqrt(cx * cx + cy * cy + cz * cz);
+                let d = Math.min(Math.max(1.0 - r / 0.9, 0.0), 1.0);
+                d *= d;
+                v[(z * n + y) * n + x] = Math.floor(d * 255.0);
+            }
+        }
+    }
+    return v;
+}
+
+// Transfer LUT (256x1 RGBA) — same presets as the C++ make_transfer_lut().
+function makeTransferLUT(preset) {
+    const clamp01 = v => Math.min(Math.max(v, 0), 1);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const smoothstep = (e0, e1, x) => { const u = clamp01((x - e0) / (e1 - e0)); return u * u * (3 - 2 * u); };
+    const lut = new Uint8Array(256 * 4);
+    for (let i = 0; i < 256; i++) {
+        const t = i / 255;
+        let r, g, b, a;
+        if (preset === 2) {            // tissue: transparent low end, warm ramp
+            a = smoothstep(0.15, 0.50, t);
+            r = lerp(0.55, 1.00, t); g = lerp(0.12, 0.92, t); b = lerp(0.05, 0.78, t);
+        } else if (preset === 3) {     // shell: only a narrow band opaque
+            a = (t > 0.30 && t < 0.55) ? 0.9 : 0.0;
+            r = 0.2; g = 0.9; b = 0.6;
+        } else if (preset === 4) {     // cool: blue -> cyan -> white
+            a = t;
+            r = lerp(0.0, 0.7, t); g = lerp(0.1, 0.95, t); b = lerp(0.4, 1.0, t);
+        } else {                       // gray
+            a = t; r = t; g = t; b = t;
+        }
+        lut[i * 4 + 0] = Math.floor(clamp01(r) * 255);
+        lut[i * 4 + 1] = Math.floor(clamp01(g) * 255);
+        lut[i * 4 + 2] = Math.floor(clamp01(b) * 255);
+        lut[i * 4 + 3] = Math.floor(clamp01(a) * 255);
+    }
+    return lut;
+}
+
+// Upload a preset's LUT to the transfer texture.
+function setPreset(num) {
+    const st = window.webgpuState;
+    if (st.transferTexture) {
+        st.queue.writeTexture(
+            { texture: st.transferTexture },
+            makeTransferLUT(num),
+            { bytesPerRow: 256 * 4, rowsPerImage: 1 },
+            { width: 256, height: 1, depthOrArrayLayers: 1 }
+        );
+    }
+    for (let i = 1; i <= 4; i++) {
+        document.getElementById(`color-${i}`).classList.toggle('active', i === num);
+    }
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key >= '1' && e.key <= '4') setPreset(parseInt(e.key));
+});
+
+// Render mode: 0 = DVR, 1 = MIP, 2 = Isosurface.
+function setMode(m) {
+    const st = window.webgpuState;
+    if (st.modeBuffer) {
+        st.queue.writeBuffer(st.modeBuffer, 0, new Uint32Array([m, 0, 0, 0]));
+    }
+    for (let i = 0; i <= 2; i++) {
+        document.getElementById(`mode-${i}`).classList.toggle('active', i === m);
+    }
+}
+
+// Window/level from the sliders.
+function updateWindow() {
+    const st = window.webgpuState;
+    const c = parseFloat(document.getElementById('win-c').value);
+    const w = parseFloat(document.getElementById('win-w').value);
+    document.getElementById('win-cl').textContent = c.toFixed(2);
+    document.getElementById('win-wl').textContent = w.toFixed(2);
+    if (st.windowBuffer) {
+        st.queue.writeBuffer(st.windowBuffer, 0, new Float32Array([c, w, 0, 0]));
+    }
+}
+
+// Camera bridge: C++ calls this every frame (via EM_ASM) with the inverse
+// view-projection as 16 column-major floats; upload it to the camera uniform.
+function webgpu_set_camera(mat16) {
+    const st = window.webgpuState;
+    if (!st.cameraBuffer) return;
+    st.queue.writeBuffer(st.cameraBuffer, 0, new Float32Array(mat16));
+}
+
+// Fullscreen quad (NDC -1..1). For ray-gen we want uv = (pos+1)/2 so the shader
+// can rebuild clip-space xy as uv*2-1 (uvTopIsZero=false). For sampling a WebGPU
+// texture (origin top-left, v down) the blit wants NDC-top -> v=0 (true).
+function makeQuad(device, uvTopIsZero) {
+    const t = uvTopIsZero ? 0 : 1;   // v at NDC top (+1)
+    const b = uvTopIsZero ? 1 : 0;   // v at NDC bottom (-1)
+    const verts = new Float32Array([
+        -1,  1,  0, t,
+        -1, -1,  0, b,
+         1, -1,  1, b,
+        -1,  1,  0, t,
+         1, -1,  1, b,
+         1,  1,  1, t,
+    ]);
+    const buf = device.createBuffer({
+        size: verts.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true,
+    });
+    new Float32Array(buf.getMappedRange()).set(verts);
+    buf.unmap();
+    return buf;
+}
+
+const QUAD_LAYOUT = {
+    arrayStride: 16,
+    attributes: [
+        { shaderLocation: 0, offset: 0, format: 'float32x2' },
+        { shaderLocation: 1, offset: 8, format: 'float32x2' },
+    ],
+};
+
+async function initWebGPU() {
+    if (window.webgpuState.initialized) return true;
+    if (!navigator.gpu) {
+        document.getElementById('warn').style.display = 'block';
+        console.error('WebGPU not supported');
+        return false;
+    }
+    try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) { console.error('No GPU adapter'); return false; }
+        const device = await adapter.requestDevice();
+
+        const st = window.webgpuState;
+        st.device = device;
+        st.queue = device.queue;
+
+        const context = canvas.getContext('webgpu');
+        if (!context) { console.error('No WebGPU context'); return false; }
+        const format = navigator.gpu.getPreferredCanvasFormat();
+        context.configure({ device, format });
+        st.context = context;
+        st.format = format;
+
+        // ---- Pass 1: volume ray cast ----
+        const raygenModule = device.createShaderModule({ code: WGSL_RAYGEN });
+        st.sceneQuad = makeQuad(device, false);             // uv = (pos+1)/2
+        st.cameraBuffer = device.createBuffer({             // mat4x4f = 64 bytes
+            size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        // 3D volume texture (loaded from volume.raw, like the C++ build).
+        const N = 96;
+        const vox = await loadVolume(N);
+        st.volumeTexture = device.createTexture({
+            size: [N, N, N], dimension: '3d', format: 'r8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+        device.queue.writeTexture(
+            { texture: st.volumeTexture },
+            vox,
+            { bytesPerRow: N, rowsPerImage: N },
+            { width: N, height: N, depthOrArrayLayers: N }
+        );
+        st.volumeSampler = device.createSampler({
+            magFilter: 'linear', minFilter: 'linear',
+            addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
+            addressModeW: 'clamp-to-edge',
+        });
+
+        // Transfer LUT (256x1 RGBA). setPreset() (re)writes its contents.
+        st.transferTexture = device.createTexture({
+            size: [256, 1, 1], format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+
+        // Render-mode uniform (vec4<u32>; .x = 0 DVR / 1 MIP / 2 Iso).
+        st.modeBuffer = device.createBuffer({
+            size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        // Window uniform (vec4f; .x center, .y width).
+        st.windowBuffer = device.createBuffer({
+            size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        // Box half-extents (vec4f .xyz) from voxel spacing. z=1.5 simulates thick
+        // CT slices (same as the C++ build); (1,1,1) would be a cubic box.
+        st.boxHalfBuffer = device.createBuffer({
+            size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        {
+            const spacing = [1.0, 1.0, 1.5];
+            const phys = spacing.map(s => s * N);
+            const m = Math.max(phys[0], phys[1], phys[2]);
+            device.queue.writeBuffer(st.boxHalfBuffer, 0,
+                new Float32Array([phys[0] / m, phys[1] / m, phys[2] / m, 0]));
+        }
+
+        st.raygenPipeline = device.createRenderPipeline({
+            layout: 'auto',
+            vertex: { module: raygenModule, entryPoint: 'vs_main', buffers: [QUAD_LAYOUT] },
+            fragment: { module: raygenModule, entryPoint: 'fs_main', targets: [{ format }] },
+            primitive: { topology: 'triangle-list' },
+        });
+        st.raygenBindGroup = device.createBindGroup({
+            layout: st.raygenPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: st.cameraBuffer } },
+                { binding: 1, resource: st.volumeTexture.createView({ dimension: '3d' }) },
+                { binding: 2, resource: st.volumeSampler },
+                { binding: 3, resource: st.transferTexture.createView() },
+                { binding: 4, resource: { buffer: st.modeBuffer } },
+                { binding: 5, resource: { buffer: st.windowBuffer } },
+                { binding: 6, resource: { buffer: st.boxHalfBuffer } },
+            ],
+        });
+
+        // ---- Pass 2: blit + tint ----
+        const postModule = device.createShaderModule({ code: WGSL_POST });
+        st.fullscreenBuffer = makeQuad(device, true);       // v-down for sampling
+        st.tintBuffer = device.createBuffer({
+            size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        st.sceneSampler = device.createSampler({
+            magFilter: 'linear', minFilter: 'linear',
+            addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
+        });
+        st.postPipeline = device.createRenderPipeline({
+            layout: 'auto',
+            vertex: { module: postModule, entryPoint: 'vs_post', buffers: [QUAD_LAYOUT] },
+            fragment: { module: postModule, entryPoint: 'fs_post', targets: [{ format }] },
+            primitive: { topology: 'triangle-list' },
+        });
+
+        st.initialized = true;
+        st.queue.writeBuffer(st.tintBuffer, 0, new Float32Array([1, 1, 1, 1]));  // no tint
+        setPreset(1);                   // load the initial transfer LUT
+        setMode(0);                     // default render mode = DVR
+        updateWindow();                 // default window from the sliders
+        resizeCanvas();
+        console.log('WebGPU initialized (volume ray cast).');
+        return true;
+    } catch (e) {
+        console.error('WebGPU init error:', e);
+        return false;
+    }
+}
+
+// (Re)create the offscreen ray-gen target + post bind group on canvas resize.
+function ensureSceneTarget(w, h) {
+    const st = window.webgpuState;
+    if (w <= 0 || h <= 0) return;
+    if (st.sceneTexture && st.sceneW === w && st.sceneH === h) return;
+    if (st.sceneTexture) st.sceneTexture.destroy();
+    st.sceneTexture = st.device.createTexture({
+        size: [w, h, 1],
+        format: st.format,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    st.sceneView = st.sceneTexture.createView();
+    st.sceneW = w; st.sceneH = h;
+    st.postBindGroup = st.device.createBindGroup({
+        layout: st.postPipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: st.sceneView },
+            { binding: 1, resource: st.sceneSampler },
+            { binding: 2, resource: { buffer: st.tintBuffer } },
+        ],
+    });
+}
+
+// Render one frame in two passes. Called by the C++ main loop each tick.
+function renderFrame() {
+    const st = window.webgpuState;
+    if (!st.initialized) return;
+
+    ensureSceneTarget(canvas.width, canvas.height);
+    if (!st.sceneView) return;
+
+    const encoder = st.device.createCommandEncoder();
+
+    // PASS 1: volume ray cast -> offscreen texture
+    const p1 = encoder.beginRenderPass({
+        colorAttachments: [{
+            view: st.sceneView,
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            loadOp: 'clear', storeOp: 'store',
+        }],
+    });
+    p1.setPipeline(st.raygenPipeline);
+    p1.setBindGroup(0, st.raygenBindGroup);
+    p1.setVertexBuffer(0, st.sceneQuad);
+    p1.draw(6, 1, 0, 0);
+    p1.end();
+
+    // PASS 2: blit the offscreen texture to the canvas
+    const canvasView = st.context.getCurrentTexture().createView();
+    const p2 = encoder.beginRenderPass({
+        colorAttachments: [{
+            view: canvasView,
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            loadOp: 'clear', storeOp: 'store',
+        }],
+    });
+    p2.setPipeline(st.postPipeline);
+    p2.setBindGroup(0, st.postBindGroup);
+    p2.setVertexBuffer(0, st.fullscreenBuffer);
+    p2.draw(6, 1, 0, 0);
+    p2.end();
+
+    st.queue.submit([encoder.finish()]);
+}
+
+window.webgpu_render = renderFrame;
+window.webgpu_init = initWebGPU;
+window.webgpu_set_camera = webgpu_set_camera;
+
+// Kick off device init as soon as the page is ready. The C++ loop calls
+// webgpu_set_camera + webgpu_render every tick; they no-op until init completes.
+window.addEventListener('DOMContentLoaded', () => { initWebGPU(); });
+    </script>
+
+    {{{ SCRIPT }}}
+</body>
+</html>

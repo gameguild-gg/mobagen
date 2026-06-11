@@ -1,22 +1,14 @@
 #include "WindRule.h"
-#include <imgui.h>
-#include "../gameobjects/Boid.h"
-#include "../gameobjects/World.h"
-#include "engine/Engine.h"
+#include "imgui.h"
 
-Vector2f WindRule::computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
-  // todo: add a wind force here
-  // hint: use the windAngle variable
-  return Vector2f::zero();
+glm::vec2 WindRule::computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
+  return glm::vec2(0.f);
 }
 
 bool WindRule::drawImguiRuleExtra() {
-  ImGui::SetCurrentContext(world->engine->window->imGuiContext);
   bool valueHasChanged = false;
-
   if (ImGui::SliderAngle("Wind Direction", &windAngle, 0)) {
     valueHasChanged = true;
   }
-
   return valueHasChanged;
 }

@@ -1,15 +1,14 @@
 #ifndef MOBAGEN_WORLD_H
 #define MOBAGEN_WORLD_H
 
+#include "imgui.h"
 #include "math/ColorT.h"
-#include "scene/GameObject.h"
-#include "Renderer2D.h"
 #include "MazeGeneratorBase.h"
 #include "Node.h"
 #include "math/Point2D.h"
 #include <vector>
 
-class World : GameObject {
+class World {
 private:
   int sideSize;
 
@@ -37,7 +36,7 @@ private:
 
 public:
   ~World();
-  explicit World(Engine* pEngine, int size);
+  explicit World(int size = 11);
 
   Node GetNode(const Point2D& point);
   bool GetNorth(const Point2D& point);
@@ -51,10 +50,10 @@ public:
   void SetSouth(const Point2D& point, const bool& state);
   void SetWest(const Point2D& point, const bool& state);
 
-  void Start() override;
-  void OnGui(ImGuiContext* context) override;
-  void OnDraw(Renderer2D& r) override;
-  void Update(float deltaTime) override;
+  void Start();
+  void OnGui();
+  void OnDraw();
+  void Update(float deltaTime);
 
   void Clear();
 

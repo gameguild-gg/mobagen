@@ -54,16 +54,44 @@ python scripts/build.py web --install-deps   # installs emsdk + builds; output i
 |---|---|---|
 | `ENABLE_TEST_COVERAGE` | ON (OFF on Win/Emscripten) | Adds coverage flags to `core` library, not the test binary |
 | `BUILD_EXAMPLES` | ON | Adds all subdirs under `apps/` (examples + editor) |
-| `CXX_STANDARD_TARGET` | DETECT (≥20) | Override: `20`, `23`, or `26` |
+| `CXX_STANDARD_TARGET` | C++23 (forced) | Override: `20`, `23`, or `26` |
+| `USE_GDCM` | OFF | Build GDCM (DICOM parsing) for volume_io module |
+| `USE_ITK` | OFF | Build ITK (medical image processing) |
+| `USE_VTK` | OFF | Build VTK (visualization toolkit) |
+| `BUILD_CORE_DEMOS` | ON | Build engine learning demos under `apps/core_demos/` |
+| `BUILD_VOLUME_DEMOS` | ON | Build volume smoke tests under `apps/volume_demos/` |
+| `BUILD_DICOM_VIEWER` | ON | Build the DICOM viewer app |
+| `BUILD_PROTOTYPES` | OFF | Build learning prototypes (`dawn_probe`, `fibers_prototype`)
 | `USE_SANITIZER` | — | Address/Thread/Undefined etc. |
 | `USE_CCACHE` | — | Enable ccache |
 
 ## Architecture
 
-- **`core/`** — static library. Publicly links SDL3, SDL3_image, ImGui, Dawn WebGPU (and optionally RmlUi). All consumers get these transitively; do **not** re-link them in app/editor CMakeLists.
-- **`apps/`** / **`modules/`** — each subdirectory is auto-discovered via `subdirlist` macro. Adding a new directory is sufficient; no parent CMakeLists edit needed. `apps/` contains all demos and the scene editor.
+The engine uses a **Data-Oriented Design (DOD)** core with an **Entity-Component-System (ECS)** architecture.
+
+### Core Subsystems (`core/sources/`)
+
+| Subsystem | Target | Type | Description |
+|-----------|--------|------|-------------|
+| ecs | `mobagen::core_ecs` | INTERFACE | Entity-component registry (World, Storage, SparseSet) |
+| jobs | `mobagen::core_jobs` | STATIC | Work-stealing scheduler + coroutine tasks + Chase-Lev deque |
+| reactive | `mobagen::core_reactive` | INTERFACE | Signal/Computed/Effect reactive state (Angular-style) |
+| messaging | `mobagen::core_messaging` | INTERFACE | Notifier (multicast) + EventBus (async by-type) |
+| scene | `mobagen::core_scene` | INTERFACE | Transform hierarchy + TransformSystem (linearized resolve) |
+| camera | `mobagen::core_camera` | INTERFACE | Orbit + WASD camera with perspective/orthographic |
+| input | `mobagen::core_input` | INTERFACE | SDL-agnostic input state (key/mouse edge detection) |
+| render | `mobagen::core_render` | INTERFACE | RenderBridge (ECS → flat draw commands) + volume types |
+| resource | `mobagen::core_resource` | INTERFACE | Stable-handle asset store (ResourceRegistry<T>) |
+| net | `mobagen::core_net` | INTERFACE | Networking (gated behind BUILD_WEBREQUEST) |
+
+- **`core/`** — umbrella INTERFACE target (`mobagen::core`) linking all subsystems + SDL3, SDL3_image, ImGui, Dawn WebGPU, RmlUi. All consumers get these transitively; do **not** re-link them in app/editor CMakeLists.
+- **`apps/`** / **`modules/`** — each subdirectory is auto-discovered via `subdirlist` macro. Adding a new directory is sufficient; no parent CMakeLists edit needed.
 - **`test/`** — doctest 2.4.12. Single binary: `CoreTests`. Format targets are also configured here.
-- **`external/`** — one `.cmake` file per third-party lib. `external.cmake` is the aggregator. Several libs (assimp, bullet, glm, etc.) are present but commented out.
+- **`external/`** — one `.cmake` file per third-party lib. `external.cmake` is the aggregator.
+
+### Renderer
+
+**WebGPU / Dawn only.** No WebGL, no OpenGL, no GLEW. 2D rendering uses ImGui background draw list (`ImGui::GetBackgroundDrawList()`).
 
 ## Platform Quirks
 

@@ -2,7 +2,6 @@
 #define CHESS_PAWN_H
 
 #include "../WorldState.h"
-#include "Polygon.h"
 #include <unordered_set>
 struct Pawn {
 public:

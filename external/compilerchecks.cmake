@@ -53,7 +53,7 @@ message(STATUS "Compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
 
 # Option to override which C++ standard to use
 set(CXX_STANDARD_TARGET
-    DETECT
+    "23"
     CACHE STRING "Override the default CXX_STANDARD to compile with."
 )
 set_property(CACHE CXX_STANDARD_TARGET PROPERTY STRINGS DETECT 20 23 26)
