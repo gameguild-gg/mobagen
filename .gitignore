@@ -96,3 +96,7 @@ bin-emscripten/
 data/stream_store/
 # agentmemory iii-engine KV state (local cache, do not commit). Same rationale.
 data/state_store.db
+
+.omo/
+
+.cache/

@@ -44,6 +44,6 @@ doctest_discover_tests(CoreTests)
 # ---- code coverage ----
 
 if(ENABLE_TEST_COVERAGE)
-  target_compile_options(core PUBLIC -O0 -g -fprofile-arcs -ftest-coverage)
-  target_link_options(core PUBLIC -fprofile-arcs -ftest-coverage)
+  target_compile_options(CoreTests PUBLIC -O0 -g -fprofile-arcs -ftest-coverage)
+  target_link_options(CoreTests PUBLIC -fprofile-arcs -ftest-coverage)
 endif()

@@ -1,51 +1,39 @@
 #ifndef BOID_H
 #define BOID_H
 
-#include "../behaviours/FlockingRule.h"
-#include "Pacticle.h"
-#include "Polygon.h"
+#include <glm/glm.hpp>
+#include "math/ColorT.h"
+#include <vector>
 
-class World;
+struct BoidPos {
+  glm::vec2 pos{0.f};
+};
 
-class Boid : public Particle {
-private:
-  float detectionRadius = 100.;
+struct BoidVel {
+  glm::vec2 vel{0.f};
+};
 
-  std::vector<std::unique_ptr<FlockingRule>> rules;
+struct BoidAcc {
+  glm::vec2 acc{0.f};
+  glm::vec2 prevAcc{0.f};
+};
 
-  // Methods
-  std::vector<Boid*> computeBoidNeighborhood();
+struct BoidConfig {
+  float detectionRadius = 100.f;
+  float speed           = 120.f;
+  bool hasConstantSpeed = false;
+  float maxAcceleration = 10.f;
+};
 
-  Circle circle = Circle(12);
-  World* world;
+struct BoidDebug {
+  bool drawDebugRadius  = false;
+  bool drawDebugRules   = false;
+  bool drawAcceleration = false;
+  Color32 color;
+};
 
-public:
-  // Member
-  bool drawDebugRadius = true;
-  bool drawDebugRules = true;
-  Color32 circleColor = Color::Purple;
-
-  // Constructor
-  explicit Boid(Engine* pEngine, World* pWorld);
-
-  // Getter - Setters
-  void setFlockingRules(std::vector<std::unique_ptr<FlockingRule>> const& newRules) {
-    rules.clear();
-
-    // Clone the rules in newRules in the boid rules.
-    for (auto& rule : newRules) {
-      rules.push_back(rule->clone());
-    }
-  }
-
-  void setDetectionRadius(float newRadius) { detectionRadius = newRadius; }
-
-  float getDetectionRadius() const { return detectionRadius; }
-
-  void Update(float deltaTime) override;
-
-  // Inherited via Drawable
-  virtual void OnDraw(Renderer2D& r) override;
+struct BoidForceCache {
+  std::vector<glm::vec2> forces;
 };
 
 #endif

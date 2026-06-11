@@ -1,62 +1,48 @@
 #ifndef FLOCKINGRULE_H
 #define FLOCKINGRULE_H
 
-#include <vector>
 #include <memory>
-#include "math/Vector2.h"
-#include "math/Vector3.h"
+#include <vector>
+#include <glm/glm.hpp>
 #include "math/ColorT.h"
+#include "imgui.h"
 
-class Boid;
-class World;
-class Renderer2D;
+struct BoidView {
+  glm::vec2 position{0.f};
+  glm::vec2 velocity{0.f};
+};
 
 class FlockingRule {
-public:
-  World* world;
-
 protected:
-  // We'll cache the computed force to be able to display it later
-  Vector2f force;
-
-  // if displayed
   Color32 debugColor;
 
-  explicit FlockingRule(World* pWorld, Color32 debugColor_, float weight_, bool isEnabled_ = true)
-      : debugColor(debugColor_), force(Vector2f()), weight(weight_), isEnabled(isEnabled_), world(pWorld) {}
+  explicit FlockingRule(Color32 debugColor_, float weight_, bool isEnabled_ = true)
+      : debugColor(debugColor_), weight(weight_), isEnabled(isEnabled_) {}
 
-  virtual Vector2f computeForce(const std::vector<Boid*>& neighborhood, Boid* boid) = 0;
+  virtual glm::vec2 computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) = 0;
 
-  // Multiplier for weight so we can tilt values closer to each other
-  virtual float getBaseWeightMultiplier() { return 1.; };
+  virtual float getBaseWeightMultiplier() { return 1.f; }
 
-  // Name of the rule
   virtual const char* getRuleName() = 0;
-
-  // Short explanation of the rule
   virtual const char* getRuleExplanation() = 0;
-
-  // Function to override to draw extra tweakable settings on ImGui, depending on rule.
-  virtual bool drawImguiRuleExtra() { return false; };
+  virtual bool drawImguiRuleExtra() { return false; }
 
 public:
   float weight;
   bool isEnabled;
 
-  // Copy constructor
   FlockingRule(const FlockingRule& toCopy);
+  virtual ~FlockingRule() = default;
 
   virtual std::unique_ptr<FlockingRule> clone() = 0;
 
-  // Compute the force, weight it, and save it in cache.
-  Vector2f computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid);
+  glm::vec2 computeWeightedForce(const std::vector<BoidView>& neighborhood, const BoidView& boid);
 
-  // Draw the core of the rule settings on ImGui.
   virtual bool drawImguiRule();
 
-  // todo: probably we need to call this and change boid to particle
-  // Inherited via Drawable
-  virtual void draw(const Boid& boid, Renderer2D& r) const;
+  virtual void draw(const BoidView& boid, ImDrawList* dl, glm::vec2 cachedForce) const;
+
+  virtual void drawWorldOverlay(ImDrawList* dl) const {}
 };
 
 #endif

@@ -7,6 +7,18 @@
 #include "WorldStateFwd.h"
 using namespace std;
 
+// std::hash specialisation for glm::ivec2 (Point2D shim) so unordered_set<Point2D> compiles.
+namespace std {
+template <>
+struct hash<glm::ivec2> {
+  size_t operator()(const glm::ivec2& v) const noexcept {
+    size_t h1 = std::hash<int>{}(v.x);
+    size_t h2 = std::hash<int>{}(v.y);
+    return h1 ^ (h2 * 2654435761u);  // Knuth multiplicative hash mix
+  }
+};
+}  // namespace std
+
 // todo: make it match the PieceType and optimize
 enum class MoveType : uint8_t {
   Normal = 0b000,

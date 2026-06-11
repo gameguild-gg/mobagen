@@ -1,11 +1,4 @@
-// #ifndef EDITOR_H
-// #define EDITOR_H
-//
-// #include "GameObject.h"
-//
-//  class Editor: GameObject {
-//  public:
-//     explicit Editor(Engine *pEngine);
-//     void OnGui(ImGuiContext *context) override;
-// };
-// #endif
+#pragma once
+// Editor — top-level editor state (DOD stub).
+// Active UI is assembled in main.cpp; this file is reserved for
+// future editor panels implemented as DOD systems.

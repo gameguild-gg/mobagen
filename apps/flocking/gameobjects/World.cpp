@@ -9,148 +9,253 @@
 #include "../behaviours/MouseInfluenceRule.h"
 #include "../behaviours/BoundedAreaRule.h"
 #include "../behaviours/WindRule.h"
-#include "engine/Engine.h"
+
+#include <glm/glm.hpp>
+#include <algorithm>
+#include <cmath>
 
 #if defined(_WIN32)
 #  include "Windows.h"
 #  include "Psapi.h"
 #endif
 
-World::World(Engine* pEngine) : GameObject(pEngine) {}
+FlockingManager::FlockingManager(ecs::World& world, jobs::Scheduler& sched) : ecs_(world), sched_(sched) {}
 
-void World::initializeRules() {
-  // Starting Rules
-  // parameters: desired separation, weight
-  boidsRules.emplace_back(std::make_unique<SeparationRule>(this, 25.f, 4.75f));
-  // parameters: weight
-  boidsRules.emplace_back(std::make_unique<CohesionRule>(this, 4.25f));
-  // parameters: weight
-  boidsRules.emplace_back(std::make_unique<AlignmentRule>(this, 2.9f));
-  // parameters: weight
-  boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(this, 2.f));
-  // parameters: distance from frame border, weight
-  boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(this, 20, 8.f, false));
-  // parameters: weight, angle
-  boidsRules.emplace_back(std::make_unique<WindRule>(this, 1.f, 6.f, false));
+void FlockingManager::initializeRules() {
+  boidsRules.emplace_back(std::make_unique<SeparationRule>(25.f, 4.75f));
+  boidsRules.emplace_back(std::make_unique<CohesionRule>(4.25f));
+  boidsRules.emplace_back(std::make_unique<AlignmentRule>(2.9f));
+  boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(2.f));
+  boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(20, 8.f, false));
+  boidsRules.emplace_back(std::make_unique<WindRule>(1.f, 6.f, false));
 
-  // Starting weights are saved as defaults
   defaultWeights.clear();
   for (const auto& rule : boidsRules) defaultWeights.push_back(rule->weight);
 
-  ImGui::SetCurrentContext(engine->window->imGuiContext);
   SetupImGuiStyle();
 }
 
-void World::applyFlockingRulesToAllBoids() {
-  for (const auto& boid : boids) boid->setFlockingRules(boidsRules);
+void FlockingManager::randomizeBoidPosVel(ecs::Entity e) {
+  ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+  float w = displaySize.x > 0.f ? displaySize.x : 1280.f;
+  float h = displaySize.y > 0.f ? displaySize.y : 800.f;
+
+  ecs_.get<BoidPos>(e).pos.x = Random::Range(0.f, w);
+  ecs_.get<BoidPos>(e).pos.y = Random::Range(0.f, h);
+  float angle = Random::Range(0.f, 6.28318530718f);
+  ecs_.get<BoidVel>(e).vel = glm::vec2(std::cos(angle), std::sin(angle)) * desiredSpeed;
 }
 
-void World::setNumberOfBoids(int number) {
-  int diff = (int)boids.size() - number;
+ecs::Entity FlockingManager::createBoid() {
+  ecs::Entity e = ecs_.create();
+  ecs_.add<BoidPos>(e);
+  ecs_.add<BoidVel>(e);
+  ecs_.add<BoidAcc>(e);
+  ecs_.add<BoidForceCache>(e);
 
+  BoidConfig& cfg    = ecs_.add<BoidConfig>(e);
+  cfg.detectionRadius = detectionRadius;
+  cfg.speed           = desiredSpeed;
+  cfg.hasConstantSpeed = hasConstantSpeed;
+  cfg.maxAcceleration = hasMaxAcceleration ? maxAcceleration : 10000.f;
+
+  BoidDebug& dbg      = ecs_.add<BoidDebug>(e);
+  dbg.drawDebugRadius = showRadius;
+  dbg.drawDebugRules  = showRules;
+  dbg.drawAcceleration = showAcceleration;
+  dbg.color           = Color32::RandomColor(31, 255);
+
+  randomizeBoidPosVel(e);
+  return e;
+}
+
+void FlockingManager::setNumberOfBoids(int number) {
+  int diff = static_cast<int>(boidEntities.size()) - number;
   if (diff == 0) return;
 
-  // Need to add boids
-  else if (diff < 0) {
-    // Back to positive
-    diff = -diff;
+  if (diff < 0) {
+    for (int i = 0; i < -diff; i++) boidEntities.push_back(createBoid());
+  } else {
+    for (int i = 0; i < diff; i++) {
+      ecs_.destroy(boidEntities.back());
+      boidEntities.pop_back();
+    }
+  }
+}
 
-    // Add boids equal to diff
-    for (int i = 0; i < diff; i++) boids.push_back(createBoid());
+void FlockingManager::warpIfOutOfBounds(BoidPos& p) {
+  ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+  float w = displaySize.x > 0.f ? displaySize.x : 1280.f;
+  float h = displaySize.y > 0.f ? displaySize.y : 800.f;
+
+  if (p.pos.x < 0.f)    p.pos.x += w;
+  else if (p.pos.x > w) p.pos.x -= w;
+  if (p.pos.y < 0.f)    p.pos.y += h;
+  else if (p.pos.y > h) p.pos.y -= h;
+}
+
+void FlockingManager::Start() {
+  initializeRules();
+  setNumberOfBoids(nbBoids);
+}
+
+void FlockingManager::Update(float deltaTime) {
+  const int n = static_cast<int>(boidEntities.size());
+  if (n == 0) return;
+
+  std::vector<BoidView> snapshot(n);
+  for (int i = 0; i < n; i++) {
+    snapshot[i].position = ecs_.get<BoidPos>(boidEntities[i]).pos;
+    snapshot[i].velocity = ecs_.get<BoidVel>(boidEntities[i]).vel;
   }
 
-  // Too much boid, remove them
-  else
-    // Remove from end
-    for (int i = 0; i < diff; i++) {
-      auto go = boids.back();
-      engine->Destroy(go);
-      boids.pop_back();
+  glm::vec2 inputArrow(0.f);
+  if (ImGui::IsKeyDown(ImGuiKey_UpArrow))    inputArrow.y -= 1.f;
+  if (ImGui::IsKeyDown(ImGuiKey_DownArrow))  inputArrow.y += 1.f;
+  if (ImGui::IsKeyDown(ImGuiKey_LeftArrow))  inputArrow.x -= 1.f;
+  if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) inputArrow.x += 1.f;
+  if (glm::length(inputArrow) > 0.f) {
+    ecs_.get<BoidAcc>(boidEntities[0]).acc += inputArrow * 20.f;
+    ecs_.get<BoidDebug>(boidEntities[0]).drawDebugRadius = true;
+    ecs_.get<BoidDebug>(boidEntities[0]).color = Color::Red;
+  }
+
+  const auto& rules = boidsRules;
+  jobs::WaitGroup wg;
+  sched_.parallel_for(
+      static_cast<std::size_t>(n), 16,
+      [&](std::size_t begin, std::size_t end) {
+        for (std::size_t i = begin; i < end; i++) {
+          ecs::Entity e      = boidEntities[i];
+          BoidPos& pos       = ecs_.get<BoidPos>(e);
+          BoidVel& vel       = ecs_.get<BoidVel>(e);
+          BoidAcc& acc       = ecs_.get<BoidAcc>(e);
+          BoidConfig& cfg    = ecs_.get<BoidConfig>(e);
+          BoidForceCache& fc = ecs_.get<BoidForceCache>(e);
+
+          std::vector<BoidView> neighborhood;
+          const float r2 = cfg.detectionRadius * cfg.detectionRadius;
+          for (int j = 0; j < n; j++) {
+            if (static_cast<std::size_t>(j) == i) continue;
+            glm::vec2 d = snapshot[j].position - snapshot[i].position;
+            if (glm::dot(d, d) <= r2) neighborhood.push_back(snapshot[j]);
+          }
+
+          fc.forces.resize(rules.size());
+          for (std::size_t ri = 0; ri < rules.size(); ri++) {
+            glm::vec2 f = rules[ri]->computeWeightedForce(neighborhood, snapshot[i]);
+            fc.forces[ri] = f;
+            acc.acc += f;
+          }
+
+          float mag = glm::length(acc.acc);
+          if (mag > cfg.maxAcceleration && mag > 0.0001f)
+            acc.acc = acc.acc * (cfg.maxAcceleration / mag);
+
+          glm::vec2 newVel = vel.vel + acc.acc;
+          acc.prevAcc      = acc.acc;
+          acc.acc          = glm::vec2(0.f);
+
+          float speed = glm::length(newVel);
+          if (cfg.hasConstantSpeed || speed > cfg.speed) {
+            if (speed > 0.0001f) newVel = newVel * (cfg.speed / speed);
+          }
+
+          vel.vel  = newVel;
+          pos.pos += vel.vel * deltaTime;
+        }
+      },
+      wg);
+  sched_.wait(wg);
+
+  for (auto e : boidEntities) warpIfOutOfBounds(ecs_.get<BoidPos>(e));
+}
+
+void FlockingManager::OnGui() { showConfigurationWindow(ImGui::GetIO().DeltaTime); }
+
+void FlockingManager::OnDraw() {
+  ImDrawList* dl = ImGui::GetBackgroundDrawList();
+
+  for (int i = 0; i < static_cast<int>(boidEntities.size()); i++) {
+    ecs::Entity e   = boidEntities[i];
+    BoidPos& pos    = ecs_.get<BoidPos>(e);
+    BoidVel& vel    = ecs_.get<BoidVel>(e);
+    BoidAcc& acc    = ecs_.get<BoidAcc>(e);
+    BoidConfig& cfg = ecs_.get<BoidConfig>(e);
+    BoidDebug& dbg  = ecs_.get<BoidDebug>(e);
+
+    glm::vec2 p = pos.pos;
+    glm::vec2 v = vel.vel;
+
+    float len     = glm::length(v);
+    glm::vec2 fwd = len > 0.0001f ? v / len : glm::vec2(0.f, -1.f);
+    glm::vec2 perp(-fwd.y, fwd.x);
+    ImVec2 tip   = {p.x + fwd.x  * 9.f,                  p.y + fwd.y  * 9.f};
+    ImVec2 left  = {p.x - perp.x * 4.5f - fwd.x * 4.f,   p.y - perp.y * 4.5f - fwd.y * 4.f};
+    ImVec2 right = {p.x + perp.x * 4.5f - fwd.x * 4.f,   p.y + perp.y * 4.5f - fwd.y * 4.f};
+    ImU32 col = IM_COL32(static_cast<int>(dbg.color.r * 255), static_cast<int>(dbg.color.g * 255),
+                         static_cast<int>(dbg.color.b * 255), static_cast<int>(dbg.color.a * 255));
+    dl->AddTriangleFilled(tip, left, right, col);
+
+    if (showRadius || dbg.drawDebugRadius) {
+      dl->AddCircle({p.x, p.y}, cfg.detectionRadius,
+                    IM_COL32(static_cast<int>(dbg.color.r * 255), static_cast<int>(dbg.color.g * 255),
+                             static_cast<int>(dbg.color.b * 255), 64),
+                    32);
     }
+
+    if (showAcceleration || dbg.drawAcceleration) {
+      glm::vec2 end = p + acc.prevAcc * 2.f;
+      dl->AddLine({p.x, p.y}, {end.x, end.y}, IM_COL32(128, 0, 128, 220), 1.5f);
+    }
+
+    if (showRules || dbg.drawDebugRules) {
+      BoidForceCache& fc = ecs_.get<BoidForceCache>(e);
+      BoidView bv{p, v};
+      for (std::size_t ri = 0; ri < boidsRules.size() && ri < fc.forces.size(); ri++) {
+        if (boidsRules[ri]->isEnabled) boidsRules[ri]->draw(bv, dl, fc.forces[ri]);
+      }
+    }
+  }
+
+  if (showRules) {
+    for (const auto& rule : boidsRules) {
+      if (rule->isEnabled) rule->drawWorldOverlay(dl);
+    }
+  }
 }
 
-void World::randomizeBoidPositionAndVelocity(Boid* boid) {
-  auto size = engine->window->size();
-  // todo: give boid a transform to store position, rotation... etc
-  boid->setPosition({Random::Range(0.0f, (float)size.x), Random::Range(0.0f, (float)size.y)});
-  boid->setVelocity(Vector2f::up().Rotate(Random::Range(0.0f, 360.0f)) * desiredSpeed);  // Random dir
-}
-
-void World::warpParticleIfOutOfBounds(Particle* particle) {
-  // Correct position with windows borders
-  Vector2f position = particle->getTransform().position;
-  auto sizeWindow = engine->window->size();  // todo: make it int
-
-  if (position.x < 0)
-    position.x += sizeWindow.x;
-  else if (position.x > sizeWindow.x)
-    position.x -= sizeWindow.x;
-
-  if (position.y < 0)
-    position.y += sizeWindow.y;
-  else if (position.y > sizeWindow.y)
-    position.y -= sizeWindow.y;
-
-  // If the position changed
-  if (position != particle->transform.position) particle->transform.position = position;
-}
-
-Boid* World::createBoid() {
-  // Create new boid
-  auto boid = new Boid(engine, this);
-
-  randomizeBoidPositionAndVelocity(boid);
-  boid->setFlockingRules(boidsRules);
-  boid->setDetectionRadius(detectionRadius);
-  boid->setSpeed(desiredSpeed);
-  boid->setHasConstantSpeed(hasConstantSpeed);
-  boid->drawAcceleration = showAcceleration;
-  boid->drawDebugRadius = showRadius;
-  boid->drawDebugRules = showRules;
-
-  return boid;
-}
-
-std::vector<Boid*>* World::getAllBoids() { return &boids; }
-
-void World::drawGeneralUI() {
-  ImGui::SetNextItemOpen(true, ImGuiCond_Once);  // Next header is opened by default
+void FlockingManager::drawGeneralUI() {
+  ImGui::SetNextItemOpen(true, ImGuiCond_Once);
   if (ImGui::CollapsingHeader("General")) {
     if (ImGui::DragInt("Number of Boids", &nbBoids)) {
       if (nbBoids < 0) nbBoids = 0;
       setNumberOfBoids(nbBoids);
     }
-
     ImGui::SameLine();
     HelpMarker("Drag to change the weight's value or CTRL+Click to input a new value.");
 
     if (ImGui::SliderFloat("Neighborhood Radius", &detectionRadius, 0.0f, 250.0f, "%.f"))
-      for (const auto& boid : boids) boid->setDetectionRadius(detectionRadius);
+      for (auto e : boidEntities) ecs_.get<BoidConfig>(e).detectionRadius = detectionRadius;
 
-    // Speeds
     ImGui::SetNextItemOpen(false, ImGuiCond_Once);
     if (ImGui::TreeNode("Movement Settings")) {
       if (ImGui::Checkbox("Has Constant Speed", &hasConstantSpeed))
-        for (const auto& boid : boids) boid->setHasConstantSpeed(hasConstantSpeed);
+        for (auto e : boidEntities) ecs_.get<BoidConfig>(e).hasConstantSpeed = hasConstantSpeed;
 
       const char* speedLabel = hasConstantSpeed ? "Speed" : "Max Speed";
       if (ImGui::SliderFloat(speedLabel, &desiredSpeed, 0.0f, 300.0f, "%.f"))
-        for (const auto& boid : boids) boid->setSpeed(desiredSpeed);
+        for (auto e : boidEntities) ecs_.get<BoidConfig>(e).speed = desiredSpeed;
 
-      // Acceleration
       if (ImGui::Checkbox("Has Max Acceleration", &hasMaxAcceleration)) {
-        for (const auto& boid : boids) {
-          if (hasMaxAcceleration)
-            boid->setMaxAcceleration(maxAcceleration);
-          else
-            boid->setMaxAcceleration(10000.);
-        }
+        for (auto e : boidEntities)
+          ecs_.get<BoidConfig>(e).maxAcceleration = hasMaxAcceleration ? maxAcceleration : 10000.f;
       }
       ImguiTooltip("Boids keeps more momentum when the acceleration is capped.");
 
       if (hasMaxAcceleration)
         if (ImGui::SliderFloat("Max Acceleration", &maxAcceleration, 0.0f, 35.0f, "%.f"))
-          for (const auto& boid : boids) boid->setMaxAcceleration(maxAcceleration);
+          for (auto e : boidEntities) ecs_.get<BoidConfig>(e).maxAcceleration = maxAcceleration;
 
       ImGui::TreePop();
     }
@@ -158,154 +263,83 @@ void World::drawGeneralUI() {
     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     if (ImGui::TreeNode("Display Settings")) {
       if (ImGui::Checkbox("Show Acceleration", &showAcceleration))
-        for (const auto& boid : boids) boid->drawAcceleration = showAcceleration;
-
+        for (auto e : boidEntities) ecs_.get<BoidDebug>(e).drawAcceleration = showAcceleration;
       if (ImGui::Checkbox("Show Radius", &showRadius))
-        for (const auto& boid : boids) boid->drawDebugRadius = showRadius;
-
+        for (auto e : boidEntities) ecs_.get<BoidDebug>(e).drawDebugRadius = showRadius;
       if (ImGui::Checkbox("Show Rules", &showRules))
-        for (const auto& boid : boids) boid->drawDebugRules = showRules;
-
+        for (auto e : boidEntities) ecs_.get<BoidDebug>(e).drawDebugRules = showRules;
       ImGui::TreePop();
     }
 
     if (ImGui::Button("Randomize Boids position and velocity"))
-      for (const auto& boid : boids) randomizeBoidPositionAndVelocity(boid);
+      for (auto e : boidEntities) randomizeBoidPosVel(e);
   }
 }
 
-void World::drawRulesUI() {
+void FlockingManager::drawRulesUI() {
   if (ImGui::CollapsingHeader("Rules")) {
     for (auto& rule : boidsRules) {
-      if (rule->drawImguiRule())  // display the UI and returns true if a value has been changed
-        applyFlockingRulesToAllBoids();
+      rule->drawImguiRule();
       ImGui::Separator();
     }
-
     if (ImGui::Button("Restore Default Weights")) {
       int i = 0;
-      // restore default values
       for (auto& rule : boidsRules) rule->weight = defaultWeights[i++];
-
-      applyFlockingRulesToAllBoids();
     }
-
     ImGui::Spacing();
   }
 }
 
-void World::Update(float deltaTime) {
-  // move the first boid
-  if (engine->getInputArrow() != Vector2f::zero() && getNbBoids() > 0) {
-    Boid* firstBoid = *getAllBoids()->begin();
-    firstBoid->applyForce(engine->getInputArrow() * 20.f);
-    firstBoid->drawDebugRadius = true;
-    firstBoid->circleColor = Color::Red;
-  }
-
-  // update positions
-  for (auto& b : boids) warpParticleIfOutOfBounds(b);
-}
-
-int World::getNbBoids() const { return nbBoids; }
-
-void World::showConfigurationWindow(float deltaTime) {
+void FlockingManager::showConfigurationWindow(float deltaTime) {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
-      if (ImGui::MenuItem("Exit")) {
-        engine->Exit();
-      }
       ImGui::EndMenu();
     }
-
-    ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime,
-                1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000,
+                1.0f / ImGui::GetIO().DeltaTime, 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::EndMainMenuBar();
   }
 
-  // Resized once at first windows appearance
   ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_Once);
   ImGui::SetNextWindowSize(ImVec2(320, 550), ImGuiCond_Once);
-
-  if (ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar)) {  // begin window
+  if (ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar)) {
     ImGui::Text("Control the simulation with those settings.");
     ImGui::Spacing();
     ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.45f);
 
     drawGeneralUI();
-
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);  // Next header is opened by default
-
+    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     drawRulesUI();
-
     drawPerformanceUI(deltaTime);
 
-    ImGui::End();  // end window
+    ImGui::End();
   }
 }
 
-void World::drawPerformanceUI(float deltaTime) {
+void FlockingManager::drawPerformanceUI(float deltaTime) {
 #if defined(_WIN32)
   if (ImGui::CollapsingHeader("Performance")) {
-    // The  functions called are Windows specific
-    /// FPS Count
-    float framePerSecond = 1. / deltaTime;
-    ImGui::Text("Frames Per Second (FPS) : %.f", framePerSecond);
+    ImGui::Text("Frames Per Second (FPS) : %.f", 1.f / deltaTime);
     PlotVar("Frame duration (ms)", deltaTime * 1000);
     ImGui::Separator();
 
-    /// CPU and RAM
     MEMORYSTATUSEX memInfo;
     memInfo.dwLength = sizeof(MEMORYSTATUSEX);
     GlobalMemoryStatusEx(&memInfo);
 
-    // Total Virtual Memory
-    std::int64_t totalVirtualMem = memInfo.ullTotalPageFile;
-
-    // Virtual Memory currently used
-    std::int64_t virtualMemUsed = memInfo.ullTotalPageFile - memInfo.ullAvailPageFile;
-
-    // Virtual Memory current process
     PROCESS_MEMORY_COUNTERS_EX pmc;
     GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
-    std::size_t virtualMemUsedByMe = pmc.PrivateUsage;
 
-    // Total RAM
-    std::int64_t totalPhysMem = memInfo.ullTotalPhys;
-
-    // Ram Currently Used
-    std::int64_t physMemUsed = memInfo.ullTotalPhys - memInfo.ullAvailPhys;
-
-    // Ram Current used by Process
-    std::size_t physMemUsedByMe = pmc.WorkingSetSize;
-
-    int div = 1048576;
-
-    // PC info
-    ImGui::Text("Total Virtual Memory : %uMb \n", totalVirtualMem / div);
-    ImGui::Text("Total RAM : %uMb \n", totalPhysMem / div);
-
-    ImGui::Text("Virtual Memory Currently Used : %iMb \n", virtualMemUsed / div);
-    ImGui::Text("RAM Currently Used : %uMb \n", physMemUsed / div);
+    const int div = 1048576;
+    ImGui::Text("Total Virtual Memory : %uMb", (unsigned)(memInfo.ullTotalPageFile / div));
+    ImGui::Text("Total RAM : %uMb",            (unsigned)(memInfo.ullTotalPhys / div));
     ImGui::Separator();
-
-    ImGui::Text("Virtual Memory used by process : %uMb \n", virtualMemUsedByMe / div);
-    PlotVar("Virtual Memory Consumption (Mb)", virtualMemUsedByMe / div);
-
-    ImGui::Text("RAM used by process : %uMb \n", physMemUsedByMe / div);
-    PlotVar("Ram Consumption (Mb)", physMemUsedByMe / div);
+    ImGui::Text("Virtual Memory used by process : %uMb", (unsigned)(pmc.PrivateUsage / div));
+    PlotVar("Virtual Memory Consumption (Mb)", (float)(pmc.PrivateUsage / div));
+    ImGui::Text("RAM used by process : %uMb",  (unsigned)(pmc.WorkingSetSize / div));
+    PlotVar("Ram Consumption (Mb)",            (float)(pmc.WorkingSetSize / div));
   }
+#else
+  (void)deltaTime;
 #endif
-}
-
-void World::OnGui(ImGuiContext* context) {
-  ImGui::SetCurrentContext(context);
-  float deltaTime = ImGui::GetIO().DeltaTime;
-  showConfigurationWindow(deltaTime);
-}
-
-void World::Start() {
-  initializeRules();
-  setNumberOfBoids(nbBoids);
-  applyFlockingRulesToAllBoids();
 }

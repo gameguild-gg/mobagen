@@ -1,7 +1,7 @@
 #include "ShadowCastGridRecursive.h"
 
 // reference: https://www.albertford.com/shadowcasting/
-void ShadowCastGridRecursive(Grid2D<Square>& grid, Point2D& origin, int deepness, int maxDeepness, Octant octant, Slope slopeRange) {
+void ShadowCastGridRecursive(Grid2D<Square>& grid, glm::ivec2& origin, int deepness, int maxDeepness, Octant octant, Slope slopeRange) {
   // return if max depth is reached
   if (deepness > maxDeepness) return;
 

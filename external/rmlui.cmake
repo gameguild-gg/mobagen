@@ -5,10 +5,33 @@
 
 set(RMLUI_VERSION 6.2)
 
-# RmlUi needs FreeType for font rendering. It bundles FreeType in its
-# Dependencies/ directory and will find it there automatically because
-# the root CMakeLists.txt adds Dependencies/ to CMAKE_PREFIX_PATH.
-# We must set this BEFORE CPMAddPackage so the options take effect.
+# RmlUi requires FreeType for font rendering. On Emscripten, freetype is
+# shipped as a port (built on demand into the sysroot) rather than as part
+# of the base toolchain. RmlUi's CMake imports `Freetype::Freetype` and
+# validates the INTERFACE_INCLUDE_DIRECTORIES path at configure time, so
+# the port must exist BEFORE CPMAddPackage(RmlUi) runs. Trigger embuilder
+# here rather than expecting the user (or build.py) to remember it.
+if(EMSCRIPTEN)
+  find_program(EMBUILDER NAMES embuilder embuilder.py
+    PATHS ENV EMSDK ENV EMSCRIPTEN_ROOT
+    PATH_SUFFIXES upstream/emscripten)
+  if(NOT EMBUILDER)
+    get_filename_component(_emcc_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+    find_program(EMBUILDER NAMES embuilder embuilder.py PATHS "${_emcc_dir}" NO_DEFAULT_PATH)
+  endif()
+  if(EMBUILDER)
+    set(_freetype_sysroot_lib "$ENV{EMSDK}/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libfreetype.a")
+    if(NOT EXISTS "${_freetype_sysroot_lib}")
+      execute_process(COMMAND "${EMBUILDER}" build freetype RESULT_VARIABLE _ft_rc)
+      if(NOT _ft_rc EQUAL 0)
+        message(FATAL_ERROR "embuilder build freetype failed (exit ${_ft_rc})")
+      endif()
+    endif()
+  else()
+    message(WARNING "EMBUILDER not found; freetype port may need manual build")
+  endif()
+endif()
+
 set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "")
 set(RMLUI_SAMPLES OFF CACHE BOOL "")
 set(RMLUI_LUA_BINDINGS OFF CACHE BOOL "")
@@ -18,7 +41,6 @@ set(RMLUI_THIRDPARTY_CONTAINERS ON CACHE BOOL "")
 set(RMLUI_PRECOMPILED_HEADERS OFF CACHE BOOL "")
 set(RMLUI_WARNINGS_AS_ERRORS OFF CACHE BOOL "")
 
-# Disable samples backend selection (we don't build samples)
 set(RMLUI_BACKEND "auto" CACHE STRING "")
 
 CPMAddPackage(

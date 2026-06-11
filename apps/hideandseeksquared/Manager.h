@@ -1,14 +1,14 @@
 #ifndef MOBAGEN_MANAGERHIDEANDSEEK_H
 #define MOBAGEN_MANAGERHIDEANDSEEK_H
 
-#include "engine/EngineForwards.h"
-#include "scene/GameObject.h"
-#include "Renderer2D.h"
+#include <glm/glm.hpp>
+#include "imgui.h"
 #include "datastructures/Grid2D.h"
 #include "ShadowCastGridRecursive.h"
 
-// make it be a component instead a gameobject
-class Manager : public GameObject {
+// DOD-ified: plain state container + system methods.
+// No Engine*, no GameObject inheritance, no Renderer2D.
+class Manager {
   int sideSize = 17;
   Grid2D<Square> grid;
   float enemyTickSize = 0.5f;
@@ -16,15 +16,15 @@ class Manager : public GameObject {
   bool showHiddenObjects = true;
 
 public:
-  explicit Manager(Engine* pEngine);
+  Manager() = default;
 
-  void Start() override;
-  void OnGui(ImGuiContext* context) override;
-  void OnDraw(Renderer2D& r) override;
-  void Update(float deltaTime) override;
+  void Start();
+  void OnGui();
+  void OnDraw();
+  void Update(float deltaTime);
 
   // helper functions
-  Point2D screenSpaceToGridIndex(ImVec2& pos);
+  glm::ivec2 screenSpaceToGridIndex(ImVec2& pos);
   void Reset();
 
   // game logic
@@ -32,4 +32,4 @@ public:
   void ShadowCast();
 };
 
-#endif  // MOBAGEN_MANAGER_H
+#endif  // MOBAGEN_MANAGERHIDEANDSEEK_H

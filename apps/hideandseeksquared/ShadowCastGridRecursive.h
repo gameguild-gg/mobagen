@@ -2,7 +2,7 @@
 #define MOBAGEN_SHADOWCASTGRIDRECURSIVE_H
 
 #include "datastructures/Grid2D.h"
-#include "math/Point2D.h"
+#include <glm/glm.hpp>
 
 enum class SquareType : uint8_t {
   Empty = 0,
@@ -39,6 +39,6 @@ struct Slope {
 };
 
 // parameters:
-void ShadowCastGridRecursive(Grid2D<Square>& grid, Point2D& origin, int deepness, int maxDeepness, Octant octant, Slope slopeRange);
+void ShadowCastGridRecursive(Grid2D<Square>& grid, glm::ivec2& origin, int deepness, int maxDeepness, Octant octant, Slope slopeRange);
 
 #endif  // MOBAGEN_SHADOWCASTGRIDRECURSIVE_H

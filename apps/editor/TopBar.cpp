@@ -5,8 +5,7 @@
 #include "TopBar.h"
 #include "imgui.h"
 
-void TopBar::OnGui(ImGuiContext* context) {
-  ImGui::SetCurrentContext(context);
+void TopBar::render_ui() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
       if (ImGui::MenuItem("New", "Ctrl+N")) {

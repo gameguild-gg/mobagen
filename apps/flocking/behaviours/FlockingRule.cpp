@@ -1,32 +1,22 @@
 #include "FlockingRule.h"
-
-#include "imgui.h"
 #include "../utils/ImGuiExtra.h"
-#include "Polygon.h"
-#include "../gameobjects/Boid.h"
-#include "../gameobjects/World.h"
-#include "engine/Engine.h"
+#include "imgui.h"
+#include <glm/glm.hpp>
 
 FlockingRule::FlockingRule(const FlockingRule& toCopy)
-    : weight(toCopy.weight), debugColor(toCopy.debugColor), force(toCopy.force), isEnabled(toCopy.isEnabled), world(toCopy.world) {}
+    : weight(toCopy.weight), debugColor(toCopy.debugColor), isEnabled(toCopy.isEnabled) {}
 
-Vector2f FlockingRule::computeWeightedForce(const std::vector<Boid*>& neighborhood, Boid* boid) {
-  // the computed force is cached in a var
+glm::vec2 FlockingRule::computeWeightedForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
   if (isEnabled) {
-    force = getBaseWeightMultiplier() * weight * computeForce(neighborhood, boid);
-  } else {
-    // If the rule is not enabled, return vector zero.
-    force = Vector2f::zero();
+    return getBaseWeightMultiplier() * weight * computeForce(neighborhood, boid);
   }
-
-  return force;
+  return glm::vec2(0.f);
 }
 
 bool FlockingRule::drawImguiRule() {
-  ImGui::SetCurrentContext(world->engine->window->imGuiContext);
   bool valueHasChanged = false;
 
-  ImGui::SetNextItemOpen(isEnabled, ImGuiCond_Once);  // Opened by default if rule active
+  ImGui::SetNextItemOpen(isEnabled, ImGuiCond_Once);
   if (ImGui::TreeNode(getRuleName())) {
     ImguiTooltip(getRuleExplanation());
 
@@ -38,23 +28,25 @@ bool FlockingRule::drawImguiRule() {
       if (ImGui::DragFloat("Weight##", &weight, 0.025f)) {
         valueHasChanged = true;
       }
-
       ImGui::SameLine();
       HelpMarker("Drag to change the weight's value or CTRL+Click to input a new value.");
 
-      // Additional settings rule-dependant
       if (drawImguiRuleExtra()) {
         valueHasChanged = true;
       }
     }
 
     ImGui::TreePop();
-  } else
+  } else {
     ImguiTooltip(getRuleExplanation());
+  }
 
   return valueHasChanged;
 }
 
-void FlockingRule::draw(const Boid& boid, Renderer2D& r) const {
-  Polygon::DrawLine(r, boid.transform.position, boid.transform.position + force * 1.5f, debugColor);
+void FlockingRule::draw(const BoidView& boid, ImDrawList* dl, glm::vec2 cachedForce) const {
+  glm::vec2 end = boid.position + cachedForce * 1.5f;
+  ImU32 col = IM_COL32(static_cast<int>(debugColor.r * 255), static_cast<int>(debugColor.g * 255),
+                       static_cast<int>(debugColor.b * 255), 200);
+  dl->AddLine({boid.position.x, boid.position.y}, {end.x, end.y}, col, 1.5f);
 }

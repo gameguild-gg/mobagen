@@ -1,0 +1,5 @@
+add_library(mobagen_core_camera INTERFACE)
+add_library(mobagen::core_camera ALIAS mobagen_core_camera)
+target_include_directories(mobagen_core_camera INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_features(mobagen_core_camera INTERFACE cxx_std_20)
+target_link_libraries(mobagen_core_camera INTERFACE glm)

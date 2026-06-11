@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Camera System Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: monospace;
+            color: #0f0;
+        }
+
+        #container {
+            position: relative;
+            width: 900px;
+            height: 700px;
+            background: #1a1a1a;
+            border: 2px solid #0f0;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.9);
+            border: 1px solid #0f0;
+            padding: 15px;
+            font-size: 12px;
+            z-index: 100;
+        }
+
+        #info h2 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #0f0;
+        }
+
+        #info div {
+            margin: 5px 0;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.9);
+            border: 1px solid #0f0;
+            padding: 15px;
+            font-size: 11px;
+            z-index: 100;
+        }
+
+        #controls h3 {
+            margin-bottom: 8px;
+            color: #0f0;
+        }
+
+        #controls div {
+            margin: 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+
+        <div id="info">
+            <h2>Camera System Test</h2>
+            <div><strong>Mode:</strong> <span id="mode">ORBIT</span></div>
+            <div><strong>Position:</strong> <span id="pos">0.0, 0.0, 2.0</span></div>
+            <div><strong>Distance:</strong> <span id="dist">2.0</span></div>
+            <div><strong>Yaw:</strong> <span id="yaw">0.0°</span></div>
+            <div><strong>Pitch:</strong> <span id="pitch">0.0°</span></div>
+            <div><strong>FPS:</strong> <span id="fps">60</span></div>
+        </div>
+
+        <div id="controls">
+            <h3>Controls:</h3>
+            <div><strong>C:</strong> Toggle mode</div>
+            <div><strong>Mouse:</strong> Drag to rotate/look</div>
+            <div><strong>Wheel:</strong> Zoom/speed</div>
+            <div><strong>WASD:</strong> Move (WASD mode)</div>
+            <div><strong>Space:</strong> Move up</div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================
+        // SIMPLE 3D CAMERA IMPLEMENTATION (JavaScript)
+        // ====================================================================
+
+        class SimpleCamera {
+            constructor() {
+                this.mode = 'ORBIT'; // ORBIT or WASD
+                this.position = [0, 0, 2];
+                this.focalPoint = [0, 0, 0];
+                this.yaw = 0;
+                this.pitch = 0;
+                this.orbitRadius = 2;
+                this.moveSpeed = 5;
+                this.mouseSensitivity = 0.005;
+                this.keysPressed = {};
+            }
+
+            getPosition() {
+                if (this.mode === 'ORBIT') {
+                    const x = this.orbitRadius * Math.sin(this.yaw) * Math.cos(this.pitch);
+                    const y = this.orbitRadius * Math.sin(this.pitch);
+                    const z = this.orbitRadius * Math.cos(this.yaw) * Math.cos(this.pitch);
+                    return [x, y, z];
+                }
+                return this.position;
+            }
+
+            getFocalPoint() {
+                return this.focalPoint;
+            }
+
+            onMouseMove(dx, dy) {
+                this.yaw += dx * this.mouseSensitivity;
+                this.pitch -= dy * this.mouseSensitivity;
+                this.pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, this.pitch));
+            }
+
+            onMouseWheel(dy) {
+                if (this.mode === 'ORBIT') {
+                    this.orbitRadius -= dy * 0.1;
+                    this.orbitRadius = Math.max(0.1, Math.min(100, this.orbitRadius));
+                } else {
+                    this.moveSpeed += dy * 0.5;
+                    this.moveSpeed = Math.max(1, Math.min(50, this.moveSpeed));
+                }
+            }
+
+            onKeyDown(key) {
+                this.keysPressed[key] = true;
+            }
+
+            onKeyUp(key) {
+                this.keysPressed[key] = false;
+            }
+
+            update(dt) {
+                if (this.mode === 'WASD') {
+                    // Simple WASD movement
+                    const moveAmount = this.moveSpeed * dt;
+
+                    // Simplified movement (just XZ plane)
+                    if (this.keysPressed['w'] || this.keysPressed['W']) this.position[2] -= moveAmount;
+                    if (this.keysPressed['s'] || this.keysPressed['S']) this.position[2] += moveAmount;
+                    if (this.keysPressed['a'] || this.keysPressed['A']) this.position[0] -= moveAmount;
+                    if (this.keysPressed['d'] || this.keysPressed['D']) this.position[0] += moveAmount;
+                    if (this.keysPressed[' ']) this.position[1] += moveAmount;
+
+                    // Keep focal point in front
+                    const dist = 2;
+                    this.focalPoint[0] = this.position[0] + dist * Math.sin(this.yaw);
+                    this.focalPoint[1] = this.position[1];
+                    this.focalPoint[2] = this.position[2] + dist * Math.cos(this.yaw);
+                }
+            }
+
+            toggleMode() {
+                this.mode = (this.mode === 'ORBIT') ? 'WASD' : 'ORBIT';
+            }
+        }
+
+        // ====================================================================
+        // CANVAS RENDERING
+        // ====================================================================
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 900;
+        canvas.height = 700;
+
+        const camera = new SimpleCamera();
+        let lastTime = Date.now();
+        let frameCount = 0;
+        let lastFpsTime = lastTime;
+        let fps = 60;
+
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'c' || e.key === 'C') {
+                camera.toggleMode();
+            }
+            camera.onKeyDown(e.key);
+        });
+
+        document.addEventListener('keyup', (e) => {
+            camera.onKeyUp(e.key);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+            camera.onMouseMove(dx, dy);
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        canvas.addEventListener('mouseenter', (e) => {
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            camera.onMouseWheel(e.deltaY > 0 ? 1 : -1);
+        });
+
+        function drawCube(ctx, camera, size = 0.5) {
+            const pos = camera.getPosition();
+
+            // Simple 2D projection: larger objects appear closer
+            const distance = Math.sqrt(pos[0]*pos[0] + pos[1]*pos[1] + pos[2]*pos[2]);
+            const perspective = 400 / (distance + 1);
+            const cubeSize = size * perspective;
+
+            // Draw as simple quad that rotates based on camera
+            const angle = camera.yaw;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+
+            // Color based on distance
+            const brightness = Math.max(0, Math.min(255, 200 - distance * 50));
+            ctx.fillStyle = `rgb(0, ${brightness}, ${Math.floor(brightness * 0.8)})`;
+            ctx.fillRect(-cubeSize/2, -cubeSize/2, cubeSize, cubeSize);
+
+            // Border
+            ctx.strokeStyle = '#0f0';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-cubeSize/2, -cubeSize/2, cubeSize, cubeSize);
+
+            ctx.restore();
+        }
+
+        function render() {
+            // Clear
+            ctx.fillStyle = '#1a2a4a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update camera
+            const now = Date.now();
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            camera.update(dt);
+
+            // Draw object
+            drawCube(ctx, camera);
+
+            // FPS calculation
+            frameCount++;
+            if (now - lastFpsTime >= 500) {
+                fps = Math.round(frameCount / ((now - lastFpsTime) / 1000));
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+
+            // Update info
+            const pos = camera.mode === 'ORBIT' ? camera.getPosition() : camera.position;
+            document.getElementById('mode').textContent = camera.mode;
+            document.getElementById('pos').textContent =
+                `${pos[0].toFixed(1)}, ${pos[1].toFixed(1)}, ${pos[2].toFixed(1)}`;
+            document.getElementById('dist').textContent = camera.orbitRadius.toFixed(1);
+            document.getElementById('yaw').textContent = (camera.yaw * 180 / Math.PI).toFixed(1) + '°';
+            document.getElementById('pitch').textContent = (camera.pitch * 180 / Math.PI).toFixed(1) + '°';
+            document.getElementById('fps').textContent = fps;
+
+            requestAnimationFrame(render);
+        }
+
+        // Start
+        console.log('Camera test loaded. Try:');
+        console.log('- Drag mouse: Rotate (Orbit) or look around (WASD)');
+        console.log('- Scroll wheel: Zoom in/out');
+        console.log('- Press C: Toggle mode');
+        console.log('- WASD + Space: Move around (WASD mode only)');
+
+        render();
+    </script>
+</body>
+</html>
