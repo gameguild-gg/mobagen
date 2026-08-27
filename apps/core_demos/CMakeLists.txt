@@ -12,9 +12,9 @@ endfunction()
 
 function(mobagen_jobs_web_options name)
   if(EMSCRIPTEN)
-    # PROXY_TO_PTHREAD runs main() on a worker so blocking waits do not freeze the browser UI
-    # thread. Serve with COOP/COEP when SharedArrayBuffer is used.
-    target_link_options(${name} PRIVATE -sPROXY_TO_PTHREAD -sEXIT_RUNTIME=1)
+    # Single-threaded wasm build: the Scheduler runs inline and app loops yield via
+    # SDL_Delay/emscripten_sleep (asyncify). No PROXY_TO_PTHREAD.
+    target_link_options(${name} PRIVATE -sEXIT_RUNTIME=1)
     set_target_properties(${name} PROPERTIES SUFFIX ".html")
   endif()
 endfunction()
