@@ -1,10 +1,10 @@
 # ============================================================================
 # VTK — Visualization Toolkit.
 # ============================================================================
-# NOT used in the build. VTK ships a full GPU volume renderer, which would
-# directly compete with the renderer this project exists to write — so it is
-# kept only as a reference / benchmark dependency, never linked by default.
-# Brought over from master:editor/vtk.cmake. Included only when USE_VTK is ON.
+# NOT used in the build. VTK ships a full GPU volume renderer, which would directly compete with the
+# renderer this project exists to write — so it is kept only as a reference / benchmark dependency,
+# never linked by default. Brought over from master:editor/vtk.cmake. Included only when USE_VTK is
+# ON.
 
 string(TIMESTAMP _vtk_before "%s")
 
