@@ -294,7 +294,7 @@ class LinuxPlatform(Platform):
         "build-essential", "cmake",
         "mesa-common-dev", "libgl1-mesa-dev",
         "libx11-dev", "libxrandr-dev", "libxinerama-dev",
-        "libxcursor-dev", "libxi-dev",
+        "libxcursor-dev", "libxi-dev", "libxss-dev",
     ]
 
     def detect_toolchain(self) -> None:
