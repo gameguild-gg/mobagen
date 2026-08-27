@@ -315,13 +315,12 @@ if(WIN32 AND NOT EMSCRIPTEN)
   set(_dawn_fxc_arch "")
   if(CMAKE_GENERATOR_PLATFORM MATCHES "ARM64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|AARCH64)")
     set(_dawn_fxc_arch arm64)
-  elseif(
-    CMAKE_GENERATOR_PLATFORM STREQUAL "x64"
-    OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|X64)"
+  elseif(CMAKE_GENERATOR_PLATFORM STREQUAL "x64" OR CMAKE_SYSTEM_PROCESSOR MATCHES
+                                                    "^(AMD64|x86_64|X64)"
   )
     set(_dawn_fxc_arch x64)
-  elseif(
-    CMAKE_GENERATOR_PLATFORM STREQUAL "Win32" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(X86|i[3-6]86)"
+  elseif(CMAKE_GENERATOR_PLATFORM STREQUAL "Win32" OR CMAKE_SYSTEM_PROCESSOR MATCHES
+                                                      "^(X86|i[3-6]86)"
   )
     set(_dawn_fxc_arch x86)
   endif()
@@ -330,14 +329,18 @@ if(WIN32 AND NOT EMSCRIPTEN)
   if(_dawn_fxc_arch)
     get_filename_component(
       _dawn_kits_root
-      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]" ABSOLUTE
+      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]"
+      ABSOLUTE
     )
     foreach(
-      _dawn_sdk_root IN ITEMS "$ENV{WindowsSdkDir}" "${_dawn_kits_root}"
-      "C:/Program Files (x86)/Windows Kits/10" "C:/Program Files (x86)/Windows Kits/8.1"
+      _dawn_sdk_root IN
+      ITEMS "$ENV{WindowsSdkDir}" "${_dawn_kits_root}" "C:/Program Files (x86)/Windows Kits/10"
+            "C:/Program Files (x86)/Windows Kits/8.1"
     )
       if(EXISTS "${_dawn_sdk_root}")
-        file(GLOB _dawn_fxc_hits "${_dawn_sdk_root}/Redist/D3D/${_dawn_fxc_arch}/d3dcompiler_47.dll")
+        file(GLOB _dawn_fxc_hits
+             "${_dawn_sdk_root}/Redist/D3D/${_dawn_fxc_arch}/d3dcompiler_47.dll"
+        )
         if(_dawn_fxc_hits)
           list(GET _dawn_fxc_hits 0 _dawn_fxc_dll)
           break()
@@ -354,11 +357,11 @@ if(WIN32 AND NOT EMSCRIPTEN)
     message(STATUS "Dawn: deployed ${_dawn_fxc_dll} to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
     add_custom_target(
       dawn_deploy_d3dcompiler ALL
-      COMMAND
-        "${CMAKE_COMMAND}" -E copy_if_different "${_dawn_fxc_dll}"
-        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_dawn_fxc_dll}"
+              "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
       DEPENDS "${_dawn_fxc_dll}"
-      COMMENT "Deploying d3dcompiler_47.dll (${_dawn_fxc_arch}) to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+      COMMENT
+        "Deploying d3dcompiler_47.dll (${_dawn_fxc_arch}) to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
       VERBATIM
     )
   else()
