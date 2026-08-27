@@ -1,3 +1,10 @@
+## [1.18.17](https://github.com/InfiniBrains/mobagen/compare/v1.18.16...v1.18.17) (2026-08-27)
+
+
+### Bug Fixes
+
+* **jobs:** drop stale pthread/PROXY_TO_PTHREAD flags for single-threaded web builds ([60aaa0e](https://github.com/InfiniBrains/mobagen/commit/60aaa0e0aae5aebbc5477f52a170c061ed765518))
+
 ## [1.18.16](https://github.com/InfiniBrains/mobagen/compare/v1.18.15...v1.18.16) (2026-08-27)
 
 
