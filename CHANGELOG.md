@@ -1,3 +1,10 @@
+## [1.18.5](https://github.com/InfiniBrains/mobagen/compare/v1.18.4...v1.18.5) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** freetype source fallback for Windows, full SDL3 X11 dev deps on Linux ([0a6c2b8](https://github.com/InfiniBrains/mobagen/commit/0a6c2b893f551b86bd175e03b1dbd15bab9799e6))
+
 ## [1.18.4](https://github.com/InfiniBrains/mobagen/compare/v1.18.3...v1.18.4) (2026-08-27)
 
 
