@@ -1,3 +1,10 @@
+## [1.18.3](https://github.com/InfiniBrains/mobagen/compare/v1.18.2...v1.18.3) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** repair failing CI workflows and broken README badges ([c2a4e86](https://github.com/InfiniBrains/mobagen/commit/c2a4e86169d1b038c16f983edc55db586d6e8faf))
+
 ## [1.18.2](https://github.com/InfiniBrains/mobagen/compare/v1.18.1...v1.18.2) (2026-06-11)
 
 
