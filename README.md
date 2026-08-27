@@ -6,7 +6,7 @@ Join us: [![say thanks](https://img.shields.io/badge/Say%20Thanks-👍-1EAEDB.sv
 
 Metrics: [![Codacy Badge](https://app.codacy.com/project/badge/Grade/1d95c33e061442e39d7e1a697b28cb10)](https://www.codacy.com/gh/InfiniBrains/mobagen/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=InfiniBrains/mobagen&amp;utm_campaign=Badge_Grade) [![codecov](https://codecov.io/gh/InfiniBrains/mobagen/branch/master/graph/badge.svg?token=RTRPZ2HBZN)](https://codecov.io/gh/InfiniBrains/mobagen) ![GitHub language count](https://img.shields.io/github/languages/count/InfiniBrains/mobagen) ![GitHub search hit counter](https://img.shields.io/github/search/InfiniBrains/mobagen/todo) ![Code size](https://img.shields.io/github/languages/code-size/InfiniBrains/mobagen) ![GitHub all releases](https://img.shields.io/github/downloads/InfiniBrains/mobagen/total) ![GitHub contributors](https://img.shields.io/github/contributors/InfiniBrains/mobagen)
 
-CI: [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![Release](https://github.com/InfiniBrains/mobagen/actions/workflows/release.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/release.yml) [![pages](https://img.shields.io/github/deployments/InfiniBrains/mobagen/github-pages)](https://infinibrains.github.io/mobagen/) 
+CI: [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/windows.yml) [![Web](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/web.yml) [![Linux](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/linux.yml) [![OSX](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/osx.yml) [![Release](https://github.com/InfiniBrains/mobagen/actions/workflows/release.yml/badge.svg)](https://github.com/InfiniBrains/mobagen/actions/workflows/release.yml) [![pages](https://img.shields.io/github/deployments/InfiniBrains/mobagen/github-pages)](https://gameguild-gg.github.io/mobagen/) 
 
 # Philosophy
 
@@ -26,9 +26,9 @@ CI: [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/window
 
 Before checking it online, some demos are intended to be implemented by you. So most of the demos would look like empty;
 
-- [Empty demos](https://infinibrains.github.io/mobagen/).
+- [Empty demos](https://gameguild-gg.github.io/mobagen/).
 - [Flocking demo](https://infinibrains.com/data/flocking) for [this AI class](https://docs.google.com/presentation/d/1OBEY-tb_ubgoq6Mk9lEsCFaYLINni3oPwjH8iAXEQQM/edit?usp=sharing).
-- [DICOM Viewer](https://infinibrains.github.io/mobagen/) — WebGPU-based medical volume rendering.
+- [DICOM Viewer](https://gameguild-gg.github.io/mobagen/) — WebGPU-based medical volume rendering.
 
 Want to showcase your work here? [Create a pull request](https://github.com/InfiniBrains/mobagen/pulls).
 
