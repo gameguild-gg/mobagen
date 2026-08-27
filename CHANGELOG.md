@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/InfiniBrains/mobagen/compare/v1.18.17...v1.19.0) (2026-08-27)
+
+
+### Features
+
+* **chess:** render real piece images instead of letters ([15e05d3](https://github.com/InfiniBrains/mobagen/commit/15e05d3abb82a01da71f4dab2941b70e9ee18504))
+
 ## [1.18.17](https://github.com/InfiniBrains/mobagen/compare/v1.18.16...v1.18.17) (2026-08-27)
 
 
