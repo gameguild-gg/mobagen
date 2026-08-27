@@ -1,3 +1,10 @@
+## [1.18.16](https://github.com/InfiniBrains/mobagen/compare/v1.18.15...v1.18.16) (2026-08-27)
+
+
+### Bug Fixes
+
+* **web:** single-threaded wasm build + per-frame yield instead of pthreads/SharedArrayBuffer ([7b2f3c9](https://github.com/InfiniBrains/mobagen/commit/7b2f3c9a19509e6d4c6c0d248c5295feb28d6504))
+
 ## [1.18.15](https://github.com/InfiniBrains/mobagen/compare/v1.18.14...v1.18.15) (2026-08-27)
 
 
