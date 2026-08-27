@@ -1,3 +1,10 @@
+## [1.18.7](https://github.com/InfiniBrains/mobagen/compare/v1.18.6...v1.18.7) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** cmake-format all tracked CMakeLists, cap Test build parallelism ([876e3b8](https://github.com/InfiniBrains/mobagen/commit/876e3b8639185ab6b979cb40a678eefcf2a9a392))
+
 ## [1.18.6](https://github.com/InfiniBrains/mobagen/compare/v1.18.5...v1.18.6) (2026-08-27)
 
 
