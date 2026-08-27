@@ -20,31 +20,31 @@
 namespace volume {
 
 #pragma pack(push, 1)
-struct VolumeFileHeader {
-    char          magic[4];          // "MVL1"
+  struct VolumeFileHeader {
+    char magic[4];  // "MVL1"
     std::uint32_t width, height, depth;
-    std::uint32_t storage_format;    // 0 = R8, 1 = U16PackedRG8 (VolumeStorageFormat)
-    std::uint32_t bytes_per_voxel;   // 1 or 2
-    float         spacing_x, spacing_y, spacing_z;
-    float         rescale_slope, rescale_intercept;
-    float         window_center, window_width;   // clinical (HU) units
-    float         value_min, value_max;          // stored-value range
-    std::uint32_t reserved;          // pads the header to 64 bytes
-};
+    std::uint32_t storage_format;   // 0 = R8, 1 = U16PackedRG8 (VolumeStorageFormat)
+    std::uint32_t bytes_per_voxel;  // 1 or 2
+    float spacing_x, spacing_y, spacing_z;
+    float rescale_slope, rescale_intercept;
+    float window_center, window_width;  // clinical (HU) units
+    float value_min, value_max;         // stored-value range
+    std::uint32_t reserved;             // pads the header to 64 bytes
+  };
 #pragma pack(pop)
-static_assert(sizeof(VolumeFileHeader) == 64, "VolumeFileHeader must be 64 bytes");
+  static_assert(sizeof(VolumeFileHeader) == 64, "VolumeFileHeader must be 64 bytes");
 
-// Load a .mvol into a VolumeBuffer (with full metadata). Returns an empty buffer
-// and ok=false on any problem (missing file, bad magic, short read).
-inline VolumeBuffer load_volume_file(const char* path, bool& ok) {
+  // Load a .mvol into a VolumeBuffer (with full metadata). Returns an empty buffer
+  // and ok=false on any problem (missing file, bad magic, short read).
+  inline VolumeBuffer load_volume_file(const char* path, bool& ok) {
     ok = false;
     std::FILE* f = std::fopen(path, "rb");
     if (!f) return {};
 
     VolumeFileHeader h{};
     if (std::fread(&h, sizeof(h), 1, f) != 1 || std::memcmp(h.magic, "MVL1", 4) != 0) {
-        std::fclose(f);
-        return {};
+      std::fclose(f);
+      return {};
     }
 
     VolumeMetadata meta;
@@ -59,25 +59,22 @@ inline VolumeBuffer load_volume_file(const char* path, bool& ok) {
     meta.value_min = h.value_min;
     meta.value_max = h.value_max;
     if (!meta.valid()) {
-        std::fclose(f);
-        return {};
+      std::fclose(f);
+      return {};
     }
 
-    const VolumeStorageFormat fmt =
-        (h.storage_format == 1) ? VolumeStorageFormat::U16PackedRG8
-                                : VolumeStorageFormat::R8;
-    VolumeBuffer buffer(meta, fmt, h.bytes_per_voxel ? h.bytes_per_voxel : 1u,
-                        std::pmr::get_default_resource());
+    const VolumeStorageFormat fmt = (h.storage_format == 1) ? VolumeStorageFormat::U16PackedRG8 : VolumeStorageFormat::R8;
+    VolumeBuffer buffer(meta, fmt, h.bytes_per_voxel ? h.bytes_per_voxel : 1u, std::pmr::get_default_resource());
     if (!buffer.empty()) {
-        const std::size_t got = std::fread(buffer.data(), 1, buffer.size_bytes(), f);
-        if (got != buffer.size_bytes()) {
-            std::fclose(f);
-            return {};
-        }
+      const std::size_t got = std::fread(buffer.data(), 1, buffer.size_bytes(), f);
+      if (got != buffer.size_bytes()) {
+        std::fclose(f);
+        return {};
+      }
     }
     std::fclose(f);
     ok = !buffer.empty();
     return buffer;
-}
+  }
 
 }  // namespace volume

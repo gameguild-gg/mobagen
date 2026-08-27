@@ -15,7 +15,7 @@
 // Point2D is available transitively via Cat.h -> Agent.h -> glm::ivec2 alias.
 
 class CatWorld {
- private:
+private:
   float timeBetweenAITicks_ = 1.0f;
   float timeForNextTick_ = 1.0f;
   bool catTurn_ = true;
@@ -34,7 +34,7 @@ class CatWorld {
   bool catWinVerification() const;
   bool catcherWinVerification() const;
 
- public:
+public:
   Point2D lastMove = {0, 0};
   int64_t moveDuration = 0;
 
@@ -53,12 +53,8 @@ class CatWorld {
   Point2D getCat() const { return catPosition_; }
   int getWorldSideSize() const { return sideSize_; }
 
-  bool getContent(const Point2D& p) const {
-    return worldState_[(p.y + sideSize_ / 2) * sideSize_ + p.x + sideSize_ / 2];
-  }
-  bool getContent(int x, int y) const {
-    return worldState_[(y + sideSize_ / 2) * sideSize_ + x + sideSize_ / 2];
-  }
+  bool getContent(const Point2D& p) const { return worldState_[(p.y + sideSize_ / 2) * sideSize_ + p.x + sideSize_ / 2]; }
+  bool getContent(int x, int y) const { return worldState_[(y + sideSize_ / 2) * sideSize_ + x + sideSize_ / 2]; }
   const std::vector<bool>& worldState() const { return worldState_; }
 
   void print() const;
@@ -79,16 +75,17 @@ class CatWorld {
   float& timeBetweenAITicksRef() { return timeBetweenAITicks_; }
   float timeForNextTick() const { return timeForNextTick_; }
   void randomize() { clearWorld(); }
-  void setSizeAndReset(int n) { sideSize_ = n; clearWorld(); }
+  void setSizeAndReset(int n) {
+    sideSize_ = n;
+    clearWorld();
+  }
 
   // Move validation (used by Cat / Catcher agents)
   bool catCanMoveToPosition(Point2D pos) const;
   bool catcherCanMoveToPosition(Point2D pos) const;
   bool catWinsOnSpace(Point2D point) const;
 
-  static std::vector<Point2D> neighbors(Point2D point) {
-    return {NE(point), NW(point), E(point), W(point), SW(point), SE(point)};
-  }
+  static std::vector<Point2D> neighbors(Point2D point) { return {NE(point), NW(point), E(point), W(point), SW(point), SE(point)}; }
 };
 
 #endif  // WORLD_H

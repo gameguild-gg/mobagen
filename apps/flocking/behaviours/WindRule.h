@@ -8,8 +8,7 @@ private:
   float windAngle;
 
 public:
-  explicit WindRule(float weight = 1.f, float angle = 0.f, bool isEnabled = true)
-      : FlockingRule(Color::White, weight, isEnabled), windAngle(angle) {}
+  explicit WindRule(float weight = 1.f, float angle = 0.f, bool isEnabled = true) : FlockingRule(Color::White, weight, isEnabled), windAngle(angle) {}
 
   WindRule(const WindRule& toCopy) : FlockingRule(toCopy) { windAngle = toCopy.windAngle; }
 

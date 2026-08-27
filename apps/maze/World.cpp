@@ -128,11 +128,8 @@ void World::OnDraw() {
   // Draw cell background colors
   for (int i = 0; i < sideSize * sideSize; i++) {
     const auto& c = colors[i];
-    ImU32 cellColor = IM_COL32(
-        static_cast<int>(c.r * 255.0f),
-        static_cast<int>(c.g * 255.0f),
-        static_cast<int>(c.b * 255.0f),
-        static_cast<int>(c.a * 255.0f));
+    ImU32 cellColor
+        = IM_COL32(static_cast<int>(c.r * 255.0f), static_cast<int>(c.g * 255.0f), static_cast<int>(c.b * 255.0f), static_cast<int>(c.a * 255.0f));
 
     float px = (float)(i % sideSize) * linesize + dispX;
     float py = (float)(i / sideSize) * linesize + dispY;

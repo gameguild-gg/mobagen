@@ -4,7 +4,7 @@
 #include "Agent.h"
 
 class Cat : public Agent {
- public:
+public:
   explicit Cat() : Agent(){};
   Point2D Move(CatWorld*) override;
 };

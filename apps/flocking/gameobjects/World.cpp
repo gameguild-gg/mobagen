@@ -53,17 +53,17 @@ ecs::Entity FlockingManager::createBoid() {
   ecs_.add<BoidAcc>(e);
   ecs_.add<BoidForceCache>(e);
 
-  BoidConfig& cfg    = ecs_.add<BoidConfig>(e);
+  BoidConfig& cfg = ecs_.add<BoidConfig>(e);
   cfg.detectionRadius = detectionRadius;
-  cfg.speed           = desiredSpeed;
+  cfg.speed = desiredSpeed;
   cfg.hasConstantSpeed = hasConstantSpeed;
   cfg.maxAcceleration = hasMaxAcceleration ? maxAcceleration : 10000.f;
 
-  BoidDebug& dbg      = ecs_.add<BoidDebug>(e);
+  BoidDebug& dbg = ecs_.add<BoidDebug>(e);
   dbg.drawDebugRadius = showRadius;
-  dbg.drawDebugRules  = showRules;
+  dbg.drawDebugRules = showRules;
   dbg.drawAcceleration = showAcceleration;
-  dbg.color           = Color32::RandomColor(31, 255);
+  dbg.color = Color32::RandomColor(31, 255);
 
   randomizeBoidPosVel(e);
   return e;
@@ -88,10 +88,14 @@ void FlockingManager::warpIfOutOfBounds(BoidPos& p) {
   float w = displaySize.x > 0.f ? displaySize.x : 1280.f;
   float h = displaySize.y > 0.f ? displaySize.y : 800.f;
 
-  if (p.pos.x < 0.f)    p.pos.x += w;
-  else if (p.pos.x > w) p.pos.x -= w;
-  if (p.pos.y < 0.f)    p.pos.y += h;
-  else if (p.pos.y > h) p.pos.y -= h;
+  if (p.pos.x < 0.f)
+    p.pos.x += w;
+  else if (p.pos.x > w)
+    p.pos.x -= w;
+  if (p.pos.y < 0.f)
+    p.pos.y += h;
+  else if (p.pos.y > h)
+    p.pos.y -= h;
 }
 
 void FlockingManager::Start() {
@@ -110,9 +114,9 @@ void FlockingManager::Update(float deltaTime) {
   }
 
   glm::vec2 inputArrow(0.f);
-  if (ImGui::IsKeyDown(ImGuiKey_UpArrow))    inputArrow.y -= 1.f;
-  if (ImGui::IsKeyDown(ImGuiKey_DownArrow))  inputArrow.y += 1.f;
-  if (ImGui::IsKeyDown(ImGuiKey_LeftArrow))  inputArrow.x -= 1.f;
+  if (ImGui::IsKeyDown(ImGuiKey_UpArrow)) inputArrow.y -= 1.f;
+  if (ImGui::IsKeyDown(ImGuiKey_DownArrow)) inputArrow.y += 1.f;
+  if (ImGui::IsKeyDown(ImGuiKey_LeftArrow)) inputArrow.x -= 1.f;
   if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) inputArrow.x += 1.f;
   if (glm::length(inputArrow) > 0.f) {
     ecs_.get<BoidAcc>(boidEntities[0]).acc += inputArrow * 20.f;
@@ -126,11 +130,11 @@ void FlockingManager::Update(float deltaTime) {
       static_cast<std::size_t>(n), 16,
       [&](std::size_t begin, std::size_t end) {
         for (std::size_t i = begin; i < end; i++) {
-          ecs::Entity e      = boidEntities[i];
-          BoidPos& pos       = ecs_.get<BoidPos>(e);
-          BoidVel& vel       = ecs_.get<BoidVel>(e);
-          BoidAcc& acc       = ecs_.get<BoidAcc>(e);
-          BoidConfig& cfg    = ecs_.get<BoidConfig>(e);
+          ecs::Entity e = boidEntities[i];
+          BoidPos& pos = ecs_.get<BoidPos>(e);
+          BoidVel& vel = ecs_.get<BoidVel>(e);
+          BoidAcc& acc = ecs_.get<BoidAcc>(e);
+          BoidConfig& cfg = ecs_.get<BoidConfig>(e);
           BoidForceCache& fc = ecs_.get<BoidForceCache>(e);
 
           std::vector<BoidView> neighborhood;
@@ -149,19 +153,18 @@ void FlockingManager::Update(float deltaTime) {
           }
 
           float mag = glm::length(acc.acc);
-          if (mag > cfg.maxAcceleration && mag > 0.0001f)
-            acc.acc = acc.acc * (cfg.maxAcceleration / mag);
+          if (mag > cfg.maxAcceleration && mag > 0.0001f) acc.acc = acc.acc * (cfg.maxAcceleration / mag);
 
           glm::vec2 newVel = vel.vel + acc.acc;
-          acc.prevAcc      = acc.acc;
-          acc.acc          = glm::vec2(0.f);
+          acc.prevAcc = acc.acc;
+          acc.acc = glm::vec2(0.f);
 
           float speed = glm::length(newVel);
           if (cfg.hasConstantSpeed || speed > cfg.speed) {
             if (speed > 0.0001f) newVel = newVel * (cfg.speed / speed);
           }
 
-          vel.vel  = newVel;
+          vel.vel = newVel;
           pos.pos += vel.vel * deltaTime;
         }
       },
@@ -177,31 +180,29 @@ void FlockingManager::OnDraw() {
   ImDrawList* dl = ImGui::GetBackgroundDrawList();
 
   for (int i = 0; i < static_cast<int>(boidEntities.size()); i++) {
-    ecs::Entity e   = boidEntities[i];
-    BoidPos& pos    = ecs_.get<BoidPos>(e);
-    BoidVel& vel    = ecs_.get<BoidVel>(e);
-    BoidAcc& acc    = ecs_.get<BoidAcc>(e);
+    ecs::Entity e = boidEntities[i];
+    BoidPos& pos = ecs_.get<BoidPos>(e);
+    BoidVel& vel = ecs_.get<BoidVel>(e);
+    BoidAcc& acc = ecs_.get<BoidAcc>(e);
     BoidConfig& cfg = ecs_.get<BoidConfig>(e);
-    BoidDebug& dbg  = ecs_.get<BoidDebug>(e);
+    BoidDebug& dbg = ecs_.get<BoidDebug>(e);
 
     glm::vec2 p = pos.pos;
     glm::vec2 v = vel.vel;
 
-    float len     = glm::length(v);
+    float len = glm::length(v);
     glm::vec2 fwd = len > 0.0001f ? v / len : glm::vec2(0.f, -1.f);
     glm::vec2 perp(-fwd.y, fwd.x);
-    ImVec2 tip   = {p.x + fwd.x  * 9.f,                  p.y + fwd.y  * 9.f};
-    ImVec2 left  = {p.x - perp.x * 4.5f - fwd.x * 4.f,   p.y - perp.y * 4.5f - fwd.y * 4.f};
-    ImVec2 right = {p.x + perp.x * 4.5f - fwd.x * 4.f,   p.y + perp.y * 4.5f - fwd.y * 4.f};
-    ImU32 col = IM_COL32(static_cast<int>(dbg.color.r * 255), static_cast<int>(dbg.color.g * 255),
-                         static_cast<int>(dbg.color.b * 255), static_cast<int>(dbg.color.a * 255));
+    ImVec2 tip = {p.x + fwd.x * 9.f, p.y + fwd.y * 9.f};
+    ImVec2 left = {p.x - perp.x * 4.5f - fwd.x * 4.f, p.y - perp.y * 4.5f - fwd.y * 4.f};
+    ImVec2 right = {p.x + perp.x * 4.5f - fwd.x * 4.f, p.y + perp.y * 4.5f - fwd.y * 4.f};
+    ImU32 col = IM_COL32(static_cast<int>(dbg.color.r * 255), static_cast<int>(dbg.color.g * 255), static_cast<int>(dbg.color.b * 255),
+                         static_cast<int>(dbg.color.a * 255));
     dl->AddTriangleFilled(tip, left, right, col);
 
     if (showRadius || dbg.drawDebugRadius) {
       dl->AddCircle({p.x, p.y}, cfg.detectionRadius,
-                    IM_COL32(static_cast<int>(dbg.color.r * 255), static_cast<int>(dbg.color.g * 255),
-                             static_cast<int>(dbg.color.b * 255), 64),
-                    32);
+                    IM_COL32(static_cast<int>(dbg.color.r * 255), static_cast<int>(dbg.color.g * 255), static_cast<int>(dbg.color.b * 255), 64), 32);
     }
 
     if (showAcceleration || dbg.drawAcceleration) {
@@ -248,8 +249,7 @@ void FlockingManager::drawGeneralUI() {
         for (auto e : boidEntities) ecs_.get<BoidConfig>(e).speed = desiredSpeed;
 
       if (ImGui::Checkbox("Has Max Acceleration", &hasMaxAcceleration)) {
-        for (auto e : boidEntities)
-          ecs_.get<BoidConfig>(e).maxAcceleration = hasMaxAcceleration ? maxAcceleration : 10000.f;
+        for (auto e : boidEntities) ecs_.get<BoidConfig>(e).maxAcceleration = hasMaxAcceleration ? maxAcceleration : 10000.f;
       }
       ImguiTooltip("Boids keeps more momentum when the acceleration is capped.");
 
@@ -295,8 +295,8 @@ void FlockingManager::showConfigurationWindow(float deltaTime) {
     if (ImGui::BeginMenu("File")) {
       ImGui::EndMenu();
     }
-    ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000,
-                1.0f / ImGui::GetIO().DeltaTime, 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", ImGui::GetIO().DeltaTime * 1000, 1.0f / ImGui::GetIO().DeltaTime,
+                1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::EndMainMenuBar();
   }
 
@@ -332,12 +332,12 @@ void FlockingManager::drawPerformanceUI(float deltaTime) {
 
     const int div = 1048576;
     ImGui::Text("Total Virtual Memory : %uMb", (unsigned)(memInfo.ullTotalPageFile / div));
-    ImGui::Text("Total RAM : %uMb",            (unsigned)(memInfo.ullTotalPhys / div));
+    ImGui::Text("Total RAM : %uMb", (unsigned)(memInfo.ullTotalPhys / div));
     ImGui::Separator();
     ImGui::Text("Virtual Memory used by process : %uMb", (unsigned)(pmc.PrivateUsage / div));
     PlotVar("Virtual Memory Consumption (Mb)", (float)(pmc.PrivateUsage / div));
-    ImGui::Text("RAM used by process : %uMb",  (unsigned)(pmc.WorkingSetSize / div));
-    PlotVar("Ram Consumption (Mb)",            (float)(pmc.WorkingSetSize / div));
+    ImGui::Text("RAM used by process : %uMb", (unsigned)(pmc.WorkingSetSize / div));
+    PlotVar("Ram Consumption (Mb)", (float)(pmc.WorkingSetSize / div));
   }
 #else
   (void)deltaTime;

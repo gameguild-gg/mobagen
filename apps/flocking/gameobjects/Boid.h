@@ -20,14 +20,14 @@ struct BoidAcc {
 
 struct BoidConfig {
   float detectionRadius = 100.f;
-  float speed           = 120.f;
+  float speed = 120.f;
   bool hasConstantSpeed = false;
   float maxAcceleration = 10.f;
 };
 
 struct BoidDebug {
-  bool drawDebugRadius  = false;
-  bool drawDebugRules   = false;
+  bool drawDebugRadius = false;
+  bool drawDebugRules = false;
   bool drawAcceleration = false;
   Color32 color;
 };

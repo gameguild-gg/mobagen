@@ -3,8 +3,7 @@
 #include "imgui.h"
 #include <glm/glm.hpp>
 
-FlockingRule::FlockingRule(const FlockingRule& toCopy)
-    : weight(toCopy.weight), debugColor(toCopy.debugColor), isEnabled(toCopy.isEnabled) {}
+FlockingRule::FlockingRule(const FlockingRule& toCopy) : weight(toCopy.weight), debugColor(toCopy.debugColor), isEnabled(toCopy.isEnabled) {}
 
 glm::vec2 FlockingRule::computeWeightedForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
   if (isEnabled) {
@@ -46,7 +45,6 @@ bool FlockingRule::drawImguiRule() {
 
 void FlockingRule::draw(const BoidView& boid, ImDrawList* dl, glm::vec2 cachedForce) const {
   glm::vec2 end = boid.position + cachedForce * 1.5f;
-  ImU32 col = IM_COL32(static_cast<int>(debugColor.r * 255), static_cast<int>(debugColor.g * 255),
-                       static_cast<int>(debugColor.b * 255), 200);
+  ImU32 col = IM_COL32(static_cast<int>(debugColor.r * 255), static_cast<int>(debugColor.g * 255), static_cast<int>(debugColor.b * 255), 200);
   dl->AddLine({boid.position.x, boid.position.y}, {end.x, end.y}, col, 1.5f);
 }

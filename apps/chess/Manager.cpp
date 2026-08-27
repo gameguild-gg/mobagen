@@ -14,13 +14,20 @@
 static const char* getPieceLabel(PieceData piece) {
   bool w = piece.Color() == PieceColor::White;
   switch (piece.Piece()) {
-    case PieceType::King:   return w ? "K" : "k";
-    case PieceType::Queen:  return w ? "Q" : "q";
-    case PieceType::Rook:   return w ? "R" : "r";
-    case PieceType::Bishop: return w ? "B" : "b";
-    case PieceType::Knight: return w ? "N" : "n";
-    case PieceType::Pawn:   return w ? "P" : "p";
-    default:                return nullptr;
+    case PieceType::King:
+      return w ? "K" : "k";
+    case PieceType::Queen:
+      return w ? "Q" : "q";
+    case PieceType::Rook:
+      return w ? "R" : "r";
+    case PieceType::Bishop:
+      return w ? "B" : "b";
+    case PieceType::Knight:
+      return w ? "N" : "n";
+    case PieceType::Pawn:
+      return w ? "P" : "p";
+    default:
+      return nullptr;
   }
 }
 
@@ -127,10 +134,10 @@ void Manager::OnDraw() {
   float squareSideOver2 = squareSide / 2.0f;
   float sideSideOver2 = 8 / 2.0f;
 
-  const ImU32 whiteCell    = IM_COL32(230, 230, 250, 255);
-  const ImU32 blackCell    = IM_COL32(140,  90,  50, 255);
-  const ImU32 movesCell    = IM_COL32(180, 150,   0, 255);
-  const ImU32 selectedCell = IM_COL32(240, 240,   0, 255);
+  const ImU32 whiteCell = IM_COL32(230, 230, 250, 255);
+  const ImU32 blackCell = IM_COL32(140, 90, 50, 255);
+  const ImU32 movesCell = IM_COL32(180, 150, 0, 255);
+  const ImU32 selectedCell = IM_COL32(240, 240, 0, 255);
 
   for (int line = 0; line < 8; line++) {
     for (int column = 0; column < 8; column++) {
@@ -148,28 +155,31 @@ void Manager::OnDraw() {
       else
         drawSquare(whiteCell, rmin, rmax);
 
-      drawPiece(state.PieceAtPosition({column, line}),
-                ImVec2(rx + squareSideOver2, ry + squareSideOver2),
-                squareSide);
+      drawPiece(state.PieceAtPosition({column, line}), ImVec2(rx + squareSideOver2, ry + squareSideOver2), squareSide);
     }
   }
 }
 
 unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
   switch (t) {
-    case PieceType::Pawn:   return Pawn::PossibleMoves(state, point);
-    case PieceType::Rook:   return Rook::AttackMoves(state, point);
-    case PieceType::Knight: return Knight::AttackMoves(state, point);
-    case PieceType::Bishop: return Bishop::AttackMoves(state, point);
-    case PieceType::Queen:  return Queen::AttackMoves(state, point);
-    case PieceType::King:   return King::AttackMoves(state, point);
-    default:                return {};
+    case PieceType::Pawn:
+      return Pawn::PossibleMoves(state, point);
+    case PieceType::Rook:
+      return Rook::AttackMoves(state, point);
+    case PieceType::Knight:
+      return Knight::AttackMoves(state, point);
+    case PieceType::Bishop:
+      return Bishop::AttackMoves(state, point);
+    case PieceType::Queen:
+      return Queen::AttackMoves(state, point);
+    case PieceType::King:
+      return King::AttackMoves(state, point);
+    default:
+      return {};
   }
 }
 
-void Manager::drawSquare(ImU32 color, ImVec2 min, ImVec2 max) {
-  ImGui::GetBackgroundDrawList()->AddRectFilled(min, max, color);
-}
+void Manager::drawSquare(ImU32 color, ImVec2 min, ImVec2 max) { ImGui::GetBackgroundDrawList()->AddRectFilled(min, max, color); }
 
 void Manager::drawPiece(PieceData piece, ImVec2 center, float /*size*/) {
   const char* text = getPieceLabel(piece);
@@ -181,7 +191,7 @@ void Manager::drawPiece(PieceData piece, ImVec2 center, float /*size*/) {
 
   bool isWhite = piece.Color() == PieceColor::White;
   ImU32 outline = isWhite ? IM_COL32(0, 0, 0, 200) : IM_COL32(255, 255, 255, 200);
-  ImU32 fill    = isWhite ? IM_COL32(255, 255, 255, 255) : IM_COL32(20, 20, 20, 255);
+  ImU32 fill = isWhite ? IM_COL32(255, 255, 255, 255) : IM_COL32(20, 20, 20, 255);
 
   dl->AddText(ImVec2(pos.x - 1, pos.y - 1), outline, text);
   dl->AddText(ImVec2(pos.x + 1, pos.y - 1), outline, text);

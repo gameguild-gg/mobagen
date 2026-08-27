@@ -15,7 +15,9 @@ TEST_CASE("Notifier: connect, emit fires listener, disconnect stops it") {
 
 TEST_CASE("EventBus: post queues event, process drains in order") {
   msg::EventBus bus;
-  struct EventA { int value; };
+  struct EventA {
+    int value;
+  };
   std::vector<int> values;
   bus.subscribe<EventA>([&](const EventA& e) { values.push_back(e.value); });
   bus.post(EventA{1});
@@ -30,8 +32,12 @@ TEST_CASE("EventBus: post queues event, process drains in order") {
 
 TEST_CASE("EventBus: separate channels per type, no cross-fire") {
   msg::EventBus bus;
-  struct EventX { int x; };
-  struct EventY { int y; };
+  struct EventX {
+    int x;
+  };
+  struct EventY {
+    int y;
+  };
   int x_count = 0, y_count = 0;
   bus.subscribe<EventX>([&](const EventX&) { ++x_count; });
   bus.subscribe<EventY>([&](const EventY&) { ++y_count; });

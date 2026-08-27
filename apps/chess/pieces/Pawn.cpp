@@ -71,9 +71,8 @@ int Pawn::CountDoubles(WorldState& world, const Point2D& origin) {
 bool Pawn::IsIsolated(WorldState& world, const Point2D& origin) {
   auto piece = world.PieceAtPosition(origin);
   if (piece.Piece() != PieceType::Pawn) return true;  // todo: communicate errors better
-  const vector<Point2D> adjacency = {Point2D(origin.x + 1, origin.y),     Point2D(origin.x - 1, origin.y),
-                                     Point2D(origin.x - 1, origin.y + 1), Point2D(origin.x + 1, origin.y + 1),
-                                     Point2D(origin.x - 1, origin.y - 1), Point2D(origin.x + 1, origin.y - 1),
+  const vector<Point2D> adjacency = {Point2D(origin.x + 1, origin.y),     Point2D(origin.x - 1, origin.y),     Point2D(origin.x - 1, origin.y + 1),
+                                     Point2D(origin.x + 1, origin.y + 1), Point2D(origin.x - 1, origin.y - 1), Point2D(origin.x + 1, origin.y - 1),
                                      Point2D(origin.x, origin.y + 1),     Point2D(origin.x, origin.y - 1)};
 
   for (auto pos : adjacency) {

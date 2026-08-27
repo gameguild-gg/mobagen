@@ -13,20 +13,16 @@
 
 namespace scene {
 
-struct Transform {
+  struct Transform {
     glm::vec3 position{0.0f};
-    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};   // identity (w, x, y, z)
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};  // identity (w, x, y, z)
     glm::vec3 scale{1.0f};
-    ecs::Entity parent = ecs::kInvalidEntity;      // kInvalidEntity => root
+    ecs::Entity parent = ecs::kInvalidEntity;  // kInvalidEntity => root
 
-    glm::mat4 world{1.0f};                         // filled by TransformSystem
+    glm::mat4 world{1.0f};  // filled by TransformSystem
     bool dirty = true;
 
-    glm::mat4 local() const {
-        return glm::translate(glm::mat4(1.0f), position)
-             * glm::mat4_cast(rotation)
-             * glm::scale(glm::mat4(1.0f), scale);
-    }
-};
+    glm::mat4 local() const { return glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale); }
+  };
 
 }  // namespace scene

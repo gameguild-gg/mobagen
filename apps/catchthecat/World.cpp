@@ -124,16 +124,15 @@ bool CatWorld::catWinVerification() const {
 }
 
 bool CatWorld::catcherWinVerification() const {
-  return getContent(NE(catPosition_)) && getContent(NW(catPosition_)) && getContent(E(catPosition_)) &&
-         getContent(W(catPosition_)) && getContent(SE(catPosition_)) && getContent(SW(catPosition_));
+  return getContent(NE(catPosition_)) && getContent(NW(catPosition_)) && getContent(E(catPosition_)) && getContent(W(catPosition_))
+         && getContent(SE(catPosition_)) && getContent(SW(catPosition_));
 }
 
 bool CatWorld::catCanMoveToPosition(Point2D p) const { return isNeighbor(catPosition_, p) && !getContent(p); }
 
 bool CatWorld::catcherCanMoveToPosition(Point2D p) const {
   auto sideOver2 = sideSize_ / 2;
-  return (p.x != catPosition_.x || p.y != catPosition_.y) && std::abs(p.x) <= sideOver2 &&
-         std::abs(p.y) <= sideOver2;
+  return (p.x != catPosition_.x || p.y != catPosition_.y) && std::abs(p.x) <= sideOver2 && std::abs(p.y) <= sideOver2;
 }
 
 bool CatWorld::catWinsOnSpace(Point2D point) const {

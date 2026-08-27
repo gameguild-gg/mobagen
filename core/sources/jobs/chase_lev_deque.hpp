@@ -22,61 +22,56 @@
 
 namespace jobs {
 
-template <std::size_t Cap>
-class ChaseLevDeque {
+  template <std::size_t Cap> class ChaseLevDeque {
     static_assert((Cap & (Cap - 1)) == 0, "Cap must be a power of two");
     static constexpr std::int64_t kCap = static_cast<std::int64_t>(Cap);
     static constexpr std::int64_t kMask = kCap - 1;
 
-public:
+  public:
     // Owner only. false if full.
     bool push(void* x) {
-        const std::int64_t b = bottom_.load(std::memory_order_relaxed);
-        const std::int64_t t = top_.load(std::memory_order_acquire);
-        if (b - t >= kCap) return false;  // full
-        slots_[b & kMask].store(x, std::memory_order_relaxed);
-        std::atomic_thread_fence(std::memory_order_release);
-        bottom_.store(b + 1, std::memory_order_relaxed);
-        return true;
+      const std::int64_t b = bottom_.load(std::memory_order_relaxed);
+      const std::int64_t t = top_.load(std::memory_order_acquire);
+      if (b - t >= kCap) return false;  // full
+      slots_[b & kMask].store(x, std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_release);
+      bottom_.store(b + 1, std::memory_order_relaxed);
+      return true;
     }
 
     // Owner only. nullptr if empty.
     void* pop() {
-        const std::int64_t b = bottom_.load(std::memory_order_relaxed) - 1;
-        bottom_.store(b, std::memory_order_relaxed);
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-        std::int64_t t = top_.load(std::memory_order_relaxed);
-        if (t > b) {                                            // empty
-            bottom_.store(b + 1, std::memory_order_relaxed);
-            return nullptr;
-        }
-        void* x = slots_[b & kMask].load(std::memory_order_relaxed);
-        if (t == b) {                                           // last element: race a thief
-            if (!top_.compare_exchange_strong(t, t + 1, std::memory_order_seq_cst,
-                                              std::memory_order_relaxed))
-                x = nullptr;                                    // a thief won
-            bottom_.store(b + 1, std::memory_order_relaxed);
-        }
-        return x;
+      const std::int64_t b = bottom_.load(std::memory_order_relaxed) - 1;
+      bottom_.store(b, std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_seq_cst);
+      std::int64_t t = top_.load(std::memory_order_relaxed);
+      if (t > b) {  // empty
+        bottom_.store(b + 1, std::memory_order_relaxed);
+        return nullptr;
+      }
+      void* x = slots_[b & kMask].load(std::memory_order_relaxed);
+      if (t == b) {                                                                                                      // last element: race a thief
+        if (!top_.compare_exchange_strong(t, t + 1, std::memory_order_seq_cst, std::memory_order_relaxed)) x = nullptr;  // a thief won
+        bottom_.store(b + 1, std::memory_order_relaxed);
+      }
+      return x;
     }
 
     // Thieves. nullptr if empty or lost the race.
     void* steal() {
-        std::int64_t t = top_.load(std::memory_order_acquire);
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-        const std::int64_t b = bottom_.load(std::memory_order_acquire);
-        if (t >= b) return nullptr;                             // empty
-        void* x = slots_[t & kMask].load(std::memory_order_relaxed);
-        if (!top_.compare_exchange_strong(t, t + 1, std::memory_order_seq_cst,
-                                          std::memory_order_relaxed))
-            return nullptr;                                     // lost the race
-        return x;
+      std::int64_t t = top_.load(std::memory_order_acquire);
+      std::atomic_thread_fence(std::memory_order_seq_cst);
+      const std::int64_t b = bottom_.load(std::memory_order_acquire);
+      if (t >= b) return nullptr;  // empty
+      void* x = slots_[t & kMask].load(std::memory_order_relaxed);
+      if (!top_.compare_exchange_strong(t, t + 1, std::memory_order_seq_cst, std::memory_order_relaxed)) return nullptr;  // lost the race
+      return x;
     }
 
-private:
+  private:
     std::atomic<std::int64_t> top_{0};
     std::atomic<std::int64_t> bottom_{0};
     std::atomic<void*> slots_[Cap];
-};
+  };
 
 }  // namespace jobs

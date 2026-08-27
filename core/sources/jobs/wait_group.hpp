@@ -18,10 +18,10 @@
 
 namespace jobs {
 
-class Scheduler;
+  class Scheduler;
 
-class WaitGroup {
-public:
+  class WaitGroup {
+  public:
     WaitGroup() = default;
     WaitGroup(const WaitGroup&) = delete;
     WaitGroup& operator=(const WaitGroup&) = delete;
@@ -32,30 +32,28 @@ public:
     bool is_complete() const { return count_.load(std::memory_order_acquire) == 0; }
 
     struct Awaiter {
-        WaitGroup& wg;
-        bool await_ready() const noexcept {
-            return wg.count_.load(std::memory_order_acquire) == 0;
+      WaitGroup& wg;
+      bool await_ready() const noexcept { return wg.count_.load(std::memory_order_acquire) == 0; }
+      bool await_suspend(std::coroutine_handle<> h) const {
+        assert(wg.waiter_.load(std::memory_order_relaxed) == nullptr && "WaitGroup is single-waiter");
+        wg.waiter_.store(h.address(), std::memory_order_release);
+        if (wg.count_.load(std::memory_order_acquire) == 0) {
+          // Finished while we were parking — arbitrate with done().
+          void* p = wg.waiter_.exchange(nullptr, std::memory_order_acq_rel);
+          // If we reclaimed the handle -> resume now.
+          // Else done() took it and will schedule us -> stay suspended.
+          if (p) return false;
         }
-        bool await_suspend(std::coroutine_handle<> h) const {
-            assert(wg.waiter_.load(std::memory_order_relaxed) == nullptr &&
-                   "WaitGroup is single-waiter");
-            wg.waiter_.store(h.address(), std::memory_order_release);
-            if (wg.count_.load(std::memory_order_acquire) == 0) {
-                // Finished while we were parking — arbitrate with done().
-                void* p = wg.waiter_.exchange(nullptr, std::memory_order_acq_rel);
-                if (p) return false;  // we reclaimed the handle -> resume now
-                // else done() took it and will schedule us -> stay suspended
-            }
-            return true;
-        }
-        void await_resume() const noexcept {}
+        return true;
+      }
+      void await_resume() const noexcept {}
     };
     Awaiter operator co_await() { return Awaiter{*this}; }
 
-private:
+  private:
     std::atomic<int> count_{0};
     std::atomic<void*> waiter_{nullptr};
     Scheduler* sched_ = nullptr;
-};
+  };
 
 }  // namespace jobs
