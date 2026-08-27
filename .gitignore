@@ -100,3 +100,4 @@ data/state_store.db
 .omo/
 
 .cache/
+graphify-out/
