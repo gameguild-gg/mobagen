@@ -1,3 +1,10 @@
+## [1.18.6](https://github.com/InfiniBrains/mobagen/compare/v1.18.5...v1.18.6) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** pthread for web shared-memory link, pin windows-2022 release runner, cmake-format ([319717f](https://github.com/InfiniBrains/mobagen/commit/319717fc2d639d35d59dcc75c0cd50f98d53052f))
+
 ## [1.18.5](https://github.com/InfiniBrains/mobagen/compare/v1.18.4...v1.18.5) (2026-08-27)
 
 
