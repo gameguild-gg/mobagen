@@ -1,3 +1,10 @@
+## [1.18.8](https://github.com/InfiniBrains/mobagen/compare/v1.18.7...v1.18.8) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** cmake-format vendored external/cpm.cmake (tracked by check-format) ([2506cf7](https://github.com/InfiniBrains/mobagen/commit/2506cf7c7bb736cdce5824435377dd8417132122))
+
 ## [1.18.7](https://github.com/InfiniBrains/mobagen/compare/v1.18.6...v1.18.7) (2026-08-27)
 
 
