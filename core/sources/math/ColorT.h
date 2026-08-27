@@ -55,20 +55,20 @@ struct Color32 {
 struct Color : Color32 {
   using Color32::Color32;
 
-  static constexpr Color32 White      = {1.00f, 1.00f, 1.00f};
-  static constexpr Color32 Black      = {0.00f, 0.00f, 0.00f};
-  static constexpr Color32 Red        = {1.00f, 0.00f, 0.00f};
-  static constexpr Color32 Green      = {0.00f, 0.50f, 0.00f};
-  static constexpr Color32 Blue       = {0.00f, 0.00f, 1.00f};
-  static constexpr Color32 DarkBlue   = {0.00f, 0.00f, 0.50f};
-  static constexpr Color32 Yellow     = {1.00f, 1.00f, 0.00f};
-  static constexpr Color32 Brown      = {0.65f, 0.16f, 0.16f};
+  static constexpr Color32 White = {1.00f, 1.00f, 1.00f};
+  static constexpr Color32 Black = {0.00f, 0.00f, 0.00f};
+  static constexpr Color32 Red = {1.00f, 0.00f, 0.00f};
+  static constexpr Color32 Green = {0.00f, 0.50f, 0.00f};
+  static constexpr Color32 Blue = {0.00f, 0.00f, 1.00f};
+  static constexpr Color32 DarkBlue = {0.00f, 0.00f, 0.50f};
+  static constexpr Color32 Yellow = {1.00f, 1.00f, 0.00f};
+  static constexpr Color32 Brown = {0.65f, 0.16f, 0.16f};
   static constexpr Color32 SandyBrown = {0.96f, 0.64f, 0.38f};
-  static constexpr Color32 Cyan       = {0.00f, 1.00f, 1.00f};
-  static constexpr Color32 Magenta    = {1.00f, 0.00f, 1.00f};
-  static constexpr Color32 Purple     = {0.50f, 0.00f, 0.50f};
-  static constexpr Color32 Gray       = {0.50f, 0.50f, 0.50f};
-  static constexpr Color32 Orange     = {1.00f, 0.65f, 0.00f};
+  static constexpr Color32 Cyan = {0.00f, 1.00f, 1.00f};
+  static constexpr Color32 Magenta = {1.00f, 0.00f, 1.00f};
+  static constexpr Color32 Purple = {0.50f, 0.00f, 0.50f};
+  static constexpr Color32 Gray = {0.50f, 0.50f, 0.50f};
+  static constexpr Color32 Orange = {1.00f, 0.65f, 0.00f};
 };
 
 // Alias used by some legacy files that included ColorT.h directly.

@@ -13,14 +13,14 @@
 extern "C" {
 #endif
 
-typedef struct JobSystem JobSystem;                       // opaque
+typedef struct JobSystem JobSystem;  // opaque
 
 // Called once per chunk with a half-open range [begin, end). `user` is opaque.
 typedef void (*JobRangeFn)(size_t begin, size_t end, void* user);
 
-JobSystem* jobs_create(unsigned workers);                 // 0 => hardware_concurrency
-void       jobs_destroy(JobSystem* js);
-unsigned   jobs_worker_count(const JobSystem* js);
+JobSystem* jobs_create(unsigned workers);  // 0 => hardware_concurrency
+void jobs_destroy(JobSystem* js);
+unsigned jobs_worker_count(const JobSystem* js);
 
 // Blocking data-parallel loop: split [0,n) into `grain`-sized chunks, run them on
 // the pool, return when all complete. Call from the driver (non-worker) thread.

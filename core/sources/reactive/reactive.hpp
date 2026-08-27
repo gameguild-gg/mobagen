@@ -25,70 +25,69 @@
 
 namespace reactive {
 
-// A consumer (Effect, or a Computed's internal updater) that can re-run.
-struct Consumer {
+  // A consumer (Effect, or a Computed's internal updater) that can re-run.
+  struct Consumer {
     std::function<void()> run;
-};
+  };
 
-// The consumer currently executing — set while an Effect/Computed body runs.
-inline thread_local Consumer* g_active = nullptr;
+  // The consumer currently executing — set while an Effect/Computed body runs.
+  inline thread_local Consumer* g_active = nullptr;
 
-template <class T>
-class Signal {
-public:
+  template <class T> class Signal {
+  public:
     explicit Signal(T value) : value_(std::move(value)) {}
 
     const T& get() {
-        if (g_active) subs_.insert(g_active);   // auto-track this reader
-        return value_;
+      if (g_active) subs_.insert(g_active);  // auto-track this reader
+      return value_;
     }
 
     void set(T value) {
-        if (value == value_) return;            // unchanged -> no propagation
-        value_ = std::move(value);
-        auto subs = subs_;                       // copy: a run may re-subscribe
-        for (auto* c : subs) if (c && c->run) c->run();
+      if (value == value_) return;  // unchanged -> no propagation
+      value_ = std::move(value);
+      auto subs = subs_;  // copy: a run may re-subscribe
+      for (auto* c : subs)
+        if (c && c->run) c->run();
     }
 
     void update(const std::function<T(const T&)>& f) { set(f(value_)); }
 
-private:
+  private:
     T value_;
     std::unordered_set<Consumer*> subs_;
-};
+  };
 
-class Effect {
-public:
+  class Effect {
+  public:
     explicit Effect(std::function<void()> body) : body_(std::move(body)) {
-        node_.run = [this] { run_tracked(); };
-        run_tracked();                           // run once, capturing dependencies
+      node_.run = [this] { run_tracked(); };
+      run_tracked();  // run once, capturing dependencies
     }
 
-private:
+  private:
     void run_tracked() {
-        Consumer* prev = g_active;
-        g_active = &node_;
-        body_();
-        g_active = prev;
+      Consumer* prev = g_active;
+      g_active = &node_;
+      body_();
+      g_active = prev;
     }
 
     std::function<void()> body_;
     Consumer node_;
-};
+  };
 
-// A derived value: a Signal kept up to date by an internal Effect.
-template <class T>
-class Computed {
-public:
+  // A derived value: a Signal kept up to date by an internal Effect.
+  template <class T> class Computed {
+  public:
     explicit Computed(std::function<T()> f)
-        : value_(f()),                                   // initial (untracked)
-          updater_([this, f] { value_.set(f()); }) {}    // recompute + push on change
+        : value_(f()),                                 // initial (untracked)
+          updater_([this, f] { value_.set(f()); }) {}  // recompute + push on change
 
-    const T& get() { return value_.get(); }              // tracks the reader
+    const T& get() { return value_.get(); }  // tracks the reader
 
-private:
+  private:
     Signal<T> value_;
     Effect updater_;
-};
+  };
 
 }  // namespace reactive

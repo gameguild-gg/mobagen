@@ -6,7 +6,7 @@
 #include <cstdio>
 
 int main() {
-    wgpu::Instance instance = wgpu::CreateInstance();
-    std::printf("Dawn WebGPU instance created: %s\n", instance ? "OK" : "NULL");
-    return instance ? 0 : 1;
+  wgpu::Instance instance = wgpu::CreateInstance();
+  std::printf("Dawn WebGPU instance created: %s\n", instance ? "OK" : "NULL");
+  return instance ? 0 : 1;
 }

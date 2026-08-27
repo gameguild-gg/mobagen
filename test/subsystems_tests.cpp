@@ -45,7 +45,9 @@ TEST_CASE("RenderBridge: ECS scene with 3 entities produces 3 draw commands") {
 }
 
 TEST_CASE("ResourceRegistry: create, get, release") {
-  struct TestRes { int value = 0; };
+  struct TestRes {
+    int value = 0;
+  };
   resource::ResourceRegistry<TestRes> reg;
   auto h = reg.create();
   auto* p = reg.get(h);

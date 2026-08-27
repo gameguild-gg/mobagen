@@ -34,8 +34,7 @@ void Manager::OnGui() {
         ruleId = n;
         clear();
       }
-      if (is_selected)
-        ImGui::SetItemDefaultFocus();
+      if (is_selected) ImGui::SetItemDefaultFocus();
     }
     ImGui::EndCombo();
   }
@@ -116,9 +115,9 @@ void Manager::OnDraw() {
   float squareSide = minDimension / sideSize;
   float sideSideOver2 = sideSize / 2.0f;
 
-  const ImU32 liveColor  = IM_COL32(180, 180,   0, 255);
-  const ImU32 emptyColor = IM_COL32( 20,  20,  20, 255);
-  const ImU32 lineColor  = IM_COL32( 50,  50,  50,  10);
+  const ImU32 liveColor = IM_COL32(180, 180, 0, 255);
+  const ImU32 emptyColor = IM_COL32(20, 20, 20, 255);
+  const ImU32 lineColor = IM_COL32(50, 50, 50, 10);
 
   if (rules[ruleId]->GetTileSet() == GameOfLifeTileSetEnum::Square) {
     // Draw cells
@@ -135,10 +134,8 @@ void Manager::OnDraw() {
     for (int i = 0; i <= sideSize; i++) {
       if (sideSize < 50 || i == 0 || i == sideSize) {
         float offset = (i - sideSideOver2) * squareSide;
-        dl->AddLine(ImVec2(cx - minDimension / 2.0f, cy - offset),
-                    ImVec2(cx + minDimension / 2.0f, cy - offset), lineColor);
-        dl->AddLine(ImVec2(cx - offset, cy - minDimension / 2.0f),
-                    ImVec2(cx - offset, cy + minDimension / 2.0f), lineColor);
+        dl->AddLine(ImVec2(cx - minDimension / 2.0f, cy - offset), ImVec2(cx + minDimension / 2.0f, cy - offset), lineColor);
+        dl->AddLine(ImVec2(cx - offset, cy - minDimension / 2.0f), ImVec2(cx - offset, cy + minDimension / 2.0f), lineColor);
       }
     }
   } else if (rules[ruleId]->GetTileSet() == GameOfLifeTileSetEnum::Hexagon) {

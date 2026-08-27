@@ -110,7 +110,7 @@ struct App {
   void tick();
   void cleanup();
 
- private:
+private:
   void createSurface();
   bool initDeviceAndQueue();
   void configureSurface(int w, int h);

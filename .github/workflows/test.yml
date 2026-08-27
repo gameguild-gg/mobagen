@@ -35,7 +35,7 @@ jobs:
         if: startsWith(matrix.os,'ubuntu')
         run: |
           sudo apt update
-          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxext-dev libxfixes-dev libxkbcommon-dev
+          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxext-dev libxfixes-dev libxkbcommon-dev libxcb1-dev libx11-xcb-dev
 
 #      - name: Upload coverage reports to Codecov
 #        uses: codecov/codecov-action@v3

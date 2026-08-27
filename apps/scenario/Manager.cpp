@@ -16,9 +16,7 @@ Manager::~Manager() {
   generators.clear();
 }
 
-void Manager::Start() {
-  pixels.assign(static_cast<size_t>(sideSize) * sideSize, Color32(0, 0, 0, 1));
-}
+void Manager::Start() { pixels.assign(static_cast<size_t>(sideSize) * sideSize, Color32(0, 0, 0, 1)); }
 
 void Manager::SetPixels(std::vector<Color32>& input) { pixels = input; }
 
@@ -49,8 +47,8 @@ void Manager::OnGui() {
   const float deltaTime = ImGui::GetIO().DeltaTime;
 
   ImGui::Begin("Settings", nullptr);
-  ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", deltaTime * 1000, 1.0f / deltaTime,
-              1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+  ImGui::Text("%.1fms %.0fFPS | AVG: %.2fms %.1fFPS", deltaTime * 1000, 1.0f / deltaTime, 1000.0f / ImGui::GetIO().Framerate,
+              ImGui::GetIO().Framerate);
 
   static int newSize = sideSize;
   if (ImGui::SliderInt("Side Size", &newSize, 5, 512)) {
@@ -103,9 +101,7 @@ void Manager::Update(float deltaTime) {
   }
 }
 
-void Manager::Clear() {
-  pixels.assign(static_cast<size_t>(sideSize) * sideSize, Color32(0, 0, 0, 1));
-}
+void Manager::Clear() { pixels.assign(static_cast<size_t>(sideSize) * sideSize, Color32(0, 0, 0, 1)); }
 
 int Manager::GetSize() const { return sideSize; }
 

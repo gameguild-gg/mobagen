@@ -17,9 +17,7 @@ void Manager::OnDraw() {
   float cs = static_cast<float>(static_cast<int>(cellSize) - 1);  // rendered cell size
 
   // Halve each RGB channel, preserve full alpha
-  auto darken = [](ImU32 c) -> ImU32 {
-    return IM_COL32((c & 0xFFu) / 2, ((c >> 8) & 0xFFu) / 2, ((c >> 16) & 0xFFu) / 2, 0xFF);
-  };
+  auto darken = [](ImU32 c) -> ImU32 { return IM_COL32((c & 0xFFu) / 2, ((c >> 8) & 0xFFu) / 2, ((c >> 16) & 0xFFu) / 2, 0xFF); };
 
   for (int line = 0; line < sideSize; line++) {
     for (int column = 0; column < sideSize; column++) {
@@ -28,11 +26,21 @@ void Manager::OnDraw() {
 
       ImU32 color;
       switch (grid(column, line).type) {
-        case SquareType::Empty:  color = IM_COL32(64,  64,  64,  255); break;
-        case SquareType::Wall:   color = IM_COL32(255, 255, 0,   255); break;
-        case SquareType::Player: color = IM_COL32(0,   200, 0,   255); break;
-        case SquareType::Enemy:  color = IM_COL32(200, 0,   0,   255); break;
-        default:                 color = IM_COL32(0,   0,   0,   255); break;
+        case SquareType::Empty:
+          color = IM_COL32(64, 64, 64, 255);
+          break;
+        case SquareType::Wall:
+          color = IM_COL32(255, 255, 0, 255);
+          break;
+        case SquareType::Player:
+          color = IM_COL32(0, 200, 0, 255);
+          break;
+        case SquareType::Enemy:
+          color = IM_COL32(200, 0, 0, 255);
+          break;
+        default:
+          color = IM_COL32(0, 0, 0, 255);
+          break;
       }
 
       // dim tiles not visible from the player
@@ -53,8 +61,7 @@ glm::ivec2 Manager::screenSpaceToGridIndex(ImVec2& pos) {
   float cellSize = minDimension / sideSize;
   float cx = display.x / 2.0f;
   float cy = display.y / 2.0f;
-  return {static_cast<int>((pos.x - cx) / cellSize + sideSize / 2.0f),
-          static_cast<int>(-((pos.y - cy) / cellSize) + sideSize / 2.0f)};
+  return {static_cast<int>((pos.x - cx) / cellSize + sideSize / 2.0f), static_cast<int>(-((pos.y - cy) / cellSize) + sideSize / 2.0f)};
 }
 
 void Manager::OnGui() {

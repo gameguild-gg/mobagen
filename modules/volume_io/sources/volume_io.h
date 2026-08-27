@@ -22,23 +22,23 @@ extern "C" {
 // A loaded volume plus the metadata the renderer needs. Owns `voxels` until
 // volume_io_free() is called. On failure, `voxels` is NULL and dims are 0.
 typedef struct VolumeData {
-    uint16_t* voxels;            // width*height*depth stored samples (row-major, z outer)
-    int width;
-    int height;
-    int depth;
+  uint16_t* voxels;  // width*height*depth stored samples (row-major, z outer)
+  int width;
+  int height;
+  int depth;
 
-    float spacing_x;             // mm per voxel along each axis
-    float spacing_y;
-    float spacing_z;
+  float spacing_x;  // mm per voxel along each axis
+  float spacing_y;
+  float spacing_z;
 
-    float rescale_slope;         // Hounsfield: HU = stored * slope + intercept
-    float rescale_intercept;
+  float rescale_slope;  // Hounsfield: HU = stored * slope + intercept
+  float rescale_intercept;
 
-    float window_center;         // default display window (in HU)
-    float window_width;
+  float window_center;  // default display window (in HU)
+  float window_width;
 
-    float value_min;             // observed stored-value range (for normalization)
-    float value_max;
+  float value_min;  // observed stored-value range (for normalization)
+  float value_max;
 } VolumeData;
 
 // Load a DICOM series from a directory of .dcm files. `dir` is a path in the

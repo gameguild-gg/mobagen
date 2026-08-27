@@ -14,7 +14,7 @@ namespace {
     Velocity() = default;
     Velocity(float vx_, float vy_) : vx(vx_), vy(vy_) {}
   };
-}
+}  // namespace
 
 TEST_CASE("World: create entity and check generation") {
   ecs::World w;
@@ -83,16 +83,12 @@ TEST_CASE("Perf: 2M entity parallel_for >= 3x faster than serial") {
     w.add<Velocity>(e, 1.0f, 0.0f);
   }
   auto t0 = std::chrono::high_resolution_clock::now();
-  w.view<Position, Velocity>([&](auto, Position& p, Velocity& v) {
-    p.x += v.vx;
-  });
+  w.view<Position, Velocity>([&](auto, Position& p, Velocity& v) { p.x += v.vx; });
   auto t1 = std::chrono::high_resolution_clock::now();
   auto serial_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
   t0 = std::chrono::high_resolution_clock::now();
   jobs::WaitGroup wg;
-  w.apply_range<Position, Velocity>(0, N, [&](auto, Position& p, Velocity& v) {
-    p.x += v.vx;
-  });
+  w.apply_range<Position, Velocity>(0, N, [&](auto, Position& p, Velocity& v) { p.x += v.vx; });
   t1 = std::chrono::high_resolution_clock::now();
   auto parallel_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
   WARN(parallel_us * 3 < serial_us);

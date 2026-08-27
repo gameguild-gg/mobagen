@@ -296,6 +296,7 @@ class LinuxPlatform(Platform):
         "libx11-dev", "libxrandr-dev", "libxinerama-dev",
         "libxcursor-dev", "libxi-dev", "libxss-dev",
         "libxtst-dev", "libxext-dev", "libxfixes-dev", "libxkbcommon-dev",
+        "libxcb1-dev", "libx11-xcb-dev",
     ]
 
     def detect_toolchain(self) -> None:

@@ -10,7 +10,7 @@
 #include <unordered_set>
 
 class Manager {
- private:
+private:
   WorldState state;
   stack<WorldState> previousStates;
   Point2D selected = {INT32_MIN, INT32_MIN};
@@ -18,7 +18,7 @@ class Manager {
   PieceColor aiColor = PieceColor::Black;
   bool aiEnabled = false;
 
- public:
+public:
   double score = 0.0;
   Manager();
   ~Manager();
@@ -28,7 +28,7 @@ class Manager {
   void OnDraw();
   void Update(float deltaTime);
 
- private:
+private:
   Point2D mousePositionToIndex(ImVec2& pos);
   unordered_set<Point2D> getMoves(PieceType t, Point2D point);
   void drawSquare(ImU32 color, ImVec2 min, ImVec2 max);

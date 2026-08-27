@@ -17,6 +17,4 @@
 
 extern int main(int argc, char* argv[]);
 
-extern "C" int32_t SDL_main(int32_t argc, char* argv[]) {
-  return main(argc, argv);
-}
+extern "C" int32_t SDL_main(int32_t argc, char* argv[]) { return main(argc, argv); }

@@ -23,16 +23,16 @@
 // ============================================================
 // WebGPU global state
 // ============================================================
-static WGPUInstance             wgpu_instance       = nullptr;
-static WGPUDevice               wgpu_device         = nullptr;
-static WGPUSurface              wgpu_surface        = nullptr;
-static WGPUQueue                wgpu_queue          = nullptr;
-static WGPUSurfaceConfiguration wgpu_surface_cfg    = {};
-static int                      wgpu_surface_width  = 1280;
-static int                      wgpu_surface_height = 800;
+static WGPUInstance wgpu_instance = nullptr;
+static WGPUDevice wgpu_device = nullptr;
+static WGPUSurface wgpu_surface = nullptr;
+static WGPUQueue wgpu_queue = nullptr;
+static WGPUSurfaceConfiguration wgpu_surface_cfg = {};
+static int wgpu_surface_width = 1280;
+static int wgpu_surface_height = 800;
 
 static void ResizeSurface(int w, int h) {
-  wgpu_surface_cfg.width  = wgpu_surface_width  = w;
+  wgpu_surface_cfg.width = wgpu_surface_width = w;
   wgpu_surface_cfg.height = wgpu_surface_height = h;
   wgpuSurfaceConfigure(wgpu_surface, &wgpu_surface_cfg);
 }
@@ -54,14 +54,11 @@ static WGPUAdapter RequestAdapter(wgpu::Instance& instance) {
 
 static WGPUDevice RequestDevice(wgpu::Instance& instance, wgpu::Adapter& adapter) {
   wgpu::DeviceDescriptor desc;
-  desc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
-    [](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView msg) {
-      SDL_Log("WebGPU device lost (%d): %s", static_cast<int>(reason), msg.data);
-    });
+  desc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous, [](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView msg) {
+    SDL_Log("WebGPU device lost (%d): %s", static_cast<int>(reason), msg.data);
+  });
   desc.SetUncapturedErrorCallback(
-    [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) {
-      SDL_Log("WebGPU error (%d): %s", static_cast<int>(type), msg.data);
-    });
+      [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) { SDL_Log("WebGPU error (%d): %s", static_cast<int>(type), msg.data); });
   wgpu::Device acquired;
   auto cb = [&](wgpu::RequestDeviceStatus status, wgpu::Device device, wgpu::StringView msg) {
     if (status != wgpu::RequestDeviceStatus::Success) {
@@ -80,30 +77,30 @@ static WGPUSurface CreateWGPUSurface(const WGPUInstance& instance, SDL_Window* w
   SDL_PropertiesID props = SDL_GetWindowProperties(window);
   ImGui_ImplWGPU_CreateSurfaceInfo info = {};
   info.Instance = instance;
-#if defined(SDL_PLATFORM_MACOS)
-  info.System    = "cocoa";
+#  if defined(SDL_PLATFORM_MACOS)
+  info.System = "cocoa";
   info.RawWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
   return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#elif defined(SDL_PLATFORM_LINUX)
+#  elif defined(SDL_PLATFORM_LINUX)
   if (SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0) {
-    info.System     = "wayland";
+    info.System = "wayland";
     info.RawDisplay = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
     info.RawSurface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
     return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
   }
-  info.System     = "x11";
-  info.RawWindow  = reinterpret_cast<void*>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
+  info.System = "x11";
+  info.RawWindow = reinterpret_cast<void*>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
   info.RawDisplay = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
   return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#elif defined(SDL_PLATFORM_WIN32)
-  info.System      = "win32";
-  info.RawWindow   = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+#  elif defined(SDL_PLATFORM_WIN32)
+  info.System = "win32";
+  info.RawWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
   info.RawInstance = static_cast<void*>(::GetModuleHandle(nullptr));
   return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#else
+#  else
   SDL_Log("Unsupported platform for WebGPU surface creation");
   return nullptr;
-#endif
+#  endif
 }
 #endif  // !__EMSCRIPTEN__
 
@@ -111,7 +108,7 @@ static bool InitWGPU(SDL_Window* window) {
   wgpu::InstanceDescriptor inst_desc = {};
   static constexpr wgpu::InstanceFeatureName kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
   inst_desc.requiredFeatureCount = 1;
-  inst_desc.requiredFeatures     = &kTimedWaitAny;
+  inst_desc.requiredFeatures = &kTimedWaitAny;
   wgpu::Instance instance = wgpu::CreateInstance(&inst_desc);
   if (!instance) {
     SDL_Log("Failed to create WebGPU instance");
@@ -140,18 +137,18 @@ static bool InitWGPU(SDL_Window* window) {
   }
 
   wgpu_instance = instance.MoveToCHandle();
-  wgpu_surface  = surface.MoveToCHandle();
+  wgpu_surface = surface.MoveToCHandle();
 
   WGPUSurfaceCapabilities caps = {};
   wgpuSurfaceGetCapabilities(wgpu_surface, adapter.Get(), &caps);
 
   wgpu_surface_cfg.presentMode = WGPUPresentMode_Fifo;
-  wgpu_surface_cfg.alphaMode   = WGPUCompositeAlphaMode_Auto;
-  wgpu_surface_cfg.usage       = WGPUTextureUsage_RenderAttachment;
-  wgpu_surface_cfg.width       = wgpu_surface_width;
-  wgpu_surface_cfg.height      = wgpu_surface_height;
-  wgpu_surface_cfg.device      = wgpu_device;
-  wgpu_surface_cfg.format      = caps.formats[0];
+  wgpu_surface_cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
+  wgpu_surface_cfg.usage = WGPUTextureUsage_RenderAttachment;
+  wgpu_surface_cfg.width = wgpu_surface_width;
+  wgpu_surface_cfg.height = wgpu_surface_height;
+  wgpu_surface_cfg.device = wgpu_device;
+  wgpu_surface_cfg.format = caps.formats[0];
   wgpuSurfaceConfigure(wgpu_surface, &wgpu_surface_cfg);
   wgpu_queue = wgpuDeviceGetQueue(wgpu_device);
   return true;
@@ -163,7 +160,7 @@ static bool InitWGPU(SDL_Window* window) {
 int main(int, char**) {
   // DOD bootstrap: ecs::World + jobs::Scheduler replace the OOP Engine
   SDL_Log("Creating DOD World and Scheduler");
-  ecs::World      ecsWorld;
+  ecs::World ecsWorld;
   jobs::Scheduler sched;
   SDL_Log("DOD World Created");
 
@@ -174,12 +171,11 @@ int main(int, char**) {
     return 1;
   }
 
-  float uiScale         = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
-  wgpu_surface_width  = static_cast<int>(wgpu_surface_width  * uiScale);
+  float uiScale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+  wgpu_surface_width = static_cast<int>(wgpu_surface_width * uiScale);
   wgpu_surface_height = static_cast<int>(wgpu_surface_height * uiScale);
 
-  SDL_Window* window = SDL_CreateWindow("Maze", wgpu_surface_width, wgpu_surface_height,
-                                        SDL_WINDOW_RESIZABLE);
+  SDL_Window* window = SDL_CreateWindow("Maze", wgpu_surface_width, wgpu_surface_height, SDL_WINDOW_RESIZABLE);
   if (!window) {
     SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
     return 1;
@@ -208,8 +204,8 @@ int main(int, char**) {
   ImGui_ImplSDL3_InitForOther(window);
 
   ImGui_ImplWGPU_InitInfo wgpu_init = {};
-  wgpu_init.Device             = wgpu_device;
-  wgpu_init.NumFramesInFlight  = 3;
+  wgpu_init.Device = wgpu_device;
+  wgpu_init.NumFramesInFlight = 3;
   wgpu_init.RenderTargetFormat = wgpu_surface_cfg.format;
   wgpu_init.DepthStencilFormat = WGPUTextureFormat_Undefined;
   ImGui_ImplWGPU_Init(&wgpu_init);
@@ -221,8 +217,8 @@ int main(int, char**) {
   SDL_Log("Maze World Started");
 
   ImVec4 clear_color = {0.05f, 0.05f, 0.05f, 1.00f};
-  bool   done        = false;
-  auto   lastTime    = std::chrono::high_resolution_clock::now();
+  bool done = false;
+  auto lastTime = std::chrono::high_resolution_clock::now();
 
   while (!done) {
     // Event processing
@@ -230,21 +226,18 @@ int main(int, char**) {
     while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL3_ProcessEvent(&event);
       if (event.type == SDL_EVENT_QUIT) done = true;
-      if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
-          event.window.windowID == SDL_GetWindowID(window))
-        done = true;
+      if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window)) done = true;
     }
 
     // Delta time
-    auto  now = std::chrono::high_resolution_clock::now();
-    float dt  = std::chrono::duration<float>(now - lastTime).count();
-    lastTime  = now;
+    auto now = std::chrono::high_resolution_clock::now();
+    float dt = std::chrono::duration<float>(now - lastTime).count();
+    lastTime = now;
 
     // React to window resize
     int winW, winH;
     SDL_GetWindowSize(window, &winW, &winH);
-    if (winW != wgpu_surface_width || winH != wgpu_surface_height)
-      ResizeSurface(winW, winH);
+    if (winW != wgpu_surface_width || winH != wgpu_surface_height) ResizeSurface(winW, winH);
 
     // Acquire surface texture
     WGPUSurfaceTexture surface_texture;
@@ -265,38 +258,35 @@ int main(int, char**) {
     ImGui::NewFrame();
 
     mazeWorld.Update(dt);
-    mazeWorld.OnDraw();   // draws to background draw list before Render()
+    mazeWorld.OnDraw();  // draws to background draw list before Render()
     mazeWorld.OnGui();
 
     ImGui::Render();
 
     // WebGPU render pass
     WGPUTextureViewDescriptor view_desc = {};
-    view_desc.format          = wgpu_surface_cfg.format;
-    view_desc.dimension       = WGPUTextureViewDimension_2D;
-    view_desc.mipLevelCount   = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
+    view_desc.format = wgpu_surface_cfg.format;
+    view_desc.dimension = WGPUTextureViewDimension_2D;
+    view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
     view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
-    view_desc.aspect          = WGPUTextureAspect_All;
+    view_desc.aspect = WGPUTextureAspect_All;
     WGPUTextureView texture_view = wgpuTextureCreateView(surface_texture.texture, &view_desc);
 
     WGPURenderPassColorAttachment color_att = {};
     color_att.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
-    color_att.loadOp     = WGPULoadOp_Clear;
-    color_att.storeOp    = WGPUStoreOp_Store;
-    color_att.clearValue = {clear_color.x * clear_color.w,
-                            clear_color.y * clear_color.w,
-                            clear_color.z * clear_color.w,
-                            clear_color.w};
-    color_att.view       = texture_view;
+    color_att.loadOp = WGPULoadOp_Clear;
+    color_att.storeOp = WGPUStoreOp_Store;
+    color_att.clearValue = {clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w};
+    color_att.view = texture_view;
 
     WGPURenderPassDescriptor rp_desc = {};
-    rp_desc.colorAttachmentCount   = 1;
-    rp_desc.colorAttachments       = &color_att;
+    rp_desc.colorAttachmentCount = 1;
+    rp_desc.colorAttachments = &color_att;
     rp_desc.depthStencilAttachment = nullptr;
 
     WGPUCommandEncoderDescriptor enc_desc = {};
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(wgpu_device, &enc_desc);
-    WGPURenderPassEncoder pass  = wgpuCommandEncoderBeginRenderPass(encoder, &rp_desc);
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp_desc);
     ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
     wgpuRenderPassEncoderEnd(pass);
 
