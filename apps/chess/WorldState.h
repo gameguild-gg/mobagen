@@ -2,8 +2,9 @@
 #define CHESS_WORLDSTATE_H
 
 #include "math/Point2D.h"
-#include <vector>
+#include <string>
 #include <unordered_set>
+#include <vector>
 #include "WorldStateFwd.h"
 using namespace std;
 
