@@ -1,3 +1,10 @@
+## [1.18.10](https://github.com/InfiniBrains/mobagen/compare/v1.18.9...v1.18.10) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** clang-format MoBaGenActivity.java (git-clang-format checks java too) ([991b39a](https://github.com/InfiniBrains/mobagen/commit/991b39afb1d600c7a275fc8e7522d7f9c54d5dd0))
+
 ## [1.18.9](https://github.com/InfiniBrains/mobagen/compare/v1.18.8...v1.18.9) (2026-08-27)
 
 
