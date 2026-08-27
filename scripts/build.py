@@ -295,6 +295,7 @@ class LinuxPlatform(Platform):
         "mesa-common-dev", "libgl1-mesa-dev",
         "libx11-dev", "libxrandr-dev", "libxinerama-dev",
         "libxcursor-dev", "libxi-dev", "libxss-dev",
+        "libxtst-dev", "libxext-dev", "libxfixes-dev", "libxkbcommon-dev",
     ]
 
     def detect_toolchain(self) -> None:
