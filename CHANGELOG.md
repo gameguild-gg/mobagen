@@ -1,3 +1,10 @@
+## [1.18.12](https://github.com/InfiniBrains/mobagen/compare/v1.18.11...v1.18.12) (2026-08-27)
+
+
+### Bug Fixes
+
+* **apps:** include <string> where used as a type (libstdc++ strictness sweep) ([e94abeb](https://github.com/InfiniBrains/mobagen/commit/e94abebe56bc837c17253cfdacde2257dac33746))
+
 ## [1.18.11](https://github.com/InfiniBrains/mobagen/compare/v1.18.10...v1.18.11) (2026-08-27)
 
 
