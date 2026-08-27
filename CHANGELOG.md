@@ -1,3 +1,10 @@
+## [1.18.4](https://github.com/InfiniBrains/mobagen/compare/v1.18.3...v1.18.4) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** install X11 dev deps in style workflow, pin valid ghaction-github-pages tag ([e3e8a67](https://github.com/InfiniBrains/mobagen/commit/e3e8a673636f2394ae5640925b4c2e3ebaed5565))
+
 ## [1.18.3](https://github.com/InfiniBrains/mobagen/compare/v1.18.2...v1.18.3) (2026-08-27)
 
 
