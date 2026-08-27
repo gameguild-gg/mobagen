@@ -1,10 +1,9 @@
 # ============================================================================
 # ITK — Insight Toolkit (medical image processing).
 # ============================================================================
-# NOT used by the renderer yet. Brought over from master:editor/itk.cmake for
-# completeness. ITK bundles its own copy of GDCM, so enabling USE_ITK is a
-# (much heavier) alternative to USE_GDCM if we ever need ITK's resampling /
-# registration. Included only when USE_ITK is ON.
+# NOT used by the renderer yet. Brought over from master:editor/itk.cmake for completeness. ITK
+# bundles its own copy of GDCM, so enabling USE_ITK is a (much heavier) alternative to USE_GDCM if
+# we ever need ITK's resampling / registration. Included only when USE_ITK is ON.
 
 string(TIMESTAMP _itk_before "%s")
 
@@ -19,8 +18,8 @@ string(TIMESTAMP _itk_after "%s")
 math(EXPR _itk_delta "${_itk_after} - ${_itk_before}")
 message(STATUS "ITK configured in ${_itk_delta}s")
 
-# ITK ships GDCM under ThirdParty/GDCM — expose those headers so code that uses
-# ITK's GDCM resolves them. (See master:editor/itk.cmake for the original paths.)
+# ITK ships GDCM under ThirdParty/GDCM — expose those headers so code that uses ITK's GDCM resolves
+# them. (See master:editor/itk.cmake for the original paths.)
 message(STATUS "ITK_SOURCE_DIR: ${ITK_SOURCE_DIR}")
 include_directories(
   ${ITK_SOURCE_DIR}
