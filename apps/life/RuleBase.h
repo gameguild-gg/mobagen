@@ -4,6 +4,7 @@
 // reference https://playgameoflife.com/info
 
 #include "World.h"
+#include <string>
 #include "GameOfLifeTileSetEnum.h"
 class RuleBase {
 public:

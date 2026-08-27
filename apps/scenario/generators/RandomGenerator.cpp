@@ -1,4 +1,5 @@
 #include "RandomGenerator.h"
+#include <string>
 #include "../FastNoiseLite.h"
 
 #include <iostream>

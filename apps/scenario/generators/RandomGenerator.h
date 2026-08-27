@@ -2,6 +2,7 @@
 #define MOBAGEN_RANDOMSCENARIOGENERATOR_H
 
 #include "../GeneratorBase.h"
+#include <string>
 
 class RandomScenarioGenerator : public ScenarioGeneratorBase {
 public:

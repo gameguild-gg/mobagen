@@ -20,6 +20,7 @@
 //   - 8/16-bit integer pixels (the CT/MR norm); other formats are zeroed.
 
 #include "volume_io.h"
+#include <string>
 
 #include <cstdint>
 #include <cstdlib>

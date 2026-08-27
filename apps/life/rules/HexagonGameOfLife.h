@@ -2,6 +2,7 @@
 #define MOBAGEN_EXAMPLES_LIFE_RULES_HEXAGONGAMEOFLIFE_H_
 
 #include "../RuleBase.h"
+#include <string>
 class HexagonGameOfLife : public RuleBase {
 public:
   explicit HexagonGameOfLife() = default;
