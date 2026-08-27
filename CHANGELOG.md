@@ -1,3 +1,10 @@
+## [1.18.13](https://github.com/InfiniBrains/mobagen/compare/v1.18.12...v1.18.13) (2026-08-27)
+
+
+### Bug Fixes
+
+* **catchthecat:** parenthesize std::min call (windows.h min macro clash) ([fbe29ae](https://github.com/InfiniBrains/mobagen/commit/fbe29ae1019c52af0cd6376e8a258d70380e8a66))
+
 ## [1.18.12](https://github.com/InfiniBrains/mobagen/compare/v1.18.11...v1.18.12) (2026-08-27)
 
 
