@@ -44,7 +44,8 @@ jobs:
         run: cmake -S. -Bbuild -DENABLE_TEST_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
 
       - name: build
-        run: cmake --build build --parallel --target CoreTests
+        # parallel 2: full-parallel Debug+coverage build of Dawn OOMs the runner
+        run: cmake --build build --parallel 2 --target CoreTests
 
       - name: test
         run: |
