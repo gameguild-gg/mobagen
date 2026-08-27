@@ -109,7 +109,7 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential cmake \
             mesa-common-dev libgl1-mesa-dev libx11-dev mesa-utils libgl-dev \
-            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev
           pip install jsonschema jinja2
 
       - name: Install dependencies (macOS)
@@ -117,7 +117,7 @@ jobs:
         run: pip install jsonschema jinja2
 
       - name: Build
-        run: python build.py ${{ matrix.platform }} --build-type Release
+        run: python scripts/build.py ${{ matrix.platform }} --build-type Release
 
       - name: zip
         uses: thedoctor0/zip-release@main
@@ -150,7 +150,7 @@ jobs:
           key: emscripten-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       - name: Build (web)
-        run: python build.py web --install-deps
+        run: python scripts/build.py web --install-deps
 
       - name: zip
         uses: thedoctor0/zip-release@main

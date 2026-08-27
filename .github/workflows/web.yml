@@ -41,8 +41,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: GitHub Pages
+        # Deploy only from master so branch/PR builds don't overwrite the site.
+        if: github.ref == 'refs/heads/master'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: crazy-max/ghaction-github-pages@v2.6.0
+        uses: crazy-max/ghaction-github-pages@v4.6.3
         with:
           build_dir: build-web/bin/
+          jekyll: false

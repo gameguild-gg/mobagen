@@ -56,6 +56,10 @@ CPMAddPackage(
     "SDL3IMAGE_SAMPLES OFF"
     "SDL3IMAGE_VENDORED ON"
     "SDL3IMAGE_DEPS_SHARED OFF"
+    # AVIF off: vendored libavif pulls in dav1d, which requires NASM on
+    # Windows runners (no CMAKE_ASM_NASM_COMPILER -> configure fails).
+    # The engine does not use AVIF images.
+    "SDLIMAGE_AVIF OFF"
 )
 string(TIMESTAMP AFTER "%s")
 math(EXPR DELTASDL_image "${AFTER} - ${BEFORE}")

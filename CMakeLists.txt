@@ -74,11 +74,15 @@ if(EMSCRIPTEN)
   # WebGPU comes from the emdawnwebgpu port wired up by external/dawn.cmake
   # (it injects --use-port=.../emdawnwebgpu.port.py on the link line).
   # SDL3 is built from source, so -sUSE_SDL=0 keeps emscripten from bundling its own.
+  # NOTE: WASM=2 (wasm + wasm2js JS fallback) was dropped: wasm2js was removed
+  # from modern Binaryen/Emscripten toolchains and the wasm2js binary shipped
+  # with current emsdk crashes (SIGABRT) at link time. Every WebGPU-capable
+  # browser supports WASM, so the JS fallback served no purpose here.
   set(CMAKE_CXX_FLAGS
-      "${CMAKE_CXX_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_CXX_FLAGS} -Oz -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
   set(CMAKE_C_FLAGS
-      "${CMAKE_C_FLAGS} -Oz -s WASM=2 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_C_FLAGS} -Oz -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
 
   file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/htmls/*")
