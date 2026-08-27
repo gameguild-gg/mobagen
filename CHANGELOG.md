@@ -1,3 +1,10 @@
+## [1.18.15](https://github.com/InfiniBrains/mobagen/compare/v1.18.14...v1.18.15) (2026-08-27)
+
+
+### Bug Fixes
+
+* **web:** enable cross-origin isolation for SharedArrayBuffer via coi-serviceworker ([b5ed557](https://github.com/InfiniBrains/mobagen/commit/b5ed557b3436d05a56ed1713d4141fa769efea1e))
+
 ## [1.18.14](https://github.com/InfiniBrains/mobagen/compare/v1.18.13...v1.18.14) (2026-08-27)
 
 
