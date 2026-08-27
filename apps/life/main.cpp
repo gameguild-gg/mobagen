@@ -213,6 +213,9 @@ int main(int, char**) {
   bool done = false;
 
   while (!done) {
+#ifdef __EMSCRIPTEN__
+    SDL_Delay(1);  // yield to the browser event loop via asyncify (prevents busy spin)
+#endif
     // --- Event processing ---
     SDL_Event event;
     while (SDL_PollEvent(&event)) {

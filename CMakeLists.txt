@@ -97,10 +97,10 @@ if(EMSCRIPTEN)
   # so the JS fallback served no purpose here. -pthread: the emdawnwebgpu port links with shared
   # memory, which requires all objects to be compiled with atomics + bulk-memory features.
   set(CMAKE_CXX_FLAGS
-      "${CMAKE_CXX_FLAGS} -Oz -pthread -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_CXX_FLAGS} -Oz -s USE_PTHREADS=0 -sSHARED_MEMORY=0 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
   set(CMAKE_C_FLAGS
-      "${CMAKE_C_FLAGS} -Oz -pthread -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_C_FLAGS} -Oz -s USE_PTHREADS=0 -sSHARED_MEMORY=0 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
 
   file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/htmls/*")
