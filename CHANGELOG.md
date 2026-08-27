@@ -1,3 +1,10 @@
+## [1.19.1](https://github.com/InfiniBrains/mobagen/compare/v1.19.0...v1.19.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **dawn:** deploy d3dcompiler_47.dll beside binaries on windows ([d5eb512](https://github.com/InfiniBrains/mobagen/commit/d5eb512bf85d8585198bd4d4b505ed2b8837cc34))
+
 # [1.19.0](https://github.com/InfiniBrains/mobagen/compare/v1.18.17...v1.19.0) (2026-08-27)
 
 
