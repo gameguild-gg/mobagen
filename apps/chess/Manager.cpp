@@ -1,4 +1,5 @@
 #include "Manager.h"
+#include "PieceTextures.h"
 #include "pieces/Bishop.h"
 #include "pieces/King.h"
 #include "pieces/Knight.h"
@@ -181,11 +182,20 @@ unordered_set<Point2D> Manager::getMoves(PieceType t, Point2D point) {
 
 void Manager::drawSquare(ImU32 color, ImVec2 min, ImVec2 max) { ImGui::GetBackgroundDrawList()->AddRectFilled(min, max, color); }
 
-void Manager::drawPiece(PieceData piece, ImVec2 center, float /*size*/) {
+void Manager::drawPiece(PieceData piece, ImVec2 center, float size) {
+  auto* dl = ImGui::GetBackgroundDrawList();
+
+  if (pieceArt) {
+    ImTextureID tex = pieceArt->texture(piece);
+    if (tex) {
+      const float half = size * 0.5f;
+      dl->AddImage(tex, ImVec2(center.x - half, center.y - half), ImVec2(center.x + half, center.y + half));
+      return;
+    }
+  }
+
   const char* text = getPieceLabel(piece);
   if (!text) return;
-
-  auto* dl = ImGui::GetBackgroundDrawList();
   ImVec2 textSize = ImGui::CalcTextSize(text);
   ImVec2 pos(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f);
 

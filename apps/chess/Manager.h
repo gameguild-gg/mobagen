@@ -9,6 +9,8 @@
 #include <stack>
 #include <unordered_set>
 
+class PieceTextures;
+
 class Manager {
 private:
   WorldState state;
@@ -17,12 +19,14 @@ private:
   unordered_set<Point2D> validMoves;
   PieceColor aiColor = PieceColor::Black;
   bool aiEnabled = false;
+  PieceTextures* pieceArt = nullptr;
 
 public:
   double score = 0.0;
   Manager();
   ~Manager();
 
+  void SetPieceArt(PieceTextures* art) { pieceArt = art; }
   void Start();
   void OnGui();
   void OnDraw();
