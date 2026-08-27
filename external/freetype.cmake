@@ -1,17 +1,18 @@
 # ============================================================================
 # Freetype — needed by RmlUi for font rendering.
 #
-#   * macOS / Linux / Windows desktop: rely on the system
-#     find_package(Freetype) (libfreetype-dev on Linux, brew freetype
-#     on macOS, system Freetype on Windows). RmlUi calls find_package
-#     directly and we just need to make sure the target is findable.
+#   * macOS / Linux desktop: rely on the system find_package(Freetype)
+#     (brew freetype on macOS, libfreetype-dev on Linux images). RmlUi
+#     calls find_package directly and we just need to make sure the
+#     target is findable.
 #   * Emscripten: find_package can't find a target in the Emscripten
 #     sysroot, so we create a Freetype::Freetype INTERFACE IMPORTED
 #     target backed by Emscripten's built-in freetype port.
-#   * Android: NDK does not ship Freetype, so we build from source via CPM.
-#   * iOS: toolchain's CMAKE_FIND_ROOT_PATH is restricted to the iOS
-#     SDK + sysroot (no Homebrew) so the system Freetype is invisible.
-#     Build from source via CPM, just like Android.
+#   * Windows / Android / iOS: no usable system Freetype (Windows and
+#     Android runners/NDK ship none; the iOS toolchain restricts
+#     CMAKE_FIND_ROOT_PATH so Homebrew is invisible). Build from source
+#     via CPM. RmlUi's dependency check accepts a Freetype::Freetype
+#     target, so an ALIAS is enough.
 # ============================================================================
 
 if(EMSCRIPTEN)
@@ -42,10 +43,12 @@ if(EMSCRIPTEN)
       "${_EMS_SYSROOT}/lib/wasm32-emscripten/libz.a"
     )
   endif()
-elseif(ANDROID OR IOS)
-  # Android NDK and the iOS toolchain sysroot both lack Freetype, and
-  # the latter also restricts CMAKE_FIND_ROOT_PATH so Homebrew/system
-  # Freetype is invisible to find_package. Build from source.
+else()
+  # Desktop: prefer the system Freetype (brew on macOS, libfreetype-dev
+  # on Linux CI images). GitHub Windows runners ship no Freetype, so
+  # fall back to a CPM source build there (same as Android/iOS).
+  find_package(Freetype QUIET)
+
   if(NOT TARGET Freetype::Freetype)
     CPMAddPackage(
       NAME freetype
