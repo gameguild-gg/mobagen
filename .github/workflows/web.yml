@@ -45,7 +45,7 @@ jobs:
         if: github.ref == 'refs/heads/master'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: crazy-max/ghaction-github-pages@v4.6.3
+        uses: crazy-max/ghaction-github-pages@v5.0.0
         with:
           build_dir: build-web/bin/
           jekyll: false
