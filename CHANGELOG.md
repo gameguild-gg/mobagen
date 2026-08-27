@@ -1,3 +1,10 @@
+## [1.19.2](https://github.com/InfiniBrains/mobagen/compare/v1.19.1...v1.19.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** cmake-format external/dawn.cmake ([8edb1c1](https://github.com/InfiniBrains/mobagen/commit/8edb1c13fdacc8d331a5d4b37865e0c2a5e88400))
+
 ## [1.19.1](https://github.com/InfiniBrains/mobagen/compare/v1.19.0...v1.19.1) (2026-08-27)
 
 
