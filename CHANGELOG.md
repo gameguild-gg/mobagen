@@ -1,3 +1,10 @@
+## [1.18.9](https://github.com/InfiniBrains/mobagen/compare/v1.18.8...v1.18.9) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ci:** clang-format 14.0.6 sweep over drifted C++ sources, add xcb dev deps for Dawn ([98f536a](https://github.com/InfiniBrains/mobagen/commit/98f536a914decacff63d72ef28329c604c45f5a9))
+
 ## [1.18.8](https://github.com/InfiniBrains/mobagen/compare/v1.18.7...v1.18.8) (2026-08-27)
 
 
