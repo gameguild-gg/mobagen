@@ -13,6 +13,6 @@ import org.libsdl.app.SDLActivity;
  * override the relevant SDL hook methods here.
  */
 public class MoBaGenActivity extends SDLActivity {
-    // No additional overrides required for a basic SDL3 app.
-    // SDL_main() in your C++ code is the entry point.
+  // No additional overrides required for a basic SDL3 app.
+  // SDL_main() in your C++ code is the entry point.
 }
