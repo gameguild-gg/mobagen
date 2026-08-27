@@ -1,3 +1,10 @@
+## [1.18.14](https://github.com/InfiniBrains/mobagen/compare/v1.18.13...v1.18.14) (2026-08-27)
+
+
+### Bug Fixes
+
+* **readme:** point Pages links at the live site URL (gameguild-gg.github.io) ([b6e9969](https://github.com/InfiniBrains/mobagen/commit/b6e996994fd80b2551f70ba2cd3192adb9d831da))
+
 ## [1.18.13](https://github.com/InfiniBrains/mobagen/compare/v1.18.12...v1.18.13) (2026-08-27)
 
 
