@@ -6,6 +6,10 @@
 #include <cstdio>
 #include <iostream>
 
+#ifdef __EMSCRIPTEN__
+#  include <emscripten.h>
+#endif
+
 // Simulation state component (replaces the OOP HeadlessTestObject fields).
 struct SimState {
   float totalTime = 0.0f;
@@ -31,6 +35,9 @@ int main() {
   bool running = true;
 
   while (running) {
+#ifdef __EMSCRIPTEN__
+    emscripten_sleep(1);  // yield to the browser event loop via asyncify (prevents busy spin)
+#endif
     // Update system: advance time, log, check stop condition.
     world.view<SimState>([&](ecs::Entity, SimState& s) {
       s.totalTime += kTargetDt;

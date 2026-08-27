@@ -41,7 +41,14 @@ namespace jobs {
     // fallback for environments without SharedArrayBuffer (some browser contexts).
     enum class Mode { Threaded, Inline };
 
+#ifdef __EMSCRIPTEN__
+    // Web default: Inline — no pthreads/SharedArrayBuffer requirement (GitHub
+    // Pages and other static hosts cannot send COOP/COEP headers). Pass
+    // Mode::Threaded explicitly on hosts that are cross-origin isolated.
+    explicit Scheduler(unsigned workers = 0, Mode mode = Mode::Inline);
+#else
     explicit Scheduler(unsigned workers = 0, Mode mode = Mode::Threaded);  // 0 => hardware_concurrency
+#endif
     ~Scheduler();
 
     void kick(Task&& t, WaitGroup& completion);  // own the task; signal completion when done
