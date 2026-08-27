@@ -298,3 +298,74 @@ else()
   )
   target_compile_definitions(dawn_webgpu INTERFACE WEBGPU_BACKEND_DAWN=1)
 endif()
+
+# ---------------------------------------------------------------------------
+# Windows: deploy d3dcompiler_47.dll next to the binaries.
+#
+# Dawn's D3D backends LoadLibrary("d3dcompiler_47.dll") (FXC shader compiler) at device creation,
+# probing the executable directory first. If the DLL is not found there, Dawn falls back to a bare
+# LoadLibraryEx call with LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR, which Windows rejects with
+# ERROR_INVALID_PARAMETER (87) for relative filenames — observed on Windows 11 ARM64 (Parallels)
+# even though System32 contains a matching ARM64 FXC. Shipping the SDK-redist DLL beside the apps
+# sidesteps the loader quirk and keeps fresh machines working without manual DLL copying.
+# ---------------------------------------------------------------------------
+if(WIN32 AND NOT EMSCRIPTEN)
+  # Map the target machine to the Windows SDK redist folder name. ARM64EC maps to arm64 (no EC
+  # redist exists; the ARM64 binary is the best available match).
+  set(_dawn_fxc_arch "")
+  if(CMAKE_GENERATOR_PLATFORM MATCHES "ARM64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|AARCH64)")
+    set(_dawn_fxc_arch arm64)
+  elseif(
+    CMAKE_GENERATOR_PLATFORM STREQUAL "x64"
+    OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|X64)"
+  )
+    set(_dawn_fxc_arch x64)
+  elseif(
+    CMAKE_GENERATOR_PLATFORM STREQUAL "Win32" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(X86|i[3-6]86)"
+  )
+    set(_dawn_fxc_arch x86)
+  endif()
+
+  set(_dawn_fxc_dll "")
+  if(_dawn_fxc_arch)
+    get_filename_component(
+      _dawn_kits_root
+      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]" ABSOLUTE
+    )
+    foreach(
+      _dawn_sdk_root IN ITEMS "$ENV{WindowsSdkDir}" "${_dawn_kits_root}"
+      "C:/Program Files (x86)/Windows Kits/10" "C:/Program Files (x86)/Windows Kits/8.1"
+    )
+      if(EXISTS "${_dawn_sdk_root}")
+        file(GLOB _dawn_fxc_hits "${_dawn_sdk_root}/Redist/D3D/${_dawn_fxc_arch}/d3dcompiler_47.dll")
+        if(_dawn_fxc_hits)
+          list(GET _dawn_fxc_hits 0 _dawn_fxc_dll)
+          break()
+        endif()
+      endif()
+    endforeach()
+  endif()
+
+  if(_dawn_fxc_dll)
+    # Copy at configure time so the DLL is present even when IDEs build a single target (the ALL
+    # custom target below is not in any specific executable's dependency graph). Re-copies on every
+    # configure, which is cheap and keeps fresh machines and cleaned bin/ directories working.
+    file(COPY "${_dawn_fxc_dll}" DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+    message(STATUS "Dawn: deployed ${_dawn_fxc_dll} to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+    add_custom_target(
+      dawn_deploy_d3dcompiler ALL
+      COMMAND
+        "${CMAKE_COMMAND}" -E copy_if_different "${_dawn_fxc_dll}"
+        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+      DEPENDS "${_dawn_fxc_dll}"
+      COMMENT "Deploying d3dcompiler_47.dll (${_dawn_fxc_arch}) to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+      VERBATIM
+    )
+  else()
+    message(
+      WARNING
+        "d3dcompiler_47.dll not found in the Windows SDK redist (arch '${_dawn_fxc_arch}'). Dawn's "
+        "D3D backends need it at runtime — install a Windows SDK with the D3D redist component."
+    )
+  endif()
+endif()
