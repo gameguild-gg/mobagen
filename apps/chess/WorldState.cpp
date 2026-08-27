@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include "WorldState.h"
 PieceData WorldState::PieceAtPosition(Point2D pos) {
   if (pos.x < 0 || pos.x > 7 || pos.y < 0 || pos.y > 7) return PieceData::Wrong();

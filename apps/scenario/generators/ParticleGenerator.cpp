@@ -1,4 +1,5 @@
 #include "ParticleGenerator.h"
+#include <string>
 #include "../FastNoiseLite.h"
 #include "Random.h"
 #include <iostream>

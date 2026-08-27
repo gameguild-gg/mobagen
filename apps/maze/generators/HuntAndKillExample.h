@@ -2,6 +2,7 @@
 #define HUNTANDKILLEXAMPLE_H
 
 #include "../MazeGeneratorBase.h"
+#include <string>
 #include "math/Point2D.h"
 #include <map>
 #include <vector>

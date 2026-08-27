@@ -1,6 +1,7 @@
 #ifndef MOBAGEN_JOHNCONWAY_H
 #define MOBAGEN_JOHNCONWAY_H
 #include "../RuleBase.h"
+#include <string>
 
 class JohnConway : public RuleBase {
 public:
