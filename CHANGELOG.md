@@ -1,3 +1,10 @@
+## [1.19.4](https://github.com/InfiniBrains/mobagen/compare/v1.19.3...v1.19.4) (2026-08-28)
+
+
+### Bug Fixes
+
+* **build:** reject non-visual-studio toolchains on windows with actionable error ([62a0018](https://github.com/InfiniBrains/mobagen/commit/62a0018d820e93e7479f0e29085f607c49d45b65))
+
 ## [1.19.3](https://github.com/InfiniBrains/mobagen/compare/v1.19.2...v1.19.3) (2026-08-28)
 
 
