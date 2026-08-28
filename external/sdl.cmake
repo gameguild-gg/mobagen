@@ -37,6 +37,7 @@ CPMAddPackage(
           "SDL_WERROR OFF"
           "SDL_TEST_LIBRARY OFF"
           "SDL_TESTS OFF"
+          "SDL_DIRECTX OFF"
 )
 string(TIMESTAMP AFTER "%s")
 math(EXPR DELTASDL "${AFTER} - ${BEFORE}")
