@@ -1,3 +1,10 @@
+## [1.19.3](https://github.com/InfiniBrains/mobagen/compare/v1.19.2...v1.19.3) (2026-08-28)
+
+
+### Bug Fixes
+
+* sdl dependency ([f4955dc](https://github.com/InfiniBrains/mobagen/commit/f4955dc9dd46e8fb25cd5bb1b80fb7ba4407ca66))
+
 ## [1.19.2](https://github.com/InfiniBrains/mobagen/compare/v1.19.1...v1.19.2) (2026-08-27)
 
 
