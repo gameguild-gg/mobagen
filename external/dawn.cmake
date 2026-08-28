@@ -16,6 +16,53 @@ add_library(dawn_webgpu INTERFACE)
 add_library(dawn::webgpu ALIAS dawn_webgpu)
 
 # ---------------------------------------------------------------------------
+# Dawn requires Python 3 (interpreter) plus the jinja2 module at configure and build time — it
+# fetches third-party dependencies and generates headers (webgpu.h / webgpu_cpp.h / tint) from
+# templates. Check this BEFORE CPMAddPackage so students fail fast with actionable instructions
+# instead of Dawn's mid-configure "find_package(Python3 REQUIRED)" or "Missing dependencies for
+# code generation" errors.
+# ---------------------------------------------------------------------------
+if(NOT EMSCRIPTEN)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(NOT Python3_FOUND)
+    if(WIN32)
+      set(_DAWN_PYTHON_HINT
+          [[Install Python 3 from https://www.python.org/downloads/ or via 'winget install -e --id Python.Python.3.13' (tick 'Add python.exe to PATH' in the installer), then delete the build directory and reload the CMake project.]]
+      )
+    elseif(APPLE)
+      set(_DAWN_PYTHON_HINT
+          [[Install Python 3 via 'brew install python' or from https://www.python.org/downloads/, then delete the build directory and reload the CMake project.]]
+      )
+    else()
+      set(_DAWN_PYTHON_HINT
+          [[Install Python 3 via your package manager, e.g. 'sudo apt install python3 python3-pip', then delete the build directory and reload the CMake project.]]
+      )
+    endif()
+    message(
+      FATAL_ERROR
+        "MoBaGEn requires Python 3 to build Dawn (WebGPU): it drives dependency fetching and "
+        "header/code generation. No usable Python 3 interpreter was found on this system. "
+        "${_DAWN_PYTHON_HINT}"
+    )
+  endif()
+
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -c "import jinja2"
+    RESULT_VARIABLE _DAWN_JINJA2_RESULT
+    OUTPUT_QUIET ERROR_QUIET
+  )
+  if(NOT _DAWN_JINJA2_RESULT EQUAL 0)
+    message(
+      FATAL_ERROR
+        "MoBaGEn requires the python 'jinja2' module to build Dawn (WebGPU): it is used by Dawn's "
+        "code generators. It is missing for interpreter '${Python3_EXECUTABLE}'. Fix with: "
+        "'${Python3_EXECUTABLE}' -m pip install jinja2, then delete the build directory and reload "
+        "the CMake project."
+    )
+  endif()
+endif()
+
+# ---------------------------------------------------------------------------
 # Native-only build options. Must be set BEFORE CPMAddPackage so Dawn picks them up. On Emscripten
 # we use DOWNLOAD_ONLY and skip these entirely.
 # ---------------------------------------------------------------------------
