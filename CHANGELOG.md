@@ -1,3 +1,10 @@
+## [1.19.5](https://github.com/InfiniBrains/mobagen/compare/v1.19.4...v1.19.5) (2026-08-28)
+
+
+### Bug Fixes
+
+* **dawn:** fail fast with actionable message when python3/jinja2 missing ([a661bf5](https://github.com/InfiniBrains/mobagen/commit/a661bf54127abbc75618ca6e067edabc1ca4f841))
+
 ## [1.19.4](https://github.com/InfiniBrains/mobagen/compare/v1.19.3...v1.19.4) (2026-08-28)
 
 
