@@ -54,5 +54,7 @@ if(NOT EMSCRIPTEN)
   )
   target_include_directories(flocking-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CORE_INC_DIR})
   target_link_libraries(flocking-tests PRIVATE doctest::doctest glm::glm flocking_tests_imgui)
-  target_compile_definitions(flocking-tests PRIVATE FLOCKING_TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")
+  # Normalize to forward slashes: MSVC mangles backslash escapes inside string-literal defines.
+  file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests" FLOCKING_TESTS_DIR_PATH)
+  target_compile_definitions(flocking-tests PRIVATE FLOCKING_TESTS_DIR="${FLOCKING_TESTS_DIR_PATH}")
 endif()
