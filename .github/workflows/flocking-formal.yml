@@ -1,0 +1,83 @@
+name: flocking-formal
+
+on:
+  push:
+    paths:
+      - 'apps/flocking/**'
+      - '.github/workflows/flocking-formal.yml'
+  pull_request:
+    paths:
+      - 'apps/flocking/**'
+      - '.github/workflows/flocking-formal.yml'
+  workflow_dispatch:
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm_cache
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cpm_cache
+          key: flocking-cpm-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: flocking-cpm-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake \
+            mesa-common-dev libgl1-mesa-dev libx11-dev mesa-utils libgl-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxext-dev libxfixes-dev libxkbcommon-dev libxcb1-dev libx11-xcb-dev
+
+      - name: configure
+        run: cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=MinSizeRel
+
+      - name: build
+        id: build
+        continue-on-error: true
+        run: cmake --build build --parallel --target flocking-tests
+
+      - name: run formal tests
+        id: runtests
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./build/bin/flocking-tests 2>&1 | tee report.txt
+
+      - name: ensure report exists
+        if: always()
+        run: |
+          if [ ! -f report.txt ]; then
+            echo "runner build failed" > report.txt
+          fi
+
+      - name: summary
+        if: always()
+        run: |
+          {
+            echo '## Flocking formal tests'
+            echo
+            echo '```'
+            cat report.txt
+            echo '```'
+            PCT=$(sed -n 's/.*(\([0-9]*\.[0-9]\)%)$/\1/p' report.txt | tail -n 1)
+            if [ -n "$PCT" ]; then
+              echo "Percentage: ${PCT}%"
+            else
+              echo 'Percentage: n/a (runner did not produce a score, see report above)'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flocking-formal-report
+          path: report.txt
