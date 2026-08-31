@@ -18,6 +18,25 @@ else()
   )
 endif()
 
+# Windows builds must use the Visual Studio toolchain (MSVC or ClangCL). Dawn's D3D11/D3D12
+# backends require Windows SDK headers and the MSVC environment; MinGW and other toolchains fail
+# with errors like "DXProgrammableCapture.h: No such file or directory". Note: ClangCL also sets
+# MSVC=1, so it is accepted. This also catches CLion's bundled MinGW GCC (jetbrains ...\bin\mingw).
+if(WIN32 AND NOT MSVC)
+  message(
+    FATAL_ERROR
+      "MoBaGEn on Windows requires the Visual Studio toolchain (MSVC or ClangCL), but this "
+      "configure is using: '${CMAKE_CXX_COMPILER}' "
+      "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}). "
+      "Dawn (WebGPU) compiles its D3D backends against the Windows SDK, which MinGW/other "
+      "toolchains do not provide (e.g. fatal error: DXProgrammableCapture.h: No such file or "
+      "directory). If you are using CLion, switch the toolchain under Settings -> Build, "
+      "Execution, Deployment -> Toolchains to 'Visual Studio' (install Visual Studio with the "
+      "'Desktop development with C++' workload first if needed), then delete the build directory "
+      "(e.g. cmake-build-debug) and reload the CMake project."
+  )
+endif()
+
 # CHECK OR APPLE MACHINE
 if(NOT DEFINED APPLE)
   set(APPLE OFF)

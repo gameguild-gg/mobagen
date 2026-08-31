@@ -4,6 +4,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_wgpu.h"
 #include "Manager.h"
+#include "PieceTextures.h"
 #include "ecs/world.hpp"
 #include "jobs/scheduler.hpp"
 
@@ -199,7 +200,11 @@ int main(int, char**) {
   wgpu_init.DepthStencilFormat = WGPUTextureFormat_Undefined;
   ImGui_ImplWGPU_Init(&wgpu_init);
 
+  PieceTextures pieceArt;
+  if (!pieceArt.load(wgpu_device)) SDL_Log("Chess: piece textures unavailable, drawing letters instead");
+
   Manager manager;
+  manager.SetPieceArt(&pieceArt);
   manager.Start();
   SDL_Log("Chess Started");
 
@@ -207,6 +212,9 @@ int main(int, char**) {
   bool done = false;
 
   while (!done) {
+#ifdef __EMSCRIPTEN__
+    SDL_Delay(1);  // yield to the browser event loop via asyncify (prevents busy spin)
+#endif
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL3_ProcessEvent(&event);

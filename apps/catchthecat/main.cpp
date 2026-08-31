@@ -201,7 +201,8 @@ static void FillHexagon(ImDrawList* dl, float cx, float cy, float radius, ImU32 
 static void drawHexGrid(const CatWorld& catWorld, float winW, float winH) {
   ImDrawList* dl = ImGui::GetBackgroundDrawList();
   int sz = catWorld.getWorldSideSize();
-  float scale = (std::min(winW, winH) / static_cast<float>(sz)) / 2.0f;
+  // (std::min): parentheses block the windows.h 'min' macro on MSVC/clang-cl.
+  float scale = ((std::min)(winW, winH) / static_cast<float>(sz)) / 2.0f;
   float radius = floorf(scale) - 0.5f;
 
   float posX = winW / 2.0f - sz * scale;
@@ -452,6 +453,9 @@ static int runRegularMode(int size) {
   auto lastTime = std::chrono::high_resolution_clock::now();
 
   while (!done) {
+#ifdef __EMSCRIPTEN__
+    SDL_Delay(1);  // yield to the browser event loop via asyncify (prevents busy spin)
+#endif
     // Event processing
     SDL_Event event;
     while (SDL_PollEvent(&event)) {

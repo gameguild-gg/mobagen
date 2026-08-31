@@ -155,7 +155,7 @@ void FlockingManager::Update(float deltaTime) {
           float mag = glm::length(acc.acc);
           if (mag > cfg.maxAcceleration && mag > 0.0001f) acc.acc = acc.acc * (cfg.maxAcceleration / mag);
 
-          glm::vec2 newVel = vel.vel + acc.acc;
+          glm::vec2 newVel = vel.vel + acc.acc * deltaTime;
           acc.prevAcc = acc.acc;
           acc.acc = glm::vec2(0.f);
 

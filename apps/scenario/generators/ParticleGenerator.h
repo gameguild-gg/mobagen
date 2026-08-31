@@ -4,6 +4,7 @@
 
 // reference: https://github.com/weigert/SimpleErosion
 #include "../GeneratorBase.h"
+#include <string>
 #include <glm/vec3.hpp>
 #include <glm/gtx/normal.hpp>
 class ParticleGenerator : public ScenarioGeneratorBase {

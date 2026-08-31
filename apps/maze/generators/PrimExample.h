@@ -2,6 +2,7 @@
 #define MOBAGEN_EXAMPLES_MAZE_GENERATORS_PRIMEXAMPLE_H_
 
 #include <vector>
+#include <string>
 #include "../MazeGeneratorBase.h"
 #include "math/Point2D.h"
 #include <map>

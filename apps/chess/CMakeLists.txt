@@ -23,4 +23,4 @@ install(FILES ${CHESS_INC} DESTINATION include/chess)
 add_executable(chess ${CHESS_SRC} ${CHESS_INC})
 
 target_include_directories(chess PUBLIC ${CORE_INC_DIR})
-target_link_libraries(chess PUBLIC core)
+target_link_libraries(chess PUBLIC core lunasvg::lunasvg)
