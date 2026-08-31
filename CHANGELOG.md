@@ -1,3 +1,17 @@
+# [1.20.0](https://github.com/InfiniBrains/mobagen/compare/v1.19.5...v1.20.0) (2026-08-31)
+
+
+### Bug Fixes
+
+* add delta time ([5cdd5e7](https://github.com/InfiniBrains/mobagen/commit/5cdd5e74cda68823b0fb40b87beddbb26a66057d))
+* flocking rules ([70ddfa7](https://github.com/InfiniBrains/mobagen/commit/70ddfa7911c9ed8f2bd820e604b0f52bf44eb5d6))
+* **flocking:** normalize FLOCKING_TESTS_DIR to forward slashes for MSVC ([80de23d](https://github.com/InfiniBrains/mobagen/commit/80de23d33837744af50869b99b7aca43fb690183))
+
+
+### Features
+
+* **flocking:** flocking-tests runner driving existing rules with pass-percentage report ([0274107](https://github.com/InfiniBrains/mobagen/commit/02741070569506fdcb47bfc2c86dfc9d897fe16e))
+
 ## [1.19.5](https://github.com/InfiniBrains/mobagen/compare/v1.19.4...v1.19.5) (2026-08-28)
 
 
