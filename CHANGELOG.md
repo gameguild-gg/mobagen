@@ -1,3 +1,10 @@
+## [1.20.1](https://github.com/InfiniBrains/mobagen/compare/v1.20.0...v1.20.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* remove some leftovers from the transition to webgpu ([4ac25c9](https://github.com/InfiniBrains/mobagen/commit/4ac25c9b18c9561935e054dc721d65eff153d3a2))
+
 # [1.20.0](https://github.com/InfiniBrains/mobagen/compare/v1.19.5...v1.20.0) (2026-08-31)
 
 
