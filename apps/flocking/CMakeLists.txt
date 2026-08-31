@@ -32,3 +32,27 @@ add_executable(flocking ${FLOCKING_SRC} ${FLOCKING_INC})
 
 target_include_directories(flocking PUBLIC ${CORE_INC_DIR})
 target_link_libraries(flocking PUBLIC core)
+
+# Formal fixture test runner (console; drives the existing rule classes)
+if(NOT EMSCRIPTEN)
+  CPMAddPackage("gh:onqtam/doctest@2.4.12")
+
+  # The IMGUI target publicly links SDL3 + dawn, which a console test runner must not pull in. Build
+  # the minimal core-only imgui static library instead (no backends, no SDL/Dawn dependencies).
+  add_library(
+    flocking_tests_imgui STATIC
+    ${IMGUI_SOURCE_DIR}/imgui.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_tables.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
+  )
+  target_include_directories(flocking_tests_imgui PUBLIC ${IMGUI_SOURCE_DIR})
+
+  add_executable(
+    flocking-tests tests/flocking_tests.cpp behaviours/FlockingRule.cpp behaviours/CohesionRule.cpp
+                   behaviours/AlignmentRule.cpp behaviours/SeparationRule.cpp utils/ImGuiExtra.cpp
+  )
+  target_include_directories(flocking-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CORE_INC_DIR})
+  target_link_libraries(flocking-tests PRIVATE doctest::doctest glm::glm flocking_tests_imgui)
+  target_compile_definitions(flocking-tests PRIVATE FLOCKING_TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")
+endif()
