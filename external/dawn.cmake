@@ -46,20 +46,20 @@ if(NOT EMSCRIPTEN)
     )
   endif()
 
-  execute_process(
-    COMMAND "${Python3_EXECUTABLE}" -c "import jinja2"
-    RESULT_VARIABLE _DAWN_JINJA2_RESULT
-    OUTPUT_QUIET ERROR_QUIET
-  )
-  if(NOT _DAWN_JINJA2_RESULT EQUAL 0)
-    message(
-      FATAL_ERROR
-        "MoBaGEn requires the python 'jinja2' module to build Dawn (WebGPU): it is used by Dawn's "
-        "code generators. It is missing for interpreter '${Python3_EXECUTABLE}'. Fix with: "
-        "'${Python3_EXECUTABLE}' -m pip install jinja2, then delete the build directory and reload "
-        "the CMake project."
-    )
-  endif()
+#  execute_process(
+#    COMMAND "${Python3_EXECUTABLE}" -c "import jinja2"
+#    RESULT_VARIABLE _DAWN_JINJA2_RESULT
+#    OUTPUT_QUIET ERROR_QUIET
+#  )
+#  if(NOT _DAWN_JINJA2_RESULT EQUAL 0)
+#    message(
+#      FATAL_ERROR
+#        "MoBaGEn requires the python 'jinja2' module to build Dawn (WebGPU): it is used by Dawn's "
+#        "code generators. It is missing for interpreter '${Python3_EXECUTABLE}'. Fix with: "
+#        "'${Python3_EXECUTABLE}' -m pip install jinja2, then delete the build directory and reload "
+#        "the CMake project."
+#    )
+#  endif()
 endif()
 
 # ---------------------------------------------------------------------------
