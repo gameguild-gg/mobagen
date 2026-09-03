@@ -1,3 +1,10 @@
+## [1.20.2](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.20.2) (2026-09-03)
+
+
+### Bug Fixes
+
+* **flocking:** shrink debug force-line scale to match new weight magnitudes ([324eb47](https://github.com/InfiniBrains/mobagen/commit/324eb47e0a1abdb1d73658c5b3d702ec6e8f49c4))
+
 ## [1.20.1](https://github.com/InfiniBrains/mobagen/compare/v1.20.0...v1.20.1) (2026-08-31)
 
 
