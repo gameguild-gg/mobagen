@@ -22,8 +22,8 @@
 FlockingManager::FlockingManager(ecs::World& world, jobs::Scheduler& sched) : ecs_(world), sched_(sched) {}
 
 void FlockingManager::initializeRules() {
-  boidsRules.emplace_back(std::make_unique<SeparationRule>(25.f, 4.75f));
-  boidsRules.emplace_back(std::make_unique<CohesionRule>(4.25f));
+  boidsRules.emplace_back(std::make_unique<SeparationRule>(25.f, 90.f));
+  boidsRules.emplace_back(std::make_unique<CohesionRule>(60.f));
   boidsRules.emplace_back(std::make_unique<AlignmentRule>(2.9f));
   boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(2.f));
   boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(20, 8.f, false));
@@ -206,7 +206,7 @@ void FlockingManager::OnDraw() {
     }
 
     if (showAcceleration || dbg.drawAcceleration) {
-      glm::vec2 end = p + acc.prevAcc * 2.f;
+      glm::vec2 end = p + acc.prevAcc * 0.08f;
       dl->AddLine({p.x, p.y}, {end.x, end.y}, IM_COL32(128, 0, 128, 220), 1.5f);
     }
 
