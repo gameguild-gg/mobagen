@@ -44,7 +44,7 @@ bool FlockingRule::drawImguiRule() {
 }
 
 void FlockingRule::draw(const BoidView& boid, ImDrawList* dl, glm::vec2 cachedForce) const {
-  glm::vec2 end = boid.position + cachedForce * 1.5f;
+  glm::vec2 end = boid.position + cachedForce * 0.1f;
   ImU32 col = IM_COL32(static_cast<int>(debugColor.r * 255), static_cast<int>(debugColor.g * 255), static_cast<int>(debugColor.b * 255), 200);
   dl->AddLine({boid.position.x, boid.position.y}, {end.x, end.y}, col, 1.5f);
 }
