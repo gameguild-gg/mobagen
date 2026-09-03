@@ -23,7 +23,7 @@ FlockingManager::FlockingManager(ecs::World& world, jobs::Scheduler& sched) : ec
 
 void FlockingManager::initializeRules() {
   boidsRules.emplace_back(std::make_unique<SeparationRule>(25.f, 4.75f));
-  boidsRules.emplace_back(std::make_unique<CohesionRule>(4.25f));
+  boidsRules.emplace_back(std::make_unique<CohesionRule>(200.0f));
   boidsRules.emplace_back(std::make_unique<AlignmentRule>(2.9f));
   boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(2.f));
   boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(20, 8.f, false));
