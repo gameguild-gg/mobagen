@@ -182,8 +182,8 @@ bool fixturePasses(const FixtureFiles& fixture) {
 
     input = normalizeLineEndings(input);
     expectedOutput = trim(normalizeLineEndings(expectedOutput));
-
-    passed = compareOutputs(runFlockingSimulation(input), expectedOutput, 1e-3);
+    std::string actualOutput = runFlockingSimulation(input);
+    passed = compareOutputs(actualOutput, expectedOutput, 1e-3);
   }
 
   fixtureResults[fixture.name] = passed;
