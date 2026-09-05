@@ -22,5 +22,4 @@ install(FILES ${LIFE_INC} DESTINATION include/life)
 
 add_executable(life ${LIFE_SRC} ${LIFE_INC})
 
-target_include_directories(life PUBLIC ${CORE_INC_DIR})
 target_link_libraries(life PUBLIC core)

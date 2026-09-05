@@ -13,6 +13,9 @@ if(NOT BUILD_PROTOTYPES)
   list(REMOVE_ITEM SUBDIRS dawn_probe fibers_prototype)
 endif()
 
+
+include_directories(${CMAKE_SOURCE_DIR}/core ${CMAKE_SOURCE_DIR}/core/sources)
+
 foreach(subdir ${SUBDIRS})
   add_subdirectory(${subdir})
 endforeach()
