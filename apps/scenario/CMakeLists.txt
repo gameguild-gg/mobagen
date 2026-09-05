@@ -22,5 +22,4 @@ install(FILES ${SCENARIO_INC} DESTINATION include/scenario)
 
 add_executable(scenario ${SCENARIO_SRC} ${SCENARIO_INC})
 
-target_include_directories(scenario PUBLIC ${CORE_INC_DIR})
 target_link_libraries(scenario PUBLIC core)

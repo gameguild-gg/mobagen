@@ -35,4 +35,3 @@ install(FILES ${CATCHTHECAT_INC} DESTINATION include/catchthecat)
 
 add_executable(catchthecat ${CATCHTHECAT_SRC} ${CATCHTHECAT_INC})
 target_link_libraries(catchthecat PUBLIC core)
-target_include_directories(catchthecat PUBLIC ${CORE_INC_DIR})
