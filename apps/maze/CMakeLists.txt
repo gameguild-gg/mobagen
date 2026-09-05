@@ -22,5 +22,4 @@ install(FILES ${MAZE_INC} DESTINATION include/maze)
 
 add_executable(maze ${MAZE_SRC} ${MAZE_INC})
 
-target_include_directories(maze PUBLIC ${CORE_INC_DIR})
 target_link_libraries(maze PUBLIC core)

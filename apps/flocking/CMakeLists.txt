@@ -30,7 +30,6 @@ install(FILES ${FLOCKING_INC} DESTINATION include/flocking)
 
 add_executable(flocking ${FLOCKING_SRC} ${FLOCKING_INC})
 
-target_include_directories(flocking PUBLIC ${CORE_INC_DIR})
 target_link_libraries(flocking PUBLIC core)
 
 # Formal fixture test runner (console; drives the existing rule classes)
@@ -52,7 +51,8 @@ if(NOT EMSCRIPTEN)
     flocking-tests tests/flocking_tests.cpp behaviours/FlockingRule.cpp behaviours/CohesionRule.cpp
                    behaviours/AlignmentRule.cpp behaviours/SeparationRule.cpp utils/ImGuiExtra.cpp
   )
-  target_include_directories(flocking-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CORE_INC_DIR})
+  # App-local includes only; core paths are inherited from apps/CMakeLists.txt.
+  target_include_directories(flocking-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(flocking-tests PRIVATE doctest::doctest glm::glm flocking_tests_imgui)
   # Normalize to forward slashes: MSVC mangles backslash escapes inside string-literal defines.
   file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests" FLOCKING_TESTS_DIR_PATH)
