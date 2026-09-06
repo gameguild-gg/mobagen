@@ -1,3 +1,27 @@
+## [1.20.2](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.20.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* fine tune weights again ([66e6640](https://github.com/InfiniBrains/mobagen/commit/66e6640da3eb5bdeaf18f5f9fd0c5865fbca34b4))
+* **flocking:** shrink debug lines to match new weight magnitudes ([7a1f7d3](https://github.com/InfiniBrains/mobagen/commit/7a1f7d3bb06763ed9c747d242774c40d0c47403a))
+
+## [1.20.2](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.20.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* fine tune weights again ([66e6640](https://github.com/InfiniBrains/mobagen/commit/66e6640da3eb5bdeaf18f5f9fd0c5865fbca34b4))
+* **flocking:** shrink debug lines to match new weight magnitudes ([7a1f7d3](https://github.com/InfiniBrains/mobagen/commit/7a1f7d3bb06763ed9c747d242774c40d0c47403a))
+
+## [1.20.2](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.20.2) (2026-09-04)
+
+
+### Bug Fixes
+
+* fine tune weights again ([66e6640](https://github.com/InfiniBrains/mobagen/commit/66e6640da3eb5bdeaf18f5f9fd0c5865fbca34b4))
+* **flocking:** shrink debug lines to match new weight magnitudes ([7a1f7d3](https://github.com/InfiniBrains/mobagen/commit/7a1f7d3bb06763ed9c747d242774c40d0c47403a))
+
 ## [1.20.2](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.20.2) (2026-09-03)
 
 

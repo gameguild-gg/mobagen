@@ -10,5 +10,4 @@ install(FILES ${HIDEANDSEEKSQUARED_INC} DESTINATION include/hideandseeksquared)
 
 add_executable(hideandseeksquared ${HIDEANDSEEKSQUARED_SRC} ${HIDEANDSEEKSQUARED_INC})
 
-target_include_directories(hideandseeksquared PUBLIC ${CORE_INC_DIR})
 target_link_libraries(hideandseeksquared PUBLIC core mobagen::core_random)

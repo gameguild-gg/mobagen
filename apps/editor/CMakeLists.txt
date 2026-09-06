@@ -45,7 +45,5 @@ if(BUILD_EDITOR)
   # itkgdcmCommon-5.3 itkzlib-5.3) if(EMSCRIPTEN) target_compile_options(editor PUBLIC "-Oz")
   # target_link_options(editor PUBLIC "-s WASM=2 -s USE_SDL=0 -s EXPORT_ALL=1") endif()
 
-  target_include_directories(editor PUBLIC ${CORE_INC_DIR})
-
   # target_sources(editor PUBLIC ${TARGET_SRC} )
 endif()
