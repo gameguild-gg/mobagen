@@ -8,7 +8,7 @@ private:
   bool isRepulsive;
 
 public:
-  explicit MouseInfluenceRule(float weight = 1.f, bool isRepulsive_ = false, bool isEnabled = true)
+  explicit MouseInfluenceRule(float weight = 1.f, bool isRepulsive_ = false, bool isEnabled = false)
       : FlockingRule(Color::Magenta, weight, isEnabled), isRepulsive(isRepulsive_) {}
 
   MouseInfluenceRule(const MouseInfluenceRule& toCopy) : FlockingRule(toCopy) { isRepulsive = toCopy.isRepulsive; }

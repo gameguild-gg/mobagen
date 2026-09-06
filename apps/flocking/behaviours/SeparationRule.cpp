@@ -17,7 +17,7 @@ glm::vec2 SeparationRule::computeForce(const std::vector<BoidView>& neighborhood
     float len = glm::length(awayVector);
     glm::vec2 hat = glm::normalize(awayVector);
     if (len >0.0001f && len<desiredMinimalDistance) 
-        separatingForce += (hat /len);
+        separatingForce += ((hat / len)* desiredMinimalDistance/len);
   }
 
   // end solution
