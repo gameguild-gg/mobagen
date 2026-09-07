@@ -85,11 +85,11 @@ void Manager::OnGui() {
       index = mousePositionToIndex(mousePos);
     }
 
-    std::cout << "(" << index.x << "," << index.y << ")" << std::endl;
+    //std::cout << "(" << index.x << "," << index.y << ")" << std::endl;
 
     if (lastIndexClicked != index) {
       lastIndexClicked = index;
-      std::cout << "MatrixPos: (" << index.x << "," << index.y << ")" << std::endl;
+      //std::cout << "MatrixPos: (" << index.x << "," << index.y << ")" << std::endl;
       if (index.x >= 0 && index.x < sideSize && index.y >= 0 && index.y < sideSize) {
         world.SetCurrent(index, !world.Get(index));  // to be visible
         world.SetNext(index, !world.Get(index));     // to be used next time
