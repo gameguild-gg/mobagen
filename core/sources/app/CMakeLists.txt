@@ -11,7 +11,7 @@
 # SDL3 target selection mirrors core/CMakeLists.txt: Android loads the shared
 # library via SDLActivity/JNI; every other platform links the static variant.
 if(ANDROID)
-  set(_APP_SDL_TARGET SDL3::SDL3-share)
+  set(_APP_SDL_TARGET SDL3::SDL3-shared)
 else()
   set(_APP_SDL_TARGET SDL3::SDL3-static)
 endif()
