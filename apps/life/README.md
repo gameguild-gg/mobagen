@@ -2,6 +2,8 @@
 
 You are applying for an internship position at Valvule Corp, and they want to test your abilities to manage states. You were tasked to code the Conway's Game of Life.
 
+The theory behind this assignment is in [LECTURE.md](LECTURE.md) — read it first; the classes and the update loop described there are exactly the ones you will wire here.
+
 Everything happens in **this one repo**. For the formal assignment you do not clone anything else:
 
 - **Formal assignment:** the automated tests live here. The fixtures are `.in`/`.out` pairs in `apps/life/tests/`, replayed by the `life-tests` runner. Your implementation surface is the same rule class the demo app uses: `apps/life/rules/JohnConway.cpp` (conditions, actions, wiring, `Step` and `CountNeighbors`) on top of the `World` grid (`apps/life/World.h`) and the `fsm/` framework (`apps/life/fsm/`), where you implement the machine core (`StateMachine::Update`). There is no separate formal header to fill in.
