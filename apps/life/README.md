@@ -19,7 +19,7 @@ cmake --build build --parallel --target life-tests
 
 Edit the solution regions (marked `begin solution` / `end solution`), rebuild, rerun. That is the whole loop.
 
-The report prints one line per fixture, `[fixture] <name> PASS` or `REJECT`, then a summary such as `Life formal tests: 12/13 passed (92.3%)`. The exit code stays nonzero until every fixture passes, and the failing ones are listed again under `Rejected:`. A CI workflow publishes the same report on every push that touches `apps/life/`.
+The report prints one line per fixture, `[fixture] <name> PASS` or `REJECT`, then a summary such as `Life formal tests: 12/13 passed (92.3%)` followed by grade-ready counts (`Passed: 12`, `Failed: 1`). The exit code stays nonzero until every fixture passes, and the failing ones are listed again under `Rejected:`. A CI workflow publishes the same report with the counts on every push that touches `apps/life/`.
 
 :::
 

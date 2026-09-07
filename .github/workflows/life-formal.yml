@@ -73,6 +73,12 @@ jobs:
             else
               echo 'Percentage: n/a (runner did not produce a score, see report above)'
             fi
+            PASSED=$(sed -n 's/^Passed: \([0-9]*\)$/\1/p' report.txt | tail -n 1)
+            FAILED=$(sed -n 's/^Failed: \([0-9]*\)$/\1/p' report.txt | tail -n 1)
+            if [ -n "$PASSED" ]; then
+              echo "Passed: ${PASSED}"
+              echo "Failed: ${FAILED}"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: upload report
