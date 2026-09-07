@@ -140,6 +140,9 @@ include(external/glm.cmake)
 # doctest must be available before test/ and apps/ formal test runners
 include(external/doctest.cmake)
 
+# Format.cmake (format-cmake targets) for test/ and style CI
+include(external/format-cmake.cmake)
+
 add_subdirectory(core)
 add_subdirectory(modules)
 

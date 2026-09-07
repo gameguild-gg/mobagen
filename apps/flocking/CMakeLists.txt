@@ -33,7 +33,6 @@ add_executable(flocking ${FLOCKING_SRC} ${FLOCKING_INC})
 target_link_libraries(flocking PUBLIC core)
 
 # Formal fixture test runner (console; drives the existing rule classes)
-# doctest comes from external/doctest.cmake (included by the root CMakeLists)
 if(NOT EMSCRIPTEN)
   # The IMGUI target publicly links SDL3 + dawn, which a console test runner must not pull in. Build
   # the minimal core-only imgui static library instead (no backends, no SDL/Dawn dependencies).
