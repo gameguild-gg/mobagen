@@ -1,3 +1,21 @@
+# [1.21.0](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.21.0) (2026-09-07)
+
+
+### Bug Fixes
+
+* fine tune weights again ([66e6640](https://github.com/InfiniBrains/mobagen/commit/66e6640da3eb5bdeaf18f5f9fd0c5865fbca34b4))
+* **flocking:** shrink debug lines to match new weight magnitudes ([7a1f7d3](https://github.com/InfiniBrains/mobagen/commit/7a1f7d3bb06763ed9c747d242774c40d0c47403a))
+* **life:** hexagon CountNeighbors throws, SDL log stays constructor-only ([bff9539](https://github.com/InfiniBrains/mobagen/commit/bff9539e2078e061cf9c29dbcf9c90a39c104658))
+* **life:** log missing wiring via SDL instead of throwing in rule constructors ([2086257](https://github.com/InfiniBrains/mobagen/commit/208625781f725820e9bfc94fe6426f349e858226))
+* **life:** Remove dummy logs from game of life manager ([e03293f](https://github.com/InfiniBrains/mobagen/commit/e03293fea13515c046a502655cdfe56d91d4dcf1))
+
+
+### Features
+
+* **life:** life-tests runner driving JohnConway with pass-percentage report ([0a6ad58](https://github.com/InfiniBrains/mobagen/commit/0a6ad58a4ab7e6aeddc4fe32c105b836c3d7d623))
+* **life:** millington-style fsm scaffolding ([655ae87](https://github.com/InfiniBrains/mobagen/commit/655ae87bff71452c791f7fb0644769709c052a3a))
+* **life:** rectangular double-buffered world grid ([6782cde](https://github.com/InfiniBrains/mobagen/commit/6782cde6414bb7847cb9bc7b3f2528719de4003c))
+
 ## [1.20.2](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.20.2) (2026-09-05)
 
 
