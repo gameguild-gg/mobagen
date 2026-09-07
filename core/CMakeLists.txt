@@ -36,6 +36,13 @@ add_subdirectory(sources/net)
 add_subdirectory(sources/app)
 # imgui GUI layer for the app host (ImGui SDL3 + WebGPU backends)
 add_subdirectory(sources/imgui)
+# rmlui GUI layer for the app host (RmlUi bridged through ImGui's WebGPU pipeline);
+# optional — only when the RmlUi targets were configured, mirroring the
+# RMLUI_LIBS guard above so non-rmlui builds never see it.
+if(TARGET rmlui_all)
+  add_subdirectory(sources/rmlui)
+  list(APPEND RMLUI_LIBS mobagen::core_rmlui)
+endif()
 
 # ---------------------------------------------------------------------------
 # Auxiliary subsystems
