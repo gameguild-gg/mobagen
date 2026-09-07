@@ -64,6 +64,10 @@ namespace app {
     WGPUTextureFormat surface_format_ = WGPUTextureFormat_Undefined;
     WGPUSurfaceConfiguration surface_cfg_ = {};
     bool initialized_ = false;
+    // wgpuSurfaceUnconfigure on a never-configured surface (or one whose
+    // configure failed) trips a dawn DAWN_CHECK assert — only unconfigure a
+    // surface we actually configured.
+    bool surface_configured_ = false;
 #if defined(__APPLE__)
     void* metal_view_ = nullptr;  // SDL_MetalView (a void*), kept opaque so this header needs no SDL include
 #endif

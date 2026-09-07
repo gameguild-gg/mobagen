@@ -135,6 +135,11 @@ namespace app {
   // ---------------------------------------------------------------------------
   // Surface creation — hand-rolled WGPUSurfaceSource chains.
   // ---------------------------------------------------------------------------
+  // WGPUSurfaceDescriptor holds its chain by POINTER: the per-platform source
+  // descriptor must outlive the wgpuInstanceCreateSurface call, so every
+  // descriptor lives at the platform-branch scope with the create at its end
+  // (branch-inner locals leave nextInChain dangling — dawn then validates
+  // garbage: "Wayland surface is nullptr" / "Invalid X Window").
   bool WebGPUContext::create_surface(WGPUInstance instance, SDL_Window* window) {
     WGPUSurfaceDescriptor desc = {};
 #if defined(__EMSCRIPTEN__)
@@ -142,6 +147,7 @@ namespace app {
     canvas_desc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
     canvas_desc.selector = {"#canvas", WGPU_STRLEN};
     desc.nextInChain = &canvas_desc.chain;
+    surface_ = wgpuInstanceCreateSurface(instance, &desc);
 #elif defined(SDL_PLATFORM_WIN32)
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
     WGPUSurfaceSourceWindowsHWND hwnd_desc = {};
@@ -149,34 +155,35 @@ namespace app {
     hwnd_desc.hinstance = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr);
     hwnd_desc.hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
     desc.nextInChain = &hwnd_desc.chain;
+    surface_ = wgpuInstanceCreateSurface(instance, &desc);
 #elif defined(SDL_PLATFORM_APPLE)
     metal_view_ = SDL_Metal_CreateView(window);
     WGPUSurfaceSourceMetalLayer metal_desc = {};
     metal_desc.chain.sType = WGPUSType_SurfaceSourceMetalLayer;
     metal_desc.layer = SDL_Metal_GetLayer(metal_view_);
     desc.nextInChain = &metal_desc.chain;
+    surface_ = wgpuInstanceCreateSurface(instance, &desc);
 #elif defined(SDL_PLATFORM_LINUX)
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    WGPUSurfaceSourceWaylandSurface wayland_desc = {};
+    WGPUSurfaceSourceXlibWindow xlib_desc = {};
     if (SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0) {
       // Wayland sessions: an X11-only chain crashes with "Unsupported sType".
-      WGPUSurfaceSourceWaylandSurface wayland_desc = {};
       wayland_desc.chain.sType = WGPUSType_SurfaceSourceWaylandSurface;
       wayland_desc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
       wayland_desc.surface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
       desc.nextInChain = &wayland_desc.chain;
     } else {
-      WGPUSurfaceSourceXlibWindow xlib_desc = {};
       xlib_desc.chain.sType = WGPUSType_SurfaceSourceXlibWindow;
       xlib_desc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
-      xlib_desc.window =
-          static_cast<std::uint64_t>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
+      xlib_desc.window = static_cast<std::uint64_t>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
       desc.nextInChain = &xlib_desc.chain;
     }
+    surface_ = wgpuInstanceCreateSurface(instance, &desc);
 #else
     SDL_Log("Unsupported platform for WebGPU surface creation");
     return false;
 #endif
-    surface_ = wgpuInstanceCreateSurface(instance, &desc);
     if (!surface_) {
       SDL_Log("Failed to create WebGPU surface");
       return false;
@@ -324,9 +331,10 @@ namespace app {
 
   void WebGPUContext::shutdown() {
     if (surface_ != nullptr) {
-      wgpuSurfaceUnconfigure(surface_);
+      if (surface_configured_) wgpuSurfaceUnconfigure(surface_);
       wgpuSurfaceRelease(surface_);
       surface_ = nullptr;
+      surface_configured_ = false;
     }
     if (queue_ != nullptr) {
       wgpuQueueRelease(queue_);
@@ -364,6 +372,7 @@ namespace app {
     surface_cfg_.width = static_cast<std::uint32_t>(width);
     surface_cfg_.height = static_cast<std::uint32_t>(height);
     wgpuSurfaceConfigure(surface_, &surface_cfg_);
+    surface_configured_ = true;
   }
 
   WGPUSurfaceTexture WebGPUContext::acquire() {
