@@ -91,6 +91,4 @@ namespace app {
     platform_backend_ready_ = false;
   }
 
-  bool ImGuiLayer::ready() const { return wgpu_ready_; }
-
 }  // namespace app

@@ -33,10 +33,6 @@ namespace app {
     // Reverse init order; tolerant of never-initialized state.
     void shutdown() override;
 
-    // True once the WebGPU backend is ready to frame (context created and
-    // init succeeded).
-    bool ready() const;
-
   private:
     bool platform_backend_ready_ = false;  // SDL3 backend inited (needs a window)
     bool wgpu_ready_ = false;              // WebGPU backend inited (needs a device)

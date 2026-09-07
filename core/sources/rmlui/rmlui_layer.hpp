@@ -11,7 +11,7 @@
 // core-app-host plan guardrail).
 //
 // Attach from AppCallbacks::on_init via app.attach_gui(layer); document
-// content is app data — apps load their .rml through load_document() or
+// content is app data — apps load their .rml through the Rml::Context
 // directly via context() (also the hook for diagnostics and the RmlUi
 // debugger). Boot/font setup moved verbatim from apps/rmluidemo/main.cpp.
 //
@@ -58,8 +58,6 @@ namespace app {
     // Rml::Shutdown then ImGui teardown; tolerant of never-initialized state.
     void shutdown() override;
 
-    // Convenience: LoadDocument + Show. Document content stays app-side.
-    void load_document(const char* path_or_name);
     // For diagnostics overlays, custom event handlers and the debugger.
     Rml::Context* context() const { return context_; }
 
