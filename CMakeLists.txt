@@ -137,6 +137,9 @@ endif()
 # GLM must be available before core/ — all DOD headers use it globally
 include(external/glm.cmake)
 
+# doctest must be available before test/ and apps/ formal test runners
+include(external/doctest.cmake)
+
 add_subdirectory(core)
 add_subdirectory(modules)
 

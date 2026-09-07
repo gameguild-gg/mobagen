@@ -27,9 +27,8 @@ add_executable(life ${LIFE_SRC} ${LIFE_INC})
 target_link_libraries(life PUBLIC core)
 
 # Formal fixture test runner (console; drives the existing rule classes)
+# doctest comes from external/doctest.cmake (included by the root CMakeLists)
 if(NOT EMSCRIPTEN)
-  CPMAddPackage("gh:onqtam/doctest@2.4.12")
-
   add_executable(life-tests tests/life_tests.cpp World.cpp rules/JohnConway.cpp)
   # App-local includes only; core paths are inherited from apps/CMakeLists.txt.
   target_include_directories(life-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
