@@ -20,9 +20,10 @@ struct Transition {
   std::vector<std::shared_ptr<Action>> actions;
 };
 
-// A node of the graph: what the agent does while here, and where it can go.
-// States are shared by every agent and hold no per-agent data - the per-agent
-// state lives in the world, so states can stay stateless and reusable.
+// A node of the graph: what the agent does in this situation, and where it can
+// go next. A State is BEHAVIOR, not storage: it is shared by every cell and
+// holds no per-agent data - which cell is in which state lives in the world
+// grid (one bit per cell), and the per-cell view arrives in the AgentContext.
 class State {
 public:
   explicit State(std::string name) : name(std::move(name)) {}

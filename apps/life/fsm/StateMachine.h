@@ -6,16 +6,18 @@
 
 #include <memory>
 
-// The classical finite state machine (Millington, "AI for Games", ch. 5):
-// holds the current state of one agent and fires the first transition whose
-// condition tests true.
+// The classical finite state machine (Millington, "AI for Games", ch. 5).
+// Division of labor: the world bit stores WHERE each cell is; this machine
+// decides WHAT happens next. 'current' below is not storage - it is a cursor
+// over the shared state graph, synced from the world bit (via SetCurrent)
+// before each Update, moved by the transition that fires.
 class StateMachine {
 public:
   StateMachine() = default;
 
-  // Syncs the machine with where the agent currently is. No actions run here:
-  // the world is the state store, so the rule sets this from the current
-  // buffer before each update.
+  // Points the cursor at the node matching the cell's persistent bit
+  // (world.Get). No actions run here - it is a plain sync, done by the rule
+  // right before Update.
   void SetCurrent(std::shared_ptr<State> state) { current = std::move(state); }
 
   const std::shared_ptr<State>& GetCurrent() const { return current; }
@@ -33,9 +35,16 @@ private:
 };
 
 inline bool StateMachine::Update(const AgentContext& context) {
-  // begin solution
-
-  // end solution
+  for (const Transition& transition : current->GetTransitions()) {
+    if (transition.condition->Test(context)) {
+      for (const auto& action : current->GetExitActions()) action->Execute(context);
+      for (const auto& action : transition.actions) action->Execute(context);
+      for (const auto& action : transition.target->GetEntryActions()) action->Execute(context);
+      current = transition.target;
+      return true;
+    }
+  }
+  for (const auto& action : current->GetStayActions()) action->Execute(context);
   return false;
 }
 
