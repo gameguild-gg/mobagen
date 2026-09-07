@@ -183,6 +183,9 @@ int main(int argc, char** argv) {
   const double percentage = 100.0 * static_cast<double>(passedCount) / static_cast<double>(fixtureResults.size());
   std::cout << std::fixed << std::setprecision(1);
   std::cout << "Life formal tests: " << passedCount << "/" << fixtureResults.size() << " passed (" << percentage << "%)" << std::endl;
+  // Grade-ready counts: parse-friendly lines for scripts and the CI summary.
+  std::cout << "Passed: " << passedCount << std::endl;
+  std::cout << "Failed: " << fixtureResults.size() - passedCount << std::endl;
 
   if (!rejected.empty()) {
     std::cout << "Rejected: ";
