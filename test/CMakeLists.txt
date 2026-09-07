@@ -9,9 +9,6 @@ include(../cmake/tools.cmake)
 
 include(../external/cpm.cmake)
 
-# doctest comes from external/doctest.cmake (included by the root CMakeLists)
-CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
-
 # if(TEST_INSTALLED_VERSION) find_package(Concurrency REQUIRED) else() CPMAddPackage(NAME
 # Concurrency SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..) endif()
 
