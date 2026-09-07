@@ -20,7 +20,7 @@ CI: [![Windows](https://github.com/InfiniBrains/mobagen/actions/workflows/window
 8. The company will receive funds from the community to pay the developers and the servers to host the editor. The core will be open source and free to use;
 9. The company will offer subscription model to have access to version control and remote build;
 10. The company will also offer a marketplace to sell assets, plugins and modules.
-11. **DOD Engine Core**: The core uses Data-Oriented Design with an Entity-Component-System (ECS) architecture — stackless coroutine jobs, reactive signals, lock-free work-stealing scheduler, and WebGPU/Dawn rendering.
+11. **DOD Engine Core**: The core uses Data-Oriented Design with an Entity-Component-System (ECS) architecture — stackless coroutine jobs, reactive signals, lock-free work-stealing scheduler, and WebGPU/Dawn rendering. SDL3 callback-loop app host with WebGPU context at core, optional ImGui/RmlUi GUI layers, and headless (Dawn null backend) builds for tests.
 
 # Try online
 
