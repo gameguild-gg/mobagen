@@ -262,7 +262,7 @@ namespace app {
     a_cb.mode = WGPUCallbackMode_AllowProcessEvents;
     a_cb.callback = on_adapter;
     a_cb.userdata1 = &a_req;
-    wgpuInstanceRequestAdapter(instance_, &a_opts, &a_cb);
+    wgpuInstanceRequestAdapter(instance_, &a_opts, a_cb);
     if (!pump_until(instance_, a_req.done, "requestAdapter")) {
       shutdown();
       return false;
@@ -284,7 +284,7 @@ namespace app {
     d_cb.mode = WGPUCallbackMode_AllowProcessEvents;
     d_cb.callback = on_device;
     d_cb.userdata1 = &d_req;
-    wgpuAdapterRequestDevice(adapter_, &d_desc, &d_cb);
+    wgpuAdapterRequestDevice(adapter_, &d_desc, d_cb);
     if (!pump_until(instance_, d_req.done, "requestDevice")) {
       shutdown();
       return false;
