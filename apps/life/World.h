@@ -21,7 +21,10 @@ public:
   void Resize(int sideSize);
   // rectangular grids (formal tests): C columns x L lines
   void Resize(int columns, int lines);
-  // to be called at the end of the frame
+  // flips the buffers, promoting the next generation to current. Called by
+  // whoever drives the simulation (the demo app's Manager::step or the
+  // life-tests runner) right AFTER a rule Step returns - never from inside a
+  // rule, which must only write via SetNext.
   void SwapBuffers();
   // todo: make it follow the standard at() function that returns the exactly element
   bool Get(Point2D point);

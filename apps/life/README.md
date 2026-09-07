@@ -31,7 +31,7 @@ The exact cell semantics and the console input/output format below are **require
 
 ::: warning "Double buffering"
 
-`World` keeps two buffers: read the current state with `Get`, write the next state with `SetNext`, and never mix them inside a generation. The runner (and the demo app) call `SwapBuffers` after each `Step`. Computing a generation in place is the classic way to corrupt the simulation.
+`World` keeps two buffers: read the current state with `Get`, write the next state with `SetNext`, and never mix them inside a generation. The flip (`SwapBuffers`) is **not your job**: the driver — `Manager::step` in the demo app, or the `life-tests` runner — calls it right after `Step` returns. Your actions write `SetNext` only; computing a generation in place is the classic way to corrupt the simulation.
 
 :::
 
@@ -75,7 +75,16 @@ Your work, in `// begin solution` / `// end solution` regions:
 2. `apps/life/rules/JohnConway.cpp` — the Conway-flavored `Condition` and `Action` classes, the graph wiring in the constructor, the per-cell update loop in `Step`, and `CountNeighbors`.
 3. `apps/life/rules/HexagonGameOfLife.cpp` (interactive only) — the same shape on a hex grid: 6 neighbors, row-parity offsets, your rule of choice (classic hex plays B2/S34).
 
-The framework is shared by every cell: states hold no per-agent data, the `World` is the state store, `AgentContext` is the per-cell snapshot. Conditions only read the current generation; actions only write the next one — that is what keeps the double buffering honest.
+The framework is shared by every cell. Where the data lives — the part that trips everyone:
+
+| Piece                    | Holds                                    | Lifetime            |
+| ------------------------ | ---------------------------------------- | ------------------- |
+| `World` bit              | where each cell **is** (its persistent state) | swapped by `SwapBuffers`, generation after generation |
+| `State` (`Alive`/`Dead`) | what a cell **does** in that situation (actions + transitions) | shared by every cell, stores nothing per cell |
+| `AgentContext`           | what one cell **sees** this update (position, `isAlive`, `aliveNeighbors`) | thrown away after each `Update` |
+| `StateMachine::current`  | a **cursor** over the shared graph, synced from the world bit via `SetCurrent` | one update |
+
+Conditions only read the current generation; actions only write the next one — that is what keeps the double buffering honest.
 
 ::: warning "Don't fight the machine"
 
