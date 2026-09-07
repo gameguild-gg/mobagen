@@ -11,16 +11,29 @@
 // core-app-host plan, todos 6/7).
 //
 // Lifecycle order (SDL_AppInit): app on_init(argc, argv) — settings may still
-// change here, e.g. render mode/title, and the GUI layer is attached — then,
-// for RenderMode::Windowed, SDL_Init(VIDEO|GAMEPAD) + content-scaled window +
-// WebGPU context init; headless modes SDL_Init(0) only. Finally gui->init.
+// change here, e.g. render mode/title (AppSettings::parse maps the host's
+// --mobagen-headless / --mobagen-null-gpu flags), and the GUI layer is
+// attached — then the per-mode startup runs:
+//   Windowed     — SDL_Init(VIDEO|GAMEPAD) + content-scaled window + WebGPU
+//                  surface context.
+//   HeadlessNull — SDL_Init(0), no window; Dawn null-backend device
+//                  (WGPUBackendType_Null) with no surface. Falls back to
+//                  HeadlessNone with a logged warning when unavailable (web
+//                  builds always — emdawnwebgpu has no null backend — and
+//                  native builds whose Dawn lacks the null backend).
+//   HeadlessNone — SDL_Init(0) only; zero GPU objects, on_draw never called.
+// Finally gui->init.
 //
-// Frame order (SDL_AppIterate, windowed): dt (clamped at 0.1 s) -> app
-// on_iterate(dt) -> GPU frame: acquire surface texture -> render pass with the
-// configured clear color -> gui->new_frame() -> app on_draw(pass) ->
-// gui->render(pass) -> submit -> present -> tick. gui->new_frame() runs BEFORE
-// on_draw so app GUI code inside on_draw emits into an open GUI frame that
-// gui->render(pass) submits; app logic/GUI code does NOT belong in on_iterate.
+// Frame order (SDL_AppIterate, windowed AND HeadlessNull): dt (clamped at
+// 0.1 s) -> app on_iterate(dt) -> GPU frame: acquire the frame target (window
+// surface texture, or HeadlessNull's cached offscreen texture — created once,
+// recreated only on size change) -> render pass with the configured clear
+// color -> gui->new_frame() -> app on_draw(pass) -> gui->render(pass) ->
+// submit -> present (windowed only; HeadlessNull submits and ticks, nothing
+// is presented) -> tick. gui->new_frame() runs BEFORE on_draw so app GUI code
+// inside on_draw emits into an open GUI frame that gui->render(pass)
+// submits; app logic/GUI code does NOT belong in on_iterate. HeadlessNone
+// stops after on_iterate: pure logic loop, no GPU objects at all.
 // Per-frame input edges are cleared AFTER each iterate (events are delivered
 // between iterates through SDL_AppEvent, matching InputState's clear-before-
 // feed contract).
@@ -91,8 +104,9 @@ namespace app {
       return SDL_APP_CONTINUE;
     }
 
-    // Inside the open render pass, after gui->new_frame() — only called when
-    // a GPU frame target exists (Windowed mode; headless-null later).
+    // Inside the open render pass, after gui->new_frame() — called whenever a
+    // GPU frame target exists: Windowed (window surface) and HeadlessNull
+    // (offscreen Dawn null device). Never called in HeadlessNone.
     virtual void on_draw(App& app, WGPURenderPassEncoder pass) {
       (void)app;
       (void)pass;
@@ -122,7 +136,7 @@ namespace app {
     // on_iterate before the next iterate. `success` picks exit code 0 vs 1.
     void request_exit(bool success = true);
 
-    WGPUDevice device() const { return gpu.device(); }  // null in HeadlessNone
+    WGPUDevice device() const { return gpu.device(); }  // null in HeadlessNone (and after HeadlessNull fallback)
     int width() const { return surface_width_; }        // configured surface size
     int height() const { return surface_height_; }
 

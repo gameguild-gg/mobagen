@@ -42,6 +42,24 @@ namespace app {
   }
 
   // ---------------------------------------------------------------------------
+  // AppSettings::parse — host render-mode CLI flags (see app_settings.hpp).
+  // ---------------------------------------------------------------------------
+  bool AppSettings::parse(int argc, char** argv, AppSettings& out_settings) {
+    bool recognized = false;
+    for (int i = 1; i < argc; ++i) {
+      if (SDL_strcmp(argv[i], "--mobagen-headless") == 0) {
+        out_settings.render_mode = RenderMode::HeadlessNone;
+        recognized = true;
+      } else if (SDL_strcmp(argv[i], "--mobagen-null-gpu") == 0) {
+        out_settings.render_mode = RenderMode::HeadlessNull;
+        recognized = true;
+      }
+      // Unknown args are deliberately ignored: apps own their own parsing.
+    }
+    return recognized;
+  }
+
+  // ---------------------------------------------------------------------------
   // SDL_AppInit
   // ---------------------------------------------------------------------------
   SDL_AppResult host_init(App& app, int argc, char** argv) {
@@ -87,14 +105,37 @@ namespace app {
         return SDL_APP_FAILURE;
       }
     } else {
-      // Headless (both modes): no video subsystem, no window. HeadlessNull's
-      // offscreen device lands with the headless-mode work; until then both
-      // headless modes run the pure-logic loop with no GPU objects at all.
+      // Headless (both modes): no video subsystem, no window.
       if (!SDL_Init(0)) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return SDL_APP_FAILURE;
       }
       app.set_surface_size(app.settings.width, app.settings.height);
+
+      if (app.settings.render_mode == AppSettings::RenderMode::HeadlessNull) {
+#ifdef __EMSCRIPTEN__
+        // emdawnwebgpu has no null backend; browsers ignore backendType.
+        SDL_Log("HeadlessNull not available on web; falling back to HeadlessNone");
+        app.settings.render_mode = AppSettings::RenderMode::HeadlessNone;
+#else
+        // Dawn null device: GPU work is a no-op, frontend validation still
+        // runs — lets tests and CI boxes without a display/GPU exercise real
+        // rendering code paths.
+        ContextDesc desc;
+        desc.power_preference = app.settings.power_preference;
+        desc.backend_type = WGPUBackendType_Null;
+        desc.want_surface = false;
+        desc.window = nullptr;
+        if (app.gpu.init(desc)) {
+          SDL_Log("HeadlessNull device ready (offscreen %dx%d)", app.width(), app.height());
+        } else {
+          // Null backend not compiled in, or the adapter request failed: the
+          // context logged the cause; degrade to the pure logic loop.
+          SDL_Log("HeadlessNull unavailable: null device request failed; falling back to HeadlessNone");
+          app.settings.render_mode = AppSettings::RenderMode::HeadlessNone;
+        }
+#endif
+      }
     }
 
     if (app.gui() != nullptr && !app.gui()->init(app)) {
@@ -176,6 +217,55 @@ namespace app {
 
     bool surface_status_fatal(WGPUSurfaceGetCurrentTextureStatus status) { return status == WGPUSurfaceGetCurrentTextureStatus_Error; }
 
+    // HeadlessNull's offscreen frame target, kept in app.cpp (NOT inside
+    // WebGPUContext — the context stays surface-centric; this cache is a host
+    // frame-loop concern). Created on first frame, reused every frame,
+    // recreated only when the configured size changes; released in host_quit.
+    struct OffscreenTarget {
+      App* owner = nullptr;  // one target per App instance (tests may use several)
+      int width = 0;
+      int height = 0;
+      WGPUTexture texture = nullptr;
+      WGPUTextureView view = nullptr;
+    };
+    OffscreenTarget g_offscreen;
+
+    void release_offscreen_target() {
+      if (g_offscreen.view != nullptr) wgpuTextureViewRelease(g_offscreen.view);
+      if (g_offscreen.texture != nullptr) wgpuTextureRelease(g_offscreen.texture);
+      g_offscreen = {};
+    }
+
+    // Create-or-reuse the offscreen texture + view for the current size.
+    WGPUTextureView offscreen_frame_view(App& app) {
+      if (g_offscreen.owner != &app || g_offscreen.texture == nullptr || g_offscreen.width != app.width() ||
+          g_offscreen.height != app.height()) {
+        release_offscreen_target();
+
+        WGPUTextureDescriptor tex_desc = {};
+        tex_desc.usage = WGPUTextureUsage_RenderAttachment;
+        tex_desc.dimension = WGPUTextureDimension_2D;
+        tex_desc.size = {static_cast<std::uint32_t>(app.width()), static_cast<std::uint32_t>(app.height()), 1};
+        tex_desc.format = WGPUTextureFormat_BGRA8Unorm;
+        tex_desc.mipLevelCount = 1;
+        tex_desc.sampleCount = 1;
+        g_offscreen.texture = wgpuDeviceCreateTexture(app.device(), &tex_desc);
+
+        WGPUTextureViewDescriptor view_desc = {};
+        view_desc.format = WGPUTextureFormat_BGRA8Unorm;
+        view_desc.dimension = WGPUTextureViewDimension_2D;
+        view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
+        view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
+        view_desc.aspect = WGPUTextureAspect_All;
+        g_offscreen.view = wgpuTextureCreateView(g_offscreen.texture, &view_desc);
+
+        g_offscreen.owner = &app;
+        g_offscreen.width = app.width();
+        g_offscreen.height = app.height();
+      }
+      return g_offscreen.view;
+    }
+
     SDL_AppResult run_frame(App& app, float dt) {
       if (app.callbacks != nullptr) {
         const SDL_AppResult rc = app.callbacks->on_iterate(app, dt);
@@ -184,29 +274,41 @@ namespace app {
       const SDL_AppResult exit_rc = app.take_exit_request();
       if (exit_rc != SDL_APP_CONTINUE) return exit_rc;
 
-      // GPU frame only when a device AND a window surface exist (Windowed).
-      // HeadlessNone runs the pure logic loop: no GPU objects at all.
-      if (app.device() == nullptr || app.window == nullptr) return SDL_APP_CONTINUE;
+      // GPU frame only when a device exists: Windowed renders through the
+      // window surface, HeadlessNull into the cached offscreen target (no
+      // present). HeadlessNone — and a HeadlessNull that fell back — has no
+      // device and runs the pure logic loop.
+      if (app.device() == nullptr) return SDL_APP_CONTINUE;
 
-      WGPUSurfaceTexture st = app.gpu.acquire();
-      if (surface_status_fatal(st.status)) {
-        SDL_Log("Unrecoverable surface texture status=%d", static_cast<int>(st.status));
-        return SDL_APP_FAILURE;
-      }
-      if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal || st.texture == nullptr) {
-        // Suboptimal/outdated/lost: drop this frame's texture and reconfigure.
-        if (st.texture != nullptr) wgpuTextureRelease(st.texture);
-        app.gpu.configure_surface(app.width(), app.height());
-        return SDL_APP_CONTINUE;
-      }
+      const bool windowed = app.window != nullptr;
+      WGPUTexture frame_texture = nullptr;  // surface-owned (windowed) or the cached offscreen texture
+      WGPUTextureView frame_view = nullptr;
 
-      WGPUTextureViewDescriptor view_desc = {};
-      view_desc.format = app.gpu.surface_format();
-      view_desc.dimension = WGPUTextureViewDimension_2D;
-      view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
-      view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
-      view_desc.aspect = WGPUTextureAspect_All;
-      WGPUTextureView texture_view = wgpuTextureCreateView(st.texture, &view_desc);
+      if (windowed) {
+        WGPUSurfaceTexture st = app.gpu.acquire();
+        if (surface_status_fatal(st.status)) {
+          SDL_Log("Unrecoverable surface texture status=%d", static_cast<int>(st.status));
+          return SDL_APP_FAILURE;
+        }
+        if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal || st.texture == nullptr) {
+          // Suboptimal/outdated/lost: drop this frame's texture and reconfigure.
+          if (st.texture != nullptr) wgpuTextureRelease(st.texture);
+          app.gpu.configure_surface(app.width(), app.height());
+          return SDL_APP_CONTINUE;
+        }
+
+        WGPUTextureViewDescriptor view_desc = {};
+        view_desc.format = app.gpu.surface_format();
+        view_desc.dimension = WGPUTextureViewDimension_2D;
+        view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
+        view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
+        view_desc.aspect = WGPUTextureAspect_All;
+        frame_texture = st.texture;
+        frame_view = wgpuTextureCreateView(st.texture, &view_desc);
+      } else {
+        frame_texture = g_offscreen.texture;
+        frame_view = offscreen_frame_view(app);
+      }
 
       const float (&c)[4] = app.settings.clear_color;
       WGPURenderPassColorAttachment color_att = {};
@@ -214,7 +316,7 @@ namespace app {
       color_att.loadOp = WGPULoadOp_Clear;
       color_att.storeOp = WGPUStoreOp_Store;
       color_att.clearValue = {c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3]};  // premultiplied (chess)
-      color_att.view = texture_view;
+      color_att.view = frame_view;
 
       WGPURenderPassDescriptor rp_desc = {};
       rp_desc.colorAttachmentCount = 1;
@@ -237,13 +339,17 @@ namespace app {
       WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, &cmd_desc);
       wgpuQueueSubmit(app.gpu.queue(), 1, &cmd);
 
-      wgpuTextureViewRelease(texture_view);
-      wgpuTextureRelease(st.texture);
+      if (windowed) {
+        // Offscreen frames keep texture+view cached across frames; surface
+        // textures are per-frame and must go back before present().
+        wgpuTextureViewRelease(frame_view);
+        wgpuTextureRelease(frame_texture);
+        app.gpu.present();
+      }
       wgpuCommandBufferRelease(cmd);
       wgpuRenderPassEncoderRelease(pass);
       wgpuCommandEncoderRelease(encoder);
 
-      app.gpu.present();
       app.gpu.tick();
       return SDL_APP_CONTINUE;
     }
@@ -269,6 +375,7 @@ namespace app {
   void host_quit(App& app) {
     if (app.callbacks != nullptr) app.callbacks->on_shutdown(app);
     if (app.gui() != nullptr) app.gui()->shutdown();
+    release_offscreen_target();  // HeadlessNull frame target dies before its device
     app.sched.shutdown();
     app.gpu.shutdown();  // null-checks internally; tolerates a lost surface
     if (app.window != nullptr) {
