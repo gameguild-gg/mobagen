@@ -102,6 +102,8 @@ HexagonGameOfLife::HexagonGameOfLife() {
   //   dead->AddAction(std::make_shared<StayDeadAction>());
   // begin solution
 
+  SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "HexagonGameOfLife: transitions and actions for alive and dead states not implemented yet");
+
   // end solution
 }
 
@@ -134,9 +136,6 @@ int HexagonGameOfLife::CountNeighbors(World& world, Point2D point) {
   //   above and two below, shifted by one column depending on the row parity
   //   world.Get() wraps around the borders (toroidal)
   // begin solution
-  // note: log instead of throw - the constructor runs at app startup;
-  // throwing here would kill the process before it runs.
-  SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "HexagonGameOfLife: transitions and actions for alive and dead states not implemented yet");
-
+  throw std::logic_error("CountNeighbors not implemented yet");
   // end solution
 }
