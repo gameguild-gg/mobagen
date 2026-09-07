@@ -12,7 +12,7 @@ glm::vec2 CohesionRule::computeForce(const std::vector<BoidView>& neighborhood, 
 
   glm::vec2 positionTotal = glm::vec2(0, 0);
   glm::vec2 forceNeeded = glm::vec2(0, 0);
-  int numOfNeighbours = 0;
+  float numOfNeighbours = 0.0f;
 
   for (const BoidView& boidInRange : neighborhood)
   {
@@ -22,7 +22,7 @@ glm::vec2 CohesionRule::computeForce(const std::vector<BoidView>& neighborhood, 
 
   if (numOfNeighbours != 0)
   {
-    glm::vec2 centerMass = glm::vec2(positionTotal.x / numOfNeighbours, positionTotal.y / numOfNeighbours);
+    glm::vec2 centerMass = positionTotal / numOfNeighbours;
     forceNeeded = centerMass - boid.position;
     forceNeeded = glm::normalize(forceNeeded);
   }

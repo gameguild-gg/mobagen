@@ -7,7 +7,7 @@ glm::vec2 AlignmentRule::computeForce(const std::vector<BoidView>& neighborhood,
 
   // begin solution
   glm::vec2 velocityTotal = glm::vec2(0, 0);
-  int numOfNeighbours = 0;
+  float numOfNeighbours = 0.0f;
 
   for (const BoidView& boidInRange : neighborhood)
   {
@@ -16,7 +16,7 @@ glm::vec2 AlignmentRule::computeForce(const std::vector<BoidView>& neighborhood,
   }
 
   if (numOfNeighbours != 0)
-    averageVelocity = glm::vec2(velocityTotal.x / numOfNeighbours, velocityTotal.y / numOfNeighbours);
+    averageVelocity = velocityTotal / numOfNeighbours;
 
   return averageVelocity;
   // end solution

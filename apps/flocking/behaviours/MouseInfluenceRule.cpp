@@ -13,27 +13,27 @@ glm::vec2 MouseInfluenceRule::computeForce(const std::vector<BoidView>& neighbor
   if (isRepulsive && ImGui::IsMouseDown(ImGuiMouseButton_Left))
   {
     glm::vec2 vector = glm::vec2(0, 0);
-    glm::vec2 hat = glm::vec2(0, 0);
-    double magnitude = 0;
+    glm::vec2 normal = glm::vec2(0, 0);
+    float length = 0;
 
     vector = boid.position - glm::vec2(ImGui::GetIO().MousePos.x, ImGui::GetIO().MousePos.y);
-    magnitude = sqrt(vector.x * vector.x + vector.y * vector.y);
-    hat = normalize(vector);
-    if (magnitude > 0.0f && magnitude <= 250.0f)
-      force = hat * (250.0f / float(magnitude));
+    length = glm::length(vector);
+    normal = normalize(vector);
+    if (length > 0.0f && length <= 250.0f)
+      force = normal * (250.0f / length);
   }
 
   if (!isRepulsive && ImGui::IsMouseDown(ImGuiMouseButton_Left))
   {
     glm::vec2 vector = glm::vec2(0, 0);
-    glm::vec2 hat = glm::vec2(0, 0);
-    double magnitude = 0;
+    glm::vec2 normal = glm::vec2(0, 0);
+    float length = 0;
 
     vector = glm::vec2(ImGui::GetIO().MousePos.x, ImGui::GetIO().MousePos.y) - boid.position;
-    magnitude = sqrt(vector.x * vector.x + vector.y * vector.y);
-    hat = normalize(vector);
-    if (magnitude > 0.0f && magnitude <= 250.0f)
-      force = hat * (250.0f / float(magnitude));
+    length = sqrt(vector.x * vector.x + vector.y * vector.y);
+    normal = normalize(vector);
+    if (length > 0.0f && length <= 250.0f)
+      force = normal * (250.0f / length);
   }
 
   // end solution

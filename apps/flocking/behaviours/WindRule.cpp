@@ -8,11 +8,11 @@ glm::vec2 WindRule::computeForce(const std::vector<BoidView>& neighborhood, cons
   
   // begin solution
   glm::vec2 vector = glm::vec2(0, 0);
-  float radians = windAngle;
+  //float radians = windAngle;
 
   //radians = windAngle * (3.14f/180.0f);
-  vector.x = std::cos(radians);
-  vector.y = std::sin(radians);
+  vector.x = std::cos(windAngle);
+  vector.y = std::sin(windAngle);
 
   return vector;
   // end solution
