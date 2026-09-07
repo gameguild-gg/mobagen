@@ -7,6 +7,8 @@
 #include "../fsm/AgentContext.h"
 #include "../fsm/Condition.h"
 
+#include <SDL3/SDL_log.h>
+
 #include <stdexcept>
 
 // Hexagonal variant: each cell has 6 neighbors instead of 8. This one is
@@ -132,6 +134,9 @@ int HexagonGameOfLife::CountNeighbors(World& world, Point2D point) {
   //   above and two below, shifted by one column depending on the row parity
   //   world.Get() wraps around the borders (toroidal)
   // begin solution
-  throw std::logic_error("CountNeighbors not implemented yet");
+  // note: log instead of throw - the constructor runs at app startup;
+  // throwing here would kill the process before it runs.
+  SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "HexagonGameOfLife: transitions and actions for alive and dead states not implemented yet");
+
   // end solution
 }
