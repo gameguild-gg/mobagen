@@ -48,7 +48,7 @@ cmake --build build --parallel --target flocking-tests
 
 Edit the `computeForce` bodies, rebuild, rerun. That is the whole loop.
 
-The report prints one line per fixture, `[fixture] <name> PASS` or `REJECT`, then a summary such as `Flocking formal tests: 18/20 passed (90.0%)`. The exit code stays nonzero until every fixture passes, and the failing ones are listed again under `Rejected:`. A CI workflow publishes the same report on every push that touches `apps/flocking/`.
+The report prints one line per fixture, `[fixture] <name> PASS` or `REJECT`, then a summary such as `Flocking formal tests: 18/20 passed (90.0%)` followed by grade-ready counts (`Passed: 18`, `Failed: 2`). The exit code stays nonzero until every fixture passes, and the failing ones are listed again under `Rejected:`. A CI workflow publishes the same report with the counts on every push that touches `apps/flocking/`.
 
 :::
 
