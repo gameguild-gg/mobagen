@@ -296,14 +296,4 @@ namespace app {
     imgui_layer_.shutdown();
   }
 
-  void RmlUiLayer::load_document(const char* path_or_name) {
-    if (context_ == nullptr) return;
-    Rml::ElementDocument* doc = context_->LoadDocument(path_or_name);
-    if (doc == nullptr) {
-      SDL_Log("RmlUiLayer: failed to load document '%s'", path_or_name);
-      return;
-    }
-    doc->Show();
-  }
-
 }  // namespace app
