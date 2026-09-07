@@ -2,10 +2,14 @@
 
 // Reference: https://playgameoflife.com/info
 void JohnConway::Step(World& world) {
-  // todo: implement
+  // begin solution
+
+  // end solution
 }
 
 int JohnConway::CountNeighbors(World& world, Point2D point) {
-  // todo: implement
+  // begin solution
+
+  // end solution
   return 0;
 }
