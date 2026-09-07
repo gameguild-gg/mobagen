@@ -19,6 +19,9 @@ core/sources  -> all hpp, cpp for core related code,
   core/sources/camera/     -> Orbit/WASD camera
   core/sources/input/      -> SDL-agnostic input state
   core/sources/render/     -> RenderBridge (ECS to draw commands)
+  core/sources/app/        -> Application host: SDL3 callback loop, WebGPU context, render modes (windowed/headless-null/headless-none)
+  core/sources/imgui/      -> ImGui GUI layer for the app host (ImGui_ImplSDL3 + ImGui_ImplWGPU)
+  core/sources/rmlui/      -> RmlUi GUI layer for the app host (ImGui-bridge rendering)
   core/sources/resource/   -> ResourceRegistry<T> stable-handle asset store
   core/sources/net/        -> Networking (gated)
   core/sources/datastructures/ -> Grid2D, Tree, Vector, concepts

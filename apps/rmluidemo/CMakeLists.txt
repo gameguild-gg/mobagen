@@ -8,7 +8,6 @@ file(GLOB RMLUIDEMO_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 
 add_executable(rmluidemo ${RMLUIDEMO_SRC} ${RMLUIDEMO_INC})
 
-target_include_directories(rmluidemo PUBLIC ${CORE_INC_DIR})
 target_link_libraries(rmluidemo PUBLIC core)
 
 # macOS/iOS app bundle Info.plist — use Xcode build-setting references so the bundle ID set via

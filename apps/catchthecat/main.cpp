@@ -1,30 +1,24 @@
-#define SDL_MAIN_HANDLED true
-
-#include "imgui.h"
-#include "imgui_impl_sdl3.h"
-#include "imgui_impl_wgpu.h"
-#include "ecs/world.hpp"
-#include "jobs/scheduler.hpp"
+// Catch The Cat — hex-grid cat-and-catcher game on the core app host.
+//
+// Hosted app (core-app-host plan, todo 14): the SDL3 callback host owns the
+// window, the WebGPU context, the ImGui layer and the frame loop. The graded
+// headless CLI contract is preserved byte-for-byte: parseCommandLineArguments
+// and runHeadlessMode run inside on_init — BEFORE any SDL_Init/window/GPU
+// object exists — and their exit codes map straight onto SDL_APP_SUCCESS (0)
+// / SDL_APP_FAILURE (1), exactly like the old main() dispatch.
 #include "World.h"
 
-#include <SDL3/SDL.h>
-#include <webgpu/webgpu_cpp.h>
+#include "app/sdl_app.hpp"
+#include "imgui/imgui_layer.hpp"
+
+#include "ecs/world.hpp"
+#include "imgui.h"
 #include <glm/glm.hpp>
 
-#include <chrono>
 #include <cmath>
-#include <cstdint>
-#include <cstdio>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#if defined(SDL_PLATFORM_WIN32)
-#  ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN 1
-#  endif
-#  include <windows.h>
-#endif
 
 // ============================================================
 // ECS components — DOD representation of the hex grid
@@ -42,140 +36,6 @@ struct AgentState {
   bool isCat = false;
   glm::ivec2 pos = {0, 0};
 };
-
-// ============================================================
-// WebGPU global state (same pattern as editor/main.cpp)
-// ============================================================
-static WGPUInstance wgpu_instance = nullptr;
-static WGPUDevice wgpu_device = nullptr;
-static WGPUSurface wgpu_surface = nullptr;
-static WGPUQueue wgpu_queue = nullptr;
-static WGPUSurfaceConfiguration wgpu_surface_cfg = {};
-static int wgpu_surface_width = 1280;
-static int wgpu_surface_height = 800;
-
-static void ResizeSurface(int w, int h) {
-  wgpu_surface_cfg.width = wgpu_surface_width = w;
-  wgpu_surface_cfg.height = wgpu_surface_height = h;
-  wgpuSurfaceConfigure(wgpu_surface, &wgpu_surface_cfg);
-}
-
-static WGPUAdapter RequestAdapter(wgpu::Instance& instance) {
-  wgpu::Adapter acquired;
-  wgpu::RequestAdapterOptions opts;
-  auto cb = [&](wgpu::RequestAdapterStatus status, wgpu::Adapter adapter, wgpu::StringView msg) {
-    if (status != wgpu::RequestAdapterStatus::Success) {
-      SDL_Log("RequestAdapter failed: %s", msg.data);
-      return;
-    }
-    acquired = std::move(adapter);
-  };
-  wgpu::Future f{instance.RequestAdapter(&opts, wgpu::CallbackMode::WaitAnyOnly, cb)};
-  instance.WaitAny(f, UINT64_MAX);
-  return acquired.MoveToCHandle();
-}
-
-static WGPUDevice RequestDevice(wgpu::Instance& instance, wgpu::Adapter& adapter) {
-  wgpu::DeviceDescriptor desc;
-  desc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous, [](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView msg) {
-    SDL_Log("WebGPU device lost (%d): %s", static_cast<int>(reason), msg.data);
-  });
-  desc.SetUncapturedErrorCallback(
-      [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) { SDL_Log("WebGPU error (%d): %s", static_cast<int>(type), msg.data); });
-  wgpu::Device acquired;
-  auto cb = [&](wgpu::RequestDeviceStatus status, wgpu::Device device, wgpu::StringView msg) {
-    if (status != wgpu::RequestDeviceStatus::Success) {
-      SDL_Log("RequestDevice failed: %s", msg.data);
-      return;
-    }
-    acquired = std::move(device);
-  };
-  wgpu::Future f{adapter.RequestDevice(&desc, wgpu::CallbackMode::WaitAnyOnly, cb)};
-  instance.WaitAny(f, UINT64_MAX);
-  return acquired.MoveToCHandle();
-}
-
-#ifndef __EMSCRIPTEN__
-static WGPUSurface CreateWGPUSurface(const WGPUInstance& instance, SDL_Window* window) {
-  SDL_PropertiesID props = SDL_GetWindowProperties(window);
-  ImGui_ImplWGPU_CreateSurfaceInfo info = {};
-  info.Instance = instance;
-#  if defined(SDL_PLATFORM_MACOS)
-  info.System = "cocoa";
-  info.RawWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
-  return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#  elif defined(SDL_PLATFORM_LINUX)
-  if (SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0) {
-    info.System = "wayland";
-    info.RawDisplay = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
-    info.RawSurface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
-    return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-  }
-  info.System = "x11";
-  info.RawWindow = reinterpret_cast<void*>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
-  info.RawDisplay = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
-  return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#  elif defined(SDL_PLATFORM_WIN32)
-  info.System = "win32";
-  info.RawWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
-  info.RawInstance = static_cast<void*>(::GetModuleHandle(nullptr));
-  return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#  else
-  SDL_Log("Unsupported platform for WebGPU surface creation");
-  return nullptr;
-#  endif
-}
-#endif  // !__EMSCRIPTEN__
-
-static bool InitWGPU(SDL_Window* window) {
-  wgpu::InstanceDescriptor inst_desc = {};
-  static constexpr wgpu::InstanceFeatureName kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
-  inst_desc.requiredFeatureCount = 1;
-  inst_desc.requiredFeatures = &kTimedWaitAny;
-  wgpu::Instance instance = wgpu::CreateInstance(&inst_desc);
-  if (!instance) {
-    SDL_Log("Failed to create WebGPU instance");
-    return false;
-  }
-
-  wgpu::Adapter adapter = RequestAdapter(instance);
-  if (!adapter) return false;
-  ImGui_ImplWGPU_DebugPrintAdapterInfo(adapter.Get());
-
-  wgpu_device = RequestDevice(instance, adapter);
-  if (!wgpu_device) return false;
-
-#ifdef __EMSCRIPTEN__
-  wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector canvas_desc = {};
-  canvas_desc.selector = "#canvas";
-  wgpu::SurfaceDescriptor surf_desc = {};
-  surf_desc.nextInChain = &canvas_desc;
-  wgpu::Surface surface = instance.CreateSurface(&surf_desc);
-#else
-  wgpu::Surface surface = CreateWGPUSurface(instance.Get(), window);
-#endif
-  if (!surface) {
-    SDL_Log("Failed to create WebGPU surface");
-    return false;
-  }
-
-  wgpu_instance = instance.MoveToCHandle();
-  wgpu_surface = surface.MoveToCHandle();
-
-  WGPUSurfaceCapabilities caps = {};
-  wgpuSurfaceGetCapabilities(wgpu_surface, adapter.Get(), &caps);
-
-  wgpu_surface_cfg.presentMode = WGPUPresentMode_Fifo;
-  wgpu_surface_cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
-  wgpu_surface_cfg.usage = WGPUTextureUsage_RenderAttachment;
-  wgpu_surface_cfg.width = wgpu_surface_width;
-  wgpu_surface_cfg.height = wgpu_surface_height;
-  wgpu_surface_cfg.device = wgpu_device;
-  wgpu_surface_cfg.format = caps.formats[0];
-  wgpuSurfaceConfigure(wgpu_surface, &wgpu_surface_cfg);
-  wgpu_queue = wgpuDeviceGetQueue(wgpu_device);
-  return true;
-}
 
 // ============================================================
 // Hex rendering — ImGui background draw list replaces Renderer2D
@@ -385,126 +245,80 @@ static int runHeadlessMode(const GameConfig& config) {
 }
 
 // ============================================================
-// Windowed mode: SDL3 + WebGPU + ImGui + ECS (replaces Engine)
+// Hosted app — windowed mode on the core app host
 // ============================================================
-static int runRegularMode(int size) {
-  // DOD bootstrap: ecs::World + jobs::Scheduler replace the OOP Engine
-  SDL_Log("Creating DOD World and Scheduler");
-  ecs::World ecsWorld;
-  jobs::Scheduler sched;
-  SDL_Log("DOD World Created");
-
-  CatWorld catWorld(size);
+struct CatchTheCatApp : app::AppCallbacks {
+  app::ImGuiLayer gui;
+  CatWorld catWorld{11};
   std::vector<ecs::Entity> hexCells;
   ecs::Entity catEntity = ecs::kInvalidEntity;
-  rebuildECS(ecsWorld, catWorld, hexCells, catEntity);
+  int lastSideSize = 0;
+  int smoke_frames = 0;  // --smoke-frames N: exit after N iterates (0 = forever)
 
-  // SDL init
-  SDL_Log("Initialising SDL");
-  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
-    SDL_Log("SDL_Init failed: %s", SDL_GetError());
-    return 1;
-  }
-
-  float uiScale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
-  wgpu_surface_width = static_cast<int>(wgpu_surface_width * uiScale);
-  wgpu_surface_height = static_cast<int>(wgpu_surface_height * uiScale);
-
-  SDL_Window* window = SDL_CreateWindow("Catch The Cat", wgpu_surface_width, wgpu_surface_height, SDL_WINDOW_RESIZABLE);
-  if (!window) {
-    SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
-    return 1;
-  }
-
-  // WebGPU init
-  SDL_Log("Initialising WebGPU");
-  if (!InitWGPU(window)) {
-    SDL_Log("InitWGPU failed");
-    return 1;
-  }
-  SDL_Log("WebGPU Ready");
-
-  // ImGui init
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGuiIO& io = ImGui::GetIO();
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-  ImGui::StyleColorsDark();
-
-  ImGuiStyle& style = ImGui::GetStyle();
-  style.ScaleAllSizes(uiScale);
-  style.FontScaleDpi = uiScale;
-
-  ImGui_ImplSDL3_InitForOther(window);
-
-  ImGui_ImplWGPU_InitInfo wgpu_init = {};
-  wgpu_init.Device = wgpu_device;
-  wgpu_init.NumFramesInFlight = 3;
-  wgpu_init.RenderTargetFormat = wgpu_surface_cfg.format;
-  wgpu_init.DepthStencilFormat = WGPUTextureFormat_Undefined;
-  ImGui_ImplWGPU_Init(&wgpu_init);
-
-  SDL_Log("Catch The Cat Started");
-
-  ImVec4 clear_color = {0.10f, 0.10f, 0.10f, 1.00f};
-  bool done = false;
-  int lastSideSize = catWorld.getWorldSideSize();
-  auto lastTime = std::chrono::high_resolution_clock::now();
-
-  while (!done) {
-#ifdef __EMSCRIPTEN__
-    SDL_Delay(1);  // yield to the browser event loop via asyncify (prevents busy spin)
-#endif
-    // Event processing
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      ImGui_ImplSDL3_ProcessEvent(&event);
-      if (event.type == SDL_EVENT_QUIT) done = true;
-      if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window)) done = true;
+  SDL_AppResult on_init(app::App& app, int argc, char** argv) override {
+    // Strip host/dev flags before the graded parser runs: it rejects every
+    // unknown argument (old binaries exited 1 on --mobagen-* / --smoke-frames).
+    std::vector<char*> args;
+    args.push_back(argv[0]);
+    for (int i = 1; i < argc; ++i) {
+      std::string arg = argv[i];
+      if (arg == "--smoke-frames" && i + 1 < argc) {
+        smoke_frames = SDL_atoi(argv[++i]);
+      } else if (arg.rfind("--mobagen-", 0) != 0) {
+        args.push_back(argv[i]);
+      }
     }
 
-    // Delta time
-    auto now = std::chrono::high_resolution_clock::now();
-    float dt = std::chrono::duration<float>(now - lastTime).count();
-    lastTime = now;
+    // Graded CLI contract, byte-identical to the old main() dispatch; this
+    // runs before any SDL/window/GPU object exists.
+    GameConfig config;
+    int parseResult = parseCommandLineArguments(static_cast<int>(args.size()), args.data(), config);
+    if (parseResult != -1) return parseResult == 0 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
 
+    if (config.headless) {
+      int rc = runHeadlessMode(config);
+      return rc == 0 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+
+    // Windowed mode: old runRegularMode(config.size) on the host.
+    catWorld = CatWorld(config.size);
+    lastSideSize = catWorld.getWorldSideSize();
+    rebuildECS(app.world, catWorld, hexCells, catEntity);
+
+    app.settings.title = "Catch The Cat";
+    app.settings.clear_color[0] = 0.10f;
+    app.settings.clear_color[1] = 0.10f;
+    app.settings.clear_color[2] = 0.10f;
+    app.settings.clear_color[3] = 1.00f;
+    app::AppSettings::parse(argc, argv, app.settings);
+    // HeadlessNone never opens a render pass and a GUI layer that fails init
+    // aborts startup — attach only when a GPU frame can actually exist.
+    if (app.settings.render_mode != app::AppSettings::RenderMode::HeadlessNone) app.attach_gui(gui);
+    return SDL_APP_CONTINUE;
+  }
+
+  SDL_AppResult on_iterate(app::App& app, float dt) override {
     // Game update
     catWorld.update(dt);
 
     // Sync or rebuild ECS when board size changes
     if (catWorld.getWorldSideSize() != lastSideSize) {
-      rebuildECS(ecsWorld, catWorld, hexCells, catEntity);
+      rebuildECS(app.world, catWorld, hexCells, catEntity);
       lastSideSize = catWorld.getWorldSideSize();
     } else {
-      syncECS(ecsWorld, catWorld, hexCells, catEntity);
+      syncECS(app.world, catWorld, hexCells, catEntity);
     }
 
-    // React to window resize
-    int winW, winH;
-    SDL_GetWindowSize(window, &winW, &winH);
-    if (winW != wgpu_surface_width || winH != wgpu_surface_height) ResizeSurface(winW, winH);
+    if (smoke_frames > 0 && --smoke_frames == 0) app.request_exit();  // consumed next frame start
+    return SDL_APP_CONTINUE;
+  }
 
-    // Acquire surface texture
-    WGPUSurfaceTexture surface_texture;
-    wgpuSurfaceGetCurrentTexture(wgpu_surface, &surface_texture);
-    if (ImGui_ImplWGPU_IsSurfaceStatusError(surface_texture.status)) {
-      SDL_Log("Unrecoverable surface texture status=%#.8x", surface_texture.status);
-      break;
-    }
-    if (ImGui_ImplWGPU_IsSurfaceStatusSubOptimal(surface_texture.status)) {
-      if (surface_texture.texture) wgpuTextureRelease(surface_texture.texture);
-      if (winW > 0 && winH > 0) ResizeSurface(winW, winH);
-      continue;
-    }
-
-    // ImGui frame
-    ImGui_ImplWGPU_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
-    ImGui::NewFrame();
+  void on_draw(app::App& app, WGPURenderPassEncoder pass) override {
+    (void)pass;
+    ImGuiIO& io = ImGui::GetIO();
 
     // Hex grid rendered behind all ImGui windows via background draw list
-    drawHexGrid(catWorld, static_cast<float>(winW), static_cast<float>(winH));
+    drawHexGrid(catWorld, static_cast<float>(app.width()), static_cast<float>(app.height()));
 
     // Settings panel (equivalent to original World::OnGui, context-param removed)
     {
@@ -551,83 +365,7 @@ static int runRegularMode(int size) {
         ImGui::End();
       }
     }
-
-    ImGui::Render();
-
-    // WebGPU render pass
-    WGPUTextureViewDescriptor view_desc = {};
-    view_desc.format = wgpu_surface_cfg.format;
-    view_desc.dimension = WGPUTextureViewDimension_2D;
-    view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
-    view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
-    view_desc.aspect = WGPUTextureAspect_All;
-    WGPUTextureView texture_view = wgpuTextureCreateView(surface_texture.texture, &view_desc);
-
-    WGPURenderPassColorAttachment color_att = {};
-    color_att.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
-    color_att.loadOp = WGPULoadOp_Clear;
-    color_att.storeOp = WGPUStoreOp_Store;
-    color_att.clearValue = {clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w};
-    color_att.view = texture_view;
-
-    WGPURenderPassDescriptor rp_desc = {};
-    rp_desc.colorAttachmentCount = 1;
-    rp_desc.colorAttachments = &color_att;
-    rp_desc.depthStencilAttachment = nullptr;
-
-    WGPUCommandEncoderDescriptor enc_desc = {};
-    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(wgpu_device, &enc_desc);
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp_desc);
-    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
-    wgpuRenderPassEncoderEnd(pass);
-
-    WGPUCommandBufferDescriptor cmd_desc = {};
-    WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, &cmd_desc);
-    wgpuQueueSubmit(wgpu_queue, 1, &cmd);
-
-#ifndef __EMSCRIPTEN__
-    wgpuSurfacePresent(wgpu_surface);
-    wgpuDeviceTick(wgpu_device);
-#endif
-
-    wgpuTextureViewRelease(texture_view);
-    wgpuRenderPassEncoderRelease(pass);
-    wgpuCommandEncoderRelease(encoder);
-    wgpuCommandBufferRelease(cmd);
   }
+};
 
-  // Cleanup
-  SDL_Log("Exiting Catch The Cat");
-  sched.shutdown();
-
-  ImGui_ImplWGPU_Shutdown();
-  ImGui_ImplSDL3_Shutdown();
-  ImGui::DestroyContext();
-
-  wgpuSurfaceUnconfigure(wgpu_surface);
-  wgpuSurfaceRelease(wgpu_surface);
-  wgpuQueueRelease(wgpu_queue);
-  wgpuDeviceRelease(wgpu_device);
-  wgpuInstanceRelease(wgpu_instance);
-
-  SDL_DestroyWindow(window);
-  SDL_Quit();
-
-  SDL_Log("Catch The Cat Exited");
-  return 0;
-}
-
-// ============================================================
-// Entry point
-// ============================================================
-int main(int argc, char** argv) {
-  GameConfig config;
-  int parseResult = parseCommandLineArguments(argc, argv, config);
-  if (parseResult != -1) return parseResult;
-
-  if (config.headless) {
-    return runHeadlessMode(config);
-  } else {
-    return runRegularMode(config.size);
-  }
-}
+MOBAGEN_MAIN(CatchTheCatApp)
