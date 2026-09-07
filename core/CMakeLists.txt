@@ -34,6 +34,8 @@ add_subdirectory(sources/resource)
 add_subdirectory(sources/net)
 # app host — WebGPU context + SDL3 callback host (umbrella wiring comes in a later todo)
 add_subdirectory(sources/app)
+# imgui GUI layer for the app host (ImGui SDL3 + WebGPU backends)
+add_subdirectory(sources/imgui)
 
 # ---------------------------------------------------------------------------
 # Auxiliary subsystems
@@ -83,6 +85,7 @@ target_link_libraries(
             mobagen::core_resource
             mobagen::core_net
             mobagen::core_app
+            mobagen::core_imgui
             ${_CORE_SDL_TARGET}
             SDL3_image::SDL3_image-static
             IMGUI
