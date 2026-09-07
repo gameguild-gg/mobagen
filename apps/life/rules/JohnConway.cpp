@@ -3,6 +3,8 @@
 #include "../fsm/AgentContext.h"
 #include "../fsm/Condition.h"
 
+#include <SDL3/SDL_log.h>
+
 #include <stdexcept>
 
 // The four Conway rules as machine parts:
@@ -90,7 +92,9 @@ JohnConway::JohnConway() {
   //   dead->AddAction(std::make_shared<StayDeadAction>());
 
   // begin solution
-  throw std::logic_error("Transitions and actions for alive and dead states not implemented yet");
+  // note: log instead of throw - the constructor runs at app startup and at
+  // every fixture load; throwing here would kill the process before it runs.
+  SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "JohnConway: transitions and actions for alive and dead states not implemented yet");
 
   // end solution
 }
