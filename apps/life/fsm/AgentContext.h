@@ -5,8 +5,8 @@
 
 // What one agent (a cell) looks like to the machine during a single update.
 //
-// Data ownership, spelled out:
-//   - the cell's persistent state is ONE BIT in the world grid - that bit is
+// Data ownership and lifetime:
+//   - the cell's persistent state is ONE BIT in the world grid, that bit is
 //     what the double buffering swaps, generation after generation;
 //   - State objects are shared behavior nodes and store nothing per cell;
 //   - this context is a throwaway snapshot for one update: where the cell is

@@ -88,7 +88,9 @@ JohnConway::JohnConway() {
   // todo: add transitions and actions for alive, dead. example:
   //   alive->AddTransition(std::make_shared<Underpopulation>(), dead, {die});
   //   dead->AddAction(std::make_shared<StayDeadAction>());
+
   // begin solution
+  throw std::logic_error("Transitions and actions for alive and dead states not implemented yet");
 
   // end solution
 }
@@ -117,8 +119,13 @@ void JohnConway::Step(World& world) {
 }
 
 int JohnConway::CountNeighbors(World& world, Point2D point) {
+  // todo: count the ALIVE neighbors of the cell at point, on the square grid
+  // hint:
+  //   a square cell has 8 neighbors, one per dx/dy in {-1, 0, 1}, excluding itself
+  //   world.Get({point.x + dx, point.y + dy}) wraps around the borders (toroidal)
   // begin solution
 
+  throw std::logic_error("CountNeighbors not implemented yet");
+
   // end solution
-  return 0;
 }
