@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/InfiniBrains/mobagen/compare/v1.22.0...v1.23.0) (2026-09-07)
+
+
+### Features
+
+* **tests:** grade-ready Passed/Failed counts in runners and CI summaries ([06a5bfe](https://github.com/InfiniBrains/mobagen/commit/06a5bfec1a1a13783be9d8b7520b69f0426bdd8e))
+
 # [1.22.0](https://github.com/InfiniBrains/mobagen/compare/v1.21.0...v1.22.0) (2026-09-07)
 
 
