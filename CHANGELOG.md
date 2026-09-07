@@ -1,3 +1,24 @@
+# [1.22.0](https://github.com/InfiniBrains/mobagen/compare/v1.21.0...v1.22.0) (2026-09-07)
+
+
+### Bug Fixes
+
+* **android:** adapt SDL_main shim to SDL3 callback model ([ecdaa39](https://github.com/InfiniBrains/mobagen/commit/ecdaa39feb6d11db5b23df98aebde776a8a33819))
+* **core:** correct SDL3 shared target name in core_app ([b007c64](https://github.com/InfiniBrains/mobagen/commit/b007c64e985123ab0f4ba740b10f262680530451))
+* **core:** pass request callback info by value on emdawnwebgpu web path ([73b8714](https://github.com/InfiniBrains/mobagen/commit/73b871453f0068a37bbef10de3e42cbdaaf7e52c))
+* **core:** windowed surface chain matches imgui-helper semantics per driver ([d416216](https://github.com/InfiniBrains/mobagen/commit/d41621657bf0a4dc66adb0957afb80945dae56cc))
+* **dawn:** allow dawn and sdl to auto select x11 vs wayland on linux ([22c339b](https://github.com/InfiniBrains/mobagen/commit/22c339b1d76ec11f9b9430cb2b2480999bfb305d))
+* **web:** add html shells for hideandseeksquared and headless ([42a24aa](https://github.com/InfiniBrains/mobagen/commit/42a24aa5fcd8f79c0779f8d9534bc6f0c553a2ad))
+
+
+### Features
+
+* **core:** add WebGPU context to core app host ([0951fc4](https://github.com/InfiniBrains/mobagen/commit/0951fc4b29c06378c68cf6e507ecded964d547aa))
+* **core:** core_imgui GUI layer for app host ([193dc53](https://github.com/InfiniBrains/mobagen/commit/193dc537518e65e26697f0b29cf9b4a7f9496225))
+* **core:** core_rmlui GUI layer (ImGui-bridge rendering) ([fa2a498](https://github.com/InfiniBrains/mobagen/commit/fa2a49844c5aefe0e843379ecfa25cf5d9735332))
+* **core:** headless render modes with Dawn null backend ([f13e634](https://github.com/InfiniBrains/mobagen/commit/f13e634ebce03894adf1c7f0d65533144cbc1c3f))
+* **core:** SDL3 callback Application host ([98714c9](https://github.com/InfiniBrains/mobagen/commit/98714c90951ae37c52582ba2fe4f1f9b72304605))
+
 # [1.21.0](https://github.com/InfiniBrains/mobagen/compare/v1.20.1...v1.21.0) (2026-09-07)
 
 
