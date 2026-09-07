@@ -34,24 +34,15 @@ target_link_libraries(flocking PUBLIC core)
 
 # Formal fixture test runner (console; drives the existing rule classes)
 if(NOT EMSCRIPTEN)
-  # The IMGUI target publicly links SDL3 + dawn, which a console test runner must not pull in. Build
-  # the minimal core-only imgui static library instead (no backends, no SDL/Dawn dependencies).
-  add_library(
-    flocking_tests_imgui STATIC
-    ${IMGUI_SOURCE_DIR}/imgui.cpp
-    ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
-    ${IMGUI_SOURCE_DIR}/imgui_tables.cpp
-    ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
-  )
-  target_include_directories(flocking_tests_imgui PUBLIC ${IMGUI_SOURCE_DIR})
-
   add_executable(
     flocking-tests tests/flocking_tests.cpp behaviours/FlockingRule.cpp behaviours/CohesionRule.cpp
                    behaviours/AlignmentRule.cpp behaviours/SeparationRule.cpp utils/ImGuiExtra.cpp
   )
   # App-local includes only; core paths are inherited from apps/CMakeLists.txt.
   target_include_directories(flocking-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-  target_link_libraries(flocking-tests PRIVATE doctest::doctest glm::glm flocking_tests_imgui)
+  # imgui_core (external/imgui.cmake) provides ImGui headers without the SDL3/dawn deps a console
+  # runner must not pull in.
+  target_link_libraries(flocking-tests PRIVATE doctest::doctest glm::glm imgui_core)
   # Normalize to forward slashes: MSVC mangles backslash escapes inside string-literal defines.
   file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests" FLOCKING_TESTS_DIR_PATH)
   target_compile_definitions(flocking-tests PRIVATE FLOCKING_TESTS_DIR="${FLOCKING_TESTS_DIR_PATH}")

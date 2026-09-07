@@ -33,6 +33,17 @@ if(IMGUI_ADDED)
   # Emscripten/web.
   target_compile_definitions(IMGUI PUBLIC IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 
+  # Core-only split for console consumers (flocking-tests): ImGui headers/sources without the
+  # SDL3 + dawn dependencies that the full IMGUI target publicly links.
+  add_library(
+    imgui_core STATIC
+    ${IMGUI_SOURCE_DIR}/imgui.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_tables.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
+  )
+  target_include_directories(imgui_core PUBLIC ${IMGUI_SOURCE_DIR})
+
   # Android uses the shared SDL3 (loaded by SDLActivity via JNI); other platforms use the static
   # variant.
   if(ANDROID)

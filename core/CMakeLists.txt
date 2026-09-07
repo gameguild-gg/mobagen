@@ -82,6 +82,7 @@ target_link_libraries(
             mobagen::core_render
             mobagen::core_resource
             mobagen::core_net
+            mobagen::core_app
             ${_CORE_SDL_TARGET}
             SDL3_image::SDL3_image-static
             IMGUI
