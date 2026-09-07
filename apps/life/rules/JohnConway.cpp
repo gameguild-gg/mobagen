@@ -90,11 +90,10 @@ JohnConway::JohnConway() {
   // every fixture load; throwing here would kill the process before it runs.
   alive->AddTransition(std::make_shared<Underpopulation>(), dead, {die});
   alive->AddTransition(std::make_shared<Overpopulation>(), dead, {die});
+  dead->AddTransition(std::make_shared<Reproduction>(), alive, {born});
 
   alive->AddAction(std::make_shared<StayAliveAction>());
   dead->AddAction(std::make_shared<StayDeadAction>());
-
-  dead->AddTransition(std::make_shared<Reproduction>(), alive, {born});
 
   // end solution
 }
@@ -132,7 +131,7 @@ int JohnConway::CountNeighbors(World& world, Point2D point) {
   for (int x = -1; x <= 1; x++) {
       for (int y = -1; y <= 1; y++)
       {
-      if (x != 0 && y != 0) {
+      if (point != Point2D(x+point.x,y+point.y) ){
           if (world.Get({point.x + x, point.y + y})) 
           {
           neighbors++;

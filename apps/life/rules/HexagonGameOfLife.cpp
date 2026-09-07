@@ -42,7 +42,7 @@ public:
     // todo: implement the overpopulation condition
     // hint: on the hex grid (B2/S34) a live cell is overpopulated above 4 neighbors
     //throw std::logic_error("Overpopulation condition not implemented yet");
-    return true;
+    return false;
   }
 };
 
@@ -52,7 +52,7 @@ public:
     // todo: implement the reproduction condition
     // hint: on the hex grid (B2/S34) a dead cell is born with exactly 2 neighbors
     //throw std::logic_error("Reproduction condition not implemented yet");
-    return true;
+    return false;
   }
 };
 
