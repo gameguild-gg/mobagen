@@ -32,6 +32,8 @@ add_subdirectory(sources/input)
 add_subdirectory(sources/render)
 add_subdirectory(sources/resource)
 add_subdirectory(sources/net)
+# app host — WebGPU context + SDL3 callback host (umbrella wiring comes in a later todo)
+add_subdirectory(sources/app)
 
 # ---------------------------------------------------------------------------
 # Auxiliary subsystems
