@@ -1,3 +1,10 @@
+## [1.23.1](https://github.com/InfiniBrains/mobagen/compare/v1.23.0...v1.23.1) (2026-09-07)
+
+
+### Performance Improvements
+
+* **life:** improve life rendering ([1a6c13b](https://github.com/InfiniBrains/mobagen/commit/1a6c13b3831227c06a86175a057549a2d23acad3))
+
 # [1.23.0](https://github.com/InfiniBrains/mobagen/compare/v1.22.0...v1.23.0) (2026-09-07)
 
 
