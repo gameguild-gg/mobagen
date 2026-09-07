@@ -1,6 +1,17 @@
-// Prevent SDL from redefining main() to SDL_main()
-// We want to control the entry point ourselves
-#define SDL_MAIN_HANDLED
+// ============================================================================
+// DICOM Renderer — WebGPU volume rendering app on the core app host.
+// ============================================================================
+// The window, the WebGPU instance/adapter/device/queue/surface and the Dear
+// ImGui SDL3+WebGPU backends are owned by the core app host (core/sources/app,
+// core/sources/imgui); this file registers DicomApp via MOBAGEN_MAIN and keeps
+// only the app-specific state: the camera, the DOD scene (Transform +
+// VolumeRenderable -> RenderBridge) and the WGSL volume ray-cast pipeline
+// (raygen.wgsl 3D-texture pass + histogram.wgsl compute auto-window).
+//
+// Historical note: this app once shipped a second, WebGL2/OpenGL build (the
+// "learning rung" before WebGPU). A browser <canvas> can hold exactly ONE
+// context for its lifetime, so the renderer was a compile-time selection; the
+// WebGL2 path is long gone and USE_WEBGPU is forced by CMake.
 
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
@@ -9,6 +20,7 @@
 
 #include <SDL3/SDL.h>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cstdint>
 #include <cmath>
@@ -19,30 +31,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "app/sdl_app.hpp"
+#include "imgui/imgui_layer.hpp"
 #include "camera/camera.hpp"
 
 // ============================================================================
-// SINGLE-RENDERER BUILD MODEL
-// ============================================================================
-//
-// LEARNING: A browser <canvas> can hold exactly ONE context for its lifetime.
-// Once getContext('webgl2') is called, getContext('webgpu') returns null (and
-// vice versa). So a runtime "switch renderer on the same canvas" is impossible.
-//
-// Instead, each renderer is its own BUILD, selected at compile time:
-//   - USE_WEBGPU OFF (default) -> WebGL2 build  (the learning rung)
-//   - USE_WEBGPU ON            -> WebGPU build  (the destination: compute shaders)
-//
-// Both builds share the same camera + input code below. The renderer-specific
-// code is guarded by #ifdef USE_WEBGPU.
-//
-// CMake produces them in separate output dirs:
-//   build/wasm-webgl/bin/dicom_renderer.html
-//   build/wasm-webgpu/bin/dicom_renderer.html
-// ============================================================================
-
-// ============================================================================
-// CAMERA & INPUT (shared by both renderer builds)
+// CAMERA & INPUT
 // ============================================================================
 static engine::Camera g_camera(engine::CameraMode::ORBIT);
 
@@ -56,39 +50,6 @@ static MouseDragAction g_mouse_drag_action = MouseDragAction::None;
 // (the authoritative size; SDL's window size is stale on the web). 0 = not set.
 static int g_canvas_w = 0;
 static int g_canvas_h = 0;
-
-// Real frame delta time, measured from SDL's high-resolution counter.
-static float measure_delta_seconds() {
-  static uint64_t last = SDL_GetPerformanceCounter();
-  const uint64_t now = SDL_GetPerformanceCounter();
-  const double freq = static_cast<double>(SDL_GetPerformanceFrequency());
-  float dt = static_cast<float>(static_cast<double>(now - last) / freq);
-  last = now;
-  // Clamp to avoid huge jumps after a stall / tab switch.
-  if (dt > 0.1f) dt = 0.1f;
-  return dt;
-}
-
-static void get_drawable_size(SDL_Window* window, int& width, int& height) {
-  width = 0;
-  height = 0;
-#ifdef __EMSCRIPTEN__
-  // On the web, the HTML canvas drawing buffer is the authoritative viewport.
-  // SDL's window size can lag behind after CSS/device-pixel-ratio changes.
-  if (g_canvas_w > 0 && g_canvas_h > 0) {
-    width = g_canvas_w;
-    height = g_canvas_h;
-    return;
-  }
-#endif
-  if (window) {
-    SDL_GetWindowSizeInPixels(window, &width, &height);
-  }
-  if (width <= 0 || height <= 0) {
-    width = 800;
-    height = 600;
-  }
-}
 
 static void toggle_pointer_lock() {
 #ifdef __EMSCRIPTEN__
@@ -132,114 +93,24 @@ static void handle_camera_key_up(SDL_Keycode key) {
   }
 }
 
-// Poll SDL events: quit, keyboard, mouse. Updates the shared camera.
-// Works identically in native and Emscripten (SDL abstracts the event source).
-static void process_input(bool& running) {
-  SDL_Event event;
-  while (SDL_PollEvent(&event)) {
-    switch (event.type) {
-      case SDL_EVENT_QUIT:
-        running = false;
-        break;
-
-      case SDL_EVENT_KEY_DOWN:
-        handle_camera_key_down(event.key.key);
-        break;
-
-      case SDL_EVENT_KEY_UP:
-        handle_camera_key_up(event.key.key);
-        break;
-
-      case SDL_EVENT_MOUSE_BUTTON_DOWN:
-        g_mouse_look_active = true;
-        g_mouse_drag_action
-            = (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) ? MouseDragAction::Pan : MouseDragAction::Rotate;
-        break;
-
-      case SDL_EVENT_MOUSE_BUTTON_UP:
-        g_mouse_look_active = false;
-        g_mouse_drag_action = MouseDragAction::None;
-        break;
-
-      case SDL_EVENT_MOUSE_MOTION:
-        if (g_mouse_look_active) {
-          if (g_mouse_drag_action == MouseDragAction::Pan) {
-            g_camera.on_mouse_pan(event.motion.xrel, event.motion.yrel);
-          } else {
-            g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
-          }
-        }
-        break;
-
-      case SDL_EVENT_MOUSE_WHEEL:
-        g_camera.on_mouse_wheel(event.wheel.y);
-        break;
-    }
-  }
-}
-
-#ifdef USE_WEBGPU
 // ============================================================================
-// G3: WebGPU BUILD — Dawn (native) / emdawnwebgpu (web) + Dear ImGui
+// WEBGPU VOLUME RENDERER (app code; device/queue/surface come from the host)
 // ============================================================================
-//
-// The device, surface and per-frame render pass live HERE in C++ now (WebGPU
-// C API), identical on native (Dawn / D3D12·Metal·Vulkan) and web
-// (emdawnwebgpu). Adapted from master's core/Window.cpp + Engine::Tick; this
-// replaces the earlier JS-shell stub. For now it clears the surface and drives
-// an ImGui control panel — proving the full SDL3 -> Dawn -> ImGui path end to
-// end. The DICOM ray-cast (WGSL) lands on top of this host in a later step.
+#include <webgpu/webgpu.h>
+#include <imgui.h>
+#include "render_bridge.hpp"
+#include "transform_system.hpp"
+#include "volume_buffer.h"
+#include "volume_file.h"
+#include "embedded_shaders.h"
+#ifdef HAVE_GDCM
+#  include "volume_io.h"
+#endif
 
-// Current state: this host now records a WGSL volume pass from RenderBridge
-// commands, then draws ImGui as an overlay. The next resource step is replacing
-// the synthetic phantom bytes with real DICOM loader output.
-#  include <webgpu/webgpu.h>
-#  include <imgui.h>
-#  include <imgui_impl_sdl3.h>
-#  include <imgui_impl_wgpu.h>
-#  include "render_bridge.hpp"
-#  include "transform_system.hpp"
-#  include "volume_buffer.h"
-#  include "volume_file.h"
-#  include "embedded_shaders.h"
-#  ifdef HAVE_GDCM
-#    include "volume_io.h"
-#  endif
-#  ifdef __EMSCRIPTEN__
-#    include <emscripten/html5.h>
-#  endif
-#  if defined(SDL_PLATFORM_APPLE)
-#    include <SDL3/SDL_metal.h>
-#  endif
+static const char* renderer_name() { return "WebGPU (G3)"; }
 
 namespace {
 
-  // Dawn's wgpuInstanceRequestAdapter / RequestDevice are async even on native.
-  // Pump events until the callback fires (emscripten_sleep yields to JS on web).
-  struct AdapterReq {
-    WGPUAdapter adapter = nullptr;
-    bool done = false;
-  };
-  void onAdapter(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView msg, void* ud1, void*) {
-    auto* r = static_cast<AdapterReq*>(ud1);
-    if (status == WGPURequestAdapterStatus_Success)
-      r->adapter = adapter;
-    else
-      SDL_Log("RequestAdapter failed: %.*s", (int)msg.length, msg.data ? msg.data : "");
-    r->done = true;
-  }
-  struct DeviceReq {
-    WGPUDevice device = nullptr;
-    bool done = false;
-  };
-  void onDevice(WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView msg, void* ud1, void*) {
-    auto* r = static_cast<DeviceReq*>(ud1);
-    if (status == WGPURequestDeviceStatus_Success)
-      r->device = device;
-    else
-      SDL_Log("RequestDevice failed: %.*s", (int)msg.length, msg.data ? msg.data : "");
-    r->done = true;
-  }
   struct MapReq {
     bool done = false;
     bool ok = false;
@@ -252,9 +123,6 @@ namespace {
     }
     r->done = true;
   }
-  void onUncapturedError(WGPUDevice const*, WGPUErrorType type, WGPUStringView msg, void*, void*) {
-    SDL_Log("[WGPU error type=%d]: %.*s", (int)type, (int)msg.length, msg.data ? msg.data : "");
-  }
 
   void reportStartupStatus(const char* kind, const char* message) {
     if (std::strcmp(kind, "error") == 0) {
@@ -262,7 +130,7 @@ namespace {
     } else {
       printf("[%s] %s\n", kind, message);
     }
-#  ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
     EM_ASM(
         {
           const kind = UTF8ToString($0);
@@ -270,27 +138,27 @@ namespace {
           if (globalThis.mobagenSetStatus) globalThis.mobagenSetStatus(kind, message);
         },
         kind, message);
-#  endif
+#endif
   }
 
-  bool pumpUntil(WGPUInstance inst, bool& flag, const char* operation, Uint64 timeoutMs = 10000) {
+  // Pump WebGPU events until the callback fires. The instance is owned by the
+  // host context (no accessor), so pump through its tick(): web runs
+  // wgpuInstanceProcessEvents, native runs wgpuDeviceTick — both deliver
+  // AllowProcessEvents callbacks (emdawnwebgpu only delivers them while
+  // events are processed; SDL_Delay/emscripten_sleep yields to the browser).
+  bool pumpUntil(app::WebGPUContext& gpu, bool& flag, const char* operation, Uint64 timeoutMs = 10000) {
     const Uint64 start = SDL_GetTicks();
     while (!flag) {
-      // Emdawn marks adapter/device futures ready from JavaScript promises,
-      // but callbacks using AllowProcessEvents are delivered only when the
-      // app pumps WebGPU events. Without this call the browser build sits on
-      // the CSS-blue canvas forever: requestAdapter resolved, but our C++
-      // onAdapter/onDevice callback never runs.
-      wgpuInstanceProcessEvents(inst);
+      gpu.tick();
       if (SDL_GetTicks() - start > timeoutMs) {
         SDL_Log("%s timed out after %llu ms", operation, static_cast<unsigned long long>(timeoutMs));
         return false;
       }
-#  ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
       emscripten_sleep(1);
-#  else
+#else
       SDL_Delay(1);
-#  endif
+#endif
     }
     return true;
   }
@@ -365,12 +233,12 @@ namespace {
 
   static volume::VolumeBuffer tryLoadDicomVolumeBuffer(bool& loadedFromDicom) {
     loadedFromDicom = false;
-#  ifdef HAVE_GDCM
-#    ifdef MOBAGEN_DICOM_PATH
+#ifdef HAVE_GDCM
+#  ifdef MOBAGEN_DICOM_PATH
     const char* dicomDir = MOBAGEN_DICOM_PATH;
-#    else
+#  else
     const char* dicomDir = "apps/dicom_viewer/assets/dicom";
-#    endif
+#  endif
     VolumeData dicom = volume_io_load_series(dicomDir);
     if (!dicom.voxels) {
       printf("DICOM load skipped/failed at %s; using synthetic phantom\n", dicomDir);
@@ -394,9 +262,9 @@ namespace {
     volume_io_free(&dicom);
     loadedFromDicom = !buffer.empty();
     return buffer;
-#  else
+#else
     return {};
-#  endif
+#endif
   }
 
   static std::vector<unsigned char> makeTransferLut(std::uint32_t preset) {
@@ -502,28 +370,19 @@ namespace {
 
 }  // namespace
 
-struct AppWebGPU {
-  SDL_Window* window = nullptr;
-  bool running = true;
+// ============================================================================
+// DicomApp — AppCallbacks for the core host; owns the volume renderer state
+// ============================================================================
+struct DicomApp : app::AppCallbacks {
+  app::ImGuiLayer imguiLayer;
 
-  WGPUInstance instance = nullptr;
-  WGPUAdapter adapter = nullptr;
-  WGPUDevice device = nullptr;
-  WGPUQueue queue = nullptr;
-  WGPUSurface surface = nullptr;
-  WGPUTextureFormat surfaceFormat = WGPUTextureFormat_Undefined;
-#  if defined(SDL_PLATFORM_APPLE)
-  SDL_MetalView metalView = nullptr;
-#  endif
-  int cfgW = 0, cfgH = 0;
-  float clearColor[4] = {0.10f, 0.20f, 0.50f, 1.0f};
-
-  ecs::World world;
+  // App scene state (the ecs::World itself is host-owned: app.world).
   scene::TransformSystem transforms;
   render::RenderBridge renderBridge;
   volume::VolumeBuffer cpuVolume;
   bool cpuVolumeFromDicom = false;
 
+  // Volume pass resources (created lazily once the host device exists).
   WGPUShaderModule volumeShader = nullptr;
   WGPUBindGroupLayout volumeBindGroupLayout = nullptr;
   WGPUPipelineLayout volumePipelineLayout = nullptr;
@@ -560,136 +419,37 @@ struct AppWebGPU {
   std::uint32_t sampleSteps = 128;  // ray-march samples; quality/cost knob
   float opacityScale = 0.20f;       // per-sample opacity multiplier
 
-  bool init();
-  void tick();
-  void cleanup();
+  // Migration bookkeeping: the volume renderer needs the host device, which
+  // does not exist yet when on_init runs — init lazily on the first iterate.
+  bool renderer_ready = false;
+  int smoke_frames = -1;  // --smoke-frames N: exit(0) after N frames
+
+  SDL_AppResult on_init(app::App& app, int argc, char** argv) override;
+  SDL_AppResult on_event(app::App& app, const SDL_Event& event) override;
+  SDL_AppResult on_iterate(app::App& app, float dt) override;
+  void on_draw(app::App& app, WGPURenderPassEncoder pass) override;
+  void on_shutdown(app::App& app) override;
 
 private:
-  void createSurface();
-  bool initDeviceAndQueue();
-  void configureSurface(int w, int h);
-  void createStudyVolumeScene();
-  bool initVolumeRenderer();
-  bool initHistogramResources(const render::VolumeSource& source);
-  bool runGpuHistogramAutoWindow(render::VolumeRenderable& volume);
-  void uploadTransferLut(std::uint32_t preset);
-  void drawVolume(WGPURenderPassEncoder pass);
+  void createStudyVolumeScene(app::App& app);
+  bool initVolumeRenderer(app::App& app);
+  bool initHistogramResources(app::App& app, const render::VolumeSource& source);
+  bool runGpuHistogramAutoWindow(app::App& app, render::VolumeRenderable& volume);
+  void uploadTransferLut(app::App& app, std::uint32_t preset);
+  void drawVolume(app::App& app, WGPURenderPassEncoder pass);
   void releaseVolumeRenderer();
 };
 
-void AppWebGPU::createSurface() {
-  WGPUSurfaceDescriptor desc = {};
-#  if defined(__EMSCRIPTEN__)
-  WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvasDesc = {};
-  canvasDesc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
-  canvasDesc.selector = {"#canvas", WGPU_STRLEN};
-  desc.nextInChain = &canvasDesc.chain;
-  surface = wgpuInstanceCreateSurface(instance, &desc);
-#  elif defined(SDL_PLATFORM_WIN32)
-  WGPUSurfaceSourceWindowsHWND hwndDesc = {};
-  hwndDesc.chain.sType = WGPUSType_SurfaceSourceWindowsHWND;
-  hwndDesc.hinstance = SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr);
-  hwndDesc.hwnd = SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
-  desc.nextInChain = &hwndDesc.chain;
-  surface = wgpuInstanceCreateSurface(instance, &desc);
-#  elif defined(SDL_PLATFORM_APPLE)
-  metalView = SDL_Metal_CreateView(window);
-  WGPUSurfaceSourceMetalLayer metalDesc = {};
-  metalDesc.chain.sType = WGPUSType_SurfaceSourceMetalLayer;
-  metalDesc.layer = SDL_Metal_GetLayer(metalView);
-  desc.nextInChain = &metalDesc.chain;
-  surface = wgpuInstanceCreateSurface(instance, &desc);
-#  elif defined(SDL_PLATFORM_LINUX)
-  void* xdisplay = SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
-  uint64_t xwindow = (uint64_t)SDL_GetNumberProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
-  WGPUSurfaceSourceXlibWindow xlibDesc = {};
-  xlibDesc.chain.sType = WGPUSType_SurfaceSourceXlibWindow;
-  xlibDesc.display = xdisplay;
-  xlibDesc.window = xwindow;
-  desc.nextInChain = &xlibDesc.chain;
-  surface = wgpuInstanceCreateSurface(instance, &desc);
-#  else
-#    error "Unsupported platform for WebGPU surface creation"
-#  endif
-  if (!surface) fprintf(stderr, "wgpuInstanceCreateSurface failed\n");
-}
-
-bool AppWebGPU::initDeviceAndQueue() {
-  AdapterReq aReq;
-  WGPURequestAdapterOptions aOpts = {};
-  aOpts.compatibleSurface = surface;
-  aOpts.powerPreference = WGPUPowerPreference_HighPerformance;
-  WGPURequestAdapterCallbackInfo aCb = {};
-  aCb.mode = WGPUCallbackMode_AllowProcessEvents;
-  aCb.callback = onAdapter;
-  aCb.userdata1 = &aReq;
-  reportStartupStatus("loading", "Requesting WebGPU adapter...");
-  wgpuInstanceRequestAdapter(instance, &aOpts, aCb);
-  if (!pumpUntil(instance, aReq.done, "requestAdapter")) {
-    reportStartupStatus("error", "Timed out while requesting a WebGPU adapter.");
-    return false;
-  }
-  if (!aReq.adapter) {
-    reportStartupStatus("error", "No WebGPU adapter is available in this browser or GPU configuration.");
-    fprintf(stderr, "No WebGPU adapter\n");
-    return false;
-  }
-  adapter = aReq.adapter;
-
-  DeviceReq dReq;
-  WGPUDeviceDescriptor dDesc = {};
-  dDesc.label = {"dicom_renderer device", WGPU_STRLEN};
-  dDesc.uncapturedErrorCallbackInfo.callback = onUncapturedError;
-  WGPURequestDeviceCallbackInfo dCb = {};
-  dCb.mode = WGPUCallbackMode_AllowProcessEvents;
-  dCb.callback = onDevice;
-  dCb.userdata1 = &dReq;
-  reportStartupStatus("loading", "Requesting WebGPU device...");
-  wgpuAdapterRequestDevice(adapter, &dDesc, dCb);
-  if (!pumpUntil(instance, dReq.done, "requestDevice")) {
-    reportStartupStatus("error", "Timed out while requesting a WebGPU device.");
-    return false;
-  }
-  if (!dReq.device) {
-    reportStartupStatus("error", "WebGPU adapter was found, but device creation failed.");
-    fprintf(stderr, "WebGPU device request failed\n");
-    return false;
-  }
-  device = dReq.device;
-  queue = wgpuDeviceGetQueue(device);
-
-  WGPUSurfaceCapabilities caps = {};
-  wgpuSurfaceGetCapabilities(surface, adapter, &caps);
-  surfaceFormat = (caps.formatCount > 0 && caps.formats) ? caps.formats[0] : WGPUTextureFormat_BGRA8Unorm;
-  wgpuSurfaceCapabilitiesFreeMembers(caps);
-  printf("WebGPU device ready (surfaceFormat=%d)\n", (int)surfaceFormat);
-  return true;
-}
-
-void AppWebGPU::configureSurface(int w, int h) {
-  if (w <= 0 || h <= 0) return;
-  WGPUSurfaceConfiguration cfg = {};
-  cfg.device = device;
-  cfg.format = surfaceFormat;
-  cfg.usage = WGPUTextureUsage_RenderAttachment;
-  cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
-  cfg.width = (uint32_t)w;
-  cfg.height = (uint32_t)h;
-  cfg.presentMode = WGPUPresentMode_Fifo;
-  wgpuSurfaceConfigure(surface, &cfg);
-  cfgW = w;
-  cfgH = h;
-}
-
-void AppWebGPU::createStudyVolumeScene() {
+void DicomApp::createStudyVolumeScene(app::App& app) {
   // This is the first live DOD -> renderer handoff:
   //   Entity + Transform + VolumeRenderable
   // becomes, every frame:
   //   VolumeDrawCommand[] consumed by the renderer host.
   //
-  // The WebGPU host still only clears + draws ImGui. The important step here
-  // is architectural: the renderer no longer needs to query ECS storage while
-  // recording GPU commands. It receives a flat command list.
+  // The WebGPU host records a WGSL volume pass from RenderBridge commands,
+  // then draws ImGui as an overlay. The important step here is architectural:
+  // the renderer no longer needs to query ECS storage while recording GPU
+  // commands. It receives a flat command list.
   cpuVolume = tryLoadDicomVolumeBuffer(cpuVolumeFromDicom);
   if (cpuVolume.empty()) {
     // Web (and native without GDCM): load the offline-converted DICOM volume.
@@ -697,13 +457,13 @@ void AppWebGPU::createStudyVolumeScene() {
     // UInt16 RG8 + metadata); the wasm build preloads it into the FS. This is
     // what brings REAL DICOM intensities (GPU window/level + histogram) to the
     // browser, where GDCM is unavailable.
-#  ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
     const char* mvolPath = "/volume.mvol";
-#  elif defined(MOBAGEN_MVOL_PATH)
+#elif defined(MOBAGEN_MVOL_PATH)
     const char* mvolPath = MOBAGEN_MVOL_PATH;
-#  else
+#else
     const char* mvolPath = "apps/dicom_viewer/assets/volume.mvol";
-#  endif
+#endif
     bool loadedFromFile = false;
     volume::VolumeBuffer fileVolume = volume::load_volume_file(mvolPath, loadedFromFile);
     if (loadedFromFile) {
@@ -718,11 +478,11 @@ void AppWebGPU::createStudyVolumeScene() {
   }
   const volume::VolumeMetadata& meta = cpuVolume.metadata();
 
-  ecs::Entity phantom = world.create();
+  ecs::Entity phantom = app.world.create();
 
   scene::Transform t;
   t.scale = {1.0f, 1.0f, 1.0f};
-  world.add<scene::Transform>(phantom, t);
+  app.world.add<scene::Transform>(phantom, t);
 
   render::VolumeRenderable volume;
   volume.source.id = 1;
@@ -751,12 +511,21 @@ void AppWebGPU::createStudyVolumeScene() {
   }
   volume.display.transfer_preset = cpuVolumeFromDicom ? 2u : 1u;
   volume.display.mode = render::VolumeRenderMode::DVR;
-  world.add<render::VolumeRenderable>(phantom, volume);
+  app.world.add<render::VolumeRenderable>(phantom, volume);
 
-  transforms.rebuild(world);
+  transforms.rebuild(app.world);
 }
 
-bool AppWebGPU::initVolumeRenderer() {
+bool DicomApp::initVolumeRenderer(app::App& app) {
+  WGPUDevice device = app.device();
+  WGPUQueue queue = app.gpu.queue();
+  // The volume pass renders into the host frame target: the window surface
+  // format, or the offscreen BGRA8Unorm target in HeadlessNull (the host
+  // surface format is Undefined without a surface — same fallback the core
+  // ImGuiLayer applies).
+  const WGPUTextureFormat targetFormat
+      = app.gpu.surface_format() != WGPUTextureFormat_Undefined ? app.gpu.surface_format() : WGPUTextureFormat_BGRA8Unorm;
+
   WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
   wgsl.code = {shaders::RAYGEN_WGSL, WGPU_STRLEN};
   WGPUShaderModuleDescriptor shaderDesc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
@@ -773,7 +542,7 @@ bool AppWebGPU::initVolumeRenderer() {
   const float quad[] = {
       -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,  1.0f, 1.0f, 1.0f,
 
-      -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f,  1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,
+      -1.0f, -1.0f, 0.0f, 0.0f, 1.0f,  1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,
   };
   fullscreenVbo = createBuffer(device, "fullscreen volume quad", sizeof(quad), WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst);
   cameraBuffer = createBuffer(device, "camera inv view-projection", sizeof(glm::mat4), WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
@@ -874,7 +643,7 @@ bool AppWebGPU::initVolumeRenderer() {
   transferViewDesc.aspect = WGPUTextureAspect_All;
   transferViewDesc.usage = WGPUTextureUsage_TextureBinding;
   transferTextureView = wgpuTextureCreateView(transferTexture, &transferViewDesc);
-  uploadTransferLut(1u);
+  uploadTransferLut(app, 1u);
 
   if (!volumeTextureView || !transferTextureView) {
     fprintf(stderr, "Failed to create texture views\n");
@@ -998,7 +767,7 @@ bool AppWebGPU::initVolumeRenderer() {
   vertexLayout.attributes = attributes;
 
   WGPUColorTargetState colorTarget = WGPU_COLOR_TARGET_STATE_INIT;
-  colorTarget.format = surfaceFormat;
+  colorTarget.format = targetFormat;
   colorTarget.writeMask = WGPUColorWriteMask_All;
 
   WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
@@ -1024,7 +793,7 @@ bool AppWebGPU::initVolumeRenderer() {
     return false;
   }
 
-  if (!initHistogramResources(source)) {
+  if (!initHistogramResources(app, source)) {
     fprintf(stderr, "Failed to create GPU histogram resources\n");
     return false;
   }
@@ -1034,7 +803,8 @@ bool AppWebGPU::initVolumeRenderer() {
   return true;
 }
 
-bool AppWebGPU::initHistogramResources(const render::VolumeSource& source) {
+bool DicomApp::initHistogramResources(app::App& app, const render::VolumeSource& source) {
+  WGPUDevice device = app.device();
   histogramBinCount = histogramBinsForFormat(source.format);
   const std::uint64_t histogramBytes = static_cast<std::uint64_t>(histogramBinCount) * sizeof(std::uint32_t);
 
@@ -1125,7 +895,7 @@ bool AppWebGPU::initHistogramResources(const render::VolumeSource& source) {
   return true;
 }
 
-bool AppWebGPU::runGpuHistogramAutoWindow(render::VolumeRenderable& volume) {
+bool DicomApp::runGpuHistogramAutoWindow(app::App& app, render::VolumeRenderable& volume) {
   if (!histogramPipeline || !histogramBindGroup || !histogramBuffer || !histogramReadbackBuffer || !histogramParamsBuffer) {
     histogramStatus = "GPU histogram resources are not initialized.";
     return false;
@@ -1141,11 +911,11 @@ bool AppWebGPU::runGpuHistogramAutoWindow(render::VolumeRenderable& volume) {
   const std::uint64_t histogramBytes = static_cast<std::uint64_t>(histogramBinCount) * sizeof(std::uint32_t);
   const GpuHistogramParams params
       = {{volume.source.width, volume.source.height, volume.source.depth, 0u}, {scalarFormatToGpu(volume.source.format), histogramBinCount, 0u, 0u}};
-  wgpuQueueWriteBuffer(queue, histogramParamsBuffer, 0, &params, sizeof(params));
+  wgpuQueueWriteBuffer(app.gpu.queue(), histogramParamsBuffer, 0, &params, sizeof(params));
 
   WGPUCommandEncoderDescriptor encDesc = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
   encDesc.label = {"histogram command encoder", WGPU_STRLEN};
-  WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(device, &encDesc);
+  WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(app.device(), &encDesc);
   if (!enc) {
     histogramStatus = "Failed to create histogram command encoder.";
     return false;
@@ -1169,7 +939,7 @@ bool AppWebGPU::runGpuHistogramAutoWindow(render::VolumeRenderable& volume) {
   WGPUCommandBufferDescriptor cbDesc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
   cbDesc.label = {"histogram command buffer", WGPU_STRLEN};
   WGPUCommandBuffer cb = wgpuCommandEncoderFinish(enc, &cbDesc);
-  wgpuQueueSubmit(queue, 1, &cb);
+  wgpuQueueSubmit(app.gpu.queue(), 1, &cb);
   wgpuCommandBufferRelease(cb);
   wgpuCommandEncoderRelease(enc);
 
@@ -1179,7 +949,7 @@ bool AppWebGPU::runGpuHistogramAutoWindow(render::VolumeRenderable& volume) {
   mapCb.callback = onBufferMapped;
   mapCb.userdata1 = &mapReq;
   wgpuBufferMapAsync(histogramReadbackBuffer, WGPUMapMode_Read, 0, static_cast<size_t>(histogramBytes), mapCb);
-  if (!pumpUntil(instance, mapReq.done, "histogramReadback", 30000)) {
+  if (!pumpUntil(app.gpu, mapReq.done, "histogramReadback", 30000)) {
     histogramStatus = "Timed out waiting for GPU histogram readback.";
     return false;
   }
@@ -1227,7 +997,7 @@ bool AppWebGPU::runGpuHistogramAutoWindow(render::VolumeRenderable& volume) {
   return true;
 }
 
-void AppWebGPU::uploadTransferLut(std::uint32_t preset) {
+void DicomApp::uploadTransferLut(app::App& app, std::uint32_t preset) {
   if (!transferTexture) return;
   std::vector<unsigned char> lut = makeTransferLut(preset);
   WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
@@ -1240,17 +1010,17 @@ void AppWebGPU::uploadTransferLut(std::uint32_t preset) {
   writeSize.width = 256;
   writeSize.height = 1;
   writeSize.depthOrArrayLayers = 1;
-  wgpuQueueWriteTexture(queue, &dst, lut.data(), lut.size(), &layout, &writeSize);
+  wgpuQueueWriteTexture(app.gpu.queue(), &dst, lut.data(), lut.size(), &layout, &writeSize);
   uploadedTransferPreset = preset;
 }
 
-void AppWebGPU::drawVolume(WGPURenderPassEncoder pass) {
+void DicomApp::drawVolume(app::App& app, WGPURenderPassEncoder pass) {
   const auto& commands = renderBridge.volume_commands();
   if (commands.empty() || !volumePipeline || !volumeBindGroup) return;
 
   const render::VolumeDrawCommand& cmd = commands[0];
   if (cmd.display.transfer_preset != uploadedTransferPreset) {
-    uploadTransferLut(cmd.display.transfer_preset);
+    uploadTransferLut(app, cmd.display.transfer_preset);
   }
 
   const glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
@@ -1259,6 +1029,7 @@ void AppWebGPU::drawVolume(WGPURenderPassEncoder pass) {
   const glm::vec3 half = boxHalfFromSource(cmd.source);
   const GpuVec4f boxHalf = {half.x, half.y, half.z, 0.0f};
 
+  WGPUQueue queue = app.gpu.queue();
   wgpuQueueWriteBuffer(queue, cameraBuffer, 0, glm::value_ptr(invVP), sizeof(glm::mat4));
   wgpuQueueWriteBuffer(queue, modeBuffer, 0, &mode, sizeof(mode));
   wgpuQueueWriteBuffer(queue, windowBuffer, 0, &windowLevel, sizeof(windowLevel));
@@ -1270,7 +1041,7 @@ void AppWebGPU::drawVolume(WGPURenderPassEncoder pass) {
   wgpuRenderPassEncoderDraw(pass, 6, 1, 0, 0);
 }
 
-void AppWebGPU::releaseVolumeRenderer() {
+void DicomApp::releaseVolumeRenderer() {
   if (histogramBindGroup) {
     wgpuBindGroupRelease(histogramBindGroup);
     histogramBindGroup = nullptr;
@@ -1365,704 +1136,243 @@ void AppWebGPU::releaseVolumeRenderer() {
   }
 }
 
-bool AppWebGPU::init() {
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-    return false;
-  }
-  int w = 800, h = 600;
-#  ifdef __EMSCRIPTEN__
-  double cw = 0, ch = 0;
-  if (emscripten_get_element_css_size("#canvas", &cw, &ch) == EMSCRIPTEN_RESULT_SUCCESS && cw > 0 && ch > 0) {
-    w = (int)cw;
-    h = (int)ch;
-  }
-#  endif
-  window = SDL_CreateWindow("DICOM Renderer (WebGPU)", w, h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
-  if (!window) {
-    fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
-    SDL_Quit();
-    return false;
-  }
+// ============================================================================
+// Host callbacks
+// ============================================================================
+SDL_AppResult DicomApp::on_init(app::App& app, int argc, char** argv) {
+  app.settings.title = "DICOM Renderer (WebGPU)";
+  app.settings.width = 800;
+  app.settings.height = 600;
+  app.settings.high_pixel_density = true;
+  app.settings.clear_color[0] = 0.10f;
+  app.settings.clear_color[1] = 0.20f;
+  app.settings.clear_color[2] = 0.50f;
+  app.settings.clear_color[3] = 1.0f;
 
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGuiIO& io = ImGui::GetIO();
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-  ImGui::StyleColorsDark();
-
-  WGPUInstanceDescriptor instDesc = {};
-  instance = wgpuCreateInstance(&instDesc);
-  if (!instance) {
-    reportStartupStatus("error", "Failed to create the WebGPU instance.");
-    fprintf(stderr, "wgpuCreateInstance failed\n");
-    return false;
-  }
-
-  reportStartupStatus("loading", "Creating WebGPU surface...");
-  createSurface();
-  if (!surface) {
-    reportStartupStatus("error", "Failed to create a WebGPU surface for the canvas/window.");
-    return false;
-  }
-  if (!initDeviceAndQueue()) return false;
-
-  int pxW = 0, pxH = 0;
-  get_drawable_size(window, pxW, pxH);
-  configureSurface(pxW, pxH);
-  g_camera.set_viewport(pxW > 0 ? pxW : w, pxH > 0 ? pxH : h);
-
-  ImGui_ImplSDL3_InitForOther(window);
-  ImGui_ImplWGPU_InitInfo wgpuInit = {};
-  wgpuInit.Device = device;
-  wgpuInit.NumFramesInFlight = 3;
-  wgpuInit.RenderTargetFormat = surfaceFormat;
-  wgpuInit.DepthStencilFormat = WGPUTextureFormat_Undefined;
-  if (!ImGui_ImplWGPU_Init(&wgpuInit)) {
-    fprintf(stderr, "ImGui_ImplWGPU_Init failed\n");
-    return false;
-  }
-
-  createStudyVolumeScene();
-  renderBridge.build(world);
-  if (!initVolumeRenderer()) {
-    reportStartupStatus("error", "WebGPU started, but the volume renderer failed to initialize.");
-    fprintf(stderr, "WebGPU volume renderer init failed\n");
-    return false;
-  }
-
-  reportStartupStatus("ready", "WebGPU renderer ready.");
-
-  printf("WebGPU (G3) initialized — Dawn + ImGui (surfaceFormat=%d)\n", (int)surfaceFormat);
-  return true;
-}
-
-void AppWebGPU::tick() {
-  ImGuiIO& io = ImGui::GetIO();
-  SDL_Event event;
-  while (SDL_PollEvent(&event)) {
-    ImGui_ImplSDL3_ProcessEvent(&event);
-    if (event.type == SDL_EVENT_QUIT) running = false;
-    if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window)) running = false;
-    switch (event.type) {
-      case SDL_EVENT_KEY_DOWN:
-        if (!io.WantCaptureKeyboard) {
-          handle_camera_key_down(event.key.key);
-        }
-        break;
-      case SDL_EVENT_KEY_UP:
-        if (!io.WantCaptureKeyboard) handle_camera_key_up(event.key.key);
-        break;
-      case SDL_EVENT_MOUSE_BUTTON_DOWN:
-        if (!io.WantCaptureMouse) {
-          g_mouse_look_active = true;
-          g_mouse_drag_action = (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) ? MouseDragAction::Pan
-                                                                                                                      : MouseDragAction::Rotate;
-        }
-        break;
-      case SDL_EVENT_MOUSE_BUTTON_UP:
-        g_mouse_look_active = false;
-        g_mouse_drag_action = MouseDragAction::None;
-        break;
-      case SDL_EVENT_MOUSE_MOTION:
-        if (g_mouse_look_active && !io.WantCaptureMouse) {
-          if (g_mouse_drag_action == MouseDragAction::Pan) {
-            g_camera.on_mouse_pan(event.motion.xrel, event.motion.yrel);
-          } else {
-            g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
-          }
-        }
-        break;
-      case SDL_EVENT_MOUSE_WHEEL:
-        if (!io.WantCaptureMouse) g_camera.on_mouse_wheel(event.wheel.y);
-        break;
+  app::AppSettings::parse(argc, argv, app.settings);
+  for (int i = 1; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--smoke-frames") == 0 && i + 1 < argc) {
+      smoke_frames = std::atoi(argv[++i]);
     }
   }
-  g_camera.update(measure_delta_seconds());
-  transforms.update(world);
-  renderBridge.build(world);
+#ifdef __EMSCRIPTEN__
+  // The host window maps onto the HTML canvas; start it at the shell's CSS
+  // layout size instead of the default 800x600 (the shell owns the layout).
+  double cw = 0, ch = 0;
+  if (emscripten_get_element_css_size("#canvas", &cw, &ch) == EMSCRIPTEN_RESULT_SUCCESS && cw > 0 && ch > 0) {
+    app.settings.width = (int)cw;
+    app.settings.height = (int)ch;
+  }
+#endif
 
-  // Reconfigure the surface on resize (device pixels, HiDPI-aware).
-  int pxW = 0, pxH = 0;
-  get_drawable_size(window, pxW, pxH);
-  if (pxW > 0 && pxH > 0 && (pxW != cfgW || pxH != cfgH)) {
-    configureSurface(pxW, pxH);
-    g_camera.set_viewport(pxW, pxH);
+  // HeadlessNone has no device, so the ImGui layer can never init — the host
+  // would turn that into a startup failure. Attach only when a GPU frame will
+  // exist; on_draw never runs headless, so no GUI is lost.
+  if (app.settings.render_mode != app::AppSettings::RenderMode::HeadlessNone) {
+    app.attach_gui(imguiLayer);
   }
 
-  WGPUSurfaceTexture st = {};
-  wgpuSurfaceGetCurrentTexture(surface, &st);
-  bool ok = (st.status == WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal || st.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal)
-            && st.texture;
-  if (!ok) {
-    if (st.texture) wgpuTextureRelease(st.texture);
-    return;
+  printf("====================================\n");
+  printf("DICOM Renderer — %s build\n", renderer_name());
+  printf("====================================\n");
+
+  // CPU-side scene setup: volume load (DICOM/.mvol/phantom) + DOD scene +
+  // first RenderBridge build. The GPU half (initVolumeRenderer) waits for the
+  // host device on the first iterate.
+  createStudyVolumeScene(app);
+  renderBridge.build(app.world);
+  return SDL_APP_CONTINUE;
+}
+
+SDL_AppResult DicomApp::on_event(app::App& app, const SDL_Event& event) {
+  // ImGui capture state (no context in HeadlessNone — keys go to the camera).
+  ImGuiIO* io = ImGui::GetCurrentContext() != nullptr ? &ImGui::GetIO() : nullptr;
+  switch (event.type) {
+    case SDL_EVENT_KEY_DOWN:
+      if (!(io && io->WantCaptureKeyboard)) {
+        handle_camera_key_down(event.key.key);
+      }
+      break;
+
+    case SDL_EVENT_KEY_UP:
+      if (!(io && io->WantCaptureKeyboard)) handle_camera_key_up(event.key.key);
+      break;
+
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+      if (!(io && io->WantCaptureMouse)) {
+        g_mouse_look_active = true;
+        g_mouse_drag_action
+            = (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) ? MouseDragAction::Pan : MouseDragAction::Rotate;
+      }
+      break;
+
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+      g_mouse_look_active = false;
+      g_mouse_drag_action = MouseDragAction::None;
+      break;
+
+    case SDL_EVENT_MOUSE_MOTION:
+      if (g_mouse_look_active && !(io && io->WantCaptureMouse)) {
+        if (g_mouse_drag_action == MouseDragAction::Pan) {
+          g_camera.on_mouse_pan(event.motion.xrel, event.motion.yrel);
+        } else {
+          g_camera.on_mouse_motion(event.motion.xrel, event.motion.yrel);
+        }
+      }
+      break;
+
+    case SDL_EVENT_MOUSE_WHEEL:
+      if (!(io && io->WantCaptureMouse)) g_camera.on_mouse_wheel(event.wheel.y);
+      break;
+
+    case SDL_EVENT_WINDOW_RESIZED:
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+      // The host already reconfigured the surface (deduped); keep the camera
+      // aspect in sync with the configured size.
+      g_camera.set_viewport(app.width(), app.height());
+      break;
+
+    default:
+      break;
+  }
+  return SDL_APP_CONTINUE;
+}
+
+SDL_AppResult DicomApp::on_iterate(app::App& app, float dt) {
+  // Lazy device-dependent init (on_init runs before the host creates the
+  // device): first iterate is the earliest point with device+queue ready.
+  if (!renderer_ready && app.device() != nullptr) {
+    renderer_ready = true;
+    g_camera.set_viewport(app.width(), app.height());
+    if (!initVolumeRenderer(app)) {
+      reportStartupStatus("error", "WebGPU started, but the volume renderer failed to initialize.");
+      fprintf(stderr, "WebGPU volume renderer init failed\n");
+      return SDL_APP_FAILURE;  // old init() returned false -> exit 1
+    }
+    reportStartupStatus("ready", "WebGPU renderer ready.");
+    printf("WebGPU (G3) initialized — Dawn + ImGui (surfaceFormat=%d)\n", (int)app.gpu.surface_format());
   }
 
-  WGPUTextureViewDescriptor vd = {};
-  vd.format = wgpuTextureGetFormat(st.texture);
-  vd.dimension = WGPUTextureViewDimension_2D;
-  vd.mipLevelCount = 1;
-  vd.arrayLayerCount = 1;
-  vd.aspect = WGPUTextureAspect_All;
-  WGPUTextureView view = wgpuTextureCreateView(st.texture, &vd);
+  g_camera.update(dt);
+  transforms.update(app.world);
+  renderBridge.build(app.world);
 
-  WGPUCommandEncoderDescriptor edesc = {};
-  WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(device, &edesc);
+  if (smoke_frames > 0) {
+    --smoke_frames;
+    if (smoke_frames == 0) {
+      app.request_exit();
+    }
+  }
+  return SDL_APP_CONTINUE;
+}
 
-  WGPURenderPassColorAttachment color = {};
-  color.view = view;
-  color.loadOp = WGPULoadOp_Clear;
-  color.storeOp = WGPUStoreOp_Store;
-  color.clearValue = {clearColor[0], clearColor[1], clearColor[2], clearColor[3]};
-  color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
-  WGPURenderPassDescriptor pd = {};
-  pd.colorAttachmentCount = 1;
-  pd.colorAttachments = &color;
-  WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(enc, &pd);
+void DicomApp::on_draw(app::App& app, WGPURenderPassEncoder pass) {
+  // The old app enabled docking alongside the nav flags the core ImGuiLayer
+  // sets; the layer inits after on_init, so flip the flag on the first frame.
+  static const bool docking_enabled = [] {
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    return true;
+  }();
+  (void)docking_enabled;
 
   // Scene pass: consume RenderBridge commands with the WGSL volume pipeline.
   // ImGui is drawn afterwards, so the controls remain a normal overlay.
-  drawVolume(pass);
+  drawVolume(app, pass);
 
   // ImGui frame (drawn into the same render pass, after any scene geometry).
-  ImGui_ImplWGPU_NewFrame();
-  ImGui_ImplSDL3_NewFrame();
-  ImGui::NewFrame();
-  {
-    ImGui::Begin("DICOM Renderer — WebGPU (Dawn)");
-    ImGui::Text("Dawn + ImGui live — %.1f FPS", io.Framerate);
-    ImGui::Text("Camera: %s  (press C to toggle)", g_camera.get_mode() == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
-    const glm::vec3 camPos = g_camera.get_position();
-    ImGui::Text("Camera pos: %.2f %.2f %.2f", camPos.x, camPos.y, camPos.z);
-    ImGui::Text("Yaw/Pitch: %.1f / %.1f deg", g_camera.get_yaw_degrees(), g_camera.get_pitch_degrees());
-    if (g_camera.get_mode() == engine::CameraMode::ORBIT) {
-      ImGui::Text("Orbit radius: %.2f", g_camera.get_orbit_radius());
-      ImGui::TextDisabled("Orbit: left-drag rotate; right/middle-drag pan; wheel zoom.");
-    } else {
-      ImGui::Text("Move speed: %.2f", g_camera.get_move_speed());
-      ImGui::TextDisabled("WASD: move; Space up; Shift/Ctrl down; left-drag look.");
-    }
-    ImGui::TextDisabled("R resets camera. P requests browser pointer lock.");
-    // Projection: live FOV (perspective) or true-to-scale orthographic.
-    int proj = (g_camera.get_projection() == engine::Projection::Perspective) ? 0 : 1;
-    if (ImGui::Combo("Projection", &proj, "Perspective\0Orthographic\0\0")) {
-      g_camera.set_projection(proj == 0 ? engine::Projection::Perspective : engine::Projection::Orthographic);
-    }
-    if (g_camera.get_projection() == engine::Projection::Perspective) {
-      float fov = g_camera.get_fov();
-      if (ImGui::SliderFloat("FOV", &fov, 15.0f, 100.0f, "%.0f deg")) g_camera.set_fov(fov);
-    }
-    ImGui::ColorEdit3("Clear color", clearColor);
-    ImGui::SeparatorText("DOD render bridge");
-    const auto& volumeCommands = renderBridge.volume_commands();
-    ImGui::Text("Volume commands: %d", static_cast<int>(volumeCommands.size()));
-    if (!volumeCommands.empty()) {
-      const auto& cmd = volumeCommands[0];
-      ImGui::Text("Volume id: %u", cmd.source.id);
-      ImGui::Text("Dims: %ux%ux%u", cmd.source.width, cmd.source.height, cmd.source.depth);
-      ImGui::Text("Spacing: %.2f %.2f %.2f mm", cmd.source.spacing_mm.x, cmd.source.spacing_mm.y, cmd.source.spacing_mm.z);
-      ImGui::Text("Window: %.2f / %.2f", cmd.display.window_center, cmd.display.window_width);
-      ImGui::Text("Scalar: %s", cmd.source.format == render::VolumeScalarFormat::UInt16 ? "packed UInt16 (GPU window)" : "R8 normalized");
-      ImGui::Text("WGSL pass: raygen.wgsl -> 3D texture + transfer LUT");
-    }
-
-    ImGui::SeparatorText("Volume display");
-    world.view<render::VolumeRenderable>([&](ecs::Entity, render::VolumeRenderable& volume) {
-      int mode = static_cast<int>(modeToGpu(volume.display.mode));
-      if (ImGui::Combo("Mode", &mode, "DVR\0MIP\0Isosurface\0\0")) {
-        volume.display.mode = mode == 1   ? render::VolumeRenderMode::MIP
-                              : mode == 2 ? render::VolumeRenderMode::Isosurface
-                                          : render::VolumeRenderMode::DVR;
-      }
-
-      int preset = static_cast<int>(volume.display.transfer_preset);
-      if (ImGui::SliderInt("Transfer preset", &preset, 1, 4)) {
-        volume.display.transfer_preset = static_cast<std::uint32_t>(preset);
-      }
-
-      if (ImGui::Button("Auto window from GPU histogram")) {
-        runGpuHistogramAutoWindow(volume);
-      }
-      ImGui::SameLine();
-      ImGui::TextDisabled("compute pass + atomic bins");
-      ImGui::TextWrapped("%s", histogramStatus.c_str());
-      if (histogramAvailable) {
-        ImGui::Text("p01 bin/value: %u / %.3f", histogramLowBin, histogramLowValue);
-        ImGui::Text("p99 bin/value: %u / %.3f", histogramHighBin, histogramHighValue);
-      }
-
-      const bool packed = volume.source.format == render::VolumeScalarFormat::UInt16;
-      if (packed) {
-        ImGui::SliderFloat("Window center (stored)", &volume.display.window_center, 0.0f, 65535.0f);
-        ImGui::SliderFloat("Window width (stored)", &volume.display.window_width, 1.0f, 65535.0f);
-      } else {
-        ImGui::SliderFloat("Window center", &volume.display.window_center, 0.0f, 1.0f);
-        ImGui::SliderFloat("Window width", &volume.display.window_width, 0.05f, 2.0f);
-      }
-
-      int debug = static_cast<int>(debugMode);
-      if (ImGui::Combo("Debug view", &debug, "Final\0Ray direction\0Ray depth\0Sample count\0\0")) {
-        debugMode = static_cast<std::uint32_t>(glm::clamp(debug, 0, 3));
-      }
-
-      int steps = static_cast<int>(sampleSteps);
-      if (ImGui::SliderInt("Ray samples", &steps, 16, 512)) {
-        sampleSteps = static_cast<std::uint32_t>(glm::clamp(steps, 16, 512));
-      }
-      ImGui::SliderFloat("Opacity scale", &opacityScale, 0.01f, 1.0f);
-    });
-    ImGui::TextDisabled("Study knobs: debug exposes the ray math; samples trade quality for cost.");
-    ImGui::End();
-  }
-  ImGui::Render();
-  ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
-
-  wgpuRenderPassEncoderEnd(pass);
-  wgpuRenderPassEncoderRelease(pass);
-  WGPUCommandBufferDescriptor cbd = {};
-  WGPUCommandBuffer cb = wgpuCommandEncoderFinish(enc, &cbd);
-  wgpuQueueSubmit(queue, 1, &cb);
-  wgpuCommandBufferRelease(cb);
-  wgpuCommandEncoderRelease(enc);
-#  ifndef __EMSCRIPTEN__
-  wgpuSurfacePresent(surface);
-#  endif
-  wgpuTextureViewRelease(view);
-  wgpuTextureRelease(st.texture);
-}
-
-void AppWebGPU::cleanup() {
-  releaseVolumeRenderer();
-  ImGui_ImplWGPU_Shutdown();
-  ImGui_ImplSDL3_Shutdown();
-  ImGui::DestroyContext();
-  if (queue) wgpuQueueRelease(queue);
-  if (device) wgpuDeviceRelease(device);
-  if (adapter) wgpuAdapterRelease(adapter);
-  if (surface) {
-    wgpuSurfaceUnconfigure(surface);
-    wgpuSurfaceRelease(surface);
-  }
-  if (instance) wgpuInstanceRelease(instance);
-#  if defined(SDL_PLATFORM_APPLE)
-  if (metalView) SDL_Metal_DestroyView(metalView);
-#  endif
-  if (window) SDL_DestroyWindow(window);
-  SDL_Quit();
-}
-
-#else
-// ============================================================================
-// G2: WebGL2 / OpenGL BUILD (immediate-mode, the learning rung)
-// ============================================================================
-
-#  ifdef __EMSCRIPTEN__
-#    include <GLES3/gl3.h>
-static constexpr const char* VERT_GLSL = "#version 300 es\n";
-static constexpr const char* FRAG_GLSL = "#version 300 es\nprecision highp float;\nprecision highp sampler3D;\n";
-#  else
-#    include <GL/glew.h>
-static constexpr const char* VERT_GLSL = "#version 330 core\n";
-static constexpr const char* FRAG_GLSL = "#version 330 core\n";
-#  endif
-
-#  include <vector>
-#  include "shader_program.h"
-#  include "vertex_buffer.h"
-#  include "vertex_array.h"
-#  include "renderer.h"
-#  include "texture.h"
-#  include "texture3d.h"
-#  include "framebuffer.h"
-#  include "embedded_shaders.h"  // generated from apps/dicom_viewer/shaders/*.glsl by CMake
-
-// --- Transfer function (driven by the 1-4 buttons) ---------------------------
-// Selects how density maps to colour + opacity. g_tf_dirty triggers a LUT
-// rebuild in the render loop.
-static int g_tf_preset = 1;
-static bool g_tf_dirty = true;
-static int g_render_mode = 0;  // 0 = DVR, 1 = MIP, 2 = Isosurface
-static float g_window_center = 0.5f;
-static float g_window_width = 1.0f;
-static glm::vec3 g_box_half(1.0f);     // volume box half-extents (from voxel spacing)
-static int g_debug_mode = 0;           // 0 final, 1 ray dir, 2 depth, 3 samples
-static int g_sample_steps = 128;       // ray-march samples; quality/cost knob
-static float g_opacity_scale = 0.20f;  // per-sample opacity multiplier
-
-// Build a 256-entry RGBA transfer LUT for the given preset.
-static std::vector<unsigned char> make_transfer_lut(int preset) {
-  std::vector<unsigned char> lut(256 * 4);
-  for (int i = 0; i < 256; ++i) {
-    float t = i / 255.0f;
-    glm::vec3 rgb;
-    float a;
-    switch (preset) {
-      case 2:  // "tissue": transparent low end, warm ramp
-        a = glm::smoothstep(0.15f, 0.50f, t);
-        rgb = glm::mix(glm::vec3(0.55f, 0.12f, 0.05f), glm::vec3(1.00f, 0.92f, 0.78f), t);
-        break;
-      case 3:  // "shell": only a narrow density band is opaque
-        a = (t > 0.30f && t < 0.55f) ? 0.9f : 0.0f;
-        rgb = glm::vec3(0.2f, 0.9f, 0.6f);
-        break;
-      case 4:  // "cool": blue -> cyan -> white
-        a = t;
-        rgb = glm::mix(glm::vec3(0.0f, 0.1f, 0.4f), glm::vec3(0.7f, 0.95f, 1.0f), t);
-        break;
-      default:  // 1 "gray": density as grayscale
-        a = t;
-        rgb = glm::vec3(t);
-        break;
-    }
-    lut[i * 4 + 0] = static_cast<unsigned char>(glm::clamp(rgb.r, 0.0f, 1.0f) * 255.0f);
-    lut[i * 4 + 1] = static_cast<unsigned char>(glm::clamp(rgb.g, 0.0f, 1.0f) * 255.0f);
-    lut[i * 4 + 2] = static_cast<unsigned char>(glm::clamp(rgb.b, 0.0f, 1.0f) * 255.0f);
-    lut[i * 4 + 3] = static_cast<unsigned char>(glm::clamp(a, 0.0f, 1.0f) * 255.0f);
-  }
-  return lut;
-}
-
-// Load a raw R8 volume of n^3 bytes from disk. Returns empty on any failure so
-// the caller can fall back to the synthetic volume. This is the same load path
-// real DICOM data will use (just different bytes) — the point of Tier 3 / path B.
-static std::vector<unsigned char> load_volume_raw(const char* path, int n) {
-  std::vector<unsigned char> data;
-  FILE* f = fopen(path, "rb");
-  if (!f) return data;
-  const size_t expected = static_cast<size_t>(n) * n * n;
-  data.resize(expected);
-  const size_t got = fread(data.data(), 1, expected, f);
-  fclose(f);
-  if (got != expected) data.clear();
-  return data;
-}
-
-// Synthetic fallback volume: a soft ball, density 1 at the centre falling to 0
-// at the edge. Used when the raw file is missing.
-static std::vector<unsigned char> make_volume(int n) {
-  std::vector<unsigned char> v(static_cast<size_t>(n) * n * n);
-  for (int z = 0; z < n; ++z) {
-    for (int y = 0; y < n; ++y) {
-      for (int x = 0; x < n; ++x) {
-        // voxel centre in [-1, 1]
-        glm::vec3 c = (glm::vec3(x, y, z) / float(n - 1) - 0.5f) * 2.0f;
-        float r = glm::length(c);
-        float density = glm::clamp(1.0f - r / 0.9f, 0.0f, 1.0f);
-        density *= density;  // softer falloff
-        v[(static_cast<size_t>(z) * n + y) * n + x] = static_cast<unsigned char>(density * 255.0f);
-      }
-    }
-  }
-  return v;
-}
-
-struct AppWebGL {
-  SDL_Window* window = nullptr;
-  SDL_GLContext context = nullptr;
-  // Pass 1 (volume ray cast -> FBO): fullscreen quad + 3D volume texture
-  std::unique_ptr<engine::VertexArray> vao;
-  std::unique_ptr<engine::VertexBuffer> vbo;
-  std::unique_ptr<engine::ShaderProgram> shader;
-  std::unique_ptr<engine::Texture3D> volume;
-  std::unique_ptr<engine::Texture2D> transferLut;  // 256x1 density->RGBA
-
-  // Pass 2 (FBO -> screen): fullscreen quad + post shader
-  std::unique_ptr<engine::VertexArray> postVao;
-  std::unique_ptr<engine::VertexBuffer> postVbo;
-  std::unique_ptr<engine::ShaderProgram> postShader;
-  std::unique_ptr<engine::Framebuffer> fbo;
-  int fbW = 0, fbH = 0;
-
-  engine::Renderer renderer;
-  bool running = true;
-
-  bool init();
-  void tick();
-  void cleanup();
-
-private:
-  bool compileShaders();
-  bool compilePostShader();
-  bool setupGeometry();
-  bool setupPostGeometry();
-  void ensureFramebuffer(int w, int h);
-};
-
-bool AppWebGL::compileShaders() {
-  // Source from apps/dicom_viewer/shaders/raygen.glsl (embedded at build time). The same file
-  // holds both stages; we compile it twice with VERTEX_SHADER / FRAGMENT_SHADER
-  // defined. The #version / precision header is prepended here so one source
-  // serves WebGL2/GLES3 and desktop GL 3.3.
-  std::string vertSrc = std::string(VERT_GLSL) + "#define VERTEX_SHADER\n" + shaders::RAYGEN_GLSL;
-  std::string fragSrc = std::string(FRAG_GLSL) + "#define FRAGMENT_SHADER\n" + shaders::RAYGEN_GLSL;
-
-  std::string errmsg;
-  auto next = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
-  if (!next->isValid()) {
-    fprintf(stderr, "Shader compile failed: %s\n", errmsg.c_str());
-    return false;
-  }
-  shader = std::move(next);
-  renderer.setShaderProgram(shader.get());
-  return true;
-}
-
-bool AppWebGL::setupGeometry() {
-  // Fullscreen quad: pos in NDC (-1..1), uv = (pos + 1) / 2 so the fragment
-  // shader can reconstruct clip-space xy as uv*2-1.
-  const float verts[] = {
-      // pos            uv
-      -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,  1.0f, 1.0f, 1.0f,
-
-      -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f,  1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,
-  };
-
-  vbo = std::make_unique<engine::VertexBuffer>(verts, sizeof(verts));
-  if (!vbo || vbo->getHandle() == 0) {
-    fprintf(stderr, "Failed to create vertex buffer\n");
-    return false;
-  }
-  vao = std::make_unique<engine::VertexArray>();
-  if (!vao || vao->getHandle() == 0) {
-    fprintf(stderr, "Failed to create vertex array\n");
-    return false;
-  }
-
-  const GLsizei stride = 4 * sizeof(float);
-  vao->bind();
-  vbo->bind();
-  vao->setVertexAttribute(0, 2, GL_FLOAT, 0, stride);                  // position
-  vao->setVertexAttribute(1, 2, GL_FLOAT, 2 * sizeof(float), stride);  // uv
-  engine::VertexArray::unbind();
-  engine::VertexBuffer::unbind();
-
-  // Load the volume from a raw file (preloaded into the WASM FS on the web, or
-  // an absolute path natively). Fall back to the synthetic ball if missing.
-  const int N = 96;
-#  ifdef __EMSCRIPTEN__
-  const char* volPath = "/volume.raw";
-#  else
-  const char* volPath = VOLUME_PATH;
-#  endif
-  std::vector<unsigned char> voxels = load_volume_raw(volPath, N);
-  if (voxels.empty()) {
-    fprintf(stderr, "volume.raw not found/invalid at %s — using synthetic\n", volPath);
-    voxels = make_volume(N);
+  ImGuiIO& io = ImGui::GetIO();
+  ImGui::Begin("DICOM Renderer — WebGPU (Dawn)");
+  ImGui::Text("Dawn + ImGui live — %.1f FPS", io.Framerate);
+  ImGui::Text("Camera: %s  (press C to toggle)", g_camera.get_mode() == engine::CameraMode::ORBIT ? "ORBIT" : "WASD");
+  const glm::vec3 camPos = g_camera.get_position();
+  ImGui::Text("Camera pos: %.2f %.2f %.2f", camPos.x, camPos.y, camPos.z);
+  ImGui::Text("Yaw/Pitch: %.1f / %.1f deg", g_camera.get_yaw_degrees(), g_camera.get_pitch_degrees());
+  if (g_camera.get_mode() == engine::CameraMode::ORBIT) {
+    ImGui::Text("Orbit radius: %.2f", g_camera.get_orbit_radius());
+    ImGui::TextDisabled("Orbit: left-drag rotate; right/middle-drag pan; wheel zoom.");
   } else {
-    printf("Loaded volume %s (%d^3)\n", volPath, N);
+    ImGui::Text("Move speed: %.2f", g_camera.get_move_speed());
+    ImGui::TextDisabled("WASD: move; Space up; Shift/Ctrl down; left-drag look.");
   }
-  volume = std::make_unique<engine::Texture3D>(N, N, N, voxels.data());
-  if (!volume || volume->getHandle() == 0) {
-    fprintf(stderr, "Failed to create volume texture\n");
-    return false;
+  ImGui::TextDisabled("R resets camera. P requests browser pointer lock.");
+  // Projection: live FOV (perspective) or true-to-scale orthographic.
+  int proj = (g_camera.get_projection() == engine::Projection::Perspective) ? 0 : 1;
+  if (ImGui::Combo("Projection", &proj, "Perspective\0Orthographic\0\0")) {
+    g_camera.set_projection(proj == 0 ? engine::Projection::Perspective : engine::Projection::Orthographic);
+  }
+  if (g_camera.get_projection() == engine::Projection::Perspective) {
+    float fov = g_camera.get_fov();
+    if (ImGui::SliderFloat("FOV", &fov, 15.0f, 100.0f, "%.0f deg")) g_camera.set_fov(fov);
+  }
+  ImGui::ColorEdit3("Clear color", app.settings.clear_color);
+  ImGui::SeparatorText("DOD render bridge");
+  const auto& volumeCommands = renderBridge.volume_commands();
+  ImGui::Text("Volume commands: %d", static_cast<int>(volumeCommands.size()));
+  if (!volumeCommands.empty()) {
+    const auto& cmd = volumeCommands[0];
+    ImGui::Text("Volume id: %u", cmd.source.id);
+    ImGui::Text("Dims: %ux%ux%u", cmd.source.width, cmd.source.height, cmd.source.depth);
+    ImGui::Text("Spacing: %.2f %.2f %.2f mm", cmd.source.spacing_mm.x, cmd.source.spacing_mm.y, cmd.source.spacing_mm.z);
+    ImGui::Text("Window: %.2f / %.2f", cmd.display.window_center, cmd.display.window_width);
+    ImGui::Text("Scalar: %s", cmd.source.format == render::VolumeScalarFormat::UInt16 ? "packed UInt16 (GPU window)" : "R8 normalized");
+    ImGui::Text("WGSL pass: raygen.wgsl -> 3D texture + transfer LUT");
   }
 
-  // Voxel spacing -> box half-extents. Real CT slices are thicker than pixels
-  // are wide; we simulate that here (z = 1.5x) so the box reflects physical
-  // proportions instead of squishing. With DICOM this comes from the file;
-  // (1,1,1) would render a perfectly cubic box.
-  const glm::vec3 spacing(1.0f, 1.0f, 1.5f);
-  glm::vec3 phys = glm::vec3(static_cast<float>(N)) * spacing;
-  g_box_half = phys / glm::max(phys.x, glm::max(phys.y, phys.z));
-  return true;
+  ImGui::SeparatorText("Volume display");
+  app.world.view<render::VolumeRenderable>([&](ecs::Entity, render::VolumeRenderable& volume) {
+    int mode = static_cast<int>(modeToGpu(volume.display.mode));
+    if (ImGui::Combo("Mode", &mode, "DVR\0MIP\0Isosurface\0\0")) {
+      volume.display.mode = mode == 1   ? render::VolumeRenderMode::MIP
+                            : mode == 2 ? render::VolumeRenderMode::Isosurface
+                                        : render::VolumeRenderMode::DVR;
+    }
+
+    int preset = static_cast<int>(volume.display.transfer_preset);
+    if (ImGui::SliderInt("Transfer preset", &preset, 1, 4)) {
+      volume.display.transfer_preset = static_cast<std::uint32_t>(preset);
+    }
+
+    if (ImGui::Button("Auto window from GPU histogram")) {
+      runGpuHistogramAutoWindow(app, volume);
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("compute pass + atomic bins");
+    ImGui::TextWrapped("%s", histogramStatus.c_str());
+    if (histogramAvailable) {
+      ImGui::Text("p01 bin/value: %u / %.3f", histogramLowBin, histogramLowValue);
+      ImGui::Text("p99 bin/value: %u / %.3f", histogramHighBin, histogramHighValue);
+    }
+
+    const bool packed = volume.source.format == render::VolumeScalarFormat::UInt16;
+    if (packed) {
+      ImGui::SliderFloat("Window center (stored)", &volume.display.window_center, 0.0f, 65535.0f);
+      ImGui::SliderFloat("Window width (stored)", &volume.display.window_width, 1.0f, 65535.0f);
+    } else {
+      ImGui::SliderFloat("Window center", &volume.display.window_center, 0.0f, 1.0f);
+      ImGui::SliderFloat("Window width", &volume.display.window_width, 0.05f, 2.0f);
+    }
+
+    int debug = static_cast<int>(debugMode);
+    if (ImGui::Combo("Debug view", &debug, "Final\0Ray direction\0Ray depth\0Sample count\0\0")) {
+      debugMode = static_cast<std::uint32_t>(glm::clamp(debug, 0, 3));
+    }
+
+    int steps = static_cast<int>(sampleSteps);
+    if (ImGui::SliderInt("Ray samples", &steps, 16, 512)) {
+      sampleSteps = static_cast<std::uint32_t>(glm::clamp(steps, 16, 512));
+    }
+    ImGui::SliderFloat("Opacity scale", &opacityScale, 0.01f, 1.0f);
+  });
+  ImGui::TextDisabled("Study knobs: debug exposes the ray math; samples trade quality for cost.");
+  ImGui::End();
 }
 
-// Pass 2 shader: blit the offscreen scene texture onto a fullscreen quad,
-// multiplied by a tint. This is the "deliver the render-texture to the screen"
-// step; the per-pixel work lives in pass 1.
-bool AppWebGL::compilePostShader() {
-  // Source from apps/dicom_viewer/shaders/blit.glsl (both stages, compiled twice).
-  std::string vertSrc = std::string(VERT_GLSL) + "#define VERTEX_SHADER\n" + shaders::BLIT_GLSL;
-  std::string fragSrc = std::string(FRAG_GLSL) + "#define FRAGMENT_SHADER\n" + shaders::BLIT_GLSL;
-
-  std::string errmsg;
-  auto next = std::make_unique<engine::ShaderProgram>(vertSrc, fragSrc, &errmsg);
-  if (!next->isValid()) {
-    fprintf(stderr, "Post shader compile failed: %s\n", errmsg.c_str());
-    return false;
-  }
-  postShader = std::move(next);
-  return true;
+void DicomApp::on_shutdown(app::App& app) {
+  (void)app;
+  // Volume resources die before the host tears down gui/device/surface
+  // (host quit order: on_shutdown -> gui -> gpu).
+  releaseVolumeRenderer();
 }
-
-bool AppWebGL::setupPostGeometry() {
-  // Fullscreen quad in NDC (-1..1) with UVs (0..1). Same axis convention as
-  // the FBO texture (y up), so the scene is displayed upright (no flip).
-  const float verts[] = {
-      // pos            uv
-      -1.0f, 1.0f,  0.0f, 1.0f,  // top-left
-      -1.0f, -1.0f, 0.0f, 0.0f,  // bottom-left
-      1.0f,  -1.0f, 1.0f, 0.0f,  // bottom-right
-
-      -1.0f, 1.0f,  0.0f, 1.0f,  // top-left
-      1.0f,  -1.0f, 1.0f, 0.0f,  // bottom-right
-      1.0f,  1.0f,  1.0f, 1.0f,  // top-right
-  };
-
-  postVbo = std::make_unique<engine::VertexBuffer>(verts, sizeof(verts));
-  if (!postVbo || postVbo->getHandle() == 0) {
-    fprintf(stderr, "Failed to create post vertex buffer\n");
-    return false;
-  }
-  postVao = std::make_unique<engine::VertexArray>();
-  if (!postVao || postVao->getHandle() == 0) {
-    fprintf(stderr, "Failed to create post vertex array\n");
-    return false;
-  }
-
-  const GLsizei stride = 4 * sizeof(float);
-  postVao->bind();
-  postVbo->bind();
-  postVao->setVertexAttribute(0, 2, GL_FLOAT, 0, stride);
-  postVao->setVertexAttribute(1, 2, GL_FLOAT, 2 * sizeof(float), stride);
-  engine::VertexArray::unbind();
-  engine::VertexBuffer::unbind();
-  return true;
-}
-
-// (Re)create the offscreen target when missing or when the drawable size changed.
-void AppWebGL::ensureFramebuffer(int w, int h) {
-  if (w <= 0 || h <= 0) return;
-  if (fbo && fbW == w && fbH == h) return;
-  fbo = std::make_unique<engine::Framebuffer>(w, h);
-  fbW = w;
-  fbH = h;
-  if (!fbo->isComplete()) {
-    fprintf(stderr, "Framebuffer incomplete at %dx%d\n", w, h);
-  }
-}
-
-bool AppWebGL::init() {
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-    return false;
-  }
-
-#  ifdef __EMSCRIPTEN__
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#  else
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-#  endif
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-
-  window = SDL_CreateWindow("DICOM Renderer (WebGL2)", 800, 600, SDL_WINDOW_OPENGL);
-  if (!window) {
-    fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
-    SDL_Quit();
-    return false;
-  }
-
-  context = SDL_GL_CreateContext(window);
-  if (!context) {
-    fprintf(stderr, "SDL_GL_CreateContext failed: %s\n", SDL_GetError());
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return false;
-  }
-  SDL_GL_SetSwapInterval(1);
-
-#  ifndef __EMSCRIPTEN__
-  glewExperimental = GL_TRUE;
-  GLenum err = glewInit();
-  if (err != GLEW_OK) {
-    fprintf(stderr, "glewInit failed: %s\n", glewGetErrorString(err));
-    SDL_GL_DestroyContext(context);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return false;
-  }
-#  endif
-
-  if (!compileShaders() || !setupGeometry() || !compilePostShader() || !setupPostGeometry()) {
-    cleanup();
-    return false;
-  }
-
-  renderer.setClearColor(0.1f, 0.2f, 0.5f, 1.0f);
-  printf("WebGL2 (G2) initialized (render-to-texture pipeline).\n");
-  return true;
-}
-
-void AppWebGL::tick() {
-  process_input(running);
-  g_camera.update(measure_delta_seconds());
-
-  // Match the offscreen target + viewport to the CURRENT drawable size.
-  int w = 0, h = 0;
-  get_drawable_size(window, w, h);
-  g_camera.set_viewport(w, h);  // keep aspect ratio in sync with the viewport
-  ensureFramebuffer(w, h);
-
-  // ---- PASS 1: generate one ray per pixel INTO the offscreen framebuffer ----
-  // The camera reaches the shader as the inverse view-projection matrix.
-  // Rebuild the transfer LUT if the preset changed.
-  if (g_tf_dirty) {
-    g_tf_dirty = false;
-    std::vector<unsigned char> lut = make_transfer_lut(g_tf_preset);
-    transferLut = std::make_unique<engine::Texture2D>(256, 1, lut.data());
-  }
-
-  if (fbo) fbo->bind();
-  glViewport(0, 0, fbW, fbH);
-  renderer.clear();
-  if (shader) {
-    shader->use();
-    glm::mat4 invVP = glm::inverse(g_camera.get_view_projection());
-    shader->setUniform("inv_view_projection", invVP);
-    shader->setUniform("uVolume", 0);    // 3D volume on unit 0
-    shader->setUniform("uTransfer", 1);  // transfer LUT on unit 1
-    shader->setUniform("uMode", g_render_mode);
-    shader->setUniform("uDebug", g_debug_mode);
-    shader->setUniform("uSteps", g_sample_steps);
-    shader->setUniform("uOpacityScale", g_opacity_scale);
-    shader->setUniform("uWindow", glm::vec2(g_window_center, g_window_width));
-    shader->setUniform("uBoxHalf", g_box_half);
-  }
-  if (volume) volume->bind(0);
-  if (transferLut) transferLut->bind(1);
-  if (vao) renderer.draw(*vao, 6);  // fullscreen quad -> volume ray cast
-
-  // ---- PASS 2: blit the ray-gen texture to the screen (tinted) ----
-  engine::Framebuffer::bindDefault();
-  glViewport(0, 0, w, h);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  if (postShader && fbo && postVao) {
-    postShader->use();
-    postShader->setUniform("uScene", 0);
-    postShader->setUniform("uTint", glm::vec4(1.0f));  // no tint; blit as-is
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, fbo->getColorTexture());
-    postVao->bind();
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    engine::VertexArray::unbind();
-  }
-
-  SDL_GL_SwapWindow(window);
-}
-
-void AppWebGL::cleanup() {
-  fbo.reset();
-  postShader.reset();
-  postVao.reset();
-  postVbo.reset();
-  transferLut.reset();
-  volume.reset();
-  shader.reset();
-  vao.reset();
-  vbo.reset();
-  if (context) SDL_GL_DestroyContext(context);
-  if (window) SDL_DestroyWindow(window);
-  SDL_Quit();
-}
-
-#endif  // USE_WEBGPU
 
 // ============================================================================
 // EXPORTED C FUNCTIONS FOR JAVASCRIPT (Emscripten)
@@ -2072,111 +1382,15 @@ extern "C" {
 // Called by the shell when the canvas is resized.
 EMSCRIPTEN_KEEPALIVE
 void on_canvas_resize(int width, int height) {
-  // Only RECORD the size (+ camera aspect). The render loop applies
-  // glViewport every frame from g_canvas_w/h. Calling GL here is unsafe:
-  // the shell fires this from onRuntimeInitialized, which runs BEFORE
-  // main() creates the GL context — glViewport would crash on a null
-  // context. (WebGPU reconfigures its context in JS.)
+  // Only RECORD the size (+ camera aspect). The render loop applies the
+  // viewport from the configured sizes. Calling into WebGPU/SDL here is
+  // unsafe: the shell fires this from onRuntimeInitialized, which runs BEFORE
+  // the host creates the window/context.
   g_canvas_w = width;
   g_canvas_h = height;
   g_camera.set_viewport(width, height);
 }
-
-#  ifndef USE_WEBGPU
-// Transfer-function preset (WebGL build only — WebGPU does it in JS).
-EMSCRIPTEN_KEEPALIVE
-void set_shader_variant(int variant_num) {
-  if (variant_num >= 1 && variant_num <= 4) {
-    g_tf_preset = variant_num;
-    g_tf_dirty = true;
-  }
-}
-
-// Render mode: 0 = DVR, 1 = MIP, 2 = Isosurface.
-EMSCRIPTEN_KEEPALIVE
-void set_render_mode(int mode) {
-  if (mode >= 0 && mode <= 2) g_render_mode = mode;
-}
-
-// Window/level (center, width) in normalized [0,1] density.
-EMSCRIPTEN_KEEPALIVE
-void set_window(float center, float width) {
-  g_window_center = center;
-  g_window_width = (width < 0.01f) ? 0.01f : width;
-}
-
-// Debug view: 0 final image, 1 ray direction, 2 ray depth, 3 sample count.
-EMSCRIPTEN_KEEPALIVE
-void set_debug_mode(int mode) {
-  if (mode < 0) mode = 0;
-  if (mode > 3) mode = 3;
-  g_debug_mode = mode;
-}
-
-// Sampling controls. More steps reduce banding but cost more fragment work.
-EMSCRIPTEN_KEEPALIVE
-void set_sampling(int steps, float opacity) {
-  if (steps < 16) steps = 16;
-  if (steps > 512) steps = 512;
-  if (opacity < 0.01f) opacity = 0.01f;
-  if (opacity > 1.0f) opacity = 1.0f;
-  g_sample_steps = steps;
-  g_opacity_scale = opacity;
-}
-#  endif
 }
 #endif
 
-// ============================================================================
-// MAIN
-// ============================================================================
-
-static const char* renderer_name() {
-#ifdef USE_WEBGPU
-  return "WebGPU (G3)";
-#else
-  return "WebGL2 (G2)";
-#endif
-}
-
-#ifdef USE_WEBGPU
-using App = AppWebGPU;
-#else
-using App = AppWebGL;
-#endif
-
-static App* g_app = nullptr;
-
-#ifdef __EMSCRIPTEN__
-static void em_tick() {
-  if (g_app && g_app->running) {
-    g_app->tick();
-  } else {
-    emscripten_cancel_main_loop();
-  }
-}
-#endif
-
-int main() {
-  printf("====================================\n");
-  printf("DICOM Renderer — %s build\n", renderer_name());
-  printf("====================================\n");
-
-  static App app;
-  g_app = &app;
-
-  if (!app.init()) {
-    fprintf(stderr, "Failed to initialize %s\n", renderer_name());
-    return 1;
-  }
-
-#ifdef __EMSCRIPTEN__
-  emscripten_set_main_loop(em_tick, 0, 1);
-#else
-  while (app.running) {
-    app.tick();
-  }
-  app.cleanup();
-#endif
-  return 0;
-}
+MOBAGEN_MAIN(DicomApp)
