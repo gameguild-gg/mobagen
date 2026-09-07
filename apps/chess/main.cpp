@@ -1,310 +1,79 @@
-#define SDL_MAIN_HANDLED true
+// Chess on the core app host (core-app-host plan, todo 12).
+//
+// Host frame order maps 1:1 onto the old hand-rolled loop: manager.Update
+// (logic) runs in on_iterate; manager.OnGui/OnDraw run in on_draw, inside the
+// open GUI frame, exactly where the old loop called them between ImGui
+// NewFrame and Render.
+//
+// PieceTextures::load needs the WGPUDevice, but host on_init runs BEFORE any
+// SDL/GPU object exists (task-2 contract: pre-SDL argv + settings hook), so
+// the old main's load-at-startup is DEFERRED to the first on_iterate, the
+// earliest point where app.device() is valid (Windowed / HeadlessNull).
+// HeadlessNone never has a device: Manager starts without art and
+// Manager::drawPiece falls back to letters (PieceTextures::texture returns 0
+// while unloaded) — the same fallback as a failed load.
 
-#include "imgui.h"
-#include "imgui_impl_sdl3.h"
-#include "imgui_impl_wgpu.h"
 #include "Manager.h"
 #include "PieceTextures.h"
-#include "ecs/world.hpp"
-#include "jobs/scheduler.hpp"
 
-#include <SDL3/SDL.h>
-#include <webgpu/webgpu_cpp.h>
-#include <cstdio>
+#include "app/sdl_app.hpp"
+#include "imgui/imgui_layer.hpp"
 
-#if defined(SDL_PLATFORM_WIN32)
-#  ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN 1
-#  endif
-#  include <windows.h>
-#endif
+#include <SDL3/SDL_log.h>
+#include <cstdlib>
+#include <optional>
 
-static WGPUInstance wgpu_instance = nullptr;
-static WGPUDevice wgpu_device = nullptr;
-static WGPUSurface wgpu_surface = nullptr;
-static WGPUQueue wgpu_queue = nullptr;
-static WGPUSurfaceConfiguration wgpu_surface_cfg = {};
-static int wgpu_surface_width = 1280;
-static int wgpu_surface_height = 800;
+namespace {
 
-static void ResizeSurface(int width, int height) {
-  wgpu_surface_cfg.width = wgpu_surface_width = width;
-  wgpu_surface_cfg.height = wgpu_surface_height = height;
-  wgpuSurfaceConfigure(wgpu_surface, &wgpu_surface_cfg);
-}
+struct ChessApp : app::AppCallbacks {
+  app::ImGuiLayer gui_layer;
+  std::optional<PieceTextures> piece_art;  // device-dependent init is lazy
+  std::optional<Manager> manager;          // created in on_init (board print)
+  bool started = false;
+  int smoke_frames = -1;  // --smoke-frames N: exit after N iterates
 
-static WGPUAdapter RequestAdapter(wgpu::Instance& instance) {
-  wgpu::Adapter acquired;
-  wgpu::RequestAdapterOptions opts;
-  auto cb = [&](wgpu::RequestAdapterStatus status, wgpu::Adapter adapter, wgpu::StringView msg) {
-    if (status != wgpu::RequestAdapterStatus::Success) {
-      SDL_Log("RequestAdapter failed: %s", msg.data);
-      return;
+  SDL_AppResult on_init(app::App& app, int argc, char** argv) override {
+    app.settings.title = "Chess";
+    app.settings.clear_color[0] = 0.05f;
+    app.settings.clear_color[1] = 0.05f;
+    app.settings.clear_color[2] = 0.05f;
+    app.settings.clear_color[3] = 1.00f;
+    app::AppSettings::parse(argc, argv, app.settings);
+    for (int i = 1; i < argc; ++i)
+      if (SDL_strcmp(argv[i], "--smoke-frames") == 0 && i + 1 < argc) smoke_frames = std::atoi(argv[++i]);
+    // HeadlessNone never creates a device, so ImGuiLayer::init would fail and
+    // the host treats a GUI init failure as fatal. Pure-logic mode skips GUI
+    // entirely (on_draw never runs there anyway).
+    if (app.settings.render_mode != app::AppSettings::RenderMode::HeadlessNone) app.attach_gui(gui_layer);
+
+    piece_art.emplace();
+    manager.emplace();  // prints the initial board, like the old main
+    manager->SetPieceArt(&*piece_art);
+    return SDL_APP_CONTINUE;
+  }
+
+  SDL_AppResult on_iterate(app::App& app, float dt) override {
+    if (!started) {
+      // Old main order: texture load BEFORE Manager::Start. Deferred to the
+      // first iterate because on_init runs pre-device (HeadlessNone: skip).
+      if (app.device() && !piece_art->load(app.device())) SDL_Log("Chess: piece textures unavailable, drawing letters instead");
+      manager->Start();
+      started = true;
+      SDL_Log("Chess Started");
     }
-    acquired = std::move(adapter);
-  };
-  wgpu::Future f{instance.RequestAdapter(&opts, wgpu::CallbackMode::WaitAnyOnly, cb)};
-  instance.WaitAny(f, UINT64_MAX);
-  return acquired.MoveToCHandle();
-}
-
-static WGPUDevice RequestDevice(wgpu::Instance& instance, wgpu::Adapter& adapter) {
-  wgpu::DeviceDescriptor desc;
-  desc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous, [](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView msg) {
-    SDL_Log("WebGPU device lost (%d): %s", static_cast<int>(reason), msg.data);
-  });
-  desc.SetUncapturedErrorCallback(
-      [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView msg) { SDL_Log("WebGPU error (%d): %s", static_cast<int>(type), msg.data); });
-  wgpu::Device acquired;
-  auto cb = [&](wgpu::RequestDeviceStatus status, wgpu::Device device, wgpu::StringView msg) {
-    if (status != wgpu::RequestDeviceStatus::Success) {
-      SDL_Log("RequestDevice failed: %s", msg.data);
-      return;
-    }
-    acquired = std::move(device);
-  };
-  wgpu::Future f{adapter.RequestDevice(&desc, wgpu::CallbackMode::WaitAnyOnly, cb)};
-  instance.WaitAny(f, UINT64_MAX);
-  return acquired.MoveToCHandle();
-}
-
-#ifndef __EMSCRIPTEN__
-static WGPUSurface CreateWGPUSurface(const WGPUInstance& instance, SDL_Window* window) {
-  SDL_PropertiesID props = SDL_GetWindowProperties(window);
-  ImGui_ImplWGPU_CreateSurfaceInfo info = {};
-  info.Instance = instance;
-#  if defined(SDL_PLATFORM_MACOS)
-  info.System = "cocoa";
-  info.RawWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
-  return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#  elif defined(SDL_PLATFORM_LINUX)
-  if (SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0) {
-    info.System = "wayland";
-    info.RawDisplay = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
-    info.RawSurface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
-    return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-  }
-  info.System = "x11";
-  info.RawWindow = reinterpret_cast<void*>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
-  info.RawDisplay = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
-  return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#  elif defined(SDL_PLATFORM_WIN32)
-  info.System = "win32";
-  info.RawWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
-  info.RawInstance = static_cast<void*>(::GetModuleHandle(nullptr));
-  return ImGui_ImplWGPU_CreateWGPUSurfaceHelper(&info);
-#  else
-  SDL_Log("Unsupported platform for WebGPU surface creation");
-  return nullptr;
-#  endif
-}
-#endif  // !__EMSCRIPTEN__
-
-static bool InitWGPU(SDL_Window* window) {
-  wgpu::InstanceDescriptor inst_desc = {};
-  static constexpr wgpu::InstanceFeatureName kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
-  inst_desc.requiredFeatureCount = 1;
-  inst_desc.requiredFeatures = &kTimedWaitAny;
-  wgpu::Instance instance = wgpu::CreateInstance(&inst_desc);
-  if (!instance) {
-    SDL_Log("Failed to create WebGPU instance");
-    return false;
+    manager->Update(dt);
+    if (smoke_frames > 0 && --smoke_frames == 0) app.request_exit();
+    return SDL_APP_CONTINUE;
   }
 
-  wgpu::Adapter adapter = RequestAdapter(instance);
-  if (!adapter) return false;
-  ImGui_ImplWGPU_DebugPrintAdapterInfo(adapter.Get());
-
-  wgpu_device = RequestDevice(instance, adapter);
-  if (!wgpu_device) return false;
-
-#ifdef __EMSCRIPTEN__
-  wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector canvas_desc = {};
-  canvas_desc.selector = "#canvas";
-  wgpu::SurfaceDescriptor surf_desc = {};
-  surf_desc.nextInChain = &canvas_desc;
-  wgpu::Surface surface = instance.CreateSurface(&surf_desc);
-#else
-  wgpu::Surface surface = CreateWGPUSurface(instance.Get(), window);
-#endif
-  if (!surface) {
-    SDL_Log("Failed to create WebGPU surface");
-    return false;
+  void on_draw(app::App&, WGPURenderPassEncoder) override {
+    manager->OnGui();
+    manager->OnDraw();
   }
 
-  wgpu_instance = instance.MoveToCHandle();
-  wgpu_surface = surface.MoveToCHandle();
+  void on_shutdown(app::App&) override { SDL_Log("Exiting Chess"); }
+};
 
-  WGPUSurfaceCapabilities caps = {};
-  wgpuSurfaceGetCapabilities(wgpu_surface, adapter.Get(), &caps);
+}  // namespace
 
-  wgpu_surface_cfg.presentMode = WGPUPresentMode_Fifo;
-  wgpu_surface_cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
-  wgpu_surface_cfg.usage = WGPUTextureUsage_RenderAttachment;
-  wgpu_surface_cfg.width = wgpu_surface_width;
-  wgpu_surface_cfg.height = wgpu_surface_height;
-  wgpu_surface_cfg.device = wgpu_device;
-  wgpu_surface_cfg.format = caps.formats[0];
-
-  wgpuSurfaceConfigure(wgpu_surface, &wgpu_surface_cfg);
-  wgpu_queue = wgpuDeviceGetQueue(wgpu_device);
-  return true;
-}
-
-int main(int, char**) {
-  SDL_Log("Creating DOD World");
-  ecs::World world;
-  jobs::Scheduler sched;
-  SDL_Log("DOD World Created");
-
-  SDL_Log("Initialising SDL");
-  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
-    SDL_Log("SDL_Init failed: %s", SDL_GetError());
-    return 1;
-  }
-
-  float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
-  wgpu_surface_width = static_cast<int>(wgpu_surface_width * scale);
-  wgpu_surface_height = static_cast<int>(wgpu_surface_height * scale);
-
-  SDL_Window* window = SDL_CreateWindow("Chess", wgpu_surface_width, wgpu_surface_height, SDL_WINDOW_RESIZABLE);
-  if (!window) {
-    SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
-    return 1;
-  }
-
-  SDL_Log("Initialising WebGPU");
-  if (!InitWGPU(window)) {
-    SDL_Log("InitWGPU failed");
-    return 1;
-  }
-  SDL_Log("WebGPU Ready");
-
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGuiIO& io = ImGui::GetIO();
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-  ImGui::StyleColorsDark();
-
-  ImGuiStyle& style = ImGui::GetStyle();
-  style.ScaleAllSizes(scale);
-  style.FontScaleDpi = scale;
-
-  ImGui_ImplSDL3_InitForOther(window);
-
-  ImGui_ImplWGPU_InitInfo wgpu_init = {};
-  wgpu_init.Device = wgpu_device;
-  wgpu_init.NumFramesInFlight = 3;
-  wgpu_init.RenderTargetFormat = wgpu_surface_cfg.format;
-  wgpu_init.DepthStencilFormat = WGPUTextureFormat_Undefined;
-  ImGui_ImplWGPU_Init(&wgpu_init);
-
-  PieceTextures pieceArt;
-  if (!pieceArt.load(wgpu_device)) SDL_Log("Chess: piece textures unavailable, drawing letters instead");
-
-  Manager manager;
-  manager.SetPieceArt(&pieceArt);
-  manager.Start();
-  SDL_Log("Chess Started");
-
-  ImVec4 clear_color = {0.05f, 0.05f, 0.05f, 1.00f};
-  bool done = false;
-
-  while (!done) {
-#ifdef __EMSCRIPTEN__
-    SDL_Delay(1);  // yield to the browser event loop via asyncify (prevents busy spin)
-#endif
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      ImGui_ImplSDL3_ProcessEvent(&event);
-      if (event.type == SDL_EVENT_QUIT) done = true;
-      if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window)) done = true;
-    }
-
-    int w, h;
-    SDL_GetWindowSize(window, &w, &h);
-    if (w != wgpu_surface_width || h != wgpu_surface_height) ResizeSurface(w, h);
-
-    WGPUSurfaceTexture surface_texture;
-    wgpuSurfaceGetCurrentTexture(wgpu_surface, &surface_texture);
-    if (ImGui_ImplWGPU_IsSurfaceStatusError(surface_texture.status)) {
-      SDL_Log("Unrecoverable surface texture status=%#.8x", surface_texture.status);
-      break;
-    }
-    if (ImGui_ImplWGPU_IsSurfaceStatusSubOptimal(surface_texture.status)) {
-      if (surface_texture.texture) wgpuTextureRelease(surface_texture.texture);
-      if (w > 0 && h > 0) ResizeSurface(w, h);
-      continue;
-    }
-
-    ImGui_ImplWGPU_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
-    ImGui::NewFrame();
-
-    manager.Update(io.DeltaTime);
-    manager.OnGui();
-    manager.OnDraw();
-
-    ImGui::Render();
-
-    WGPUTextureViewDescriptor view_desc = {};
-    view_desc.format = wgpu_surface_cfg.format;
-    view_desc.dimension = WGPUTextureViewDimension_2D;
-    view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
-    view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
-    view_desc.aspect = WGPUTextureAspect_All;
-    WGPUTextureView texture_view = wgpuTextureCreateView(surface_texture.texture, &view_desc);
-
-    WGPURenderPassColorAttachment color_att = {};
-    color_att.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
-    color_att.loadOp = WGPULoadOp_Clear;
-    color_att.storeOp = WGPUStoreOp_Store;
-    color_att.clearValue = {clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w};
-    color_att.view = texture_view;
-
-    WGPURenderPassDescriptor rp_desc = {};
-    rp_desc.colorAttachmentCount = 1;
-    rp_desc.colorAttachments = &color_att;
-    rp_desc.depthStencilAttachment = nullptr;
-
-    WGPUCommandEncoderDescriptor enc_desc = {};
-    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(wgpu_device, &enc_desc);
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp_desc);
-    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
-    wgpuRenderPassEncoderEnd(pass);
-
-    WGPUCommandBufferDescriptor cmd_desc = {};
-    WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, &cmd_desc);
-    wgpuQueueSubmit(wgpu_queue, 1, &cmd);
-
-#ifndef __EMSCRIPTEN__
-    wgpuSurfacePresent(wgpu_surface);
-    wgpuDeviceTick(wgpu_device);
-#endif
-
-    wgpuTextureViewRelease(texture_view);
-    wgpuRenderPassEncoderRelease(pass);
-    wgpuCommandEncoderRelease(encoder);
-    wgpuCommandBufferRelease(cmd);
-  }
-
-  SDL_Log("Exiting Chess");
-  sched.shutdown();
-
-  ImGui_ImplWGPU_Shutdown();
-  ImGui_ImplSDL3_Shutdown();
-  ImGui::DestroyContext();
-
-  wgpuSurfaceUnconfigure(wgpu_surface);
-  wgpuSurfaceRelease(wgpu_surface);
-  wgpuQueueRelease(wgpu_queue);
-  wgpuDeviceRelease(wgpu_device);
-  wgpuInstanceRelease(wgpu_instance);
-
-  SDL_DestroyWindow(window);
-  SDL_Quit();
-
-  SDL_Log("Chess Exited");
-  return 0;
-}
+MOBAGEN_MAIN(ChessApp)
