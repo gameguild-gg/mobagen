@@ -19,6 +19,7 @@
 //   - per-update info (position, isAlive, aliveNeighbors) travels in the AgentContext.
 
 // begin solution
+namespace conway {
 class Underpopulation : public Condition {
 public:
   bool Test(const AgentContext& context) override {
@@ -77,10 +78,13 @@ public:
     throw std::logic_error("StayDead action not implemented yet");
   }
 };
+}  // namespace conway
 
 // end solution
 
 JohnConway::JohnConway() {
+  using namespace conway;
+
   alive = std::make_shared<State>("Alive");
   dead = std::make_shared<State>("Dead");
 
