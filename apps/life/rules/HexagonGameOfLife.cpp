@@ -26,7 +26,8 @@
 //   survival is implicit: no transition firing means the stay actions run.
 
 // begin solution
-class UnderpopulationHex : public Condition {
+namespace hexagon {
+class Underpopulation : public Condition {
 public:
   bool Test(const AgentContext& context) override {
     // todo: implement the underpopulation condition
@@ -78,10 +79,13 @@ class StayDeadAction : public Action {
 public:
   void Execute(const AgentContext& context) override { context.world.SetNext(context.position, false); }
 };
+}  // namespace hexagon
 
 // end solution
 
 HexagonGameOfLife::HexagonGameOfLife() {
+  using namespace hexagon;
+
   alive = std::make_shared<State>("Alive");
   dead = std::make_shared<State>("Dead");
 

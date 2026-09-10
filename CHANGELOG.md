@@ -1,3 +1,10 @@
+## [1.23.2](https://github.com/InfiniBrains/mobagen/compare/v1.23.1...v1.23.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* namespace collision issue ([3af353c](https://github.com/InfiniBrains/mobagen/commit/3af353cf4ff00a4cf12496de179682c9af01d509))
+
 ## [1.23.1](https://github.com/InfiniBrains/mobagen/compare/v1.23.0...v1.23.1) (2026-09-07)
 
 
