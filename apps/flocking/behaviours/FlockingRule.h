@@ -16,7 +16,7 @@ class FlockingRule {
 protected:
   Color32 debugColor;
 
-  explicit FlockingRule(Color32 debugColor_, float weight_, bool isEnabled_ = true)
+  explicit FlockingRule(Color32 debugColor_, float weight_, bool isEnabled_ = false)
       : debugColor(debugColor_), weight(weight_), isEnabled(isEnabled_) {}
 
   virtual glm::vec2 computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) = 0;

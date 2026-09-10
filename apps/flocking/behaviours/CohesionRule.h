@@ -5,7 +5,7 @@
 
 class CohesionRule : public FlockingRule {
 public:
-  explicit CohesionRule(float weight = 1.f, bool isEnabled = true) : FlockingRule(Color::Cyan, weight, isEnabled) {}
+  explicit CohesionRule(float weight = 1.f, bool isEnabled = false) : FlockingRule(Color::Cyan, weight, isEnabled) {}
 
   std::unique_ptr<FlockingRule> clone() override { return std::make_unique<CohesionRule>(*this); }
 
