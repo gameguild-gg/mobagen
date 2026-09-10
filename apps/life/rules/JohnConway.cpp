@@ -53,23 +53,17 @@ public:
 
 class BornAction : public Action {
 public:
-  void Execute(const AgentContext& context) override { 
-      context.world.SetNext(context.position, true);
-  }
+  void Execute(const AgentContext& context) override { context.world.SetNext(context.position, true); }
 };
 
 class StayAliveAction : public Action {
 public:
-  void Execute(const AgentContext& context) override {
-      context.world.SetNext(context.position, true);
-  }
+  void Execute(const AgentContext& context) override { context.world.SetNext(context.position, true); }
 };
 
 class StayDeadAction : public Action {
 public:
-  void Execute(const AgentContext& context) override { 
-      context.world.SetNext(context.position, false);
-  }
+  void Execute(const AgentContext& context) override { context.world.SetNext(context.position, false); }
 };
 
 // end solution
