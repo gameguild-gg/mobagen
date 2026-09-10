@@ -36,7 +36,7 @@ public:
   }
 };
 
-class OverpopulationHex : public Condition {
+class Overpopulation : public Condition {
 public:
   bool Test(const AgentContext& context) override {
     // todo: implement the overpopulation condition
@@ -45,7 +45,7 @@ public:
   }
 };
 
-class ReproductionHex : public Condition {
+class Reproduction : public Condition {
 public:
   bool Test(const AgentContext& context) override {
     // todo: implement the reproduction condition
@@ -97,9 +97,9 @@ HexagonGameOfLife::HexagonGameOfLife() {
   //   dead->AddAction(std::make_shared<StayDeadAction>());
   // begin solution
 
-  alive->AddTransition(std::make_shared<UnderpopulationHex>(), dead, {die});
-  alive->AddTransition(std::make_shared<OverpopulationHex>(), dead, {die});
-  dead->AddTransition(std::make_shared<ReproductionHex>(), alive, {born});
+  alive->AddTransition(std::make_shared<Underpopulation>(), dead, {die});
+  alive->AddTransition(std::make_shared<Overpopulation>(), dead, {die});
+  dead->AddTransition(std::make_shared<Reproduction>(), alive, {born});
 
   dead->AddAction(std::make_shared<StayDeadAction>());
 
