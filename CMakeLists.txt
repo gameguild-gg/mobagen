@@ -155,6 +155,11 @@ if(ENABLE_TEST_COVERAGE)
   add_subdirectory(test)
 endif()
 
+option(MOBAGEN_BUILD_BENCHMARKS "Build Mobagen performance baseline executables" OFF)
+if(MOBAGEN_BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
+endif()
+
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 if(BUILD_EXAMPLES)
   add_subdirectory(apps)

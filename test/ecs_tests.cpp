@@ -1,7 +1,5 @@
 #include <doctest/doctest.h>
 #include "world.hpp"
-#include "jobs/scheduler.hpp"
-#include <chrono>
 
 namespace {
   struct Position {
@@ -73,23 +71,24 @@ TEST_CASE("World: type-erased destroy cleans all components") {
   CHECK(!w.has<Velocity>(e));
 }
 
-TEST_CASE("Perf: 2M entity parallel_for >= 3x faster than serial") {
-  ecs::World w;
-  jobs::Scheduler sched;
-  const int N = 200000;
-  for (int i = 0; i < N; ++i) {
-    auto e = w.create();
-    w.add<Position>(e, float(i), 0.0f, 0.0f);
-    w.add<Velocity>(e, 1.0f, 0.0f);
+TEST_CASE("World: apply_range updates only the requested dense interval") {
+  ecs::World world;
+  for (int i = 0; i < 8; ++i) {
+    const auto entity = world.create();
+    world.add<Position>(entity, static_cast<float>(i), 0.0f, 0.0f);
+    world.add<Velocity>(entity, 10.0f, 0.0f);
   }
-  auto t0 = std::chrono::high_resolution_clock::now();
-  w.view<Position, Velocity>([&](auto, Position& p, Velocity& v) { p.x += v.vx; });
-  auto t1 = std::chrono::high_resolution_clock::now();
-  auto serial_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-  t0 = std::chrono::high_resolution_clock::now();
-  jobs::WaitGroup wg;
-  w.apply_range<Position, Velocity>(0, N, [&](auto, Position& p, Velocity& v) { p.x += v.vx; });
-  t1 = std::chrono::high_resolution_clock::now();
-  auto parallel_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-  WARN(parallel_us * 3 < serial_us);
+
+  world.apply_range<Position, Velocity>(2, 5, [](auto, Position& position, Velocity& velocity) {
+    position.x += velocity.vx;
+  });
+
+  int dense_index = 0;
+  world.view<Position>([&](auto, Position& position) {
+    const float expected = dense_index >= 2 && dense_index < 5
+                               ? static_cast<float>(dense_index) + 10.0f
+                               : static_cast<float>(dense_index);
+    CHECK(position.x == expected);
+    ++dense_index;
+  });
 }
