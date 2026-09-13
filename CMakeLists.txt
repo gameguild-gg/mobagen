@@ -117,12 +117,15 @@ option(USE_ITK "Build ITK (medical image processing; bundles GDCM)" OFF)
 option(USE_VTK "Build VTK (visualization toolkit; reference only)" OFF)
 
 # App-group build switches
+option(MOBAGEN_BUILD_RUNTIME "Build SDL3, Dawn, ImGui, RmlUi, and application-host targets" ON)
 option(BUILD_CORE_DEMOS "Build engine learning demos under apps/core_demos" ON)
 option(BUILD_VOLUME_DEMOS "Build volume smoke tests under apps/volume_demos" ON)
 option(BUILD_DICOM_VIEWER "Build the DICOM viewer app" ON)
 option(BUILD_PROTOTYPES "Build learning prototypes (dawn_probe, fibers)" OFF)
 
-include(external/external.cmake)
+if(MOBAGEN_BUILD_RUNTIME)
+  include(external/external.cmake)
+endif()
 
 if(USE_GDCM)
   include(external/gdcm.cmake)
@@ -148,6 +151,7 @@ add_subdirectory(modules)
 
 option(ENABLE_TEST_COVERAGE "ENABLE_TEST_COVERAGE" ON)
 if(ENABLE_TEST_COVERAGE)
+  enable_testing()
   add_subdirectory(test)
 endif()
 
@@ -161,12 +165,14 @@ if(ENABLE_DOCUMENTATION)
   add_subdirectory(documentation)
 endif()
 
-CPMAddPackage(
-  NAME CPMLicenses.cmake
-  GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
-  VERSION 0.0.5
-)
-write_license_disclaimer("third_party.txt" "${CPM_PACKAGES}")
+if(MOBAGEN_BUILD_RUNTIME)
+  CPMAddPackage(
+    NAME CPMLicenses.cmake
+    GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
+    VERSION 0.0.5
+  )
+  write_license_disclaimer("third_party.txt" "${CPM_PACKAGES}")
+endif()
 
 # Android: create a SHARED library from the same sources as the selected app target, named
 # "main" (→ libmain.so) so SDLActivity can load it via System.loadLibrary("main"). Apps are
