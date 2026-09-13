@@ -33,6 +33,7 @@ add_subdirectory(sources/camera)
 add_subdirectory(sources/input)
 add_subdirectory(sources/resource)
 add_subdirectory(sources/render)
+add_subdirectory(sources/serialization)
 add_subdirectory(sources/net)
 if(MOBAGEN_BUILD_RUNTIME)
   # app host — WebGPU context + SDL3 callback host
