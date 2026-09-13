@@ -8,7 +8,7 @@ target_link_libraries(
   PRIVATE mobagen::core_ecs mobagen::core_jobs mobagen::core_scene mobagen::core_render
 )
 
-if(ENABLE_TEST_COVERAGE)
+if(BUILD_TESTING)
   add_test(
     NAME benchmark::foundation-smoke
     COMMAND MobagenFoundationBenchmark --warmup 1 --samples 2
