@@ -39,6 +39,10 @@ build*/
 
 node_modules
 
+# Python test/tool caches
+__pycache__/
+*.py[cod]
+
 package-lock.json
 
 ide/clion/
