@@ -1,6 +1,10 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -67,6 +71,44 @@ namespace {
 
   bool has_lockfile_issue(const mobagen::modules::LockfileSerializeResult& result, mobagen::modules::LockfileIssueCode code, std::string_view field) {
     return std::ranges::any_of(result.issues, [=](const auto& issue) { return issue.code == code && issue.field == field; });
+  }
+
+  class TemporaryLockDirectory {
+  public:
+    TemporaryLockDirectory() {
+      static std::atomic_uint64_t sequence = 0;
+      const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+      path_ = std::filesystem::temp_directory_path() / ("mobagen-lockfile-" + std::to_string(ticks) + "-" + std::to_string(sequence.fetch_add(1)));
+      REQUIRE(std::filesystem::create_directory(path_));
+    }
+
+    ~TemporaryLockDirectory() {
+      std::error_code error;
+      std::filesystem::remove_all(path_, error);
+    }
+
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
+
+  private:
+    std::filesystem::path path_;
+  };
+
+  void write_text(const std::filesystem::path& path, std::string_view contents) {
+    std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(stream.good());
+    stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+    REQUIRE(stream.good());
+  }
+
+  std::string read_text(const std::filesystem::path& path) {
+    std::ifstream stream(path, std::ios::binary);
+    REQUIRE(stream.good());
+    return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+  }
+
+  bool has_lockfile_temporary_file(const std::filesystem::path& directory) {
+    return std::ranges::any_of(std::filesystem::directory_iterator(directory),
+                               [](const auto& entry) { return entry.path().filename().string().starts_with("mobagen.lock.tmp-"); });
   }
 
 }  // namespace
@@ -148,4 +190,47 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidValue, "profile"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidHash, "plugins.customer.color.hash"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::DuplicateEntry, "plugins.customer.color"));
+}
+
+TEST_CASE("Module lockfile: atomic write replaces the complete destination") {
+  using namespace mobagen::modules;
+
+  TemporaryLockDirectory directory;
+  const auto destination = directory.path() / "mobagen.lock";
+  write_text(destination, "old lockfile\n");
+
+  const auto result = write_lockfile_atomic(destination, "schema: 1\nprofile: release\n");
+
+  REQUIRE(result.ok());
+  CHECK(read_text(destination) == "schema: 1\nprofile: release\n");
+  CHECK_FALSE(has_lockfile_temporary_file(directory.path()));
+}
+
+TEST_CASE("Module lockfile: atomic write rejects a destination without a filename") {
+  using namespace mobagen::modules;
+
+  const auto result = write_lockfile_atomic({}, "schema: 1\n");
+
+  CHECK_FALSE(result.ok());
+  CHECK(result.issue.has_value());
+  CHECK(result.issue->code == LockfileWriteIssueCode::InvalidPath);
+}
+
+TEST_CASE("Module lockfile: failed atomic commit preserves the destination and removes its temporary file") {
+  using namespace mobagen::modules;
+
+  TemporaryLockDirectory directory;
+  const auto destination = directory.path() / "mobagen.lock";
+  REQUIRE(std::filesystem::create_directory(destination));
+  const auto marker = destination / "keep.txt";
+  write_text(marker, "preserve me");
+
+  const auto result = write_lockfile_atomic(destination, "schema: 1\n");
+
+  CHECK_FALSE(result.ok());
+  CHECK(result.issue.has_value());
+  CHECK(result.issue->code == LockfileWriteIssueCode::CommitFailed);
+  CHECK(std::filesystem::is_directory(destination));
+  CHECK(read_text(marker) == "preserve me");
+  CHECK_FALSE(has_lockfile_temporary_file(directory.path()));
 }
