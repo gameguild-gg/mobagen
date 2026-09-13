@@ -9,7 +9,9 @@
 
 #include "sparse_set.hpp"
 #include "storage.hpp"
+#include "threading/thread_bound.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -28,8 +30,8 @@ namespace ecs {
 
   namespace detail {
     inline std::size_t next_component_id() {
-      static std::size_t c = 0;
-      return c++;
+      static std::atomic_size_t next{0};
+      return next.fetch_add(1, std::memory_order_relaxed);
     }
     template <class T> std::size_t component_id() {
       static const std::size_t id = next_component_id();
@@ -42,6 +44,7 @@ namespace ecs {
 
   public:
     Entity create() {
+      thread_bound_.require_owner_thread();
       std::uint32_t idx;
       if (!free_.empty()) {
         idx = free_.back();
@@ -61,6 +64,7 @@ namespace ecs {
     }
 
     bool destroy(Entity e) {
+      thread_bound_.require_owner_thread();
       if (!valid(e)) return false;
       const std::uint32_t i = entity_index(e);
       for (auto& p : pools_)
@@ -72,6 +76,7 @@ namespace ecs {
     }
 
     template <class T, class... Args> T& add(Entity e, Args&&... args) {
+      thread_bound_.require_owner_thread();
       if (!valid(e)) throw std::invalid_argument("cannot add a component to an invalid entity");
       Storage<T>& components = storage<T>();
       const std::uint32_t index = entity_index(e);
@@ -116,6 +121,7 @@ namespace ecs {
     }
 
     template <class T> bool remove(Entity e) {
+      thread_bound_.require_owner_thread();
       if (!valid(e)) return false;
       Storage<T>* components = find_storage<T>();
       if (components == nullptr || !components->contains(entity_index(e))) return false;
@@ -186,6 +192,9 @@ namespace ecs {
                  : nullptr;
     }
 
+    // Structural mutation is owner-only. Workers may access pre-existing
+    // components through disjoint apply_range intervals while structure is frozen.
+    threading::ThreadBound thread_bound_;
     std::vector<std::uint32_t> generations_;         // current generation per index
     std::vector<std::uint8_t> alive_;                 // slot occupancy, independent of generation
     std::vector<std::uint32_t> free_;                // recycled indices
