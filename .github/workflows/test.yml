@@ -67,6 +67,43 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: bash <(curl -sSfL https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
 
+  sanitizers:
+    name: ASan + UBSan (Ubuntu)
+    runs-on: ubuntu-latest
+
+    env:
+      ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1:check_initialization_order=1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v6
+        with:
+          path: "**/cpm_modules"
+          key: sanitizers-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Configure sanitizers
+        run: >-
+          cmake -S . -B build-sanitizers
+          -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=ON
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=OFF
+          -DMOBAGEN_ENABLE_SANITIZERS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build sanitizer tests
+        run: cmake --build build-sanitizers --config Debug --parallel 2 --target FoundationTests
+
+      - name: Test with ASan and UBSan
+        run: ctest --test-dir build-sanitizers -C Debug -L foundation --output-on-failure
+
   runtime-integration:
     name: Runtime integration (Ubuntu)
     runs-on: ubuntu-latest
