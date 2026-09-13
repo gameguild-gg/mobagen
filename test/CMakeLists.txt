@@ -1,4 +1,3 @@
-option(ENABLE_TEST_COVERAGE "Enable test coverage" ON)
 option(TEST_INSTALLED_VERSION "Test the version found by find_package" OFF)
 
 # --- Import tools ----
