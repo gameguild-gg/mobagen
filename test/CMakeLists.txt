@@ -15,6 +15,7 @@ set(
   jobs_tests.cpp
   messaging_tests.cpp
   reactive_tests.cpp
+  scene_serialize_tests.cpp
   scene_tests.cpp
   subsystems_tests.cpp
 )

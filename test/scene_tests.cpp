@@ -54,6 +54,9 @@ TEST_CASE("Scene serialization: volume resource handles retain their generation"
 
   render::VolumeRenderable volume;
   volume.source.handle = resource::Handle{17u, 42u};
+  volume.source.width = 1;
+  volume.source.height = 1;
+  volume.source.depth = 1;
   source.add<render::VolumeRenderable>(entity, volume);
 
   const std::vector<std::uint8_t> bytes = render::save_scene(source);
