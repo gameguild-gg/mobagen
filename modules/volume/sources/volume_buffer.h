@@ -1,9 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory_resource>
 #include <vector>
 
@@ -12,6 +14,15 @@
 namespace volume {
 
   enum class VolumeStorageFormat : std::uint8_t { R8, U16PackedRG8 };
+
+  inline constexpr std::uint32_t kMaxVolumeDimension = 16'384u;
+  inline constexpr std::size_t kMaxVolumeBytes = std::size_t{512} * 1024 * 1024;
+
+  inline bool checked_multiply(std::size_t left, std::size_t right, std::size_t& result) {
+    if (left != 0 && right > std::numeric_limits<std::size_t>::max() / left) return false;
+    result = left * right;
+    return true;
+  }
 
   struct VolumeMetadata {
     std::uint32_t width = 0;
@@ -28,10 +39,60 @@ namespace volume {
     float value_min = 0.0f;
     float value_max = 1.0f;
 
-    std::size_t voxel_count() const { return static_cast<std::size_t>(width) * height * depth; }
+    std::size_t voxel_count() const {
+      std::size_t area = 0, count = 0;
+      return checked_multiply(width, height, area) && checked_multiply(area, depth, count)
+                 ? count
+                 : 0;
+    }
 
-    bool valid() const { return width > 0 && height > 0 && depth > 0; }
+    bool valid() const {
+      const bool valid_dimensions = width > 0 && height > 0 && depth > 0
+                                    && width <= kMaxVolumeDimension
+                                    && height <= kMaxVolumeDimension
+                                    && depth <= kMaxVolumeDimension;
+      const bool valid_spacing = std::isfinite(spacing_mm.x) && std::isfinite(spacing_mm.y)
+                                 && std::isfinite(spacing_mm.z) && spacing_mm.x > 0.0f
+                                 && spacing_mm.y > 0.0f && spacing_mm.z > 0.0f;
+      const bool valid_intensity = std::isfinite(rescale_slope) && rescale_slope > 0.0f
+                                   && std::isfinite(rescale_intercept)
+                                   && std::isfinite(window_center) && std::isfinite(window_width)
+                                   && window_width > 0.0f && std::isfinite(value_min)
+                                   && std::isfinite(value_max) && value_min <= value_max;
+      return valid_dimensions && valid_spacing && valid_intensity;
+    }
   };
+
+  struct VolumeLayout {
+    std::size_t voxel_count = 0;
+    std::size_t byte_count = 0;
+  };
+
+  inline bool try_volume_layout(const VolumeMetadata& metadata, VolumeStorageFormat format,
+                                std::uint32_t bytes_per_voxel, VolumeLayout& layout) {
+    layout = {};
+    if (!metadata.valid()) return false;
+    switch (format) {
+      case VolumeStorageFormat::R8:
+        if (bytes_per_voxel != 1) return false;
+        break;
+      case VolumeStorageFormat::U16PackedRG8:
+        if (bytes_per_voxel != 2) return false;
+        break;
+      default:
+        return false;
+    }
+
+    std::size_t area = 0, voxel_count = 0, byte_count = 0;
+    if (!checked_multiply(metadata.width, metadata.height, area)
+        || !checked_multiply(area, metadata.depth, voxel_count)
+        || !checked_multiply(voxel_count, bytes_per_voxel, byte_count)
+        || byte_count == 0 || byte_count > kMaxVolumeBytes)
+      return false;
+
+    layout = VolumeLayout{voxel_count, byte_count};
+    return true;
+  }
 
   // A deliberately small monotonic arena for voxel bytes. This is not a general
   // GC; it is a study tool for large volumes where you want one bulk allocation
@@ -62,17 +123,22 @@ namespace volume {
 
     VolumeBuffer(VolumeMetadata metadata, std::pmr::memory_resource* resource) : VolumeBuffer(metadata, VolumeStorageFormat::R8, 1, resource) {}
 
-    VolumeBuffer(VolumeMetadata metadata, VolumeStorageFormat format, std::uint32_t bytes_per_voxel, std::pmr::memory_resource* resource)
-        : metadata_(metadata), format_(format), bytes_per_voxel_(std::max(bytes_per_voxel, 1u)), bytes_(resource) {
-      bytes_.resize(metadata.voxel_count() * bytes_per_voxel_);
+    VolumeBuffer(VolumeMetadata metadata, VolumeStorageFormat format,
+                 std::uint32_t bytes_per_voxel, std::pmr::memory_resource* resource)
+        : bytes_(resource != nullptr ? resource : std::pmr::get_default_resource()) {
+      VolumeLayout layout;
+      if (!try_volume_layout(metadata, format, bytes_per_voxel, layout)) return;
+      metadata_ = metadata;
+      format_ = format;
+      bytes_per_voxel_ = bytes_per_voxel;
+      bytes_.resize(layout.byte_count);
     }
 
     static VolumeBuffer from_u8(VolumeMetadata metadata, const std::uint8_t* src,
                                 std::pmr::memory_resource* resource = std::pmr::get_default_resource()) {
       VolumeBuffer out(metadata, resource);
-      if (src && !out.bytes_.empty()) {
-        std::memcpy(out.bytes_.data(), src, out.bytes_.size());
-      }
+      if (src == nullptr) return {};
+      if (!out.bytes_.empty()) std::memcpy(out.bytes_.data(), src, out.bytes_.size());
       return out;
     }
 
@@ -88,7 +154,8 @@ namespace volume {
       VolumeBuffer out(metadata, VolumeStorageFormat::U16PackedRG8, 2, resource);
       if (!src || out.bytes_.empty()) return out;
 
-      for (std::size_t i = 0; i < metadata.voxel_count(); ++i) {
+      const std::size_t voxel_count = out.bytes_.size() / 2;
+      for (std::size_t i = 0; i < voxel_count; ++i) {
         const std::uint16_t value = src[i];
         out.bytes_[i * 2 + 0] = static_cast<std::uint8_t>(value & 0x00ffu);
         out.bytes_[i * 2 + 1] = static_cast<std::uint8_t>((value >> 8u) & 0x00ffu);

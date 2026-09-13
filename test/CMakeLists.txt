@@ -18,6 +18,7 @@ set(
   scene_serialize_tests.cpp
   scene_tests.cpp
   subsystems_tests.cpp
+  volume_file_tests.cpp
 )
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
@@ -39,6 +40,7 @@ target_link_libraries(
           mobagen::core_input
           mobagen::core_render
           mobagen::core_resource
+          mobagen::volume
 )
 
 # enable compiler warnings if(NOT TEST_INSTALLED_VERSION) if(CMAKE_CXX_COMPILER_ID MATCHES "Clang"
