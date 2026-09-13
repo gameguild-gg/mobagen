@@ -101,3 +101,11 @@ data/state_store.db
 
 .cache/
 graphify-out/
+
+# DICOM viewer asset-manager outputs and restricted source studies
+apps/dicom_viewer/assets/cache/
+apps/dicom_viewer/assets/dicom/
+apps/dicom_viewer/assets/*.raw
+apps/dicom_viewer/assets/*.mvol
+!apps/dicom_viewer/assets/assets.json
+!apps/dicom_viewer/assets/README.md
