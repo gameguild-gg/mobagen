@@ -1,8 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "resolver.hpp"
@@ -49,5 +52,27 @@ namespace mobagen::modules {
 
   [[nodiscard]] LockfileSerializeResult serialize_lockfile(const CapabilityRegistry& registry, const ModuleResolution& resolution,
                                                            const LockfileMetadata& metadata);
+
+  enum class LockfileWriteIssueCode : std::uint8_t {
+    InvalidPath,
+    CreateFailed,
+    WriteFailed,
+    CommitFailed,
+  };
+
+  struct LockfileWriteIssue {
+    LockfileWriteIssueCode code{};
+    std::filesystem::path path;
+    std::error_code system_error;
+    std::string message;
+  };
+
+  struct LockfileWriteResult {
+    std::optional<LockfileWriteIssue> issue;
+
+    [[nodiscard]] bool ok() const noexcept { return !issue.has_value(); }
+  };
+
+  [[nodiscard]] LockfileWriteResult write_lockfile_atomic(const std::filesystem::path& destination, std::string_view contents);
 
 }  // namespace mobagen::modules
