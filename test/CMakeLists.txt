@@ -10,6 +10,7 @@ include(../cmake/tools.cmake)
 set(
   FOUNDATION_TEST_SOURCES
   Test.cpp
+  benchmark_runner_tests.cpp
   ecs_tests.cpp
   jobs_tests.cpp
   messaging_tests.cpp
@@ -20,7 +21,10 @@ set(
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
-target_include_directories(FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources)
+target_include_directories(
+  FoundationTests
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
+)
 target_link_libraries(
   FoundationTests
   PRIVATE doctest::doctest
