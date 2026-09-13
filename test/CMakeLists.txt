@@ -14,6 +14,7 @@ set(FOUNDATION_TEST_SOURCES
     jobs_tests.cpp
     messaging_tests.cpp
     module_descriptor_tests.cpp
+    module_execution_graph_tests.cpp
     module_lifecycle_tests.cpp
     module_registry_tests.cpp
     module_resolver_tests.cpp
