@@ -19,9 +19,39 @@
 
 #include <webgpu/webgpu.h>
 
+#include <atomic>
+#include <cstdint>
+
 struct SDL_Window;
 
 namespace app {
+
+  enum class ContextState : std::uint8_t { Uninitialized, Initializing, Operational, Lost };
+
+  enum class SurfaceFrameAction : std::uint8_t { Render, RenderThenReconfigure, Retry, Reconfigure, Fail };
+
+  constexpr SurfaceFrameAction surface_frame_action(WGPUSurfaceGetCurrentTextureStatus status,
+                                                    bool has_texture) noexcept {
+    switch (status) {
+      case WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal:
+        return has_texture ? SurfaceFrameAction::Render : SurfaceFrameAction::Fail;
+      case WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal:
+        return has_texture ? SurfaceFrameAction::RenderThenReconfigure : SurfaceFrameAction::Fail;
+      case WGPUSurfaceGetCurrentTextureStatus_Timeout: return SurfaceFrameAction::Retry;
+      case WGPUSurfaceGetCurrentTextureStatus_Outdated: return SurfaceFrameAction::Reconfigure;
+      case WGPUSurfaceGetCurrentTextureStatus_Lost:
+      case WGPUSurfaceGetCurrentTextureStatus_Error:
+      default: return SurfaceFrameAction::Fail;
+    }
+  }
+
+  inline void mark_context_lost(std::atomic<ContextState>& state) noexcept {
+    ContextState current = state.load(std::memory_order_acquire);
+    while (current != ContextState::Uninitialized && current != ContextState::Lost &&
+           !state.compare_exchange_weak(current, ContextState::Lost, std::memory_order_acq_rel,
+                                        std::memory_order_acquire)) {
+    }
+  }
 
   struct ContextDesc {
     WGPUPowerPreference power_preference = WGPUPowerPreference_HighPerformance;
@@ -47,11 +77,14 @@ namespace app {
     WGPUQueue queue() const { return queue_; }
     WGPUSurface surface() const { return surface_; }  // nullptr when headless
     WGPUTextureFormat surface_format() const { return surface_format_; }
+    ContextState state() const noexcept { return state_.load(std::memory_order_acquire); }
+    bool operational() const noexcept { return state() == ContextState::Operational; }
+    bool lost() const noexcept { return state() == ContextState::Lost; }
 
-    void configure_surface(int width, int height);
+    bool configure_surface(int width, int height);
     WGPUSurfaceTexture acquire();
-    void present();
-    void tick();
+    bool present();
+    bool tick();
 
   private:
     bool create_surface(WGPUInstance instance, SDL_Window* window);
@@ -63,7 +96,7 @@ namespace app {
     WGPUSurface surface_ = nullptr;
     WGPUTextureFormat surface_format_ = WGPUTextureFormat_Undefined;
     WGPUSurfaceConfiguration surface_cfg_ = {};
-    bool initialized_ = false;
+    std::atomic<ContextState> state_{ContextState::Uninitialized};
     // wgpuSurfaceUnconfigure on a never-configured surface (or one whose
     // configure failed) trips a dawn DAWN_CHECK assert — only unconfigure a
     // surface we actually configured.

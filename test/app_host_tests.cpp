@@ -24,6 +24,7 @@
 #include "app/app.hpp"
 #include "app/app_settings.hpp"
 
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -95,6 +96,45 @@ void start_event_subsystem() {
   SDL_Event ignored;
   while (SDL_PollEvent(&ignored)) {
   }
+}
+
+enum class GpuFailurePoint { None, Texture, TextureView, Encoder, RenderPass, CommandBuffer };
+GpuFailurePoint g_gpu_failure = GpuFailurePoint::None;
+std::atomic<int> g_queue_submissions{0};
+
+WGPUTexture create_texture_with_failure(WGPUDevice device, const WGPUTextureDescriptor* desc) {
+  return g_gpu_failure == GpuFailurePoint::Texture ? nullptr : wgpuDeviceCreateTexture(device, desc);
+}
+
+WGPUTextureView create_texture_view_with_failure(WGPUTexture texture,
+                                                 const WGPUTextureViewDescriptor* desc) {
+  return g_gpu_failure == GpuFailurePoint::TextureView ? nullptr
+                                                       : wgpuTextureCreateView(texture, desc);
+}
+
+WGPUCommandEncoder create_encoder_with_failure(WGPUDevice device,
+                                               const WGPUCommandEncoderDescriptor* desc) {
+  return g_gpu_failure == GpuFailurePoint::Encoder ? nullptr
+                                                   : wgpuDeviceCreateCommandEncoder(device, desc);
+}
+
+WGPURenderPassEncoder begin_pass_with_failure(WGPUCommandEncoder encoder,
+                                              const WGPURenderPassDescriptor* desc) {
+  return g_gpu_failure == GpuFailurePoint::RenderPass
+             ? nullptr
+             : wgpuCommandEncoderBeginRenderPass(encoder, desc);
+}
+
+WGPUCommandBuffer finish_encoder_with_failure(WGPUCommandEncoder encoder,
+                                              const WGPUCommandBufferDescriptor* desc) {
+  return g_gpu_failure == GpuFailurePoint::CommandBuffer ? nullptr
+                                                         : wgpuCommandEncoderFinish(encoder, desc);
+}
+
+void count_queue_submission(WGPUQueue queue, std::size_t count,
+                            const WGPUCommandBuffer* commands) {
+  g_queue_submissions.fetch_add(1, std::memory_order_relaxed);
+  wgpuQueueSubmit(queue, count, commands);
 }
 
 }  // namespace
@@ -170,11 +210,15 @@ TEST_CASE("app host: WebGPUContext null device lifecycle") {
 
   app::WebGPUContext ctx;
   REQUIRE(ctx.init(desc));
+  CHECK(ctx.state() == app::ContextState::Operational);
+  CHECK(ctx.operational());
   CHECK(ctx.device() != nullptr);
   CHECK(ctx.queue() != nullptr);
   CHECK(ctx.surface() == nullptr);
 
   ctx.shutdown();
+  CHECK(ctx.state() == app::ContextState::Uninitialized);
+  CHECK_FALSE(ctx.operational());
   CHECK(ctx.device() == nullptr);
   ctx.shutdown();  // idempotent: a second call must be a harmless no-op
 
@@ -185,6 +229,48 @@ TEST_CASE("app host: WebGPUContext null device lifecycle") {
   }
 }
 #endif  // __EMSCRIPTEN__
+
+TEST_CASE("app host: surface status policy covers every WebGPU result") {
+  using app::SurfaceFrameAction;
+  using app::surface_frame_action;
+
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal, true) ==
+        SurfaceFrameAction::Render);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal, true) ==
+        SurfaceFrameAction::RenderThenReconfigure);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal, false) ==
+        SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal, false) ==
+        SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Timeout, false) ==
+        SurfaceFrameAction::Retry);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Outdated, false) ==
+        SurfaceFrameAction::Reconfigure);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Lost, false) ==
+        SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Error, false) ==
+        SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(static_cast<WGPUSurfaceGetCurrentTextureStatus>(0), false) ==
+        SurfaceFrameAction::Fail);
+}
+
+TEST_CASE("app host: lost state cannot overwrite completed shutdown") {
+  std::atomic<app::ContextState> state{app::ContextState::Initializing};
+  app::mark_context_lost(state);
+  CHECK(state.load() == app::ContextState::Lost);
+
+  state.store(app::ContextState::Uninitialized);
+  app::mark_context_lost(state);
+  CHECK(state.load() == app::ContextState::Uninitialized);
+}
+
+TEST_CASE("app host: uninitialized WebGPUContext rejects frame operations") {
+  app::WebGPUContext ctx;
+  CHECK_FALSE(ctx.configure_surface(64, 64));
+  CHECK(ctx.acquire().texture == nullptr);
+  CHECK_FALSE(ctx.present());
+  CHECK_FALSE(ctx.tick());
+}
 
 // ---------------------------------------------------------------------------
 // (c) Full host lifecycle in HeadlessNone: window-free, GPU-free.
@@ -309,5 +395,45 @@ TEST_CASE("app host: HeadlessNull integration renders offscreen") {
   app::host_quit(app);
   CHECK(cb.shutdowns == 1);
   CHECK(cb.seq == std::vector<std::string>({"init", "iterate", "draw", "iterate", "draw", "iterate", "shutdown"}));
+}
+
+TEST_CASE("app host: GPU allocation failures are never submitted") {
+  GpuFailurePoint failure = GpuFailurePoint::None;
+  SUBCASE("offscreen texture") { failure = GpuFailurePoint::Texture; }
+  SUBCASE("offscreen texture view") { failure = GpuFailurePoint::TextureView; }
+  SUBCASE("command encoder") { failure = GpuFailurePoint::Encoder; }
+  SUBCASE("render pass") { failure = GpuFailurePoint::RenderPass; }
+  SUBCASE("command buffer") { failure = GpuFailurePoint::CommandBuffer; }
+
+  g_gpu_failure = failure;
+  g_queue_submissions.store(0, std::memory_order_relaxed);
+  app::GpuFrameApi api = app::default_gpu_frame_api();
+  api.create_texture = create_texture_with_failure;
+  api.create_texture_view = create_texture_view_with_failure;
+  api.create_command_encoder = create_encoder_with_failure;
+  api.begin_render_pass = begin_pass_with_failure;
+  api.finish_command_encoder = finish_encoder_with_failure;
+  api.queue_submit = count_queue_submission;
+
+  RecordingCallbacks callbacks;
+  callbacks.parse_flags = true;
+  app::App application;
+  application.callbacks = &callbacks;
+  application.settings.width = 64;
+  application.settings.height = 64;
+  application.set_gpu_frame_api(api);
+
+  char arg0[] = "CoreTests";
+  char null_gpu_flag[] = "--mobagen-null-gpu";
+  char* argv[] = {arg0, null_gpu_flag, nullptr};
+
+  REQUIRE(app::host_init(application, 2, argv) == SDL_APP_CONTINUE);
+  REQUIRE(application.settings.render_mode == app::AppSettings::RenderMode::HeadlessNull);
+  CHECK(app::host_iterate(application) == SDL_APP_FAILURE);
+  CHECK(g_queue_submissions.load(std::memory_order_relaxed) == 0);
+  CHECK(callbacks.draws == (failure == GpuFailurePoint::CommandBuffer ? 1 : 0));
+
+  app::host_quit(application);
+  g_gpu_failure = GpuFailurePoint::None;
 }
 #endif  // __EMSCRIPTEN__
