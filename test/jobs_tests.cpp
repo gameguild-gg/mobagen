@@ -7,60 +7,57 @@
 
 namespace {
 
-jobs::Task assign_result(int& result) {
-  result = 42;
-  co_return;
-}
+  jobs::Task assign_result(int& result) {
+    result = 42;
+    co_return;
+  }
 
-jobs::Task increment(std::atomic<int>& counter) {
-  counter.fetch_add(1, std::memory_order_relaxed);
-  co_return;
-}
+  jobs::Task increment(std::atomic<int>& counter) {
+    counter.fetch_add(1, std::memory_order_relaxed);
+    co_return;
+  }
 
-jobs::Task record_scheduler(jobs::Scheduler& expected, std::atomic<bool>& matched) {
-  matched.store(jobs::Scheduler::this_scheduler() == &expected, std::memory_order_release);
-  co_return;
-}
+  jobs::Task record_scheduler(jobs::Scheduler& expected, std::atomic<bool>& matched) {
+    matched.store(jobs::Scheduler::this_scheduler() == &expected, std::memory_order_release);
+    co_return;
+  }
 
-jobs::Task submit_to(jobs::Scheduler& destination, std::atomic<bool>& accepted,
-                     std::atomic<bool>& ran_on_destination) {
-  jobs::WaitGroup inner_done;
-  auto inner = record_scheduler(destination, ran_on_destination);
-  accepted.store(destination.kick(std::move(inner), inner_done), std::memory_order_release);
-  destination.wait(inner_done);
-  co_return;
-}
+  jobs::Task submit_to(jobs::Scheduler& destination, std::atomic<bool>& accepted, std::atomic<bool>& ran_on_destination) {
+    jobs::WaitGroup inner_done;
+    auto inner = record_scheduler(destination, ran_on_destination);
+    accepted.store(destination.kick(std::move(inner), inner_done), std::memory_order_release);
+    destination.wait(inner_done);
+    co_return;
+  }
 
-jobs::Task increment_after_delay(std::atomic<int>& completed) {
-  std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  completed.fetch_add(1, std::memory_order_relaxed);
-  co_return;
-}
+  jobs::Task increment_after_delay(std::atomic<int>& completed) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    completed.fetch_add(1, std::memory_order_relaxed);
+    co_return;
+  }
 
-jobs::Task set_true(std::atomic<bool>& value) {
-  value.store(true, std::memory_order_release);
-  co_return;
-}
+  jobs::Task set_true(std::atomic<bool>& value) {
+    value.store(true, std::memory_order_release);
+    co_return;
+  }
 
-jobs::Task submit_while_draining(jobs::Scheduler& scheduler, std::atomic<bool>& root_started,
-                                 std::atomic<bool>& allow_children,
-                                 std::atomic<bool>& child_accepted,
-                                 std::atomic<bool>& child_ran) {
-  root_started.store(true, std::memory_order_release);
-  while (!allow_children.load(std::memory_order_acquire)) std::this_thread::yield();
+  jobs::Task submit_while_draining(jobs::Scheduler& scheduler, std::atomic<bool>& root_started, std::atomic<bool>& allow_children,
+                                   std::atomic<bool>& child_accepted, std::atomic<bool>& child_ran) {
+    root_started.store(true, std::memory_order_release);
+    while (!allow_children.load(std::memory_order_acquire)) std::this_thread::yield();
 
-  jobs::WaitGroup child_done;
-  auto child = set_true(child_ran);
-  const bool accepted = scheduler.kick(std::move(child), child_done);
-  child_accepted.store(accepted, std::memory_order_release);
-  if (accepted) co_await child_done;
-  co_return;
-}
+    jobs::WaitGroup child_done;
+    auto child = set_true(child_ran);
+    const bool accepted = scheduler.kick(std::move(child), child_done);
+    child_accepted.store(accepted, std::memory_order_release);
+    if (accepted) co_await child_done;
+    co_return;
+  }
 
-jobs::Task set_true(bool& value) {
-  value = true;
-  co_return;
-}
+  jobs::Task set_true(bool& value) {
+    value = true;
+    co_return;
+  }
 
 }  // namespace
 
@@ -152,8 +149,7 @@ TEST_CASE("Scheduler: draining work may submit its required children") {
   std::atomic<bool> child_accepted{false};
   std::atomic<bool> child_ran{false};
 
-  auto root = submit_while_draining(scheduler, root_started, allow_children, child_accepted,
-                                    child_ran);
+  auto root = submit_while_draining(scheduler, root_started, allow_children, child_accepted, child_ran);
 
   REQUIRE(scheduler.kick(std::move(root), root_done));
   while (!root_started.load(std::memory_order_acquire)) std::this_thread::yield();
