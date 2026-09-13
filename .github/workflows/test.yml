@@ -32,11 +32,11 @@ jobs:
             coverage: OFF
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: "**/cpm_modules"
           key: foundation-${{ matrix.os }}-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
@@ -72,11 +72,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: "**/cpm_modules"
           key: runtime-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
