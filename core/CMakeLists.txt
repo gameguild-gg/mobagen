@@ -29,6 +29,7 @@ add_subdirectory(sources/ecs)
 add_subdirectory(sources/jobs)
 add_subdirectory(sources/reactive)
 add_subdirectory(sources/messaging)
+add_subdirectory(sources/modules)
 add_subdirectory(sources/scene)
 add_subdirectory(sources/camera)
 add_subdirectory(sources/input)
@@ -41,8 +42,8 @@ if(MOBAGEN_BUILD_RUNTIME)
   add_subdirectory(sources/app)
   # imgui GUI layer for the app host (ImGui SDL3 + WebGPU backends)
   add_subdirectory(sources/imgui)
-  # rmlui GUI layer for the app host (RmlUi bridged through ImGui's WebGPU pipeline);
-  # optional — only when the RmlUi targets were configured.
+  # rmlui GUI layer for the app host (RmlUi bridged through ImGui's WebGPU pipeline); optional —
+  # only when the RmlUi targets were configured.
   if(TARGET rmlui_all)
     add_subdirectory(sources/rmlui)
     list(APPEND RMLUI_LIBS mobagen::core_rmlui)
@@ -91,6 +92,7 @@ target_link_libraries(
             mobagen::core_jobs
             mobagen::core_reactive
             mobagen::core_messaging
+            mobagen::core_modules
             mobagen::core_scene
             mobagen::core_camera
             mobagen::core_input

@@ -13,6 +13,7 @@ set(FOUNDATION_TEST_SOURCES
     ecs_tests.cpp
     jobs_tests.cpp
     messaging_tests.cpp
+    module_descriptor_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
     scene_tests.cpp
@@ -33,6 +34,7 @@ target_link_libraries(
           mobagen::core_jobs
           mobagen::core_reactive
           mobagen::core_messaging
+          mobagen::core_modules
           mobagen::core_net
           mobagen::core_scene
           mobagen::core_camera
@@ -41,7 +43,7 @@ target_link_libraries(
           mobagen::core_resource
           mobagen::volume
 )
-mobagen_enable_sanitizers(FoundationTests mobagen_core_jobs)
+mobagen_enable_sanitizers(FoundationTests mobagen_core_jobs mobagen_core_modules)
 
 # enable compiler warnings if(NOT TEST_INSTALLED_VERSION) if(CMAKE_CXX_COMPILER_ID MATCHES "Clang"
 # OR CMAKE_CXX_COMPILER_ID MATCHES "GNU") target_compile_options(core PUBLIC -Wall -Wpedantic
@@ -72,7 +74,7 @@ endif()
 
 include(../cmake/coverage.cmake)
 
-mobagen_enable_coverage(FoundationTests mobagen_core_jobs)
+mobagen_enable_coverage(FoundationTests mobagen_core_jobs mobagen_core_modules)
 if(TARGET AppHostTests)
   mobagen_enable_coverage(AppHostTests mobagen_core_app)
 endif()
