@@ -106,6 +106,9 @@ data/state_store.db
 .cache/
 graphify-out/
 
+# Local agent planning artifacts (never publish)
+docs/superpowers/
+
 # DICOM viewer asset-manager outputs and restricted source studies
 apps/dicom_viewer/assets/cache/
 apps/dicom_viewer/assets/dicom/
