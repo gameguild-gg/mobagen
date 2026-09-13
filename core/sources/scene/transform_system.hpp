@@ -81,8 +81,7 @@ namespace scene {
       for (const std::uint32_t source : sorted_sources) {
         next_order.push_back(ents[source]);
         const std::uint32_t parent = source_parents[source];
-        next_parent_positions.push_back(parent == kNoParent ? kNoParent
-                                                            : sorted_positions[parent]);
+        next_parent_positions.push_back(parent == kNoParent ? kNoParent : sorted_positions[parent]);
       }
       std::vector<glm::mat4> next_world(ents.size(), glm::mat4(1.0f));
       std::vector<std::uint8_t> next_active(ents.size(), 0);
@@ -103,8 +102,7 @@ namespace scene {
         }
         const glm::mat4 local = transform->local();
         const std::uint32_t parent = parent_pos_[i];
-        world_[i] = parent != kNoParent && active_[parent] != 0 ? world_[parent] * local
-                                                               : local;
+        world_[i] = parent != kNoParent && active_[parent] != 0 ? world_[parent] * local : local;
         active_[i] = 1;
         transform->world = world_[i];
       }
@@ -115,7 +113,7 @@ namespace scene {
   private:
     static constexpr std::uint32_t kNoParent = std::numeric_limits<std::uint32_t>::max();
 
-    std::vector<ecs::Entity> order_;  // parents-before-children
+    std::vector<ecs::Entity> order_;         // parents-before-children
     std::vector<std::uint32_t> parent_pos_;  // position in order_ (kNoParent = root)
     std::vector<glm::mat4> world_;           // computed world matrices, parallel to order_
     std::vector<std::uint8_t> active_;       // current update reached a live transform

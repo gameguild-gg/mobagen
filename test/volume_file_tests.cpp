@@ -21,8 +21,7 @@ namespace {
       static std::atomic_uint64_t sequence = 0;
       const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
       path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-volume-" + std::to_string(ticks) + "-"
-                 + std::to_string(sequence.fetch_add(1)) + ".mvol");
+              / ("mobagen-volume-" + std::to_string(ticks) + "-" + std::to_string(sequence.fetch_add(1)) + ".mvol");
     }
 
     ~TemporaryVolumeFile() {
@@ -56,22 +55,17 @@ namespace {
     return header;
   }
 
-  void write_file(const std::filesystem::path& path, const volume::VolumeFileHeader& header,
-                  const std::vector<std::uint8_t>& payload,
+  void write_file(const std::filesystem::path& path, const volume::VolumeFileHeader& header, const std::vector<std::uint8_t>& payload,
                   const std::vector<std::uint8_t>& trailing = {}) {
     std::ofstream stream(path, std::ios::binary | std::ios::trunc);
     REQUIRE(stream.good());
     stream.write(reinterpret_cast<const char*>(&header), sizeof(header));
-    stream.write(reinterpret_cast<const char*>(payload.data()),
-                 static_cast<std::streamsize>(payload.size()));
-    stream.write(reinterpret_cast<const char*>(trailing.data()),
-                 static_cast<std::streamsize>(trailing.size()));
+    stream.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
+    stream.write(reinterpret_cast<const char*>(trailing.data()), static_cast<std::streamsize>(trailing.size()));
     REQUIRE(stream.good());
   }
 
-  volume::VolumeBuffer load(const std::filesystem::path& path, bool& ok) {
-    return volume::load_volume_file(path.string().c_str(), ok);
-  }
+  volume::VolumeBuffer load(const std::filesystem::path& path, bool& ok) { return volume::load_volume_file(path.string().c_str(), ok); }
 
   void check_invalid_header(const volume::VolumeFileHeader& header) {
     TemporaryVolumeFile file;
@@ -93,15 +87,12 @@ TEST_CASE("Volume layout: validates formats and checked byte counts") {
   CHECK(layout.voxel_count == 24);
   CHECK(layout.byte_count == 24);
 
-  CHECK(volume::try_volume_layout(metadata, volume::VolumeStorageFormat::U16PackedRG8, 2,
-                                  layout));
+  CHECK(volume::try_volume_layout(metadata, volume::VolumeStorageFormat::U16PackedRG8, 2, layout));
   CHECK(layout.voxel_count == 24);
   CHECK(layout.byte_count == 48);
   CHECK_FALSE(volume::try_volume_layout(metadata, volume::VolumeStorageFormat::R8, 2, layout));
-  CHECK_FALSE(
-      volume::try_volume_layout(metadata, volume::VolumeStorageFormat::U16PackedRG8, 1, layout));
-  CHECK_FALSE(volume::try_volume_layout(
-      metadata, static_cast<volume::VolumeStorageFormat>(0xFF), 1, layout));
+  CHECK_FALSE(volume::try_volume_layout(metadata, volume::VolumeStorageFormat::U16PackedRG8, 1, layout));
+  CHECK_FALSE(volume::try_volume_layout(metadata, static_cast<volume::VolumeStorageFormat>(0xFF), 1, layout));
 }
 
 TEST_CASE("Volume layout: rejects excessive dimensions and multiplication overflow") {
@@ -112,16 +103,14 @@ TEST_CASE("Volume layout: rejects excessive dimensions and multiplication overfl
   volume::VolumeLayout layout{};
   CHECK_FALSE(volume::try_volume_layout(metadata, volume::VolumeStorageFormat::R8, 1, layout));
 
-  const volume::VolumeBuffer invalid_buffer(metadata, volume::VolumeStorageFormat::R8, 1,
-                                            std::pmr::get_default_resource());
+  const volume::VolumeBuffer invalid_buffer(metadata, volume::VolumeStorageFormat::R8, 1, std::pmr::get_default_resource());
   CHECK(invalid_buffer.empty());
   CHECK_FALSE(invalid_buffer.metadata().valid());
 
   metadata.width = std::numeric_limits<std::uint32_t>::max();
   metadata.height = std::numeric_limits<std::uint32_t>::max();
   metadata.depth = std::numeric_limits<std::uint32_t>::max();
-  CHECK_FALSE(
-      volume::try_volume_layout(metadata, volume::VolumeStorageFormat::U16PackedRG8, 2, layout));
+  CHECK_FALSE(volume::try_volume_layout(metadata, volume::VolumeStorageFormat::U16PackedRG8, 2, layout));
 
   metadata.width = 1024;
   metadata.height = 1024;
@@ -186,8 +175,7 @@ TEST_CASE("Volume file: rejects unknown and mismatched storage formats") {
   bad_magic.magic[0] = 'X';
   check_invalid_header(bad_magic);
 
-  for (const auto [format, bytes_per_voxel] :
-       {std::pair{2u, 1u}, std::pair{0u, 2u}, std::pair{1u, 1u}}) {
+  for (const auto [format, bytes_per_voxel] : {std::pair{2u, 1u}, std::pair{0u, 2u}, std::pair{1u, 1u}}) {
     TemporaryVolumeFile file;
     volume::VolumeFileHeader header = valid_header();
     header.storage_format = format;
@@ -200,8 +188,7 @@ TEST_CASE("Volume file: rejects unknown and mismatched storage formats") {
 }
 
 TEST_CASE("Volume file: rejects invalid physical metadata before allocation") {
-  for (const float invalid : {0.0f, -1.0f, std::numeric_limits<float>::infinity(),
-                              std::numeric_limits<float>::quiet_NaN()}) {
+  for (const float invalid : {0.0f, -1.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}) {
     volume::VolumeFileHeader header = valid_header();
     header.spacing_x = invalid;
     check_invalid_header(header);

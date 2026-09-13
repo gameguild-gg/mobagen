@@ -30,112 +30,102 @@
 
 namespace {
 
-// Counts + records every host callback invocation so tests can assert the
-// host's call order (init -> event -> iterate xN [-> draw xN] -> shutdown).
-struct RecordingCallbacks : app::AppCallbacks {
-  bool fail_init = false;
-  bool parse_flags = false;  // run AppSettings::parse(argc, argv, settings) in on_init
-  int exit_at_iteration = 0;
-  bool exit_via_request_exit = false;  // request_exit() on the exit frame vs returning SUCCESS
-  int iterates = 0;
-  int draws = 0;
-  int shutdowns = 0;
-  bool saw_pass = false;
-  std::vector<std::string> seq;
+  // Counts + records every host callback invocation so tests can assert the
+  // host's call order (init -> event -> iterate xN [-> draw xN] -> shutdown).
+  struct RecordingCallbacks : app::AppCallbacks {
+    bool fail_init = false;
+    bool parse_flags = false;  // run AppSettings::parse(argc, argv, settings) in on_init
+    int exit_at_iteration = 0;
+    bool exit_via_request_exit = false;  // request_exit() on the exit frame vs returning SUCCESS
+    int iterates = 0;
+    int draws = 0;
+    int shutdowns = 0;
+    bool saw_pass = false;
+    std::vector<std::string> seq;
 
-  SDL_AppResult on_init(app::App& a, int argc, char** argv) override {
-    seq.emplace_back("init");
-    if (parse_flags) (void)app::AppSettings::parse(argc, argv, a.settings);
-    if (fail_init) return SDL_APP_FAILURE;
-    return SDL_APP_CONTINUE;
-  }
-
-  SDL_AppResult on_event(app::App& a, const SDL_Event& e) override {
-    (void)a;
-    (void)e;
-    seq.emplace_back("event");
-    return SDL_APP_CONTINUE;
-  }
-
-  SDL_AppResult on_iterate(app::App& a, float dt) override {
-    (void)dt;
-    seq.emplace_back("iterate");
-    ++iterates;
-    if (exit_at_iteration != 0 && iterates >= exit_at_iteration) {
-      if (exit_via_request_exit) {
-        a.request_exit();  // consumed later the SAME frame, before the GPU section
-        return SDL_APP_CONTINUE;
-      }
-      return SDL_APP_SUCCESS;
+    SDL_AppResult on_init(app::App& a, int argc, char** argv) override {
+      seq.emplace_back("init");
+      if (parse_flags) (void)app::AppSettings::parse(argc, argv, a.settings);
+      if (fail_init) return SDL_APP_FAILURE;
+      return SDL_APP_CONTINUE;
     }
-    return SDL_APP_CONTINUE;
+
+    SDL_AppResult on_event(app::App& a, const SDL_Event& e) override {
+      (void)a;
+      (void)e;
+      seq.emplace_back("event");
+      return SDL_APP_CONTINUE;
+    }
+
+    SDL_AppResult on_iterate(app::App& a, float dt) override {
+      (void)dt;
+      seq.emplace_back("iterate");
+      ++iterates;
+      if (exit_at_iteration != 0 && iterates >= exit_at_iteration) {
+        if (exit_via_request_exit) {
+          a.request_exit();  // consumed later the SAME frame, before the GPU section
+          return SDL_APP_CONTINUE;
+        }
+        return SDL_APP_SUCCESS;
+      }
+      return SDL_APP_CONTINUE;
+    }
+
+    void on_draw(app::App& a, WGPURenderPassEncoder pass) override {
+      (void)a;
+      seq.emplace_back("draw");
+      ++draws;
+      if (pass != nullptr) saw_pass = true;
+    }
+
+    void on_shutdown(app::App& a) override {
+      (void)a;
+      ++shutdowns;
+      seq.emplace_back("shutdown");
+    }
+  };
+
+  // SDL_Init(0) — all the headless host modes run — does NOT start the event
+  // queue (SDL3 only initializes it under SDL_INIT_EVENTS), and SDL_PushEvent
+  // on an inactive queue is a graceful no-op returning false. Tests that need
+  // the real push/poll path start the EVENTS subsystem themselves — never
+  // VIDEO, so no window is ever created.
+  void start_event_subsystem() {
+    if (!SDL_WasInit(SDL_INIT_EVENTS)) REQUIRE(SDL_InitSubSystem(SDL_INIT_EVENTS));
+    SDL_PumpEvents();
+    SDL_Event ignored;
+    while (SDL_PollEvent(&ignored)) {
+    }
   }
 
-  void on_draw(app::App& a, WGPURenderPassEncoder pass) override {
-    (void)a;
-    seq.emplace_back("draw");
-    ++draws;
-    if (pass != nullptr) saw_pass = true;
+  enum class GpuFailurePoint { None, Texture, TextureView, Encoder, RenderPass, CommandBuffer };
+  GpuFailurePoint g_gpu_failure = GpuFailurePoint::None;
+  std::atomic<int> g_queue_submissions{0};
+
+  WGPUTexture create_texture_with_failure(WGPUDevice device, const WGPUTextureDescriptor* desc) {
+    return g_gpu_failure == GpuFailurePoint::Texture ? nullptr : wgpuDeviceCreateTexture(device, desc);
   }
 
-  void on_shutdown(app::App& a) override {
-    (void)a;
-    ++shutdowns;
-    seq.emplace_back("shutdown");
+  WGPUTextureView create_texture_view_with_failure(WGPUTexture texture, const WGPUTextureViewDescriptor* desc) {
+    return g_gpu_failure == GpuFailurePoint::TextureView ? nullptr : wgpuTextureCreateView(texture, desc);
   }
-};
 
-// SDL_Init(0) — all the headless host modes run — does NOT start the event
-// queue (SDL3 only initializes it under SDL_INIT_EVENTS), and SDL_PushEvent
-// on an inactive queue is a graceful no-op returning false. Tests that need
-// the real push/poll path start the EVENTS subsystem themselves — never
-// VIDEO, so no window is ever created.
-void start_event_subsystem() {
-  if (!SDL_WasInit(SDL_INIT_EVENTS)) REQUIRE(SDL_InitSubSystem(SDL_INIT_EVENTS));
-  SDL_PumpEvents();
-  SDL_Event ignored;
-  while (SDL_PollEvent(&ignored)) {
+  WGPUCommandEncoder create_encoder_with_failure(WGPUDevice device, const WGPUCommandEncoderDescriptor* desc) {
+    return g_gpu_failure == GpuFailurePoint::Encoder ? nullptr : wgpuDeviceCreateCommandEncoder(device, desc);
   }
-}
 
-enum class GpuFailurePoint { None, Texture, TextureView, Encoder, RenderPass, CommandBuffer };
-GpuFailurePoint g_gpu_failure = GpuFailurePoint::None;
-std::atomic<int> g_queue_submissions{0};
+  WGPURenderPassEncoder begin_pass_with_failure(WGPUCommandEncoder encoder, const WGPURenderPassDescriptor* desc) {
+    return g_gpu_failure == GpuFailurePoint::RenderPass ? nullptr : wgpuCommandEncoderBeginRenderPass(encoder, desc);
+  }
 
-WGPUTexture create_texture_with_failure(WGPUDevice device, const WGPUTextureDescriptor* desc) {
-  return g_gpu_failure == GpuFailurePoint::Texture ? nullptr : wgpuDeviceCreateTexture(device, desc);
-}
+  WGPUCommandBuffer finish_encoder_with_failure(WGPUCommandEncoder encoder, const WGPUCommandBufferDescriptor* desc) {
+    return g_gpu_failure == GpuFailurePoint::CommandBuffer ? nullptr : wgpuCommandEncoderFinish(encoder, desc);
+  }
 
-WGPUTextureView create_texture_view_with_failure(WGPUTexture texture,
-                                                 const WGPUTextureViewDescriptor* desc) {
-  return g_gpu_failure == GpuFailurePoint::TextureView ? nullptr
-                                                       : wgpuTextureCreateView(texture, desc);
-}
-
-WGPUCommandEncoder create_encoder_with_failure(WGPUDevice device,
-                                               const WGPUCommandEncoderDescriptor* desc) {
-  return g_gpu_failure == GpuFailurePoint::Encoder ? nullptr
-                                                   : wgpuDeviceCreateCommandEncoder(device, desc);
-}
-
-WGPURenderPassEncoder begin_pass_with_failure(WGPUCommandEncoder encoder,
-                                              const WGPURenderPassDescriptor* desc) {
-  return g_gpu_failure == GpuFailurePoint::RenderPass
-             ? nullptr
-             : wgpuCommandEncoderBeginRenderPass(encoder, desc);
-}
-
-WGPUCommandBuffer finish_encoder_with_failure(WGPUCommandEncoder encoder,
-                                              const WGPUCommandBufferDescriptor* desc) {
-  return g_gpu_failure == GpuFailurePoint::CommandBuffer ? nullptr
-                                                         : wgpuCommandEncoderFinish(encoder, desc);
-}
-
-void count_queue_submission(WGPUQueue queue, std::size_t count,
-                            const WGPUCommandBuffer* commands) {
-  g_queue_submissions.fetch_add(1, std::memory_order_relaxed);
-  wgpuQueueSubmit(queue, count, commands);
-}
+  void count_queue_submission(WGPUQueue queue, std::size_t count, const WGPUCommandBuffer* commands) {
+    g_queue_submissions.fetch_add(1, std::memory_order_relaxed);
+    wgpuQueueSubmit(queue, count, commands);
+  }
 
 }  // namespace
 
@@ -231,27 +221,18 @@ TEST_CASE("app host: WebGPUContext null device lifecycle") {
 #endif  // __EMSCRIPTEN__
 
 TEST_CASE("app host: surface status policy covers every WebGPU result") {
-  using app::SurfaceFrameAction;
   using app::surface_frame_action;
+  using app::SurfaceFrameAction;
 
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal, true) ==
-        SurfaceFrameAction::Render);
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal, true) ==
-        SurfaceFrameAction::RenderThenReconfigure);
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal, false) ==
-        SurfaceFrameAction::Fail);
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal, false) ==
-        SurfaceFrameAction::Fail);
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Timeout, false) ==
-        SurfaceFrameAction::Retry);
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Outdated, false) ==
-        SurfaceFrameAction::Reconfigure);
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Lost, false) ==
-        SurfaceFrameAction::Fail);
-  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Error, false) ==
-        SurfaceFrameAction::Fail);
-  CHECK(surface_frame_action(static_cast<WGPUSurfaceGetCurrentTextureStatus>(0), false) ==
-        SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal, true) == SurfaceFrameAction::Render);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal, true) == SurfaceFrameAction::RenderThenReconfigure);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal, false) == SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal, false) == SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Timeout, false) == SurfaceFrameAction::Retry);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Outdated, false) == SurfaceFrameAction::Reconfigure);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Lost, false) == SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(WGPUSurfaceGetCurrentTextureStatus_Error, false) == SurfaceFrameAction::Fail);
+  CHECK(surface_frame_action(static_cast<WGPUSurfaceGetCurrentTextureStatus>(0), false) == SurfaceFrameAction::Fail);
 }
 
 TEST_CASE("app host: lost state cannot overwrite completed shutdown") {
@@ -289,8 +270,8 @@ TEST_CASE("app host: HeadlessNone lifecycle order and input feed") {
 
   REQUIRE(app::host_init(app, 2, argv) == SDL_APP_CONTINUE);
   CHECK(app.settings.render_mode == app::AppSettings::RenderMode::HeadlessNone);
-  CHECK(app.window == nullptr);   // headless: no window was ever created
-  CHECK(app.device() == nullptr); // HeadlessNone: zero GPU objects
+  CHECK(app.window == nullptr);    // headless: no window was ever created
+  CHECK(app.device() == nullptr);  // HeadlessNone: zero GPU objects
   CHECK(cb.seq == std::vector<std::string>{"init"});
 
   // Synthetic key-down through the real SDL event queue, then through the
@@ -369,8 +350,8 @@ TEST_CASE("app host: HeadlessNull integration renders offscreen") {
 
   app::App app;
   app.callbacks = &cb;
-  app.settings.width = 64;  // small offscreen target: the null device
-  app.settings.height = 64; // validates frames but never touches a GPU
+  app.settings.width = 64;   // small offscreen target: the null device
+  app.settings.height = 64;  // validates frames but never touches a GPU
 
   char arg0[] = "CoreTests";
   char null_gpu_flag[] = "--mobagen-null-gpu";

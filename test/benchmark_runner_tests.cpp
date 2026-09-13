@@ -9,11 +9,11 @@
 #include <string_view>
 #include <vector>
 
-using mobagen::benchmark::Options;
-using mobagen::benchmark::Result;
 using mobagen::benchmark::measure;
+using mobagen::benchmark::Options;
 using mobagen::benchmark::parse_options;
 using mobagen::benchmark::percentile;
+using mobagen::benchmark::Result;
 using mobagen::benchmark::write_json;
 
 TEST_CASE("Benchmark percentile uses the nearest-rank value") {
@@ -27,9 +27,7 @@ TEST_CASE("Benchmark percentile uses the nearest-rank value") {
 }
 
 TEST_CASE("Benchmark options accept positive warmup and sample counts") {
-  constexpr std::array args{
-      std::string_view{"--warmup"}, std::string_view{"7"}, std::string_view{"--samples"},
-      std::string_view{"11"}};
+  constexpr std::array args{std::string_view{"--warmup"}, std::string_view{"7"}, std::string_view{"--samples"}, std::string_view{"11"}};
 
   const Options options = parse_options(args);
 

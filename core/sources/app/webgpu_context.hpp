@@ -30,26 +30,27 @@ namespace app {
 
   enum class SurfaceFrameAction : std::uint8_t { Render, RenderThenReconfigure, Retry, Reconfigure, Fail };
 
-  constexpr SurfaceFrameAction surface_frame_action(WGPUSurfaceGetCurrentTextureStatus status,
-                                                    bool has_texture) noexcept {
+  constexpr SurfaceFrameAction surface_frame_action(WGPUSurfaceGetCurrentTextureStatus status, bool has_texture) noexcept {
     switch (status) {
       case WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal:
         return has_texture ? SurfaceFrameAction::Render : SurfaceFrameAction::Fail;
       case WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal:
         return has_texture ? SurfaceFrameAction::RenderThenReconfigure : SurfaceFrameAction::Fail;
-      case WGPUSurfaceGetCurrentTextureStatus_Timeout: return SurfaceFrameAction::Retry;
-      case WGPUSurfaceGetCurrentTextureStatus_Outdated: return SurfaceFrameAction::Reconfigure;
+      case WGPUSurfaceGetCurrentTextureStatus_Timeout:
+        return SurfaceFrameAction::Retry;
+      case WGPUSurfaceGetCurrentTextureStatus_Outdated:
+        return SurfaceFrameAction::Reconfigure;
       case WGPUSurfaceGetCurrentTextureStatus_Lost:
       case WGPUSurfaceGetCurrentTextureStatus_Error:
-      default: return SurfaceFrameAction::Fail;
+      default:
+        return SurfaceFrameAction::Fail;
     }
   }
 
   inline void mark_context_lost(std::atomic<ContextState>& state) noexcept {
     ContextState current = state.load(std::memory_order_acquire);
-    while (current != ContextState::Uninitialized && current != ContextState::Lost &&
-           !state.compare_exchange_weak(current, ContextState::Lost, std::memory_order_acq_rel,
-                                        std::memory_order_acquire)) {
+    while (current != ContextState::Uninitialized && current != ContextState::Lost
+           && !state.compare_exchange_weak(current, ContextState::Lost, std::memory_order_acq_rel, std::memory_order_acquire)) {
     }
   }
 

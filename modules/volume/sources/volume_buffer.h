@@ -41,23 +41,16 @@ namespace volume {
 
     std::size_t voxel_count() const {
       std::size_t area = 0, count = 0;
-      return checked_multiply(width, height, area) && checked_multiply(area, depth, count)
-                 ? count
-                 : 0;
+      return checked_multiply(width, height, area) && checked_multiply(area, depth, count) ? count : 0;
     }
 
     bool valid() const {
-      const bool valid_dimensions = width > 0 && height > 0 && depth > 0
-                                    && width <= kMaxVolumeDimension
-                                    && height <= kMaxVolumeDimension
-                                    && depth <= kMaxVolumeDimension;
-      const bool valid_spacing = std::isfinite(spacing_mm.x) && std::isfinite(spacing_mm.y)
-                                 && std::isfinite(spacing_mm.z) && spacing_mm.x > 0.0f
+      const bool valid_dimensions
+          = width > 0 && height > 0 && depth > 0 && width <= kMaxVolumeDimension && height <= kMaxVolumeDimension && depth <= kMaxVolumeDimension;
+      const bool valid_spacing = std::isfinite(spacing_mm.x) && std::isfinite(spacing_mm.y) && std::isfinite(spacing_mm.z) && spacing_mm.x > 0.0f
                                  && spacing_mm.y > 0.0f && spacing_mm.z > 0.0f;
-      const bool valid_intensity = std::isfinite(rescale_slope) && rescale_slope > 0.0f
-                                   && std::isfinite(rescale_intercept)
-                                   && std::isfinite(window_center) && std::isfinite(window_width)
-                                   && window_width > 0.0f && std::isfinite(value_min)
+      const bool valid_intensity = std::isfinite(rescale_slope) && rescale_slope > 0.0f && std::isfinite(rescale_intercept)
+                                   && std::isfinite(window_center) && std::isfinite(window_width) && window_width > 0.0f && std::isfinite(value_min)
                                    && std::isfinite(value_max) && value_min <= value_max;
       return valid_dimensions && valid_spacing && valid_intensity;
     }
@@ -68,8 +61,7 @@ namespace volume {
     std::size_t byte_count = 0;
   };
 
-  inline bool try_volume_layout(const VolumeMetadata& metadata, VolumeStorageFormat format,
-                                std::uint32_t bytes_per_voxel, VolumeLayout& layout) {
+  inline bool try_volume_layout(const VolumeMetadata& metadata, VolumeStorageFormat format, std::uint32_t bytes_per_voxel, VolumeLayout& layout) {
     layout = {};
     if (!metadata.valid()) return false;
     switch (format) {
@@ -84,10 +76,8 @@ namespace volume {
     }
 
     std::size_t area = 0, voxel_count = 0, byte_count = 0;
-    if (!checked_multiply(metadata.width, metadata.height, area)
-        || !checked_multiply(area, metadata.depth, voxel_count)
-        || !checked_multiply(voxel_count, bytes_per_voxel, byte_count)
-        || byte_count == 0 || byte_count > kMaxVolumeBytes)
+    if (!checked_multiply(metadata.width, metadata.height, area) || !checked_multiply(area, metadata.depth, voxel_count)
+        || !checked_multiply(voxel_count, bytes_per_voxel, byte_count) || byte_count == 0 || byte_count > kMaxVolumeBytes)
       return false;
 
     layout = VolumeLayout{voxel_count, byte_count};
@@ -123,8 +113,7 @@ namespace volume {
 
     VolumeBuffer(VolumeMetadata metadata, std::pmr::memory_resource* resource) : VolumeBuffer(metadata, VolumeStorageFormat::R8, 1, resource) {}
 
-    VolumeBuffer(VolumeMetadata metadata, VolumeStorageFormat format,
-                 std::uint32_t bytes_per_voxel, std::pmr::memory_resource* resource)
+    VolumeBuffer(VolumeMetadata metadata, VolumeStorageFormat format, std::uint32_t bytes_per_voxel, std::pmr::memory_resource* resource)
         : bytes_(resource != nullptr ? resource : std::pmr::get_default_resource()) {
       VolumeLayout layout;
       if (!try_volume_layout(metadata, format, bytes_per_voxel, layout)) return;

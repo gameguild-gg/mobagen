@@ -69,15 +69,12 @@ namespace mobagen::benchmark {
     if (!std::isfinite(quantile) || quantile <= 0.0 || quantile > 1.0) {
       throw std::invalid_argument("percentile quantile must be in (0, 1]");
     }
-    if (!std::all_of(values.begin(), values.end(), [](double value) {
-          return std::isfinite(value) && value >= 0.0;
-        })) {
+    if (!std::all_of(values.begin(), values.end(), [](double value) { return std::isfinite(value) && value >= 0.0; })) {
       throw std::invalid_argument("percentile samples must be finite and non-negative");
     }
 
     std::sort(values.begin(), values.end());
-    const std::size_t rank = static_cast<std::size_t>(
-        std::ceil(quantile * static_cast<double>(values.size())));
+    const std::size_t rank = static_cast<std::size_t>(std::ceil(quantile * static_cast<double>(values.size())));
     return values[rank - 1];
   }
 
@@ -95,8 +92,7 @@ namespace mobagen::benchmark {
       const auto begin = std::chrono::steady_clock::now();
       operation();
       const auto end = std::chrono::steady_clock::now();
-      result.samples_ns.push_back(
-          std::chrono::duration<double, std::nano>(end - begin).count());
+      result.samples_ns.push_back(std::chrono::duration<double, std::nano>(end - begin).count());
     }
     result.median_ns = percentile(result.samples_ns, 0.50);
     result.p95_ns = percentile(result.samples_ns, 0.95);
@@ -107,17 +103,30 @@ namespace mobagen::benchmark {
     output << '"';
     for (const unsigned char character : value) {
       switch (character) {
-        case '"': output << "\\\""; break;
-        case '\\': output << "\\\\"; break;
-        case '\b': output << "\\b"; break;
-        case '\f': output << "\\f"; break;
-        case '\n': output << "\\n"; break;
-        case '\r': output << "\\r"; break;
-        case '\t': output << "\\t"; break;
+        case '"':
+          output << "\\\"";
+          break;
+        case '\\':
+          output << "\\\\";
+          break;
+        case '\b':
+          output << "\\b";
+          break;
+        case '\f':
+          output << "\\f";
+          break;
+        case '\n':
+          output << "\\n";
+          break;
+        case '\r':
+          output << "\\r";
+          break;
+        case '\t':
+          output << "\\t";
+          break;
         default:
           if (character < 0x20) {
-            output << "\\u" << std::hex << std::setw(4) << std::setfill('0')
-                   << static_cast<unsigned>(character) << std::dec << std::setfill(' ');
+            output << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<unsigned>(character) << std::dec << std::setfill(' ');
           } else {
             output << static_cast<char>(character);
           }
@@ -126,8 +135,7 @@ namespace mobagen::benchmark {
     output << '"';
   }
 
-  inline void write_json(
-      std::ostream& output, const Options& options, std::span<const Result> results) {
+  inline void write_json(std::ostream& output, const Options& options, std::span<const Result> results) {
     if (options.warmup == 0 || options.samples == 0) {
       throw std::invalid_argument("benchmark warmup and samples must be positive");
     }
@@ -135,9 +143,7 @@ namespace mobagen::benchmark {
       if (result.samples_ns.size() != options.samples) {
         throw std::invalid_argument("benchmark result sample count does not match options");
       }
-      if (!std::all_of(result.samples_ns.begin(), result.samples_ns.end(), [](double value) {
-            return std::isfinite(value) && value >= 0.0;
-          })) {
+      if (!std::all_of(result.samples_ns.begin(), result.samples_ns.end(), [](double value) { return std::isfinite(value) && value >= 0.0; })) {
         throw std::invalid_argument("benchmark samples must be finite and non-negative");
       }
       if (!std::isfinite(result.median_ns) || !std::isfinite(result.p95_ns)) {
@@ -145,15 +151,14 @@ namespace mobagen::benchmark {
       }
     }
 
-    output << "{\"schema\":\"mobagen.foundation-benchmark.v1\",\"warmup\":"
-           << options.warmup << ",\"samples\":" << options.samples << ",\"results\":[";
+    output << "{\"schema\":\"mobagen.foundation-benchmark.v1\",\"warmup\":" << options.warmup << ",\"samples\":" << options.samples
+           << ",\"results\":[";
     for (std::size_t result_index = 0; result_index < results.size(); ++result_index) {
       if (result_index != 0) output << ',';
       const Result& result = results[result_index];
       output << "{\"name\":";
       write_json_string(output, result.name);
-      output << std::setprecision(17) << ",\"median_ns\":" << result.median_ns
-             << ",\"p95_ns\":" << result.p95_ns << ",\"samples_ns\":[";
+      output << std::setprecision(17) << ",\"median_ns\":" << result.median_ns << ",\"p95_ns\":" << result.p95_ns << ",\"samples_ns\":[";
       for (std::size_t sample_index = 0; sample_index < result.samples_ns.size(); ++sample_index) {
         if (sample_index != 0) output << ',';
         output << result.samples_ns[sample_index];

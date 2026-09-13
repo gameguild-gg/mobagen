@@ -48,12 +48,10 @@ namespace app {
 
     // Synchronous device request with device-lost / uncaptured-error logging
     // (flocking RequestDevice, including its SDL_Log wording).
-    wgpu::Device request_device(wgpu::Instance& instance, wgpu::Adapter& adapter,
-                                std::atomic<ContextState>* state) {
+    wgpu::Device request_device(wgpu::Instance& instance, wgpu::Adapter& adapter, std::atomic<ContextState>* state) {
       wgpu::DeviceDescriptor desc;
       desc.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous,
-                                 [state](const wgpu::Device&, wgpu::DeviceLostReason reason,
-                                         wgpu::StringView msg) {
+                                 [state](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView msg) {
                                    mark_context_lost(*state);
                                    SDL_Log("WebGPU device lost (%d): %s", static_cast<int>(reason), msg.data);
                                  });
@@ -206,8 +204,7 @@ namespace app {
       return false;
     }
     ContextState expected = ContextState::Uninitialized;
-    if (!state_.compare_exchange_strong(expected, ContextState::Initializing, std::memory_order_acq_rel,
-                                        std::memory_order_acquire)) {
+    if (!state_.compare_exchange_strong(expected, ContextState::Initializing, std::memory_order_acq_rel, std::memory_order_acquire)) {
       SDL_Log("WebGPUContext::init: context is already initialized");
       return false;
     }
@@ -329,8 +326,7 @@ namespace app {
     surface_cfg_.presentMode = WGPUPresentMode_Fifo;
 
     expected = ContextState::Initializing;
-    if (!state_.compare_exchange_strong(expected, ContextState::Operational, std::memory_order_acq_rel,
-                                        std::memory_order_acquire)) {
+    if (!state_.compare_exchange_strong(expected, ContextState::Operational, std::memory_order_acq_rel, std::memory_order_acquire)) {
       SDL_Log("WebGPU context became unavailable during initialization");
       shutdown();
       return false;
@@ -403,8 +399,7 @@ namespace app {
     WGPUSurfaceTexture surface_texture = {};
     if (!operational() || surface_ == nullptr || !surface_configured_) return surface_texture;
     wgpuSurfaceGetCurrentTexture(surface_, &surface_texture);
-    if (surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_Lost ||
-        surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_Error) {
+    if (surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_Lost || surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_Error) {
       mark_context_lost(state_);
     }
     return surface_texture;

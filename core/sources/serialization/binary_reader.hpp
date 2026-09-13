@@ -9,8 +9,7 @@ namespace serialization {
 
   class BinaryReader {
   public:
-    explicit BinaryReader(std::span<const std::byte> bytes, std::size_t offset = 0) noexcept
-        : bytes_(bytes), offset_(offset) {}
+    explicit BinaryReader(std::span<const std::byte> bytes, std::size_t offset = 0) noexcept : bytes_(bytes), offset_(offset) {}
 
     template <class T> [[nodiscard]] bool read(T& out) noexcept {
       static_assert(std::is_trivially_copyable_v<T>, "BinaryReader supports POD values only");
@@ -23,9 +22,7 @@ namespace serialization {
 
     [[nodiscard]] std::size_t offset() const noexcept { return offset_; }
 
-    [[nodiscard]] std::size_t remaining() const noexcept {
-      return offset_ <= bytes_.size() ? bytes_.size() - offset_ : 0;
-    }
+    [[nodiscard]] std::size_t remaining() const noexcept { return offset_ <= bytes_.size() ? bytes_.size() - offset_ : 0; }
 
   private:
     std::span<const std::byte> bytes_;

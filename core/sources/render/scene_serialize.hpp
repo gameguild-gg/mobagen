@@ -39,13 +39,10 @@ namespace render {
       const auto* p = reinterpret_cast<const std::uint8_t*>(&v);
       b.insert(b.end(), p, p + sizeof(T));
     }
-    inline bool finite(const glm::vec3& value) {
-      return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
-    }
+    inline bool finite(const glm::vec3& value) { return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z); }
 
     inline bool finite(const glm::quat& value) {
-      return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z)
-             && std::isfinite(value.w);
+      return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z) && std::isfinite(value.w);
     }
 
     inline bool valid(const scene::Transform& transform) {
@@ -55,24 +52,16 @@ namespace render {
     inline bool valid(const VolumeRenderable& volume) {
       const VolumeSource& source = volume.source;
       const VolumeDisplay& display = volume.display;
-      const bool valid_dimensions = source.width > 0 && source.height > 0 && source.depth > 0
-                                    && source.width <= kMaxVolumeDimension
-                                    && source.height <= kMaxVolumeDimension
-                                    && source.depth <= kMaxVolumeDimension;
-      const bool valid_spacing = finite(source.spacing_mm) && source.spacing_mm.x > 0.0f
-                                 && source.spacing_mm.y > 0.0f && source.spacing_mm.z > 0.0f;
-      const bool valid_display = std::isfinite(display.window_center)
-                                 && std::isfinite(display.window_width)
-                                 && display.window_width > 0.0f
-                                 && std::isfinite(display.iso_threshold)
-                                 && display.transfer_preset >= 1 && display.transfer_preset <= 4;
+      const bool valid_dimensions = source.width > 0 && source.height > 0 && source.depth > 0 && source.width <= kMaxVolumeDimension
+                                    && source.height <= kMaxVolumeDimension && source.depth <= kMaxVolumeDimension;
+      const bool valid_spacing = finite(source.spacing_mm) && source.spacing_mm.x > 0.0f && source.spacing_mm.y > 0.0f && source.spacing_mm.z > 0.0f;
+      const bool valid_display = std::isfinite(display.window_center) && std::isfinite(display.window_width) && display.window_width > 0.0f
+                                 && std::isfinite(display.iso_threshold) && display.transfer_preset >= 1 && display.transfer_preset <= 4;
       return valid_dimensions && valid_spacing && valid_display;
     }
   }  // namespace detail
 
-  inline constexpr std::size_t kMinSerializedNodeBytes = sizeof(float) * 10
-                                                        + sizeof(std::int32_t)
-                                                        + sizeof(std::uint8_t);
+  inline constexpr std::size_t kMinSerializedNodeBytes = sizeof(float) * 10 + sizeof(std::int32_t) + sizeof(std::uint8_t);
 
   // Serialize every entity that has a scene::Transform (the scene nodes), plus its
   // render::VolumeRenderable when present.
@@ -137,8 +126,7 @@ namespace render {
   // an empty vector on a parse error.
   inline std::vector<ecs::Entity> load_scene(ecs::World& world, const std::uint8_t* data, std::size_t n) {
     if (data == nullptr) return {};
-    serialization::BinaryReader reader(
-        std::span<const std::byte>{reinterpret_cast<const std::byte*>(data), n});
+    serialization::BinaryReader reader(std::span<const std::byte>{reinterpret_cast<const std::byte*>(data), n});
 
     std::uint32_t magic = 0, version = 0, count = 0;
     if (!reader.read(magic) || magic != kSceneMagic) return {};
@@ -156,33 +144,24 @@ namespace render {
     for (std::uint32_t i = 0; i < count; ++i) {
       Node& nd = nodes[i];
       scene::Transform& t = nd.t;
-      if (!reader.read(t.position.x) || !reader.read(t.position.y)
-          || !reader.read(t.position.z) || !reader.read(t.rotation.x)
-          || !reader.read(t.rotation.y) || !reader.read(t.rotation.z)
-          || !reader.read(t.rotation.w) || !reader.read(t.scale.x)
-          || !reader.read(t.scale.y) || !reader.read(t.scale.z)
-          || !reader.read(nd.parentIdx))
+      if (!reader.read(t.position.x) || !reader.read(t.position.y) || !reader.read(t.position.z) || !reader.read(t.rotation.x)
+          || !reader.read(t.rotation.y) || !reader.read(t.rotation.z) || !reader.read(t.rotation.w) || !reader.read(t.scale.x)
+          || !reader.read(t.scale.y) || !reader.read(t.scale.z) || !reader.read(nd.parentIdx))
         return {};
-      if (!detail::valid(t) || nd.parentIdx < -1
-          || nd.parentIdx >= static_cast<std::int32_t>(count))
-        return {};
+      if (!detail::valid(t) || nd.parentIdx < -1 || nd.parentIdx >= static_cast<std::int32_t>(count)) return {};
       std::uint8_t hasVol = 0;
       if (!reader.read(hasVol) || hasVol > 1) return {};
       nd.hasVol = hasVol == 1;
       if (nd.hasVol) {
         VolumeRenderable& v = nd.vol;
         std::uint8_t fmt = 0, mode = 0;
-        if (!reader.read(v.source.handle.index) || !reader.read(v.source.handle.generation)
-            || !reader.read(v.source.width) || !reader.read(v.source.height)
-            || !reader.read(v.source.depth) || !reader.read(v.source.spacing_mm.x)
-            || !reader.read(v.source.spacing_mm.y) || !reader.read(v.source.spacing_mm.z)
-            || !reader.read(fmt) || !reader.read(v.display.window_center)
-            || !reader.read(v.display.window_width) || !reader.read(v.display.transfer_preset)
+        if (!reader.read(v.source.handle.index) || !reader.read(v.source.handle.generation) || !reader.read(v.source.width)
+            || !reader.read(v.source.height) || !reader.read(v.source.depth) || !reader.read(v.source.spacing_mm.x)
+            || !reader.read(v.source.spacing_mm.y) || !reader.read(v.source.spacing_mm.z) || !reader.read(fmt)
+            || !reader.read(v.display.window_center) || !reader.read(v.display.window_width) || !reader.read(v.display.transfer_preset)
             || !reader.read(mode) || !reader.read(v.display.iso_threshold))
           return {};
-        if (fmt > static_cast<std::uint8_t>(VolumeScalarFormat::Float32)
-            || mode > static_cast<std::uint8_t>(VolumeRenderMode::Isosurface))
-          return {};
+        if (fmt > static_cast<std::uint8_t>(VolumeScalarFormat::Float32) || mode > static_cast<std::uint8_t>(VolumeRenderMode::Isosurface)) return {};
         v.source.format = static_cast<VolumeScalarFormat>(fmt);
         v.display.mode = static_cast<VolumeRenderMode>(mode);
         if (!detail::valid(v)) return {};

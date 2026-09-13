@@ -38,8 +38,7 @@ namespace jobs {
     bool bind(Scheduler* scheduler) {
       if (scheduler == nullptr) return false;
       Scheduler* expected = nullptr;
-      if (sched_.compare_exchange_strong(expected, scheduler, std::memory_order_release,
-                                         std::memory_order_acquire)) {
+      if (sched_.compare_exchange_strong(expected, scheduler, std::memory_order_release, std::memory_order_acquire)) {
         return true;
       }
       return expected == scheduler;

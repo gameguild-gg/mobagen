@@ -37,8 +37,7 @@ TEST_CASE("World: a destroyed slot is invalid until it is recycled") {
   const ecs::Entity entity = world.create();
   world.destroy(entity);
 
-  const ecs::Entity fabricated_current_generation =
-      ecs::make_entity(ecs::entity_index(entity), ecs::entity_gen(entity) + 1);
+  const ecs::Entity fabricated_current_generation = ecs::make_entity(ecs::entity_index(entity), ecs::entity_gen(entity) + 1);
 
   CHECK_FALSE(world.valid(fabricated_current_generation));
 }
@@ -111,12 +110,8 @@ TEST_CASE("World: views tolerate absent storage and ranges reject invalid bounds
   CHECK(calls == 0);
 
   world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
-  const auto past_end = [&] {
-    world.apply_range<Position, Velocity>(0, 2, [](auto, Position&, Velocity&) {});
-  };
-  const auto reversed = [&] {
-    world.apply_range<Position, Velocity>(1, 0, [](auto, Position&, Velocity&) {});
-  };
+  const auto past_end = [&] { world.apply_range<Position, Velocity>(0, 2, [](auto, Position&, Velocity&) {}); };
+  const auto reversed = [&] { world.apply_range<Position, Velocity>(1, 0, [](auto, Position&, Velocity&) {}); };
   CHECK_THROWS_AS(past_end(), std::out_of_range);
   CHECK_THROWS_AS(reversed(), std::out_of_range);
 }
@@ -173,15 +168,11 @@ TEST_CASE("World: apply_range updates only the requested dense interval") {
     world.add<Velocity>(entity, 10.0f, 0.0f);
   }
 
-  world.apply_range<Position, Velocity>(2, 5, [](auto, Position& position, Velocity& velocity) {
-    position.x += velocity.vx;
-  });
+  world.apply_range<Position, Velocity>(2, 5, [](auto, Position& position, Velocity& velocity) { position.x += velocity.vx; });
 
   int dense_index = 0;
   world.view<Position>([&](auto, Position& position) {
-    const float expected = dense_index >= 2 && dense_index < 5
-                               ? static_cast<float>(dense_index) + 10.0f
-                               : static_cast<float>(dense_index);
+    const float expected = dense_index >= 2 && dense_index < 5 ? static_cast<float>(dense_index) + 10.0f : static_cast<float>(dense_index);
     CHECK(position.x == expected);
     ++dense_index;
   });
@@ -239,10 +230,7 @@ TEST_CASE("World: workers may update disjoint pre-existing component ranges") {
   }
 
   auto update = [&](std::size_t begin, std::size_t end) {
-    world.apply_range<Position, Velocity>(begin, end,
-                                          [](auto, Position& position, Velocity& velocity) {
-                                            position.x += velocity.vx;
-                                          });
+    world.apply_range<Position, Velocity>(begin, end, [](auto, Position& position, Velocity& velocity) { position.x += velocity.vx; });
   };
   std::thread first(update, 0, 4);
   std::thread second(update, 4, 8);
