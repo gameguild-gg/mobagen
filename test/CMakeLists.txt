@@ -69,6 +69,10 @@ enable_testing()
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(FoundationTests TEST_PREFIX "foundation::" PROPERTIES LABELS foundation)
+add_test(NAME foundation::dawn-configure-patch
+         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dawn_patch_test.cmake
+)
+set_tests_properties(foundation::dawn-configure-patch PROPERTIES LABELS foundation)
 
 # Preserve the historical build target while keeping dependency boundaries explicit.
 add_custom_target(CoreTests DEPENDS FoundationTests)

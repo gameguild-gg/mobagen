@@ -224,23 +224,22 @@ if(NOT EMSCRIPTEN)
 endif()
 
 # ---------------------------------------------------------------------------
-# Single CPMAddPackage for both native and web. On Emscripten we only need the source tree (for the
-# emdawnwebgpu port), so we skip building.
+# Populate Dawn without immediately adding its source directory. Dawn's audited release prints the
+# complete process environment while locating the Windows SDK, so the first-party security patch
+# must run before any of Dawn's CMake code executes. Emscripten only needs the downloaded source.
 # ---------------------------------------------------------------------------
-if(EMSCRIPTEN)
-  set(_DAWN_DOWNLOAD_ONLY YES)
-else()
-  set(_DAWN_DOWNLOAD_ONLY NO)
-endif()
-
 string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
   NAME dawn
   VERSION 20260423.175430
   URL https://github.com/google/dawn/archive/refs/tags/v20260423.175430.tar.gz
-  DOWNLOAD_ONLY ${_DAWN_DOWNLOAD_ONLY}
-  OPTIONS "DAWN_BUILD_MONOLITHIC_LIBRARY ${DAWN_BUILD_MONOLITHIC_LIBRARY}"
+  DOWNLOAD_ONLY YES
 )
+if(NOT EMSCRIPTEN)
+  include(${CMAKE_CURRENT_LIST_DIR}/../cmake/patches/dawn-no-environment-dump.cmake)
+  mobagen_patch_dawn_environment_dump("${dawn_SOURCE_DIR}")
+  add_subdirectory("${dawn_SOURCE_DIR}" "${dawn_BINARY_DIR}" EXCLUDE_FROM_ALL)
+endif()
 string(TIMESTAMP AFTER "%s")
 math(EXPR DELTADAWN "${AFTER} - ${BEFORE}")
 message(STATUS "Dawn fetch/configure TIME: ${DELTADAWN}s")
