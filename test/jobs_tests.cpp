@@ -3,15 +3,72 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <utility>
+
+namespace {
+
+jobs::Task assign_result(int& result) {
+  result = 42;
+  co_return;
+}
+
+jobs::Task increment(std::atomic<int>& counter) {
+  counter.fetch_add(1, std::memory_order_relaxed);
+  co_return;
+}
+
+jobs::Task record_scheduler(jobs::Scheduler& expected, std::atomic<bool>& matched) {
+  matched.store(jobs::Scheduler::this_scheduler() == &expected, std::memory_order_release);
+  co_return;
+}
+
+jobs::Task submit_to(jobs::Scheduler& destination, std::atomic<bool>& accepted,
+                     std::atomic<bool>& ran_on_destination) {
+  jobs::WaitGroup inner_done;
+  auto inner = record_scheduler(destination, ran_on_destination);
+  accepted.store(destination.kick(std::move(inner), inner_done), std::memory_order_release);
+  destination.wait(inner_done);
+  co_return;
+}
+
+jobs::Task increment_after_delay(std::atomic<int>& completed) {
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  completed.fetch_add(1, std::memory_order_relaxed);
+  co_return;
+}
+
+jobs::Task set_true(std::atomic<bool>& value) {
+  value.store(true, std::memory_order_release);
+  co_return;
+}
+
+jobs::Task submit_while_draining(jobs::Scheduler& scheduler, std::atomic<bool>& root_started,
+                                 std::atomic<bool>& allow_children,
+                                 std::atomic<bool>& child_accepted,
+                                 std::atomic<bool>& child_ran) {
+  root_started.store(true, std::memory_order_release);
+  while (!allow_children.load(std::memory_order_acquire)) std::this_thread::yield();
+
+  jobs::WaitGroup child_done;
+  auto child = set_true(child_ran);
+  const bool accepted = scheduler.kick(std::move(child), child_done);
+  child_accepted.store(accepted, std::memory_order_release);
+  if (accepted) co_await child_done;
+  co_return;
+}
+
+jobs::Task set_true(bool& value) {
+  value = true;
+  co_return;
+}
+
+}  // namespace
 
 TEST_CASE("Scheduler: kick single job, result available after wait") {
   jobs::Scheduler sched;
   int result = 0;
   jobs::WaitGroup wg;
-  auto task = [&]() -> jobs::Task {
-    result = 42;
-    co_return;
-  }();
+  auto task = assign_result(result);
   sched.kick(std::move(task), wg);
   sched.wait(wg);
   CHECK(result == 42);
@@ -23,10 +80,7 @@ TEST_CASE("WaitGroup: N dependencies all complete before continuation") {
   const int N = 8;
   jobs::WaitGroup wg;
   for (int i = 0; i < N; ++i) {
-    auto task = [&]() -> jobs::Task {
-      counter.fetch_add(1, std::memory_order_relaxed);
-      co_return;
-    }();
+    auto task = increment(counter);
     sched.kick(std::move(task), wg);
   }
   sched.wait(wg);
@@ -65,17 +119,7 @@ TEST_CASE("Scheduler: cross-scheduler submissions use the destination scheduler"
   std::atomic<bool> accepted{false};
   std::atomic<bool> ran_on_destination{false};
 
-  auto outer = [&]() -> jobs::Task {
-    jobs::WaitGroup inner_done;
-    auto inner = [&]() -> jobs::Task {
-      ran_on_destination.store(jobs::Scheduler::this_scheduler() == &destination,
-                               std::memory_order_release);
-      co_return;
-    }();
-    accepted.store(destination.kick(std::move(inner), inner_done), std::memory_order_release);
-    destination.wait(inner_done);
-    co_return;
-  }();
+  auto outer = submit_to(destination, accepted, ran_on_destination);
 
   REQUIRE(source.kick(std::move(outer), outer_done));
   source.wait(outer_done);
@@ -91,11 +135,7 @@ TEST_CASE("Scheduler: shutdown drains accepted jobs before joining workers") {
   {
     jobs::Scheduler scheduler(1);
     for (int i = 0; i < job_count; ++i) {
-      auto task = [&]() -> jobs::Task {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        completed.fetch_add(1, std::memory_order_relaxed);
-        co_return;
-      }();
+      auto task = increment_after_delay(completed);
       REQUIRE(scheduler.kick(std::move(task), done));
     }
   }
@@ -112,20 +152,8 @@ TEST_CASE("Scheduler: draining work may submit its required children") {
   std::atomic<bool> child_accepted{false};
   std::atomic<bool> child_ran{false};
 
-  auto root = [&]() -> jobs::Task {
-    root_started.store(true, std::memory_order_release);
-    while (!allow_children.load(std::memory_order_acquire)) std::this_thread::yield();
-
-    jobs::WaitGroup child_done;
-    auto child = [&]() -> jobs::Task {
-      child_ran.store(true, std::memory_order_release);
-      co_return;
-    }();
-    const bool accepted = scheduler.kick(std::move(child), child_done);
-    child_accepted.store(accepted, std::memory_order_release);
-    if (accepted) co_await child_done;
-    co_return;
-  }();
+  auto root = submit_while_draining(scheduler, root_started, allow_children, child_accepted,
+                                    child_ran);
 
   REQUIRE(scheduler.kick(std::move(root), root_done));
   while (!root_started.load(std::memory_order_acquire)) std::this_thread::yield();
@@ -148,10 +176,7 @@ TEST_CASE("Scheduler: shutdown is idempotent and rejects later submissions") {
 
   jobs::WaitGroup done;
   bool ran = false;
-  auto rejected = [&]() -> jobs::Task {
-    ran = true;
-    co_return;
-  }();
+  auto rejected = set_true(ran);
 
   CHECK_FALSE(scheduler.kick(std::move(rejected), done));
   CHECK_FALSE(ran);
