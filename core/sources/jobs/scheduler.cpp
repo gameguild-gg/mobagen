@@ -5,10 +5,37 @@
 namespace jobs {
 
   namespace {
+    thread_local Scheduler* t_scheduler = nullptr;
     thread_local int t_worker_id = -1;
+
+    class WorkerBinding {
+    public:
+      WorkerBinding(Scheduler* scheduler, int worker_id)
+          : previous_scheduler_(t_scheduler), previous_worker_id_(t_worker_id) {
+        t_scheduler = scheduler;
+        t_worker_id = worker_id;
+      }
+      ~WorkerBinding() {
+        t_scheduler = previous_scheduler_;
+        t_worker_id = previous_worker_id_;
+      }
+
+    private:
+      Scheduler* previous_scheduler_;
+      int previous_worker_id_;
+    };
   }
 
   int Scheduler::this_worker_id() { return t_worker_id; }
+  const Scheduler* Scheduler::this_scheduler() { return t_scheduler; }
+
+  bool Scheduler::accepting() const {
+    return (work_state_.load(std::memory_order_acquire) & kAcceptingBit) != 0;
+  }
+
+  std::size_t Scheduler::outstanding() const {
+    return static_cast<std::size_t>(work_state_.load(std::memory_order_acquire) & kCountMask);
+  }
 
   Scheduler::Scheduler(unsigned workers, Mode mode) : inline_(mode == Mode::Inline) {
     unsigned n = inline_ ? 1u : (workers ? workers : std::thread::hardware_concurrency());
@@ -24,20 +51,30 @@ namespace jobs {
   Scheduler::~Scheduler() { shutdown(); }
 
   void Scheduler::shutdown() {
-    if (!running_.exchange(false)) return;
+    std::unique_lock<std::mutex> shutdown_lock(shutdown_m_);
+    if (stopped_) return;
+
+    // Atomically close external admission while retaining the exact accepted
+    // work count. Tasks already running may still submit their own children.
+    work_state_.fetch_and(kCountMask, std::memory_order_acq_rel);
     sleep_cv_.notify_all();
-    for (auto& t : threads_)
-      if (t.joinable()) t.join();
+    if (inline_) {
+      drive();
+    } else {
+      for (auto& t : threads_)
+        if (t.joinable()) t.join();
+    }
     threads_.clear();
+    stopped_ = true;
   }
 
   void Scheduler::wake_one() {
     if (sleepers_.load(std::memory_order_relaxed) > 0) sleep_cv_.notify_one();
   }
 
-  void Scheduler::schedule(std::coroutine_handle<> h) {
+  void Scheduler::schedule_accepted(std::coroutine_handle<> h) {
     const int w = t_worker_id;
-    if (w >= 0) {
+    if (t_scheduler == this && w >= 0 && static_cast<std::size_t>(w) < workers_.size()) {
       if (!workers_[w]->q.push(h.address())) {  // owner push; overflow -> global
         std::lock_guard<std::mutex> lk(global_m_);
         global_.push_back(h);
@@ -49,13 +86,35 @@ namespace jobs {
     wake_one();
   }
 
-  void Scheduler::kick(Task&& t, WaitGroup& wg) {
-    wg.bind(this);
-    wg.add(1);
+  bool Scheduler::reserve_work(bool from_own_worker) {
+    std::uint32_t state = work_state_.load(std::memory_order_acquire);
+    for (;;) {
+      const std::uint32_t count = state & kCountMask;
+      const bool may_submit = (state & kAcceptingBit) != 0 || (from_own_worker && count != 0);
+      if (!may_submit || count == kCountMask) return false;
+      if (work_state_.compare_exchange_weak(state, state + 1, std::memory_order_acq_rel,
+                                            std::memory_order_acquire)) {
+        return true;
+      }
+    }
+  }
+
+  void Scheduler::finish_work() {
+    const std::uint32_t previous = work_state_.fetch_sub(1, std::memory_order_acq_rel);
+    assert((previous & kCountMask) != 0 && "Scheduler work count underflow");
+    if ((previous & kCountMask) == 1) sleep_cv_.notify_all();
+  }
+
+  bool Scheduler::kick(Task&& t, WaitGroup& wg) {
+    if (!t.handle || !reserve_work(t_scheduler == this)) return false;
+    if (!wg.bind(this) || !wg.add(1)) {
+      finish_work();
+      return false;
+    }
     auto h = t.release();
     h.promise().completion = &wg;
-    outstanding_.fetch_add(1, std::memory_order_relaxed);
-    schedule(h);
+    schedule_accepted(h);
+    return true;
   }
 
   void* Scheduler::try_steal(int id) {
@@ -80,20 +139,22 @@ namespace jobs {
       WaitGroup* c = th.promise().completion;
       th.destroy();
       if (c) c->done();
-      outstanding_.fetch_sub(1, std::memory_order_acq_rel);
+      finish_work();
     }
     // else: suspended (parked on a WaitGroup) — it'll be rescheduled.
   }
 
   void Scheduler::worker_loop(int id) {
-    t_worker_id = id;
-    while (running_.load(std::memory_order_relaxed)) {
+    WorkerBinding binding(this, id);
+    for (;;) {
       void* p = workers_[id]->q.pop();  // own bottom (LIFO)
       if (!p) p = try_steal(id);        // steal a victim's top (FIFO)
       if (!p) p = pop_global();         // injected work
       if (p) {
         run_one(std::coroutine_handle<>::from_address(p));
       } else {
+        const std::uint32_t state = work_state_.load(std::memory_order_acquire);
+        if ((state & kAcceptingBit) == 0 && (state & kCountMask) == 0) break;
         std::unique_lock<std::mutex> lk(sleep_m_);
         sleepers_.fetch_add(1, std::memory_order_relaxed);
         sleep_cv_.wait_for(lk, std::chrono::microseconds(500));  // timeout = lost-wake backstop
@@ -107,20 +168,19 @@ namespace jobs {
       drive();
       return;
     }
-    while (outstanding_.load(std::memory_order_acquire) > 0) std::this_thread::sleep_for(std::chrono::microseconds(200));
+    while (outstanding() > 0) std::this_thread::sleep_for(std::chrono::microseconds(200));
   }
 
   // Wait for one specific WaitGroup (not all outstanding work). Driver-thread use:
   // threaded -> block-poll; inline -> drive the queue until it completes.
   void Scheduler::wait(WaitGroup& wg) {
     if (inline_) {
-      t_worker_id = 0;
+      WorkerBinding binding(this, 0);
       while (!wg.is_complete()) {
         void* p = workers_[0]->q.pop();
         if (!p) p = pop_global();
         if (p) run_one(std::coroutine_handle<>::from_address(p));
       }
-      t_worker_id = -1;
     } else {
       while (!wg.is_complete()) std::this_thread::sleep_for(std::chrono::microseconds(200));
     }
@@ -132,22 +192,35 @@ namespace jobs {
   // a parent always enqueues its children before it parks, so there is always
   // ready work until the graph completes.
   void Scheduler::drive() {
-    t_worker_id = 0;
-    while (outstanding_.load(std::memory_order_acquire) > 0) {
+    WorkerBinding binding(this, 0);
+    while (outstanding() > 0) {
       void* p = workers_[0]->q.pop();
       if (!p) p = pop_global();
       if (p) run_one(std::coroutine_handle<>::from_address(p));
+      else std::this_thread::yield();
     }
-    t_worker_id = -1;
   }
 
   // WaitGroup::done lives here because it reschedules through the Scheduler.
   // Lock-free single-waiter: claim the parked handle by atomic exchange.
-  void WaitGroup::done() {
-    if (count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {  // I was the last
+  bool WaitGroup::done() {
+    std::uint32_t count = count_.load(std::memory_order_acquire);
+    do {
+      if (count == 0) return false;
+    } while (!count_.compare_exchange_weak(count, count - 1, std::memory_order_acq_rel,
+                                            std::memory_order_acquire));
+
+    if (count == 1) {  // I was the last
       void* h = waiter_.exchange(nullptr, std::memory_order_acq_rel);
-      if (h) sched_->schedule(std::coroutine_handle<>::from_address(h));
+      if (h) {
+        auto handle = std::coroutine_handle<>::from_address(h);
+        if (Scheduler* scheduler = sched_.load(std::memory_order_acquire))
+          scheduler->schedule_accepted(handle);
+        else
+          handle.resume();
+      }
     }
+    return true;
   }
 
 }  // namespace jobs
