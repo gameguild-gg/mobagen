@@ -22,8 +22,9 @@ if(MOBAGEN_BUILD_RUNTIME)
 endif()
 
 # ---------------------------------------------------------------------------
-# 10 DOD subsystems (each defines their own mobagen::core_* target)
+# DOD subsystems (each defines their own mobagen::core_* target)
 # ---------------------------------------------------------------------------
+add_subdirectory(sources/threading)
 add_subdirectory(sources/ecs)
 add_subdirectory(sources/jobs)
 add_subdirectory(sources/reactive)
@@ -85,7 +86,8 @@ add_library(mobagen::core ALIAS core)
 
 target_link_libraries(
   core
-  INTERFACE mobagen::core_ecs
+  INTERFACE mobagen::core_threading
+            mobagen::core_ecs
             mobagen::core_jobs
             mobagen::core_reactive
             mobagen::core_messaging

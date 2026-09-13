@@ -19,6 +19,8 @@
 // LIFETIME RULE for now: an Effect/Computed must outlive every Signal it reads
 // (no set() may fire after a reader is destroyed).
 
+#include "threading/thread_bound.hpp"
+
 #include <functional>
 #include <unordered_set>
 #include <utility>
@@ -33,16 +35,39 @@ namespace reactive {
   // The consumer currently executing — set while an Effect/Computed body runs.
   inline thread_local Consumer* g_active = nullptr;
 
+  class ActiveConsumerBinding {
+  public:
+    explicit ActiveConsumerBinding(Consumer* consumer) noexcept : previous_(g_active) {
+      g_active = consumer;
+    }
+    ~ActiveConsumerBinding() { g_active = previous_; }
+
+  private:
+    Consumer* previous_;
+  };
+
   template <class T> class Signal {
   public:
     explicit Signal(T value) : value_(std::move(value)) {}
 
     const T& get() {
+      thread_bound_.require_owner_thread();
       if (g_active) subs_.insert(g_active);  // auto-track this reader
       return value_;
     }
 
     void set(T value) {
+      thread_bound_.require_owner_thread();
+      set_on_owner(std::move(value));
+    }
+
+    void update(const std::function<T(const T&)>& f) {
+      thread_bound_.require_owner_thread();
+      set_on_owner(f(value_));
+    }
+
+  private:
+    void set_on_owner(T value) {
       if (value == value_) return;  // unchanged -> no propagation
       value_ = std::move(value);
       auto subs = subs_;  // copy: a run may re-subscribe
@@ -50,9 +75,7 @@ namespace reactive {
         if (c && c->run) c->run();
     }
 
-    void update(const std::function<T(const T&)>& f) { set(f(value_)); }
-
-  private:
+    threading::ThreadBound thread_bound_;
     T value_;
     std::unordered_set<Consumer*> subs_;
   };
@@ -66,12 +89,12 @@ namespace reactive {
 
   private:
     void run_tracked() {
-      Consumer* prev = g_active;
-      g_active = &node_;
+      thread_bound_.require_owner_thread();
+      ActiveConsumerBinding binding(&node_);
       body_();
-      g_active = prev;
     }
 
+    threading::ThreadBound thread_bound_;
     std::function<void()> body_;
     Consumer node_;
   };

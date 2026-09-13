@@ -1,7 +1,10 @@
 #include <doctest/doctest.h>
+#include "group.hpp"
 #include "world.hpp"
 
+#include <atomic>
 #include <stdexcept>
+#include <thread>
 
 namespace {
   struct Position {
@@ -180,6 +183,75 @@ TEST_CASE("World: apply_range updates only the requested dense interval") {
                                ? static_cast<float>(dense_index) + 10.0f
                                : static_cast<float>(dense_index);
     CHECK(position.x == expected);
+    ++dense_index;
+  });
+}
+
+TEST_CASE("World: structural mutation is rejected away from the owner thread") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+  ecs::Group<Position, Velocity> group(world);
+  std::atomic<int> rejected{0};
+
+  std::thread worker([&] {
+    try {
+      (void)world.create();
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      world.add<Velocity>(entity, 1.0f, 2.0f);
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      (void)world.remove<Position>(entity);
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      (void)world.destroy(entity);
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      group.refresh();
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+  });
+  worker.join();
+
+  CHECK(rejected.load(std::memory_order_relaxed) == 5);
+  CHECK(world.alive() == 1);
+  CHECK(world.valid(entity));
+  CHECK(world.has<Position>(entity));
+  CHECK_FALSE(world.has<Velocity>(entity));
+}
+
+TEST_CASE("World: workers may update disjoint pre-existing component ranges") {
+  ecs::World world;
+  for (int i = 0; i < 8; ++i) {
+    const ecs::Entity entity = world.create();
+    world.add<Position>(entity, static_cast<float>(i), 0.0f, 0.0f);
+    world.add<Velocity>(entity, 10.0f, 0.0f);
+  }
+
+  auto update = [&](std::size_t begin, std::size_t end) {
+    world.apply_range<Position, Velocity>(begin, end,
+                                          [](auto, Position& position, Velocity& velocity) {
+                                            position.x += velocity.vx;
+                                          });
+  };
+  std::thread first(update, 0, 4);
+  std::thread second(update, 4, 8);
+  first.join();
+  second.join();
+
+  int dense_index = 0;
+  world.view<Position>([&](auto, Position& position) {
+    CHECK(position.x == static_cast<float>(dense_index) + 10.0f);
     ++dense_index;
   });
 }

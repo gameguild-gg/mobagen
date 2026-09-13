@@ -24,6 +24,7 @@ namespace ecs {
     explicit Group(World& w) : w_(w) {}
 
     void refresh() {
+      w_.thread_bound_.require_owner_thread();
       auto& sa = w_.storage<A>();
       auto& sb = w_.storage<B>();
       k_ = 0;
@@ -42,6 +43,7 @@ namespace ecs {
     // Iterate the co-ordered prefix: fn(A&, B&). Both read by the same dense index
     // — contiguous in both pools, no sparse probe.
     template <class Fn> void each(Fn&& fn) {
+      w_.thread_bound_.require_owner_thread();
       auto& sa = w_.storage<A>();
       auto& sb = w_.storage<B>();
       for (std::size_t i = 0; i < k_; ++i) fn(sa.data_at(i), sb.data_at(i));
