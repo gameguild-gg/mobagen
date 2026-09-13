@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 #include "world.hpp"
 
+#include <stdexcept>
+
 namespace {
   struct Position {
     float x = 0, y = 0, z = 0;
@@ -25,6 +27,95 @@ TEST_CASE("World: create entity and check generation") {
   CHECK(!w.valid(e0));
   auto e2 = w.create();
   CHECK(w.valid(e2));
+}
+
+TEST_CASE("World: a destroyed slot is invalid until it is recycled") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  world.destroy(entity);
+
+  const ecs::Entity fabricated_current_generation =
+      ecs::make_entity(ecs::entity_index(entity), ecs::entity_gen(entity) + 1);
+
+  CHECK_FALSE(world.valid(fabricated_current_generation));
+}
+
+TEST_CASE("World: stale handles cannot observe a recycled entity's components") {
+  ecs::World world;
+  const ecs::Entity stale = world.create();
+  world.add<Position>(stale, 1.0f, 2.0f, 3.0f);
+  world.destroy(stale);
+
+  const ecs::Entity replacement = world.create();
+  REQUIRE(ecs::entity_index(replacement) == ecs::entity_index(stale));
+  world.add<Position>(replacement, 4.0f, 5.0f, 6.0f);
+
+  CHECK_FALSE(world.has<Position>(stale));
+  CHECK(world.has<Position>(replacement));
+}
+
+TEST_CASE("World: stale handles cannot attach components to a replacement") {
+  ecs::World world;
+  const ecs::Entity stale = world.create();
+  world.destroy(stale);
+  const ecs::Entity replacement = world.create();
+
+  CHECK_THROWS_AS(world.add<Velocity>(stale, 1.0f, 2.0f), std::invalid_argument);
+  CHECK_FALSE(world.has<Velocity>(replacement));
+}
+
+TEST_CASE("World: duplicate components are rejected without changing storage") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+
+  CHECK_THROWS_AS(world.add<Position>(entity, 4.0f, 5.0f, 6.0f), std::logic_error);
+  CHECK(world.count<Position>() == 1);
+  CHECK(world.get<Position>(entity).x == 1.0f);
+}
+
+TEST_CASE("World: missing components have explicit safe operations") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+
+  CHECK(world.try_get<Position>(entity) == nullptr);
+  CHECK_THROWS_AS(world.get<Position>(entity), std::out_of_range);
+  CHECK_FALSE(world.remove<Position>(entity));
+
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+  const ecs::World& const_world = world;
+  REQUIRE(const_world.try_get<Position>(entity) != nullptr);
+  CHECK(const_world.get<Position>(entity).x == 1.0f);
+  CHECK(world.remove<Position>(entity));
+  CHECK_FALSE(world.remove<Position>(entity));
+}
+
+TEST_CASE("World: destroy reports whether an entity was alive") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+
+  CHECK(world.destroy(entity));
+  CHECK_FALSE(world.destroy(entity));
+}
+
+TEST_CASE("World: views tolerate absent storage and ranges reject invalid bounds") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  int calls = 0;
+
+  world.view<Position>([&](auto, Position&) { ++calls; });
+  world.apply_range<Position, Velocity>(0, 0, [&](auto, Position&, Velocity&) { ++calls; });
+  CHECK(calls == 0);
+
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+  const auto past_end = [&] {
+    world.apply_range<Position, Velocity>(0, 2, [](auto, Position&, Velocity&) {});
+  };
+  const auto reversed = [&] {
+    world.apply_range<Position, Velocity>(1, 0, [](auto, Position&, Velocity&) {});
+  };
+  CHECK_THROWS_AS(past_end(), std::out_of_range);
+  CHECK_THROWS_AS(reversed(), std::out_of_range);
 }
 
 TEST_CASE("Storage: add component, get, has, remove") {
