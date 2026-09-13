@@ -1,6 +1,7 @@
 #include "lifecycle.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <exception>
 #include <ranges>
@@ -10,6 +11,14 @@
 namespace mobagen::modules {
 
   namespace {
+
+    std::atomic_uint64_t activation_generation_sequence{1};
+
+    ActivationGeneration next_activation_generation() noexcept {
+      auto value = activation_generation_sequence.fetch_add(1, std::memory_order_relaxed);
+      if (value == 0) value = activation_generation_sequence.fetch_add(1, std::memory_order_relaxed);
+      return {value};
+    }
 
     void add_issue(std::vector<ModuleLifecycleIssue>& issues, ModuleLifecycleIssueCode code, ModuleLifecyclePhase phase, ProviderIndex provider,
                    std::string message) {
@@ -133,8 +142,8 @@ namespace mobagen::modules {
 
   std::span<const RuntimeCapabilityBinding> ModuleContext::bindings() const noexcept { return bindings_; }
 
-  ModuleActivation::ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules)
-      : context_(std::move(context)), modules_(std::move(modules)) {}
+  ModuleActivation::ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules, ActivationGeneration generation)
+      : context_(std::move(context)), modules_(std::move(modules)), generation_(generation) {}
 
   ModuleActivation::~ModuleActivation() {
     if (state_ == ModuleLifecycleState::Active) (void)quiesce();
@@ -142,6 +151,8 @@ namespace mobagen::modules {
   }
 
   ModuleLifecycleState ModuleActivation::state() const noexcept { return state_; }
+
+  ActivationGeneration ModuleActivation::generation() const noexcept { return generation_; }
 
   const ModuleContext& ModuleActivation::context() const noexcept { return context_; }
 
@@ -206,7 +217,7 @@ namespace mobagen::modules {
       ++started;
     }
 
-    result.activation = std::unique_ptr<ModuleActivation>(new ModuleActivation(std::move(context), std::move(ordered)));
+    result.activation = std::unique_ptr<ModuleActivation>(new ModuleActivation(std::move(context), std::move(ordered), next_activation_generation()));
     return result;
   }
 

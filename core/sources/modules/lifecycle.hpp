@@ -44,6 +44,12 @@ namespace mobagen::modules {
     ModuleLifecycleApi api;
   };
 
+  struct ActivationGeneration {
+    std::uint64_t value{};
+
+    friend bool operator==(const ActivationGeneration&, const ActivationGeneration&) = default;
+  };
+
   enum class ModuleLifecycleState : std::uint8_t { Active, Quiesced, Stopped };
 
   enum class ModuleLifecyclePhase : std::uint8_t { Validate, Configure, Start, Quiesce, Stop, Rollback };
@@ -81,6 +87,7 @@ namespace mobagen::modules {
     ~ModuleActivation();
 
     [[nodiscard]] ModuleLifecycleState state() const noexcept;
+    [[nodiscard]] ActivationGeneration generation() const noexcept;
     [[nodiscard]] const ModuleContext& context() const noexcept;
     [[nodiscard]] ModuleLifecycleResult quiesce();
     [[nodiscard]] ModuleLifecycleResult stop();
@@ -88,10 +95,11 @@ namespace mobagen::modules {
   private:
     friend ModuleActivationResult activate_modules(const CapabilityRegistry&, const ModuleResolution&, std::span<const ModuleLifecycleBinding>);
 
-    ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules);
+    ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules, ActivationGeneration generation);
 
     ModuleContext context_;
     std::vector<ModuleLifecycleBinding> modules_;
+    ActivationGeneration generation_;
     ModuleLifecycleState state_{ModuleLifecycleState::Active};
   };
 

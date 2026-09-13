@@ -1,5 +1,6 @@
 add_library(
-  mobagen_core_modules STATIC capability_registry.cpp descriptor.cpp lifecycle.cpp resolver.cpp
+  mobagen_core_modules STATIC capability_registry.cpp descriptor.cpp execution_graph.cpp
+                              lifecycle.cpp resolver.cpp
 )
 add_library(mobagen::core_modules ALIAS mobagen_core_modules)
 target_include_directories(mobagen_core_modules PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
