@@ -19,11 +19,15 @@ add_library(dawn::webgpu ALIAS dawn_webgpu)
 # Dawn requires Python 3 (interpreter) plus the jinja2 module at configure and build time — it
 # fetches third-party dependencies and generates headers (webgpu.h / webgpu_cpp.h / tint) from
 # templates. Check this BEFORE CPMAddPackage so students fail fast with actionable instructions
-# instead of Dawn's mid-configure "find_package(Python3 REQUIRED)" or "Missing dependencies for
-# code generation" errors.
+# instead of Dawn's mid-configure "find_package(Python3 REQUIRED)" or "Missing dependencies for code
+# generation" errors.
 # ---------------------------------------------------------------------------
 if(NOT EMSCRIPTEN)
-  find_package(Python3 COMPONENTS Interpreter QUIET)
+  find_package(
+    Python3
+    COMPONENTS Interpreter
+    QUIET
+  )
   if(NOT Python3_FOUND)
     if(WIN32)
       set(_DAWN_PYTHON_HINT
@@ -46,20 +50,12 @@ if(NOT EMSCRIPTEN)
     )
   endif()
 
-#  execute_process(
-#    COMMAND "${Python3_EXECUTABLE}" -c "import jinja2"
-#    RESULT_VARIABLE _DAWN_JINJA2_RESULT
-#    OUTPUT_QUIET ERROR_QUIET
-#  )
-#  if(NOT _DAWN_JINJA2_RESULT EQUAL 0)
-#    message(
-#      FATAL_ERROR
-#        "MoBaGEn requires the python 'jinja2' module to build Dawn (WebGPU): it is used by Dawn's "
-#        "code generators. It is missing for interpreter '${Python3_EXECUTABLE}'. Fix with: "
-#        "'${Python3_EXECUTABLE}' -m pip install jinja2, then delete the build directory and reload "
-#        "the CMake project."
-#    )
-#  endif()
+  # execute_process( COMMAND "${Python3_EXECUTABLE}" -c "import jinja2" RESULT_VARIABLE
+  # _DAWN_JINJA2_RESULT OUTPUT_QUIET ERROR_QUIET ) if(NOT _DAWN_JINJA2_RESULT EQUAL 0) message(
+  # FATAL_ERROR "MoBaGEn requires the python 'jinja2' module to build Dawn (WebGPU): it is used by
+  # Dawn's " "code generators. It is missing for interpreter '${Python3_EXECUTABLE}'. Fix with: "
+  # "'${Python3_EXECUTABLE}' -m pip install jinja2, then delete the build directory and reload "
+  # "the CMake project." ) endif()
 endif()
 
 # ---------------------------------------------------------------------------
