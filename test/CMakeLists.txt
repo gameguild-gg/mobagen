@@ -26,6 +26,9 @@ set(FOUNDATION_TEST_SOURCES
 if(TARGET mobagen::module_manifest)
   list(APPEND FOUNDATION_TEST_SOURCES module_manifest_tests.cpp)
 endif()
+if(MOBAGEN_BUILD_MANIFEST_TOOLS)
+  list(APPEND FOUNDATION_TEST_SOURCES module_lockfile_tests.cpp)
+endif()
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
@@ -52,10 +55,16 @@ target_link_libraries(
 if(TARGET mobagen::module_manifest)
   target_link_libraries(FoundationTests PRIVATE mobagen::module_manifest)
 endif()
+if(MOBAGEN_BUILD_MANIFEST_TOOLS)
+  target_link_libraries(FoundationTests PRIVATE mobagen::module_lockfile)
+endif()
 
 set(FOUNDATION_COMPILED_TARGETS mobagen_core_jobs mobagen_core_modules)
 if(TARGET mobagen_module_manifest)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)
+endif()
+if(MOBAGEN_BUILD_MANIFEST_TOOLS)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_lockfile)
 endif()
 mobagen_enable_sanitizers(FoundationTests ${FOUNDATION_COMPILED_TARGETS})
 
