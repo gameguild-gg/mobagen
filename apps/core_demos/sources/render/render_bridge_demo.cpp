@@ -20,7 +20,7 @@ int main() {
   world.add<scene::Transform>(ct, t);
 
   render::VolumeRenderable volume;
-  volume.source.id = 7;
+  volume.source.handle = resource::Handle{7u, 3u};
   volume.source.width = 512;
   volume.source.height = 512;
   volume.source.depth = 300;
@@ -43,9 +43,10 @@ int main() {
   if (commands.empty()) return 1;
 
   const auto& cmd = commands[0];
-  std::printf("entity=%llu volume_id=%u dims=%ux%ux%u spacing=(%.2f, %.2f, %.2f) window=(%.1f, %.1f)\n", static_cast<unsigned long long>(cmd.entity),
-              cmd.source.id, cmd.source.width, cmd.source.height, cmd.source.depth, cmd.source.spacing_mm.x, cmd.source.spacing_mm.y,
-              cmd.source.spacing_mm.z, cmd.display.window_center, cmd.display.window_width);
+  std::printf("entity=%llu volume=%u:%u dims=%ux%ux%u spacing=(%.2f, %.2f, %.2f) window=(%.1f, %.1f)\n", static_cast<unsigned long long>(cmd.entity),
+              cmd.source.handle.index, cmd.source.handle.generation, cmd.source.width, cmd.source.height,
+              cmd.source.depth, cmd.source.spacing_mm.x, cmd.source.spacing_mm.y, cmd.source.spacing_mm.z,
+              cmd.display.window_center, cmd.display.window_width);
 
   return commands.size() == 1 ? 0 : 2;
 }

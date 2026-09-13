@@ -4,6 +4,8 @@
 #include "render/render_bridge.hpp"
 #include "resource/resource_registry.hpp"
 
+#include <type_traits>
+
 TEST_CASE("Camera: view matrix looks at target") {
   engine::Camera cam(engine::CameraMode::ORBIT);
   auto view = cam.get_view_matrix();
@@ -60,4 +62,32 @@ TEST_CASE("ResourceRegistry: create, get, release") {
   reg.release(h2);
   auto* p3 = reg.get(h2);
   CHECK(p3 == nullptr);
+}
+
+TEST_CASE("RenderBridge: resource handles retain their generation") {
+  static_assert(std::is_standard_layout_v<resource::Handle>);
+  static_assert(std::is_trivially_copyable_v<resource::Handle>);
+
+  resource::ResourceRegistry<int> resources;
+  const resource::Handle stale = resources.create(1);
+  resources.release(stale);
+  const resource::Handle current = resources.create(2);
+  REQUIRE(current.index == stale.index);
+  REQUIRE(current.generation != stale.generation);
+
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  world.add<scene::Transform>(entity);
+  render::VolumeRenderable volume;
+  volume.source.handle = current;
+  world.add<render::VolumeRenderable>(entity, volume);
+
+  render::RenderBridge bridge;
+  bridge.build(world);
+
+  const auto& commands = bridge.volume_commands();
+  REQUIRE(commands.size() == 1);
+  CHECK(commands[0].source.handle == current);
+  CHECK(resources.get(commands[0].source.handle) != nullptr);
+  CHECK(resources.get(stale) == nullptr);
 }

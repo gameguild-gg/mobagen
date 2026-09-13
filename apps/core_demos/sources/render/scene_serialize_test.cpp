@@ -20,7 +20,7 @@ int main() {
   w.add<scene::Transform>(volEnt, t);
 
   render::VolumeRenderable v;
-  v.source.id = 7;
+  v.source.handle = resource::Handle{7u, 3u};
   v.source.width = 96;
   v.source.height = 96;
   v.source.depth = 96;
@@ -57,6 +57,7 @@ int main() {
       assert(std::fabs(t2.position.x - 1.0f) < 1e-6f);
       assert(std::fabs(t2.scale.z - 0.75f) < 1e-6f);
       assert(v2.source.width == 96 && v2.source.depth == 96);
+      assert((v2.source.handle == resource::Handle{7u, 3u}));
       assert(v2.source.format == render::VolumeScalarFormat::UInt16);
       assert(std::fabs(v2.source.spacing_mm.z - 1.5f) < 1e-6f);
       assert(std::fabs(v2.display.window_center - 1064.0f) < 1e-3f);

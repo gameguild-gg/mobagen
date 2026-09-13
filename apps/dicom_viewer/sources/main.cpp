@@ -485,7 +485,7 @@ void DicomApp::createStudyVolumeScene(app::App& app) {
   app.world.add<scene::Transform>(phantom, t);
 
   render::VolumeRenderable volume;
-  volume.source.id = 1;
+  volume.source.handle = resource::Handle{1u, 0u};
   volume.source.width = meta.width;
   volume.source.height = meta.height;
   volume.source.depth = meta.depth;
@@ -556,7 +556,11 @@ bool DicomApp::initVolumeRenderer(app::App& app) {
   wgpuQueueWriteBuffer(queue, fullscreenVbo, 0, quad, sizeof(quad));
 
   const auto& commands = renderBridge.volume_commands();
-  const render::VolumeSource source = commands.empty() ? render::VolumeSource{1u, 96u, 96u, 96u, glm::vec3(1.0f, 1.0f, 1.5f)} : commands[0].source;
+  const render::VolumeSource source =
+      commands.empty()
+          ? render::VolumeSource{resource::Handle{1u, 0u}, 96u, 96u, 96u,
+                                 glm::vec3(1.0f, 1.0f, 1.5f)}
+          : commands[0].source;
   const bool packedU16
       = source.format == render::VolumeScalarFormat::UInt16 && cpuVolume.storage_format() == ::volume::VolumeStorageFormat::U16PackedRG8;
   const std::uint32_t bytesPerVoxel = packedU16 ? 2u : 1u;
@@ -1310,7 +1314,7 @@ void DicomApp::on_draw(app::App& app, WGPURenderPassEncoder pass) {
   ImGui::Text("Volume commands: %d", static_cast<int>(volumeCommands.size()));
   if (!volumeCommands.empty()) {
     const auto& cmd = volumeCommands[0];
-    ImGui::Text("Volume id: %u", cmd.source.id);
+    ImGui::Text("Volume handle: %u:%u", cmd.source.handle.index, cmd.source.handle.generation);
     ImGui::Text("Dims: %ux%ux%u", cmd.source.width, cmd.source.height, cmd.source.depth);
     ImGui::Text("Spacing: %.2f %.2f %.2f mm", cmd.source.spacing_mm.x, cmd.source.spacing_mm.y, cmd.source.spacing_mm.z);
     ImGui::Text("Window: %.2f / %.2f", cmd.display.window_center, cmd.display.window_width);
