@@ -38,7 +38,7 @@ namespace render {
   }  // namespace detail
 
   inline constexpr std::uint32_t kSceneMagic = 0x4e435344u;  // 'D','S','C','N' (LE)
-  inline constexpr std::uint32_t kSceneVersion = 1u;
+  inline constexpr std::uint32_t kSceneVersion = 2u;
 
   // Serialize every entity that has a scene::Transform (the scene nodes), plus its
   // render::VolumeRenderable when present.
@@ -77,7 +77,8 @@ namespace render {
       put(b, static_cast<std::uint8_t>(hasVol ? 1 : 0));
       if (hasVol) {
         const VolumeRenderable& v = world.get<VolumeRenderable>(e);
-        put(b, v.source.id);
+        put(b, v.source.handle.index);
+        put(b, v.source.handle.generation);
         put(b, v.source.width);
         put(b, v.source.height);
         put(b, v.source.depth);
@@ -127,7 +128,8 @@ namespace render {
       if (nd.hasVol) {
         VolumeRenderable& v = nd.vol;
         std::uint8_t fmt = 0, mode = 0;
-        if (!take(p, end, v.source.id) || !take(p, end, v.source.width) || !take(p, end, v.source.height) || !take(p, end, v.source.depth)
+        if (!take(p, end, v.source.handle.index) || !take(p, end, v.source.handle.generation)
+            || !take(p, end, v.source.width) || !take(p, end, v.source.height) || !take(p, end, v.source.depth)
             || !take(p, end, v.source.spacing_mm.x) || !take(p, end, v.source.spacing_mm.y) || !take(p, end, v.source.spacing_mm.z)
             || !take(p, end, fmt) || !take(p, end, v.display.window_center) || !take(p, end, v.display.window_width)
             || !take(p, end, v.display.transfer_preset) || !take(p, end, mode) || !take(p, end, v.display.iso_threshold))

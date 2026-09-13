@@ -1,4 +1,6 @@
 #include <doctest/doctest.h>
+#include "render/scene_serialize.hpp"
+#include "render/render_bridge.hpp"
 #include "scene/transform.hpp"
 #include "scene/transform_system.hpp"
 #include "ecs/world.hpp"
@@ -43,4 +45,23 @@ TEST_CASE("TransformSystem: reparent cascades dirty flag to descendants") {
   sys.update(w);
   auto pos_after = t_child.world[3];
   CHECK(pos_after.x == 15.0f);
+}
+
+TEST_CASE("Scene serialization: volume resource handles retain their generation") {
+  ecs::World source;
+  const ecs::Entity entity = source.create();
+  source.add<scene::Transform>(entity);
+
+  render::VolumeRenderable volume;
+  volume.source.handle = resource::Handle{17u, 42u};
+  source.add<render::VolumeRenderable>(entity, volume);
+
+  const std::vector<std::uint8_t> bytes = render::save_scene(source);
+  ecs::World restored;
+  const std::vector<ecs::Entity> entities =
+      render::load_scene(restored, bytes.data(), bytes.size());
+
+  REQUIRE(entities.size() == 1);
+  const auto& restored_volume = restored.get<render::VolumeRenderable>(entities[0]);
+  CHECK(restored_volume.source.handle == resource::Handle{17u, 42u});
 }
