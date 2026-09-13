@@ -32,8 +32,7 @@ namespace {
     bytes.insert(bytes.end(), begin, begin + sizeof(T));
   }
 
-  template <class T>
-  void overwrite(std::vector<std::uint8_t>& bytes, std::size_t offset, const T& value) {
+  template <class T> void overwrite(std::vector<std::uint8_t>& bytes, std::size_t offset, const T& value) {
     REQUIRE(offset + sizeof(T) <= bytes.size());
     std::memcpy(bytes.data() + offset, &value, sizeof(T));
   }
@@ -139,8 +138,7 @@ TEST_CASE("Scene loading: rejects invalid node metadata transactionally") {
 TEST_CASE("Scene loading: rejects invalid volume metadata transactionally") {
   const std::vector<std::uint8_t> valid = make_valid_volume_scene();
 
-  for (const std::size_t offset :
-       {kVolumeWidthOffset, kVolumeHeightOffset, kVolumeDepthOffset}) {
+  for (const std::size_t offset : {kVolumeWidthOffset, kVolumeHeightOffset, kVolumeDepthOffset}) {
     std::vector<std::uint8_t> invalid_dimension = valid;
     overwrite(invalid_dimension, offset, std::uint32_t{0});
     check_rejected_without_mutation(invalid_dimension.data(), invalid_dimension.size());
@@ -150,9 +148,7 @@ TEST_CASE("Scene loading: rejects invalid volume metadata transactionally") {
     check_rejected_without_mutation(excessive_dimension.data(), excessive_dimension.size());
   }
 
-  for (const std::size_t offset :
-       {kVolumeSpacingXOffset, kVolumeSpacingYOffset, kVolumeSpacingZOffset,
-        kWindowWidthOffset}) {
+  for (const std::size_t offset : {kVolumeSpacingXOffset, kVolumeSpacingYOffset, kVolumeSpacingZOffset, kWindowWidthOffset}) {
     std::vector<std::uint8_t> invalid_positive_value = valid;
     overwrite(invalid_positive_value, offset, 0.0f);
     check_rejected_without_mutation(invalid_positive_value.data(), invalid_positive_value.size());

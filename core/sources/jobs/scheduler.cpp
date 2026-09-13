@@ -10,8 +10,7 @@ namespace jobs {
 
     class WorkerBinding {
     public:
-      WorkerBinding(Scheduler* scheduler, int worker_id)
-          : previous_scheduler_(t_scheduler), previous_worker_id_(t_worker_id) {
+      WorkerBinding(Scheduler* scheduler, int worker_id) : previous_scheduler_(t_scheduler), previous_worker_id_(t_worker_id) {
         t_scheduler = scheduler;
         t_worker_id = worker_id;
       }
@@ -24,18 +23,14 @@ namespace jobs {
       Scheduler* previous_scheduler_;
       int previous_worker_id_;
     };
-  }
+  }  // namespace
 
   int Scheduler::this_worker_id() { return t_worker_id; }
   const Scheduler* Scheduler::this_scheduler() { return t_scheduler; }
 
-  bool Scheduler::accepting() const {
-    return (work_state_.load(std::memory_order_acquire) & kAcceptingBit) != 0;
-  }
+  bool Scheduler::accepting() const { return (work_state_.load(std::memory_order_acquire) & kAcceptingBit) != 0; }
 
-  std::size_t Scheduler::outstanding() const {
-    return static_cast<std::size_t>(work_state_.load(std::memory_order_acquire) & kCountMask);
-  }
+  std::size_t Scheduler::outstanding() const { return static_cast<std::size_t>(work_state_.load(std::memory_order_acquire) & kCountMask); }
 
   Scheduler::Scheduler(unsigned workers, Mode mode) : inline_(mode == Mode::Inline) {
     unsigned n = inline_ ? 1u : (workers ? workers : std::thread::hardware_concurrency());
@@ -92,8 +87,7 @@ namespace jobs {
       const std::uint32_t count = state & kCountMask;
       const bool may_submit = (state & kAcceptingBit) != 0 || (from_own_worker && count != 0);
       if (!may_submit || count == kCountMask) return false;
-      if (work_state_.compare_exchange_weak(state, state + 1, std::memory_order_acq_rel,
-                                            std::memory_order_acquire)) {
+      if (work_state_.compare_exchange_weak(state, state + 1, std::memory_order_acq_rel, std::memory_order_acquire)) {
         return true;
       }
     }
@@ -196,8 +190,10 @@ namespace jobs {
     while (outstanding() > 0) {
       void* p = workers_[0]->q.pop();
       if (!p) p = pop_global();
-      if (p) run_one(std::coroutine_handle<>::from_address(p));
-      else std::this_thread::yield();
+      if (p)
+        run_one(std::coroutine_handle<>::from_address(p));
+      else
+        std::this_thread::yield();
     }
   }
 
@@ -207,8 +203,7 @@ namespace jobs {
     std::uint32_t count = count_.load(std::memory_order_acquire);
     do {
       if (count == 0) return false;
-    } while (!count_.compare_exchange_weak(count, count - 1, std::memory_order_acq_rel,
-                                            std::memory_order_acquire));
+    } while (!count_.compare_exchange_weak(count, count - 1, std::memory_order_acq_rel, std::memory_order_acquire));
 
     if (count == 1) {  // I was the last
       void* h = waiter_.exchange(nullptr, std::memory_order_acq_rel);

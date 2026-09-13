@@ -142,8 +142,8 @@ namespace app {
     input::InputState input;
     ecs::World world;
     jobs::Scheduler sched;
-    SDL_Window* window = nullptr;        // null when headless or init failed
-    AppCallbacks* callbacks = nullptr;   // wired by MOBAGEN_MAIN
+    SDL_Window* window = nullptr;       // null when headless or init failed
+    AppCallbacks* callbacks = nullptr;  // wired by MOBAGEN_MAIN
 
     void attach_gui(GuiLayerView& gui) { gui_ = &gui; }
     GuiLayerView* gui() const { return gui_; }

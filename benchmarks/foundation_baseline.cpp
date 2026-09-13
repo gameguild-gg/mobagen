@@ -35,9 +35,7 @@ namespace {
     float z = 0.0f;
   };
 
-  unsigned benchmark_worker_count() {
-    return std::max(1u, std::thread::hardware_concurrency());
-  }
+  unsigned benchmark_worker_count() { return std::max(1u, std::thread::hardware_concurrency()); }
 
   void construct_foundation_state() {
     ecs::World world;
@@ -53,16 +51,12 @@ namespace {
       }
     }
     bridge.build(world);
-    observation.fetch_xor(
-        static_cast<std::uint64_t>(world.alive() + bridge.volume_commands().size()),
-        std::memory_order_relaxed);
+    observation.fetch_xor(static_cast<std::uint64_t>(world.alive() + bridge.volume_commands().size()), std::memory_order_relaxed);
   }
 
   class FoundationFixture {
   public:
-    FoundationFixture()
-        : scheduler_(benchmark_worker_count(), jobs::Scheduler::Mode::Threaded),
-          job_values_(kEntityCount, 0) {
+    FoundationFixture() : scheduler_(benchmark_worker_count(), jobs::Scheduler::Mode::Threaded), job_values_(kEntityCount, 0) {
       for (std::size_t index = 0; index < kEntityCount; ++index) {
         const ecs::Entity entity = world_.create();
         world_.add<Position>(entity, Position{static_cast<float>(index), 0.0f, 0.0f});
@@ -82,31 +76,24 @@ namespace {
 
     void update_positions() {
       update_positions_impl();
-      observation.fetch_xor(
-          static_cast<std::uint64_t>(world_.get<Position>(first_entity_).x),
-          std::memory_order_relaxed);
+      observation.fetch_xor(static_cast<std::uint64_t>(world_.get<Position>(first_entity_).x), std::memory_order_relaxed);
     }
 
     void run_parallel_chunks() {
       run_parallel_chunks_impl();
-      observation.fetch_xor(
-          static_cast<std::uint64_t>(job_values_.front() + job_values_.back()),
-          std::memory_order_relaxed);
+      observation.fetch_xor(static_cast<std::uint64_t>(job_values_.front() + job_values_.back()), std::memory_order_relaxed);
     }
 
     void build_render_commands() {
       bridge_.build(world_);
-      observation.fetch_xor(
-          static_cast<std::uint64_t>(bridge_.volume_commands().size()),
-          std::memory_order_relaxed);
+      observation.fetch_xor(static_cast<std::uint64_t>(bridge_.volume_commands().size()), std::memory_order_relaxed);
     }
 
     void run_representative_frame() {
       update_positions_impl();
       bridge_.build(world_);
       observation.fetch_xor(
-          static_cast<std::uint64_t>(world_.get<Position>(first_entity_).x) +
-              static_cast<std::uint64_t>(bridge_.volume_commands().size()),
+          static_cast<std::uint64_t>(world_.get<Position>(first_entity_).x) + static_cast<std::uint64_t>(bridge_.volume_commands().size()),
           std::memory_order_relaxed);
     }
 
@@ -145,14 +132,10 @@ int main(int argc, char** argv) {
 
     const std::array results{
         mobagen::benchmark::measure("startup.foundation", options, construct_foundation_state),
-        mobagen::benchmark::measure(
-            "ecs.serial_update", options, [&fixture] { fixture.update_positions(); }),
-        mobagen::benchmark::measure(
-            "jobs.parallel_for", options, [&fixture] { fixture.run_parallel_chunks(); }),
-        mobagen::benchmark::measure(
-            "render.bridge_build", options, [&fixture] { fixture.build_render_commands(); }),
-        mobagen::benchmark::measure(
-            "frame.foundation", options, [&fixture] { fixture.run_representative_frame(); }),
+        mobagen::benchmark::measure("ecs.serial_update", options, [&fixture] { fixture.update_positions(); }),
+        mobagen::benchmark::measure("jobs.parallel_for", options, [&fixture] { fixture.run_parallel_chunks(); }),
+        mobagen::benchmark::measure("render.bridge_build", options, [&fixture] { fixture.build_render_commands(); }),
+        mobagen::benchmark::measure("frame.foundation", options, [&fixture] { fixture.run_representative_frame(); }),
     };
     mobagen::benchmark::write_json(std::cout, options, results);
     return 0;

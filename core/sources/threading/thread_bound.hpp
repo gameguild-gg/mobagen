@@ -20,9 +20,7 @@ namespace threading {
   public:
     ThreadBound() noexcept : owner_(detail::current_thread_id()) {}
 
-    [[nodiscard]] bool on_owner_thread() const noexcept {
-      return owner_ == detail::current_thread_id();
-    }
+    [[nodiscard]] bool on_owner_thread() const noexcept { return owner_ == detail::current_thread_id(); }
 
     void require_owner_thread() const {
       if (!on_owner_thread()) {

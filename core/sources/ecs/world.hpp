@@ -95,17 +95,13 @@ namespace ecs {
     template <class T> T* try_get(Entity e) {
       if (!valid(e)) return nullptr;
       Storage<T>* components = find_storage<T>();
-      return components != nullptr && components->contains(entity_index(e))
-                 ? &components->get(entity_index(e))
-                 : nullptr;
+      return components != nullptr && components->contains(entity_index(e)) ? &components->get(entity_index(e)) : nullptr;
     }
 
     template <class T> const T* try_get(Entity e) const {
       if (!valid(e)) return nullptr;
       const Storage<T>* components = find_storage<T>();
-      return components != nullptr && components->contains(entity_index(e))
-                 ? &components->get(entity_index(e))
-                 : nullptr;
+      return components != nullptr && components->contains(entity_index(e)) ? &components->get(entity_index(e)) : nullptr;
     }
 
     template <class T> T& get(Entity e) {
@@ -135,8 +131,7 @@ namespace ecs {
     template <class T, class Fn> void view(Fn&& fn) {
       Storage<T>* components = find_storage<T>();
       if (components == nullptr) return;
-      components->each(
-          [&](std::uint32_t id, T& component) { fn(make_entity(id, generations_[id]), component); });
+      components->each([&](std::uint32_t id, T& component) { fn(make_entity(id, generations_[id]), component); });
     }
 
     // Two-component view: iterate A's pool, gate on B. fn(Entity, A&, B&).
@@ -180,23 +175,19 @@ namespace ecs {
 
     template <class T> Storage<T>* find_storage() {
       const std::size_t id = detail::component_id<T>();
-      return id < pools_.size() && pools_[id] != nullptr
-                 ? static_cast<Storage<T>*>(pools_[id].get())
-                 : nullptr;
+      return id < pools_.size() && pools_[id] != nullptr ? static_cast<Storage<T>*>(pools_[id].get()) : nullptr;
     }
 
     template <class T> const Storage<T>* find_storage() const {
       const std::size_t id = detail::component_id<T>();
-      return id < pools_.size() && pools_[id] != nullptr
-                 ? static_cast<const Storage<T>*>(pools_[id].get())
-                 : nullptr;
+      return id < pools_.size() && pools_[id] != nullptr ? static_cast<const Storage<T>*>(pools_[id].get()) : nullptr;
     }
 
     // Structural mutation is owner-only. Workers may access pre-existing
     // components through disjoint apply_range intervals while structure is frozen.
     threading::ThreadBound thread_bound_;
     std::vector<std::uint32_t> generations_;         // current generation per index
-    std::vector<std::uint8_t> alive_;                 // slot occupancy, independent of generation
+    std::vector<std::uint8_t> alive_;                // slot occupancy, independent of generation
     std::vector<std::uint32_t> free_;                // recycled indices
     std::vector<std::unique_ptr<SparseSet>> pools_;  // component storages, by component id
   };

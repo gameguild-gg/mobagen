@@ -63,7 +63,7 @@ namespace app {
 
   private:
     ImGuiLayer imgui_layer_;
-    App* app_ = nullptr;                        // for window/events + resize
+    App* app_ = nullptr;  // for window/events + resize
     Rml::Context* context_ = nullptr;
     std::unique_ptr<SystemInterface_SDL> system_interface_;
     std::unique_ptr<RmlImGuiRenderer> renderer_;

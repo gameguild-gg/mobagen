@@ -41,14 +41,11 @@ namespace volume {
   inline VolumeBuffer load_volume_file(const char* path, bool& ok) {
     ok = false;
     if (path == nullptr || path[0] == '\0') return {};
-    std::unique_ptr<std::FILE, decltype(&std::fclose)> file(std::fopen(path, "rb"),
-                                                           &std::fclose);
+    std::unique_ptr<std::FILE, decltype(&std::fclose)> file(std::fopen(path, "rb"), &std::fclose);
     if (!file) return {};
 
     VolumeFileHeader h{};
-    if (std::fread(&h, sizeof(h), 1, file.get()) != 1
-        || std::memcmp(h.magic, "MVL1", 4) != 0)
-      return {};
+    if (std::fread(&h, sizeof(h), 1, file.get()) != 1 || std::memcmp(h.magic, "MVL1", 4) != 0) return {};
 
     VolumeMetadata meta;
     meta.width = h.width;

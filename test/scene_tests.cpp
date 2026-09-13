@@ -64,8 +64,7 @@ TEST_CASE("Scene serialization: volume resource handles retain their generation"
 
   const std::vector<std::uint8_t> bytes = render::save_scene(source);
   ecs::World restored;
-  const std::vector<ecs::Entity> entities =
-      render::load_scene(restored, bytes.data(), bytes.size());
+  const std::vector<ecs::Entity> entities = render::load_scene(restored, bytes.data(), bytes.size());
 
   REQUIRE(entities.size() == 1);
   const auto& restored_volume = restored.get<render::VolumeRenderable>(entities[0]);

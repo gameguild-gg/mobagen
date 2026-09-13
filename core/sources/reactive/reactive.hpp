@@ -37,9 +37,7 @@ namespace reactive {
 
   class ActiveConsumerBinding {
   public:
-    explicit ActiveConsumerBinding(Consumer* consumer) noexcept : previous_(g_active) {
-      g_active = consumer;
-    }
+    explicit ActiveConsumerBinding(Consumer* consumer) noexcept : previous_(g_active) { g_active = consumer; }
     ~ActiveConsumerBinding() { g_active = previous_; }
 
   private:
