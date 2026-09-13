@@ -21,6 +21,10 @@ set(FOUNDATION_TEST_SOURCES
     volume_file_tests.cpp
 )
 
+if(TARGET mobagen::module_manifest)
+  list(APPEND FOUNDATION_TEST_SOURCES module_manifest_tests.cpp)
+endif()
+
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
 target_include_directories(
@@ -43,7 +47,15 @@ target_link_libraries(
           mobagen::core_resource
           mobagen::volume
 )
-mobagen_enable_sanitizers(FoundationTests mobagen_core_jobs mobagen_core_modules)
+if(TARGET mobagen::module_manifest)
+  target_link_libraries(FoundationTests PRIVATE mobagen::module_manifest)
+endif()
+
+set(FOUNDATION_COMPILED_TARGETS mobagen_core_jobs mobagen_core_modules)
+if(TARGET mobagen_module_manifest)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)
+endif()
+mobagen_enable_sanitizers(FoundationTests ${FOUNDATION_COMPILED_TARGETS})
 
 # enable compiler warnings if(NOT TEST_INSTALLED_VERSION) if(CMAKE_CXX_COMPILER_ID MATCHES "Clang"
 # OR CMAKE_CXX_COMPILER_ID MATCHES "GNU") target_compile_options(core PUBLIC -Wall -Wpedantic
@@ -74,7 +86,7 @@ endif()
 
 include(../cmake/coverage.cmake)
 
-mobagen_enable_coverage(FoundationTests mobagen_core_jobs mobagen_core_modules)
+mobagen_enable_coverage(FoundationTests ${FOUNDATION_COMPILED_TARGETS})
 if(TARGET AppHostTests)
   mobagen_enable_coverage(AppHostTests mobagen_core_app)
 endif()
