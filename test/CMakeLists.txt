@@ -63,11 +63,9 @@ endif()
 
 # ---- code coverage ----
 
-if(ENABLE_TEST_COVERAGE)
-  target_compile_options(FoundationTests PUBLIC -O0 -g -fprofile-arcs -ftest-coverage)
-  target_link_options(FoundationTests PUBLIC -fprofile-arcs -ftest-coverage)
-  if(TARGET AppHostTests)
-    target_compile_options(AppHostTests PUBLIC -O0 -g -fprofile-arcs -ftest-coverage)
-    target_link_options(AppHostTests PUBLIC -fprofile-arcs -ftest-coverage)
-  endif()
+include(../cmake/coverage.cmake)
+
+mobagen_enable_coverage(FoundationTests mobagen_core_jobs)
+if(TARGET AppHostTests)
+  mobagen_enable_coverage(AppHostTests mobagen_core_app)
 endif()
