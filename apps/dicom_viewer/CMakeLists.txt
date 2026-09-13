@@ -26,8 +26,16 @@ file(WRITE ${DICOM_VIEWER_GEN_HEADER} "${_gen}")
 
 add_executable(dicom_renderer ${DICOM_VIEWER_SOURCE_DIR}/main.cpp)
 target_include_directories(dicom_renderer PRIVATE ${DICOM_VIEWER_GEN_DIR})
+# core app host (MOBAGEN_MAIN entry + WebGPU context) and its ImGui layer,
+# used by main.cpp since the core-app-host migration.
 target_link_libraries(
-  dicom_renderer PRIVATE glm mobagen::core_camera mobagen::core_render mobagen::volume
+  dicom_renderer
+  PRIVATE glm
+          mobagen::core_camera
+          mobagen::core_render
+          mobagen::volume
+          mobagen::core_app
+          mobagen::core_imgui
 )
 
 include(${PROJECT_SOURCE_DIR}/external/sdl.cmake)

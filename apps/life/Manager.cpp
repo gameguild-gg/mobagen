@@ -85,11 +85,11 @@ void Manager::OnGui() {
       index = mousePositionToIndex(mousePos);
     }
 
-    std::cout << "(" << index.x << "," << index.y << ")" << std::endl;
+    // std::cout << "(" << index.x << "," << index.y << ")" << std::endl;
 
     if (lastIndexClicked != index) {
       lastIndexClicked = index;
-      std::cout << "MatrixPos: (" << index.x << "," << index.y << ")" << std::endl;
+      // std::cout << "MatrixPos: (" << index.x << "," << index.y << ")" << std::endl;
       if (index.x >= 0 && index.x < sideSize && index.y >= 0 && index.y < sideSize) {
         world.SetCurrent(index, !world.Get(index));  // to be visible
         world.SetNext(index, !world.Get(index));     // to be used next time
@@ -115,38 +115,43 @@ void Manager::OnDraw() {
   float squareSide = minDimension / sideSize;
   float sideSideOver2 = sideSize / 2.0f;
 
-  const ImU32 liveColor = IM_COL32(180, 180, 0, 255);
-  const ImU32 emptyColor = IM_COL32(20, 20, 20, 255);
-  const ImU32 lineColor = IM_COL32(50, 50, 50, 10);
+  // High-contrast palette: vivid live cells, dark dead ones, no borders -
+  // cells are exactly sized so they tile edge to edge.
+  const ImU32 liveFill = IM_COL32(120, 215, 60, 255);
+  const ImU32 deadFill = IM_COL32(28, 28, 34, 255);
 
   if (rules[ruleId]->GetTileSet() == GameOfLifeTileSetEnum::Square) {
-    // Draw cells
     for (int l = 0; l < sideSize; l++) {
       for (int c = 0; c < sideSize; c++) {
-        ImU32 color = world.Get({c, l}) ? liveColor : emptyColor;
+        bool alive = world.Get({c, l});
         float rx = std::ceil(cx + (c - sideSideOver2) * squareSide);
         float ry = std::ceil(cy + (l - sideSideOver2) * squareSide);
-        dl->AddRectFilled(ImVec2(rx, ry), ImVec2(rx + squareSide, ry + squareSide), color);
-      }
-    }
-
-    // Draw grid lines (only when grid is small enough, or for borders)
-    for (int i = 0; i <= sideSize; i++) {
-      if (sideSize < 50 || i == 0 || i == sideSize) {
-        float offset = (i - sideSideOver2) * squareSide;
-        dl->AddLine(ImVec2(cx - minDimension / 2.0f, cy - offset), ImVec2(cx + minDimension / 2.0f, cy - offset), lineColor);
-        dl->AddLine(ImVec2(cx - offset, cy - minDimension / 2.0f), ImVec2(cx - offset, cy + minDimension / 2.0f), lineColor);
+        dl->AddRectFilled(ImVec2(rx, ry), ImVec2(rx + squareSide, ry + squareSide), alive ? liveFill : deadFill);
       }
     }
   } else if (rules[ruleId]->GetTileSet() == GameOfLifeTileSetEnum::Hexagon) {
-    // Draw cells with per-row horizontal displacement for hex layout
+    // True pointy-top hex tiling (interlocking, no gaps): vertices at top and
+    // bottom, flat edges left and right. Row parity keeps the same odd-row
+    // shift direction the mouse picking uses. The circumradius solves so the
+    // grid fits the viewport on both axes (squareSide alone would draw 2x).
+    const float sqrt3 = 1.7320508f;
+    const float radius = std::min(minDimension / (sqrt3 * (sideSize + 0.5f)), minDimension / (1.5f * (sideSize - 1) + 2.0f));
+    const float width = sqrt3 * radius;    // flat-to-flat, in-row pitch
+    const float rowPitch = 1.5f * radius;  // distance between row centers
+    const float startX = cx - (width * (sideSize + 0.5f)) * 0.5f + width * 0.5f;
+    const float startY = cy - (rowPitch * (sideSize - 1) + 2.0f * radius) * 0.5f + radius;
     for (int l = 0; l < sideSize; l++) {
-      float displacement = std::abs(l - (int)sideSideOver2) % 2 == 1 ? squareSide / 2.0f : 0.0f;
+      float displacement = std::abs(l - (int)sideSideOver2) % 2 == 1 ? width * 0.5f : 0.0f;
       for (int c = 0; c < sideSize; c++) {
-        ImU32 color = world.Get({c, l}) ? liveColor : emptyColor;
-        float rx = std::ceil(cx + displacement + (c - sideSideOver2) * squareSide);
-        float ry = std::ceil(cy + (l - sideSideOver2) * squareSide);
-        dl->AddRectFilled(ImVec2(rx, ry), ImVec2(rx + squareSide, ry + squareSide), color);
+        bool alive = world.Get({c, l});
+        float centerX = startX + c * width + displacement;
+        float centerY = startY + l * rowPitch;
+        ImVec2 points[6];
+        for (int v = 0; v < 6; v++) {
+          float angle = v * (3.14159265f / 3.0f) + 3.14159265f / 6.0f;  // pointy-top: vertices at 30,90,...,330 degrees
+          points[v] = ImVec2(centerX + radius * std::cos(angle), centerY + radius * std::sin(angle));
+        }
+        dl->AddConvexPolyFilled(points, 6, alive ? liveFill : deadFill);
       }
     }
   }

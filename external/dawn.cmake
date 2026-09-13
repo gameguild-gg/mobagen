@@ -90,10 +90,23 @@ if(NOT EMSCRIPTEN)
       OFF
       CACHE BOOL "" FORCE
   )
-  set(DAWN_USE_WAYLAND
-      OFF
-      CACHE BOOL "" FORCE
+  # SDL 3.2+ prefers the wayland video driver on Wayland sessions, and the apps' surface creation
+  # hands dawn whichever surface type SDL picked. Dawn must therefore accept BOTH X11 and Wayland
+  # surfaces on Linux, or Wayland sessions crash ("Unsupported sType" -> invalid surface).
+  if(APPLE
+     OR WIN32
+     OR ANDROID
   )
+    set(DAWN_USE_WAYLAND
+        OFF
+        CACHE BOOL "" FORCE
+    )
+  else()
+    set(DAWN_USE_WAYLAND
+        ON
+        CACHE BOOL "" FORCE
+    )
+  endif()
   if(APPLE
      OR WIN32
      OR ANDROID

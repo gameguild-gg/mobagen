@@ -137,6 +137,12 @@ endif()
 # GLM must be available before core/ — all DOD headers use it globally
 include(external/glm.cmake)
 
+# doctest must be available before test/ and apps/ formal test runners
+include(external/doctest.cmake)
+
+# Format.cmake (format-cmake targets) for test/ and style CI
+include(external/format-cmake.cmake)
+
 add_subdirectory(core)
 add_subdirectory(modules)
 
@@ -162,17 +168,24 @@ CPMAddPackage(
 )
 write_license_disclaimer("third_party.txt" "${CPM_PACKAGES}")
 
-# Android: create a SHARED library from the same sources as the selected example target, named
-# "main" (→ libmain.so) so SDLActivity can load it via System.loadLibrary("main"). Examples are
-# normally built with `add_executable`, but the NDK toolchain produces those as PIE binaries with no
-# exported text symbols — which breaks SDL3's dlsym("SDL_main"). Building a separate SHARED library
-# target from the same files fixes this without modifying any per-example CMakeLists.
+# Android: create a SHARED library from the same sources as the selected app target, named
+# "main" (→ libmain.so) so SDLActivity can load it via System.loadLibrary("main"). Apps are
+# normally built with `add_executable`, but the NDK toolchain produces those as PIE binaries with
+# no exported text symbols — which breaks SDLActivity's dlsym("SDL_main"). Building a separate
+# SHARED library target from the same files fixes this without modifying any per-app CMakeLists.
 #
-# We also need an `SDL_main` symbol in the .so. Examples define `int main()` with
-# SDL_MAIN_HANDLED=true (so SDL3 doesn't synthesize its SDL_main macro on desktop), but Android
-# always needs the symbol. We inject a tiny shim source that bridges SDL_main -> main().
+# Entry chain (SDL3 callback model): SDLActivity calls nativeRunMain("SDL_main"), which dlsym's
+# SDL_main in libmain.so (SDL3 src/core/android/SDL_android.c). On Android SDL_main.h sets
+# SDL_MAIN_EXPORTED and its impl header DEFINES the exported SDL_main under
+# SDL_MAIN_USE_CALLBACKS (SDL_main_impl.h) — that definition is synthesized in
+# core/sources/app/sdl_app.cpp, the single TU including the SDL3 main header; MOBAGEN_MAIN apps
+# define neither SDL_main nor main(). The injected android_main_wrapper.cpp therefore no longer
+# forwards SDL_main -> main(); it is a pure anchor whose reference to SDL_main drags sdl_app.o
+# out of libmobagen_core_app.a into the shared library (a shared-lib link has no undefined
+# `main` to pull the archive member, so without the anchor libmain.so would silently export no
+# SDL_main and dlsym would fail at app launch).
 #
-# Set -DANDROID_MAIN_TARGET=<example_name> when configuring for Android.
+# Set -DANDROID_MAIN_TARGET=<app_name> when configuring for Android.
 if(ANDROID AND DEFINED ANDROID_MAIN_TARGET)
   if(TARGET ${ANDROID_MAIN_TARGET})
     get_target_property(_orig_src ${ANDROID_MAIN_TARGET} SOURCES)
