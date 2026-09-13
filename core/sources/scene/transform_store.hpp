@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 namespace scene {
@@ -27,12 +28,25 @@ namespace scene {
     static constexpr Id npos = 0xFFFFFFFFu;
 
     Id create(Id parent = npos) {
+      if (parent_.size() >= npos) throw std::length_error("transform store exhausted its IDs");
+      if (parent != npos && parent >= parent_.size()) {
+        throw std::out_of_range("transform parent must already exist");
+      }
       const Id id = static_cast<Id>(parent_.size());
-      pos_.emplace_back(0.0f);
-      rot_.emplace_back(1.0f, 0.0f, 0.0f, 0.0f);  // identity quat
-      scl_.emplace_back(1.0f);
-      parent_.push_back(parent == npos ? -1 : static_cast<int>(parent));
-      world_.emplace_back(1.0f);
+      try {
+        pos_.emplace_back(0.0f);
+        rot_.emplace_back(1.0f, 0.0f, 0.0f, 0.0f);  // identity quat
+        scl_.emplace_back(1.0f);
+        parent_.push_back(parent);
+        world_.emplace_back(1.0f);
+      } catch (...) {
+        pos_.resize(id);
+        rot_.resize(id);
+        scl_.resize(id);
+        parent_.resize(id);
+        world_.resize(id);
+        throw;
+      }
       return id;
     }
 
@@ -49,7 +63,7 @@ namespace scene {
       const glm::vec3* P = pos_.data();
       const glm::quat* R = rot_.data();
       const glm::vec3* S = scl_.data();
-      const int* PA = parent_.data();
+      const Id* PA = parent_.data();
       glm::mat4* W = world_.data();
       for (std::size_t i = 0; i < n; ++i) {
         // Direct TRS compose: M = T * R * S built by hand — no wasted
@@ -60,8 +74,8 @@ namespace scene {
         local[1] = glm::vec4(rot[1] * S[i].y, 0.0f);
         local[2] = glm::vec4(rot[2] * S[i].z, 0.0f);
         local[3] = glm::vec4(P[i], 1.0f);
-        const int p = PA[i];
-        W[i] = (p >= 0) ? W[p] * local : local;
+        const Id p = PA[i];
+        W[i] = p != npos ? W[p] * local : local;
       }
     }
 
@@ -69,7 +83,7 @@ namespace scene {
     std::vector<glm::vec3> pos_;
     std::vector<glm::quat> rot_;
     std::vector<glm::vec3> scl_;
-    std::vector<int> parent_;
+    std::vector<Id> parent_;
     std::vector<glm::mat4> world_;
   };
 
