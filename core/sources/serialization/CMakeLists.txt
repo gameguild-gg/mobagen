@@ -1,0 +1,4 @@
+add_library(mobagen_core_serialization INTERFACE)
+add_library(mobagen::core_serialization ALIAS mobagen_core_serialization)
+target_include_directories(mobagen_core_serialization INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mobagen_core_serialization INTERFACE cxx_std_20)

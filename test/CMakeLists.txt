@@ -10,6 +10,7 @@ set(
   FOUNDATION_TEST_SOURCES
   Test.cpp
   benchmark_runner_tests.cpp
+  binary_reader_tests.cpp
   ecs_tests.cpp
   jobs_tests.cpp
   messaging_tests.cpp
@@ -31,6 +32,7 @@ target_link_libraries(
           mobagen::core_jobs
           mobagen::core_reactive
           mobagen::core_messaging
+          mobagen::core_net
           mobagen::core_scene
           mobagen::core_camera
           mobagen::core_input

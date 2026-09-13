@@ -9,14 +9,17 @@
 // the node executes, the serialized result returns. The World stays the source of
 // truth; remote jobs operate on serialized component slices.
 
+#include "binary_reader.hpp"
+
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <deque>
 #include <functional>
 #include <mutex>
+#include <span>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -93,14 +96,15 @@ namespace net {
 
   // Minimal POD (de)serialization for building request/response blobs.
   template <class T> void put(Blob& b, const T& v) {
+    static_assert(std::is_trivially_copyable_v<T>, "transport blobs support POD values only");
     const auto* p = reinterpret_cast<const std::byte*>(&v);
     b.insert(b.end(), p, p + sizeof(T));
   }
-  template <class T> T get(const Blob& b, std::size_t& off) {
-    T v;
-    std::memcpy(&v, b.data() + off, sizeof(T));
-    off += sizeof(T);
-    return v;
+  template <class T> [[nodiscard]] bool get(const Blob& b, std::size_t& off, T& out) {
+    serialization::BinaryReader reader(std::span<const std::byte>{b.data(), b.size()}, off);
+    if (!reader.read(out)) return false;
+    off = reader.offset();
+    return true;
   }
 
 }  // namespace net
