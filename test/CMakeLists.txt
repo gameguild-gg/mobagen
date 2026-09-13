@@ -15,6 +15,7 @@ set(FOUNDATION_TEST_SOURCES
     messaging_tests.cpp
     module_descriptor_tests.cpp
     module_registry_tests.cpp
+    module_resolver_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
     scene_tests.cpp
