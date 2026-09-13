@@ -12,16 +12,26 @@
 // the saved list and remapped to fresh entity handles on load (entity ids are
 // not stable across a load).
 
+#include "binary_reader.hpp"
 #include "render_bridge.hpp"  // render::VolumeRenderable (pulls ecs + scene)
 #include "transform.hpp"
 #include "world.hpp"
 
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
 namespace render {
+
+  inline constexpr std::uint32_t kSceneMagic = 0x4e435344u;  // 'D','S','C','N' (LE)
+  inline constexpr std::uint32_t kSceneVersion = 2u;
+  inline constexpr std::uint32_t kMaxSceneNodes = 100'000u;
+  inline constexpr std::uint32_t kMaxVolumeDimension = 16'384u;
 
   namespace detail {
     template <class T> void put(std::vector<std::uint8_t>& b, const T& v) {
@@ -29,16 +39,40 @@ namespace render {
       const auto* p = reinterpret_cast<const std::uint8_t*>(&v);
       b.insert(b.end(), p, p + sizeof(T));
     }
-    template <class T> bool take(const std::uint8_t*& p, const std::uint8_t* end, T& out) {
-      if (p + sizeof(T) > end) return false;
-      std::memcpy(&out, p, sizeof(T));
-      p += sizeof(T);
-      return true;
+    inline bool finite(const glm::vec3& value) {
+      return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+    }
+
+    inline bool finite(const glm::quat& value) {
+      return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z)
+             && std::isfinite(value.w);
+    }
+
+    inline bool valid(const scene::Transform& transform) {
+      return finite(transform.position) && finite(transform.rotation) && finite(transform.scale);
+    }
+
+    inline bool valid(const VolumeRenderable& volume) {
+      const VolumeSource& source = volume.source;
+      const VolumeDisplay& display = volume.display;
+      const bool valid_dimensions = source.width > 0 && source.height > 0 && source.depth > 0
+                                    && source.width <= kMaxVolumeDimension
+                                    && source.height <= kMaxVolumeDimension
+                                    && source.depth <= kMaxVolumeDimension;
+      const bool valid_spacing = finite(source.spacing_mm) && source.spacing_mm.x > 0.0f
+                                 && source.spacing_mm.y > 0.0f && source.spacing_mm.z > 0.0f;
+      const bool valid_display = std::isfinite(display.window_center)
+                                 && std::isfinite(display.window_width)
+                                 && display.window_width > 0.0f
+                                 && std::isfinite(display.iso_threshold)
+                                 && display.transfer_preset >= 1 && display.transfer_preset <= 4;
+      return valid_dimensions && valid_spacing && valid_display;
     }
   }  // namespace detail
 
-  inline constexpr std::uint32_t kSceneMagic = 0x4e435344u;  // 'D','S','C','N' (LE)
-  inline constexpr std::uint32_t kSceneVersion = 2u;
+  inline constexpr std::size_t kMinSerializedNodeBytes = sizeof(float) * 10
+                                                        + sizeof(std::int32_t)
+                                                        + sizeof(std::uint8_t);
 
   // Serialize every entity that has a scene::Transform (the scene nodes), plus its
   // render::VolumeRenderable when present.
@@ -47,6 +81,9 @@ namespace render {
 
     std::vector<ecs::Entity> order;
     world.view<scene::Transform>([&](ecs::Entity e, scene::Transform&) { order.push_back(e); });
+    if (order.size() > kMaxSceneNodes) {
+      throw std::length_error("scene exceeds the serialization node limit");
+    }
 
     auto save_index = [&](ecs::Entity e) -> std::int32_t {
       for (std::size_t i = 0; i < order.size(); ++i)
@@ -99,14 +136,15 @@ namespace render {
   // Recreate the scene into `world`. Returns the created entities by save index, or
   // an empty vector on a parse error.
   inline std::vector<ecs::Entity> load_scene(ecs::World& world, const std::uint8_t* data, std::size_t n) {
-    using detail::take;
-    const std::uint8_t* p = data;
-    const std::uint8_t* const end = data + n;
+    if (data == nullptr) return {};
+    serialization::BinaryReader reader(
+        std::span<const std::byte>{reinterpret_cast<const std::byte*>(data), n});
 
     std::uint32_t magic = 0, version = 0, count = 0;
-    if (!take(p, end, magic) || magic != kSceneMagic) return {};
-    if (!take(p, end, version) || version != kSceneVersion) return {};
-    if (!take(p, end, count)) return {};
+    if (!reader.read(magic) || magic != kSceneMagic) return {};
+    if (!reader.read(version) || version != kSceneVersion) return {};
+    if (!reader.read(count) || count > kMaxSceneNodes) return {};
+    if (count > reader.remaining() / kMinSerializedNodeBytes) return {};
 
     struct Node {
       scene::Transform t;
@@ -118,33 +156,46 @@ namespace render {
     for (std::uint32_t i = 0; i < count; ++i) {
       Node& nd = nodes[i];
       scene::Transform& t = nd.t;
-      if (!take(p, end, t.position.x) || !take(p, end, t.position.y) || !take(p, end, t.position.z)) return {};
-      if (!take(p, end, t.rotation.x) || !take(p, end, t.rotation.y) || !take(p, end, t.rotation.z) || !take(p, end, t.rotation.w)) return {};
-      if (!take(p, end, t.scale.x) || !take(p, end, t.scale.y) || !take(p, end, t.scale.z)) return {};
-      if (!take(p, end, nd.parentIdx)) return {};
+      if (!reader.read(t.position.x) || !reader.read(t.position.y)
+          || !reader.read(t.position.z) || !reader.read(t.rotation.x)
+          || !reader.read(t.rotation.y) || !reader.read(t.rotation.z)
+          || !reader.read(t.rotation.w) || !reader.read(t.scale.x)
+          || !reader.read(t.scale.y) || !reader.read(t.scale.z)
+          || !reader.read(nd.parentIdx))
+        return {};
+      if (!detail::valid(t) || nd.parentIdx < -1
+          || nd.parentIdx >= static_cast<std::int32_t>(count))
+        return {};
       std::uint8_t hasVol = 0;
-      if (!take(p, end, hasVol)) return {};
-      nd.hasVol = (hasVol != 0);
+      if (!reader.read(hasVol) || hasVol > 1) return {};
+      nd.hasVol = hasVol == 1;
       if (nd.hasVol) {
         VolumeRenderable& v = nd.vol;
         std::uint8_t fmt = 0, mode = 0;
-        if (!take(p, end, v.source.handle.index) || !take(p, end, v.source.handle.generation)
-            || !take(p, end, v.source.width) || !take(p, end, v.source.height) || !take(p, end, v.source.depth)
-            || !take(p, end, v.source.spacing_mm.x) || !take(p, end, v.source.spacing_mm.y) || !take(p, end, v.source.spacing_mm.z)
-            || !take(p, end, fmt) || !take(p, end, v.display.window_center) || !take(p, end, v.display.window_width)
-            || !take(p, end, v.display.transfer_preset) || !take(p, end, mode) || !take(p, end, v.display.iso_threshold))
+        if (!reader.read(v.source.handle.index) || !reader.read(v.source.handle.generation)
+            || !reader.read(v.source.width) || !reader.read(v.source.height)
+            || !reader.read(v.source.depth) || !reader.read(v.source.spacing_mm.x)
+            || !reader.read(v.source.spacing_mm.y) || !reader.read(v.source.spacing_mm.z)
+            || !reader.read(fmt) || !reader.read(v.display.window_center)
+            || !reader.read(v.display.window_width) || !reader.read(v.display.transfer_preset)
+            || !reader.read(mode) || !reader.read(v.display.iso_threshold))
+          return {};
+        if (fmt > static_cast<std::uint8_t>(VolumeScalarFormat::Float32)
+            || mode > static_cast<std::uint8_t>(VolumeRenderMode::Isosurface))
           return {};
         v.source.format = static_cast<VolumeScalarFormat>(fmt);
         v.display.mode = static_cast<VolumeRenderMode>(mode);
+        if (!detail::valid(v)) return {};
       }
     }
+    if (reader.remaining() != 0) return {};
 
     // Create all entities first so parent indices can be remapped to handles.
     std::vector<ecs::Entity> created(count);
     for (std::uint32_t i = 0; i < count; ++i) created[i] = world.create();
     for (std::uint32_t i = 0; i < count; ++i) {
       Node& nd = nodes[i];
-      nd.t.parent = (nd.parentIdx >= 0 && nd.parentIdx < static_cast<std::int32_t>(count)) ? created[nd.parentIdx] : ecs::kInvalidEntity;
+      nd.t.parent = nd.parentIdx >= 0 ? created[nd.parentIdx] : ecs::kInvalidEntity;
       nd.t.dirty = true;
       world.add<scene::Transform>(created[i], nd.t);
       if (nd.hasVol) world.add<VolumeRenderable>(created[i], nd.vol);
