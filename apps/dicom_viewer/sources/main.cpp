@@ -542,7 +542,7 @@ bool DicomApp::initVolumeRenderer(app::App& app) {
   const float quad[] = {
       -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,  1.0f, 1.0f, 1.0f,
 
-      -1.0f, -1.0f, 0.0f, 0.0f, 1.0f,  1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,
+      -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f,  1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,
   };
   fullscreenVbo = createBuffer(device, "fullscreen volume quad", sizeof(quad), WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst);
   cameraBuffer = createBuffer(device, "camera inv view-projection", sizeof(glm::mat4), WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
@@ -556,11 +556,8 @@ bool DicomApp::initVolumeRenderer(app::App& app) {
   wgpuQueueWriteBuffer(queue, fullscreenVbo, 0, quad, sizeof(quad));
 
   const auto& commands = renderBridge.volume_commands();
-  const render::VolumeSource source =
-      commands.empty()
-          ? render::VolumeSource{resource::Handle{1u, 0u}, 96u, 96u, 96u,
-                                 glm::vec3(1.0f, 1.0f, 1.5f)}
-          : commands[0].source;
+  const render::VolumeSource source
+      = commands.empty() ? render::VolumeSource{resource::Handle{1u, 0u}, 96u, 96u, 96u, glm::vec3(1.0f, 1.0f, 1.5f)} : commands[0].source;
   const bool packedU16
       = source.format == render::VolumeScalarFormat::UInt16 && cpuVolume.storage_format() == ::volume::VolumeStorageFormat::U16PackedRG8;
   const std::uint32_t bytesPerVoxel = packedU16 ? 2u : 1u;

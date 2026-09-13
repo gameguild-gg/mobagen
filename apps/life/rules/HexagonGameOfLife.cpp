@@ -27,67 +27,67 @@
 
 // begin solution
 namespace hexagon {
-class Underpopulation : public Condition {
-public:
-  bool Test(const AgentContext& context) override {
-    // todo: implement the underpopulation condition
-    // hint: on the hex grid (B2/S34) a live cell is underpopulated below 3 neighbors
-    throw std::logic_error("Underpopulation condition not implemented yet");
-  }
-};
+  class Underpopulation : public Condition {
+  public:
+    bool Test(const AgentContext& context) override {
+      // todo: implement the underpopulation condition
+      // hint: on the hex grid (B2/S34) a live cell is underpopulated below 3 neighbors
+      throw std::logic_error("Underpopulation condition not implemented yet");
+    }
+  };
 
-class Overpopulation : public Condition {
-public:
-  bool Test(const AgentContext& context) override {
-    // todo: implement the overpopulation condition
-    // hint: on the hex grid (B2/S34) a live cell is overpopulated above 4 neighbors
-    throw std::logic_error("Overpopulation condition not implemented yet");
-  }
-};
+  class Overpopulation : public Condition {
+  public:
+    bool Test(const AgentContext& context) override {
+      // todo: implement the overpopulation condition
+      // hint: on the hex grid (B2/S34) a live cell is overpopulated above 4 neighbors
+      throw std::logic_error("Overpopulation condition not implemented yet");
+    }
+  };
 
-class Reproduction : public Condition {
-public:
-  bool Test(const AgentContext& context) override {
-    // todo: implement the reproduction condition
-    // hint: on the hex grid (B2/S34) a dead cell is born with exactly 2 neighbors
-    throw std::logic_error("Reproduction condition not implemented yet");
-  }
-};
+  class Reproduction : public Condition {
+  public:
+    bool Test(const AgentContext& context) override {
+      // todo: implement the reproduction condition
+      // hint: on the hex grid (B2/S34) a dead cell is born with exactly 2 neighbors
+      throw std::logic_error("Reproduction condition not implemented yet");
+    }
+  };
 
-class DieAction : public Action {
-public:
-  void Execute(const AgentContext& context) override {
-    // todo: implement the die action
-    // hint:
-    //   use the context.world.SetNext() to set the next state of the cell to dead
-    //   use the context.position to get the current cell's position
-    throw std::logic_error("Die action not implemented yet");
-  }
-};
+  class DieAction : public Action {
+  public:
+    void Execute(const AgentContext& context) override {
+      // todo: implement the die action
+      // hint:
+      //   use the context.world.SetNext() to set the next state of the cell to dead
+      //   use the context.position to get the current cell's position
+      throw std::logic_error("Die action not implemented yet");
+    }
+  };
 
-class BornAction : public Action {
-public:
-  void Execute(const AgentContext& context) override {
-    // see hints in DieAction
-    throw std::logic_error("Born action not implemented yet");
-  }
-};
+  class BornAction : public Action {
+  public:
+    void Execute(const AgentContext& context) override {
+      // see hints in DieAction
+      throw std::logic_error("Born action not implemented yet");
+    }
+  };
 
-class StayAliveAction : public Action {
-public:
-  void Execute(const AgentContext& context) override {
-    // see hints in DieAction
-    throw std::logic_error("StayAlive action not implemented yet");
-  }
-};
+  class StayAliveAction : public Action {
+  public:
+    void Execute(const AgentContext& context) override {
+      // see hints in DieAction
+      throw std::logic_error("StayAlive action not implemented yet");
+    }
+  };
 
-class StayDeadAction : public Action {
-public:
-  void Execute(const AgentContext& context) override {
-    // see hints in DieAction
-    throw std::logic_error("StayDead action not implemented yet");
-  }
-};
+  class StayDeadAction : public Action {
+  public:
+    void Execute(const AgentContext& context) override {
+      // see hints in DieAction
+      throw std::logic_error("StayDead action not implemented yet");
+    }
+  };
 }  // namespace hexagon
 
 // end solution

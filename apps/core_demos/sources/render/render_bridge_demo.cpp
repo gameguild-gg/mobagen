@@ -44,9 +44,8 @@ int main() {
 
   const auto& cmd = commands[0];
   std::printf("entity=%llu volume=%u:%u dims=%ux%ux%u spacing=(%.2f, %.2f, %.2f) window=(%.1f, %.1f)\n", static_cast<unsigned long long>(cmd.entity),
-              cmd.source.handle.index, cmd.source.handle.generation, cmd.source.width, cmd.source.height,
-              cmd.source.depth, cmd.source.spacing_mm.x, cmd.source.spacing_mm.y, cmd.source.spacing_mm.z,
-              cmd.display.window_center, cmd.display.window_width);
+              cmd.source.handle.index, cmd.source.handle.generation, cmd.source.width, cmd.source.height, cmd.source.depth, cmd.source.spacing_mm.x,
+              cmd.source.spacing_mm.y, cmd.source.spacing_mm.z, cmd.display.window_center, cmd.display.window_width);
 
   return commands.size() == 1 ? 0 : 2;
 }
