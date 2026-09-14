@@ -65,6 +65,12 @@ typedef struct MobagenByteView {
   size_t size;
 } MobagenByteView;
 
+/* Every published capability function table starts with this header. */
+typedef struct MobagenCapabilityHeaderV1 {
+  uint32_t struct_size;
+  uint32_t abi_version;
+} MobagenCapabilityHeaderV1;
+
 typedef void*(MOBAGEN_PLUGIN_CALL* MobagenAllocateFn)(void* host_context, size_t size, size_t alignment);
 typedef void(MOBAGEN_PLUGIN_CALL* MobagenDeallocateFn)(void* host_context, void* memory, size_t size, size_t alignment);
 typedef void(MOBAGEN_PLUGIN_CALL* MobagenLogFn)(void* host_context, MobagenLogLevel level, MobagenStringView message);
