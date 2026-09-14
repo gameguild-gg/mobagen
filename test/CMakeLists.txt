@@ -8,6 +8,7 @@ include(../cmake/tools.cmake)
 
 set(FOUNDATION_TEST_SOURCES
     Test.cpp
+    asset_id_tests.cpp
     benchmark_runner_tests.cpp
     binary_reader_tests.cpp
     ecs_tests.cpp
@@ -52,6 +53,7 @@ target_link_libraries(
           mobagen::core_input
           mobagen::core_render
           mobagen::core_resource
+          mobagen::core_assets
           mobagen::volume
 )
 if(TARGET mobagen::module_manifest)
@@ -66,7 +68,7 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   target_link_libraries(FoundationTests PRIVATE mobagen::module_lockfile)
 endif()
 
-set(FOUNDATION_COMPILED_TARGETS mobagen_core_jobs mobagen_core_modules)
+set(FOUNDATION_COMPILED_TARGETS mobagen_core_assets mobagen_core_jobs mobagen_core_modules)
 if(TARGET mobagen_headless_composition)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_headless_composition)
 endif()
