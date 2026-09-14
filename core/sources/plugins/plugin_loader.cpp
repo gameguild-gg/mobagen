@@ -205,4 +205,46 @@ namespace mobagen::plugins {
     return result;
   }
 
+  std::filesystem::path native_plugin_binary_filename() {
+#if defined(_WIN32)
+    return "plugin.dll";
+#elif defined(__APPLE__)
+    return "plugin.dylib";
+#elif defined(__EMSCRIPTEN__)
+    return "plugin.wasm";
+#else
+    return "plugin.so";
+#endif
+  }
+
+  NativePluginLoadResult load_native_plugin_package(const std::filesystem::path& package, const MobagenHostApiV1& host) {
+    NativePluginLoadResult result;
+    if (package.empty() || package.extension() != ".plugin") {
+      add_issue(result, NativePluginLoadIssueCode::invalid_package, package, "plugin package must be a directory whose name ends in .plugin");
+      return result;
+    }
+
+    std::error_code error;
+    const auto absolute = std::filesystem::absolute(package, error);
+    if (error) {
+      add_issue(result, NativePluginLoadIssueCode::invalid_package, package, "could not resolve plugin package path", error);
+      return result;
+    }
+    const auto package_status = std::filesystem::symlink_status(absolute, error);
+    if (error || !std::filesystem::is_directory(package_status) || std::filesystem::is_symlink(package_status)) {
+      add_issue(result, NativePluginLoadIssueCode::invalid_package, absolute, "plugin package must be a real directory, not a file or symbolic link",
+                error);
+      return result;
+    }
+
+    const auto binary = absolute / native_plugin_binary_filename();
+    const auto binary_status = std::filesystem::symlink_status(binary, error);
+    if (error || !std::filesystem::is_regular_file(binary_status) || std::filesystem::is_symlink(binary_status)) {
+      add_issue(result, NativePluginLoadIssueCode::missing_package_binary, binary, "plugin package does not contain its canonical native binary",
+                error);
+      return result;
+    }
+    return load_native_plugin_binary(binary, host);
+  }
+
 }  // namespace mobagen::plugins

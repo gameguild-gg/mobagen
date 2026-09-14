@@ -19,6 +19,8 @@ namespace mobagen::plugins {
     missing_entry_point,
     entry_failed,
     invalid_descriptor,
+    invalid_package,
+    missing_package_binary,
   };
 
   struct NativePluginLoadIssue {
@@ -60,5 +62,7 @@ namespace mobagen::plugins {
   };
 
   [[nodiscard]] NativePluginLoadResult load_native_plugin_binary(const std::filesystem::path& path, const MobagenHostApiV1& host);
+  [[nodiscard]] std::filesystem::path native_plugin_binary_filename();
+  [[nodiscard]] NativePluginLoadResult load_native_plugin_package(const std::filesystem::path& package, const MobagenHostApiV1& host);
 
 }  // namespace mobagen::plugins
