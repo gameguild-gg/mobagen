@@ -1,5 +1,5 @@
 add_library(
-  mobagen_core_modules STATIC capability_registry.cpp descriptor.cpp execution_graph.cpp
+  mobagen_core_modules STATIC capability_registry.cpp catalog_index.cpp descriptor.cpp execution_graph.cpp
                               lifecycle.cpp resolver.cpp
 )
 add_library(mobagen::core_modules ALIAS mobagen_core_modules)
