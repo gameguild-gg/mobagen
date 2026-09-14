@@ -130,6 +130,12 @@ namespace mobagen::plugins {
 
   bool NativePlugin::loaded() const noexcept { return library_handle_ != nullptr && contract_.has_value(); }
 
+  void NativePlugin::abandon() noexcept {
+    library_handle_ = nullptr;
+    contract_.reset();
+    path_.clear();
+  }
+
   void NativePlugin::reset() noexcept {
     if (contract_.has_value() && contract_->lifecycle.destroy != nullptr) {
       try {

@@ -54,6 +54,15 @@ namespace mobagen::plugins {
     return true;
   }
 
+  bool PluginHost::staged_capabilities_match(std::span<const std::string> expected) const noexcept {
+    if (!on_owner_thread() || !active_provider_.has_value() || staged_.size() != expected.size()) {
+      return false;
+    }
+    return std::ranges::all_of(expected, [this](const std::string& capability) {
+      return std::ranges::any_of(staged_, [&capability](const CapabilityBinding& binding) { return binding.capability_id == capability; });
+    });
+  }
+
   bool PluginHost::commit_registration() {
     if (!on_owner_thread() || !active_provider_.has_value()) {
       return false;

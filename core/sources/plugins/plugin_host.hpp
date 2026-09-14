@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -32,7 +33,9 @@ namespace mobagen::plugins {
     PluginHost& operator=(PluginHost&&) = delete;
 
     [[nodiscard]] const MobagenHostApiV1& api() const noexcept { return api_; }
+    [[nodiscard]] bool owns_current_thread() const noexcept { return on_owner_thread(); }
     [[nodiscard]] bool begin_registration(std::string_view provider_id);
+    [[nodiscard]] bool staged_capabilities_match(std::span<const std::string> expected) const noexcept;
     [[nodiscard]] bool commit_registration();
     void rollback_registration() noexcept;
     [[nodiscard]] bool remove_provider(std::string_view provider_id);

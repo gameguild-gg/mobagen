@@ -8,6 +8,18 @@ set_target_properties(MobagenReferencePlugin PROPERTIES PREFIX "")
 add_library(MobagenMissingEntryPlugin MODULE plugins/missing_entry_plugin.c)
 set_target_properties(MobagenMissingEntryPlugin PROPERTIES PREFIX "")
 
+foreach(FAILURE_MODE IN ITEMS 1 2 3)
+  add_library(
+    MobagenLifecycleFailurePlugin${FAILURE_MODE} MODULE plugins/lifecycle_failure_plugin.c
+  )
+  target_link_libraries(MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE mobagen::core_plugins)
+  target_compile_definitions(
+    MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE MOBAGEN_PLUGIN_BUILD
+                                                         MOBAGEN_TEST_FAILURE_MODE=${FAILURE_MODE}
+  )
+  set_target_properties(MobagenLifecycleFailurePlugin${FAILURE_MODE} PROPERTIES PREFIX "")
+endforeach()
+
 # --- Import tools ----
 
 include(../cmake/tools.cmake)
@@ -34,6 +46,7 @@ set(FOUNDATION_TEST_SOURCES
     plugin_abi_c_test.c
     plugin_abi_tests.cpp
     plugin_contract_tests.cpp
+    plugin_activation_tests.cpp
     plugin_host_tests.cpp
     plugin_loader_tests.cpp
     plugin_package_tests.cpp
@@ -55,11 +68,17 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
 endif()
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
-add_dependencies(FoundationTests MobagenMissingEntryPlugin MobagenReferencePlugin)
+add_dependencies(
+  FoundationTests MobagenLifecycleFailurePlugin1 MobagenLifecycleFailurePlugin2
+  MobagenLifecycleFailurePlugin3 MobagenMissingEntryPlugin MobagenReferencePlugin
+)
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
 target_compile_definitions(
   FoundationTests
-  PRIVATE MOBAGEN_MISSING_ENTRY_PLUGIN_PATH="$<TARGET_FILE:MobagenMissingEntryPlugin>"
+  PRIVATE MOBAGEN_CONFIGURE_FAILURE_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin1>"
+          MOBAGEN_START_FAILURE_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin2>"
+          MOBAGEN_CAPABILITY_MISMATCH_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin3>"
+          MOBAGEN_MISSING_ENTRY_PLUGIN_PATH="$<TARGET_FILE:MobagenMissingEntryPlugin>"
           MOBAGEN_REFERENCE_PLUGIN_PATH="$<TARGET_FILE:MobagenReferencePlugin>"
 )
 target_include_directories(

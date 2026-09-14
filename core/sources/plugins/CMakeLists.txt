@@ -1,5 +1,7 @@
 add_library(
   mobagen_core_plugins STATIC
+  plugin_activation.cpp
+  plugin_activation.hpp
   plugin_contract.cpp
   plugin_contract.hpp
   plugin_loader.cpp
@@ -7,6 +9,7 @@ add_library(
   plugin_host.cpp
   plugin_host.hpp
   plugin_abi.h
+  runtime_tick_v1.h
 )
 add_library(mobagen::core_plugins ALIAS mobagen_core_plugins)
 target_compile_features(mobagen_core_plugins PUBLIC c_std_11 cxx_std_20)
