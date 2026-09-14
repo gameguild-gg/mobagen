@@ -23,6 +23,7 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   add_library(
     mobagen_module_distribution STATIC artifact_fetcher.cpp artifact_fetcher.hpp
                                        artifact_installer.cpp artifact_installer.hpp
+                                       locked_activation_plan.cpp locked_activation_plan.hpp
                                        lockfile_verifier.cpp lockfile_verifier.hpp
   )
   add_library(mobagen::module_distribution ALIAS mobagen_module_distribution)
