@@ -101,3 +101,5 @@ data/state_store.db
 
 .cache/
 graphify-out/
+
+imgui.ini
