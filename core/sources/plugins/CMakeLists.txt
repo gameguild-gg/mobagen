@@ -19,6 +19,8 @@ add_library(
   runtime_tick_v1.h
   wasm_memory.cpp
   wasm_memory.hpp
+  wasm_plugin_loader.cpp
+  wasm_plugin_loader.hpp
   wasm_command_channel.cpp
   wasm_command_channel.hpp
   wasm_plugin_contract.cpp
