@@ -4,9 +4,13 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "assets/asset_id.hpp"
 #include "native/project_runtime.hpp"
 #include "plugins/runtime_tick_v1.h"
 
@@ -22,6 +26,9 @@ namespace {
       REQUIRE(std::filesystem::create_directories(path_ / "plugins" / "reference.plugin"));
       REQUIRE(std::filesystem::copy_file(MOBAGEN_REFERENCE_PLUGIN_PATH,
                                          path_ / "plugins" / "reference.plugin" / mobagen::plugins::native_plugin_binary_filename()));
+      REQUIRE(std::filesystem::create_directories(path_ / "plugins" / "unselected.plugin"));
+      REQUIRE(std::filesystem::copy_file(MOBAGEN_CONFIGURE_FAILURE_PLUGIN_PATH,
+                                         path_ / "plugins" / "unselected.plugin" / mobagen::plugins::native_plugin_binary_filename()));
     }
 
     ~TemporaryNativeProject() {
@@ -61,6 +68,26 @@ namespace {
     };
   }
 
+  std::string reference_plugin_hash() {
+    std::ifstream stream(MOBAGEN_REFERENCE_PLUGIN_PATH, std::ios::binary);
+    REQUIRE(stream.is_open());
+    const std::vector<char> contents{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+    const auto bytes = std::span<const std::byte>{reinterpret_cast<const std::byte*>(contents.data()), contents.size()};
+    const auto hash = mobagen::assets::sha256(bytes);
+    REQUIRE(hash.has_value());
+    return mobagen::assets::to_string(*hash);
+  }
+
+  std::string native_target_name() {
+#ifdef _WIN32
+    return "windows";
+#elif defined(__APPLE__)
+    return "macos";
+#else
+    return "linux";
+#endif
+  }
+
 }  // namespace
 
 TEST_CASE("Native project: mobagen yaml default selects and activates a real dot-plugin end to end") {
@@ -72,6 +99,7 @@ modules:
     use: default
 plugins:
   - ./plugins/reference.plugin
+  - ./plugins/unselected.plugin
 profiles:
   release:
     linkage: dynamic
@@ -87,6 +115,29 @@ profiles:
   REQUIRE(api.has_value());
   CHECK((*api)->tick((*api)->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK((*api)->tick_count((*api)->plugin_state) == 1);
+  const auto lockfile = loaded.runtime->lockfile({0, 0, 1});
+  REQUIRE(lockfile.ok());
+  CHECK_FALSE(lockfile.contents->contains("mobagen.lifecycle-failure"));
+  CHECK(*lockfile.contents
+        == "schema: 1\n"
+           "sdk: 0.0.1\n"
+           "target: "
+               + native_target_name()
+               + "\n"
+                 "profile: release\n"
+                 "resolved:\n"
+                 "  runtime.tick.v1:\n"
+                 "    provider: mobagen.reference\n"
+                 "    version: 1.0.0\n"
+                 "    linkage: dynamic\n"
+                 "dependencies: []\n"
+                 "plugins:\n"
+                 "  mobagen.reference:\n"
+                 "    version: 1.0.0\n"
+                 "    abi: 1\n"
+                 "    package: \"plugins/reference.plugin\"\n"
+                 "    hash: "
+               + reference_plugin_hash() + "\n");
   CHECK(loaded.runtime->stop().ok());
   CHECK(loaded.runtime->host().size() == 0);
 }

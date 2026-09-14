@@ -42,19 +42,28 @@ namespace mobagen::modules {
       if (value.empty() || value.contains('\\')) return false;
 
       const std::filesystem::path path{value};
-      if (path.is_absolute() || path.has_root_path() || path.extension() != ".plugin" || path.generic_string() != value) {
+      if (path.is_absolute() || path.has_root_path() || path.extension() != ".plugin" || path.lexically_normal().generic_string() != value) {
         return false;
       }
       for (const auto& component : path) {
         const auto text = component.generic_string();
-        if (text.empty() || text == "." || text == ".." || !std::ranges::all_of(text, [](char value_char) {
-              return (value_char >= 'a' && value_char <= 'z') || (value_char >= 'A' && value_char <= 'Z') || (value_char >= '0' && value_char <= '9')
-                     || value_char == '.' || value_char == '-' || value_char == '_';
-            })) {
+        if (text.empty() || text == "." || text == ".."
+            || !std::ranges::all_of(text, [](unsigned char value_char) { return value_char >= 0x20U && value_char != 0x7fU; })) {
           return false;
         }
       }
       return true;
+    }
+
+    void write_yaml_string(std::ostream& output, std::string_view value) {
+      output << '"';
+      for (const char value_char : value) {
+        if (value_char == '"' || value_char == '\\') {
+          output << '\\';
+        }
+        output << value_char;
+      }
+      output << '"';
     }
 
     std::string_view target_name(TargetPlatform target) {
@@ -218,7 +227,9 @@ namespace mobagen::modules {
         write_version(output, plugin.version);
         output << '\n';
         output << "    abi: " << plugin.abi_version << '\n';
-        output << "    package: " << plugin.package << '\n';
+        output << "    package: ";
+        write_yaml_string(output, plugin.package);
+        output << '\n';
         output << "    hash: " << plugin.hash << '\n';
       }
     }

@@ -132,7 +132,7 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
           {.provider = "customer.color",
            .version = {1, 5, 0},
            .abi_version = 1,
-           .package = "plugins/customer-color.plugin",
+           .package = "plugins/customer color.plugin",
            .hash = std::string(first_hash)},
       },
   };
@@ -163,12 +163,12 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
         "  customer.color:\n"
         "    version: 1.5.0\n"
         "    abi: 1\n"
-        "    package: plugins/customer-color.plugin\n"
+        "    package: \"plugins/customer color.plugin\"\n"
         "    hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
         "  customer.transfer:\n"
         "    version: 2.0.1\n"
         "    abi: 1\n"
-        "    package: plugins/customer-transfer.plugin\n"
+        "    package: \"plugins/customer-transfer.plugin\"\n"
         "    hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n";
 
   REQUIRE(serialized.ok());
@@ -195,7 +195,7 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
           {.provider = "customer.color",
            .version = {1, 1, 0},
            .abi_version = 1,
-           .package = "plugins/customer color.plugin",
+           .package = "plugins/./customer.plugin",
            .hash = "sha256:short"},
       },
   };
