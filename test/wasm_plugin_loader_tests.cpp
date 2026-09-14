@@ -26,6 +26,11 @@ namespace {
 
   using namespace mobagen::test;
 
+  std::uint32_t capture_import_log(void* state, std::uint32_t, std::string_view message) {
+    *static_cast<std::string*>(state) = message;
+    return MOBAGEN_WASM_STATUS_OK;
+  }
+
   bool has_issue(const mobagen::plugins::PortableWasmPluginLoadResult& result, mobagen::plugins::PortableWasmPluginLoadIssueCode code) {
     return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
   }
@@ -52,8 +57,29 @@ TEST_CASE("Portable WASM plugin loader: a bounded module is instantiated and que
   CHECK(result.plugin->provider().linkages == std::vector{mobagen::modules::LinkageMode::Wasm});
   CHECK(backend.calls == 1);
   CHECK(backend.observed == std::vector<std::byte>{valid_wasm_header.begin(), valid_wasm_header.end()});
-  CHECK(result.plugin->take_instance() != nullptr);
+  auto instance = result.plugin->take_instance();
+  REQUIRE(instance != nullptr);
+  REQUIRE(backend.host_imports.size() == 1);
+  CHECK(instance->host_imports() == backend.host_imports.front());
   CHECK_FALSE(result.plugin->loaded());
+}
+
+TEST_CASE("Portable WASM plugin loader: the instance owns its injected host imports") {
+  TemporaryWasmDirectory directory;
+  const auto binary = directory.path() / "imports.wasm";
+  write_binary(binary, valid_wasm_header);
+  FakeWasmBackend backend;
+  std::string message;
+  const mobagen::plugins::WasmHostServices services{.state = &message, .log = capture_import_log};
+
+  auto result = mobagen::plugins::load_portable_wasm_plugin_binary(binary, backend, services);
+
+  REQUIRE(result.plugin.has_value());
+  auto instance = result.plugin->take_instance();
+  REQUIRE(instance != nullptr);
+  REQUIRE(instance->host_imports() != nullptr);
+  CHECK(instance->host_imports()->log(instance->memory(), 2, 96, 20) == MOBAGEN_WASM_STATUS_OK);
+  CHECK(message == "mobagen.wasm-package");
 }
 
 TEST_CASE("Portable WASM plugin loader: malformed and oversized files fail before the backend") {
@@ -102,6 +128,11 @@ TEST_CASE("Portable WASM plugin loader: backend and descriptor failures remain s
   throwing.throws = true;
   const auto backend_trap = mobagen::plugins::load_portable_wasm_plugin_binary(binary, throwing);
   CHECK(has_issue(backend_trap, mobagen::plugins::PortableWasmPluginLoadIssueCode::BackendFailure));
+
+  FakeWasmBackend detached;
+  detached.drops_host_imports = true;
+  const auto detached_imports = mobagen::plugins::load_portable_wasm_plugin_binary(binary, detached);
+  CHECK(has_issue(detached_imports, mobagen::plugins::PortableWasmPluginLoadIssueCode::BackendFailure));
 
   FakeWasmBackend malformed;
   malformed.malformed_descriptor = true;

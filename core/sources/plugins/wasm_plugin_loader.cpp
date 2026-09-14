@@ -30,7 +30,8 @@ namespace mobagen::plugins {
 
   PortableWasmInstantiationResult PortableWasmInstantiationResult::failure(std::string error) { return {nullptr, std::move(error)}; }
 
-  PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend) {
+  PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend,
+                                                                WasmHostServices host_services) {
     PortableWasmPluginLoadResult result;
     if (path.empty()) {
       add_issue(result, PortableWasmPluginLoadIssueCode::InvalidPath, path, "portable WASM plugin path must name a file");
@@ -98,9 +99,17 @@ namespace mobagen::plugins {
       return result;
     }
 
+    std::shared_ptr<WasmHostImports> host_imports;
+    try {
+      host_imports = std::make_shared<WasmHostImports>(host_services);
+    } catch (const std::bad_alloc&) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::OutOfMemory, absolute, "portable WASM host imports allocation failed");
+      return result;
+    }
+
     PortableWasmInstantiationResult instantiated;
     try {
-      instantiated = backend.instantiate(binary);
+      instantiated = backend.instantiate(binary, host_imports);
     } catch (const std::bad_alloc&) {
       add_issue(result, PortableWasmPluginLoadIssueCode::OutOfMemory, absolute, "portable WASM backend ran out of memory");
       return result;
@@ -114,6 +123,11 @@ namespace mobagen::plugins {
     if (!instantiated.ok()) {
       add_issue(result, PortableWasmPluginLoadIssueCode::BackendFailure, absolute,
                 instantiated.error.has_value() ? std::move(*instantiated.error) : "portable WASM backend returned no instance");
+      return result;
+    }
+    if (instantiated.instance->host_imports() != host_imports.get()) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::BackendFailure, absolute,
+                "portable WASM backend returned an instance that does not retain its injected host imports");
       return result;
     }
 
@@ -130,7 +144,8 @@ namespace mobagen::plugins {
 
   std::filesystem::path portable_wasm_plugin_binary_filename() { return "plugin.wasm"; }
 
-  PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend) {
+  PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend,
+                                                                 WasmHostServices host_services) {
     PortableWasmPluginLoadResult result;
     if (package.empty() || package.extension() != ".plugin") {
       add_issue(result, PortableWasmPluginLoadIssueCode::InvalidPackage, package,
@@ -175,7 +190,7 @@ namespace mobagen::plugins {
       return result;
     }
 
-    return load_portable_wasm_plugin_binary(binary, backend);
+    return load_portable_wasm_plugin_binary(binary, backend, host_services);
   }
 
 }  // namespace mobagen::plugins

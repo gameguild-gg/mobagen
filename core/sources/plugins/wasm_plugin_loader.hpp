@@ -1,5 +1,6 @@
 #pragma once
 
+#include "wasm_host_imports.hpp"
 #include "wasm_runtime.hpp"
 
 #include <cstddef>
@@ -35,8 +36,9 @@ namespace mobagen::plugins {
     PortableWasmBackend& operator=(PortableWasmBackend&&) = delete;
     virtual ~PortableWasmBackend() = default;
 
-    /* The backend must synchronously consume or compile the borrowed binary. */
-    [[nodiscard]] virtual PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary) = 0;
+    /* The backend must synchronously consume or compile the borrowed binary and retain host_imports in the returned instance. */
+    [[nodiscard]] virtual PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary,
+                                                                      std::shared_ptr<WasmHostImports> host_imports) = 0;
   };
 
   class LoadedPortableWasmPlugin {
@@ -55,7 +57,7 @@ namespace mobagen::plugins {
 
   private:
     friend struct PortableWasmPluginLoadResult;
-    friend PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path&, PortableWasmBackend&);
+    friend PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path&, PortableWasmBackend&, WasmHostServices);
     friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin, std::span<const std::byte>);
 
     LoadedPortableWasmPlugin(std::filesystem::path path, std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider)
@@ -94,9 +96,11 @@ namespace mobagen::plugins {
     [[nodiscard]] bool ok() const noexcept { return plugin.has_value() && issues.empty(); }
   };
 
-  [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend);
+  [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend,
+                                                                               WasmHostServices host_services = {});
   [[nodiscard]] std::filesystem::path portable_wasm_plugin_binary_filename();
-  [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend);
+  [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend,
+                                                                                WasmHostServices host_services = {});
   [[nodiscard]] PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin plugin,
                                                                                         std::span<const std::byte> configuration = {});
 
