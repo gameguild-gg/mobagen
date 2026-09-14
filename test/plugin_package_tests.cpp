@@ -97,4 +97,12 @@ TEST_CASE("Plugin package: extension directory and binary shape are strict") {
   const auto file_result = load_native_plugin_package(regular_file, host);
   CHECK_FALSE(file_result.plugin.has_value());
   CHECK(has_issue(file_result, NativePluginLoadIssueCode::invalid_package));
+
+  const auto extra_files = directory.path() / "extra.plugin";
+  REQUIRE(std::filesystem::create_directory(extra_files));
+  REQUIRE(std::filesystem::copy_file(MOBAGEN_REFERENCE_PLUGIN_PATH, extra_files / native_plugin_binary_filename()));
+  std::ofstream(extra_files / "README.txt") << "not part of the package";
+  const auto extra_result = load_native_plugin_package(extra_files, host);
+  CHECK_FALSE(extra_result.plugin.has_value());
+  CHECK(has_issue(extra_result, NativePluginLoadIssueCode::invalid_package));
 }

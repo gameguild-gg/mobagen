@@ -243,13 +243,30 @@ namespace mobagen::plugins {
       return result;
     }
 
-    const auto binary = absolute / native_plugin_binary_filename();
+    const auto binary_filename = native_plugin_binary_filename();
+    const auto binary = absolute / binary_filename;
     const auto binary_status = std::filesystem::symlink_status(binary, error);
     if (error || !std::filesystem::is_regular_file(binary_status) || std::filesystem::is_symlink(binary_status)) {
       add_issue(result, NativePluginLoadIssueCode::missing_package_binary, binary, "plugin package does not contain its canonical native binary",
                 error);
       return result;
     }
+
+    std::size_t entry_count = 0;
+    bool contains_only_binary = true;
+    std::filesystem::directory_iterator entry{absolute, error};
+    const std::filesystem::directory_iterator end;
+    while (!error && entry != end) {
+      ++entry_count;
+      contains_only_binary = contains_only_binary && entry->path().filename() == binary_filename;
+      entry.increment(error);
+    }
+    if (error || entry_count != 1 || !contains_only_binary) {
+      add_issue(result, NativePluginLoadIssueCode::invalid_package, absolute, "plugin package must contain exactly one canonical native binary",
+                error);
+      return result;
+    }
+
     return load_native_plugin_binary(binary, host);
   }
 
