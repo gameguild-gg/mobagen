@@ -1,7 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
-#include "../maze.hpp"
+#include "../World.h"
+#include "../SeededRandom.h"
+#include "../generators/RecursiveBacktrackerExample.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -76,6 +78,37 @@ bool compareOutputs(const std::string& actual, const std::string& expected) {
   return normalizeSpaces(normalizeLineEndings(actual)) == normalizeSpaces(normalizeLineEndings(expected));
 }
 
+// Renders the World as the classic ascii maze in formal units: (0, 0) at the
+// top-left, "_" for horizontal walls, "|" for vertical walls. Trailing
+// newlines and spaces are stripped from the result.
+std::string renderMaze(World& world) {
+  const int width = world.GetWidth();
+  const int height = world.GetHeight();
+
+  std::string result = " ";
+  for (int c = 0; c < width; c++) {
+    result += world.GetNorth(world.ToWorldCoords({c, 0})) ? "_" : " ";
+    result += " ";
+  }
+  result += " \n";
+
+  for (int r = 0; r < height; r++) {
+    result += "|";
+    for (int c = 0; c < width; c++) {
+      Point2D cell = world.ToWorldCoords({c, r});
+      result += world.GetSouth(cell) ? "_" : " ";
+      result += world.GetEast(cell) ? "|" : " ";
+    }
+    result += " \n";
+  }
+
+  while (!result.empty() && (result.back() == '\n' || result.back() == ' ')) {
+    result.pop_back();
+  }
+
+  return result;
+}
+
 // Runs the deterministic maze generation for one fixture input: `width height randomIndex`
 std::string runMazeGeneration(const std::string& input) {
   std::istringstream inputStream(input);
@@ -84,10 +117,16 @@ std::string runMazeGeneration(const std::string& input) {
   size_t index;
   inputStream >> width >> height >> index;
 
-  Maze maze(width, height, static_cast<uint8_t>(index));
-  maze.generate();
+  World world;
+  world.Resize(static_cast<int>(width), static_cast<int>(height));
 
-  return maze.print();
+  RecursiveBacktrackerExample generator;
+  generator.Clear(&world);
+  SeededRandom::setIndex(static_cast<uint8_t>(index));
+  while (generator.Step(&world)) {
+  }
+
+  return renderMaze(world);
 }
 
 struct FixtureFiles {
