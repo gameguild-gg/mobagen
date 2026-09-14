@@ -10,6 +10,8 @@ add_library(
   plugin_contract.hpp
   plugin_loader.cpp
   plugin_loader.hpp
+  plugin_store.cpp
+  plugin_store.hpp
   plugin_host.cpp
   plugin_host.hpp
   plugin_abi.h
