@@ -172,6 +172,59 @@ profiles:
 
 }  // namespace
 
+TEST_CASE("Project CLI: init writes a self-contained recommended module template") {
+  TemporaryProjectCliRoot temporary;
+  const auto project_path = temporary.path() / "recommended-project";
+  const auto project = project_path.string();
+  const std::vector<std::string_view> arguments{
+      "init", project, "--name", "sample-game", "--source",
+      "https://registry.example/mobagen/catalog.yaml",
+  };
+  std::ostringstream output;
+  std::ostringstream error;
+
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {}) == 0);
+  CHECK(error.str().empty());
+  const auto manifest_path = project_path / "mobagen.yaml";
+  REQUIRE(std::filesystem::is_regular_file(manifest_path));
+  const auto manifest = mobagen::test::read_text(manifest_path);
+  CHECK(manifest == R"yaml(schema: 1
+name: sample-game
+sources:
+  official:
+    url: "https://registry.example/mobagen/catalog.yaml"
+modules:
+  render:
+    capability: render.backend.v1
+    use: mobagen.render.webgpu
+  window:
+    capability: window.surface.v1
+    use: mobagen.window.sdl3
+plugins: []
+profiles:
+  development:
+    linkage: dynamic
+    editor: true
+    permissions:
+      - gpu
+      - windowing
+  release:
+    linkage: dynamic
+    editor: false
+    permissions:
+      - gpu
+      - windowing
+)yaml");
+  CHECK(output.str().contains("initialized\t" + manifest_path.generic_string() + '\n'));
+  CHECK(output.str().contains("template\trecommended\n"));
+  CHECK(output.str().contains("next\tMobagenProject bootstrap\t"));
+
+  output.str({});
+  CHECK(mobagen::compositions::cli::run(arguments, output, error, {}) == 3);
+  CHECK(error.str().contains("already exists"));
+  CHECK(mobagen::test::read_text(manifest_path) == manifest);
+}
+
 TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a local package") {
   TemporaryProjectCliRoot project;
   write_remote_project_manifest(project.path() / "mobagen.yaml");
