@@ -56,6 +56,7 @@ namespace mobagen::compositions::cli {
     struct ProjectRouteResult {
       std::optional<modules::ProductDescriptor> product;
       std::filesystem::path manifest_path;
+      std::string manifest_hash;
       std::optional<modules::LinkageMode> linkage;
       std::string error;
       std::vector<modules::ManifestError> manifest_errors;
@@ -242,6 +243,11 @@ namespace mobagen::compositions::cli {
         result.manifest_errors = std::move(parsed.errors);
         return result;
       }
+      const auto manifest_hash = detail::hash_project_manifest(*source.contents);
+      if (!manifest_hash.has_value()) {
+        result.error = "mobagen.yaml could not be fingerprinted";
+        return result;
+      }
       const auto profile = std::ranges::find(parsed.descriptor->profiles, command.resolver.profile, &modules::ProfileDescriptor::name);
       if (profile == parsed.descriptor->profiles.end()) {
         result.error = "selected profile '" + command.resolver.profile + "' is not declared by mobagen.yaml";
@@ -249,6 +255,7 @@ namespace mobagen::compositions::cli {
       }
       result.linkage = profile->linkage;
       result.manifest_path = std::move(source.absolute_path);
+      result.manifest_hash = *manifest_hash;
       result.product = std::move(parsed.descriptor);
       return result;
     }
@@ -407,8 +414,8 @@ namespace mobagen::compositions::cli {
     }
 
     int sync(const ParsedCommand& command, const modules::ProductDescriptor& product,
-             const std::filesystem::path& manifest_path, http::Client& client, std::ostream& output,
-             std::ostream& error) {
+             const std::filesystem::path& manifest_path, std::string_view manifest_hash,
+             http::Client& client, std::ostream& output, std::ostream& error) {
       auto planned = modules::plan_module_sync(product, client, command.resolver);
       if (!planned.ok()) {
         error << "sync failed";
@@ -470,6 +477,7 @@ namespace mobagen::compositions::cli {
           .sdk = command.sdk_version,
           .target = command.resolver.target,
           .profile = command.resolver.profile,
+          .manifest_hash = std::string{manifest_hash},
       };
       lock_metadata.plugins.reserve(installed.artifacts.size());
       for (const auto& artifact : installed.artifacts) {
@@ -553,13 +561,15 @@ namespace mobagen::compositions::cli {
             return 3;
           }
           if (services.http_client != nullptr) {
-            return sync(*parsed.command, *route.product, route.manifest_path, *services.http_client,
+            return sync(*parsed.command, *route.product, route.manifest_path, route.manifest_hash,
+                        *services.http_client,
                         output, error);
           }
 #if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
           if (use_bundled_backends) {
             http::CurlClient client;
-            return sync(*parsed.command, *route.product, route.manifest_path, client, output, error);
+            return sync(*parsed.command, *route.product, route.manifest_path, route.manifest_hash,
+                        client, output, error);
           }
 #else
           static_cast<void>(use_bundled_backends);

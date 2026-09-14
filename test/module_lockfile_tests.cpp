@@ -126,6 +126,7 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
       .sdk = {1, 2, 3},
       .target = TargetPlatform::Windows,
       .profile = "release",
+      .manifest_hash = std::string(first_hash),
       .plugins = {
           {.provider = "customer.transfer",
            .version = {2, 0, 1},
@@ -149,6 +150,7 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
         "sdk: 1.2.3\n"
         "target: windows\n"
         "profile: release\n"
+        "manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
         "permissions:\n"
         "  - filesystem-read\n"
         "  - gpu\n"
@@ -197,6 +199,7 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
       .sdk = {1, 0, 0},
       .target = TargetPlatform::Windows,
       .profile = "Invalid Profile",
+      .manifest_hash = "not-a-manifest-hash",
       .plugins = {
           {.provider = "customer.color",
            .version = {1, 0, 0},
@@ -217,6 +220,7 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
   CHECK_FALSE(result.contents.has_value());
   CHECK(has_lockfile_issue(result, LockfileIssueCode::UnsupportedSchema, "schema"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidValue, "profile"));
+  CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidHash, "manifest"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidValue, "plugins.customer.color.package"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidHash, "plugins.customer.color.hash"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::DuplicateEntry, "plugins.customer.color"));

@@ -91,6 +91,13 @@ namespace {
     return mobagen::assets::to_string(*hash);
   }
 
+  std::string text_hash(std::string_view contents) {
+    const auto bytes = std::as_bytes(std::span{contents.data(), contents.size()});
+    const auto hash = mobagen::assets::sha256(bytes);
+    REQUIRE(hash.has_value());
+    return mobagen::assets::to_string(*hash);
+  }
+
   std::string native_target_name() {
 #ifdef _WIN32
     return "windows";
@@ -145,6 +152,9 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
                + native_target_name()
                + "\n"
                  "profile: release\n"
+                 "manifest: "
+               + text_hash(valid_native_project_manifest)
+               + "\n"
                  "permissions:\n"
                  "  - debug\n"
                  "configurations:\n"

@@ -29,6 +29,7 @@ namespace mobagen::modules {
     SemanticVersion sdk;
     TargetPlatform target{};
     std::string profile;
+    std::string manifest_hash;
     std::vector<PluginLockEntry> plugins;
   };
 
