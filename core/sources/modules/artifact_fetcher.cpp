@@ -163,6 +163,8 @@ namespace mobagen::modules {
           .provider_id = provider->id,
           .version = provider->version,
           .id = *expected_id,
+          .size = artifact->size,
+          .linkage = artifact->linkage,
           .cache_path = stored.path,
           .downloaded = stored.status == assets::AssetCacheStatus::stored,
       });
