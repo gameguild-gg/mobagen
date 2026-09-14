@@ -10,7 +10,8 @@
 
 class World {
 private:
-  int sideSize;
+  int width;
+  int height;
 
   std::vector<MazeGeneratorBase*> generators;
   int generatorId = 0;
@@ -30,8 +31,7 @@ private:
   // convert a point into the index of the left vertex of the node
   inline int Point2DtoIndex(const Point2D& point) {
     // todo: test. unstable interface
-    auto sizeOver2 = sideSize / 2;
-    return (point.y + sizeOver2) * (sideSize + 1) * 2 + (point.x + sizeOver2) * 2;
+    return (point.y + height / 2) * (width + 1) * 2 + (point.x + width / 2) * 2;
   }
 
 public:
@@ -50,6 +50,12 @@ public:
   void SetSouth(const Point2D& point, const bool& state);
   void SetWest(const Point2D& point, const bool& state);
 
+  // The world stores cells in centered units: x in [-width/2, (width-1)/2],
+  // y in [-height/2, (height-1)/2]. The formal assignment works in units with
+  // (0, 0) at the top-left corner; these two helpers translate back and forth.
+  Point2D ToWorldCoords(const Point2D& formalPoint) const;
+  Point2D ToFormalCoords(const Point2D& worldPoint) const;
+
   void Start();
   void OnGui();
   void OnDraw();
@@ -60,7 +66,13 @@ public:
   void SetNodeColor(const Point2D& node, const Color32& color);
   Color32 GetNodeColor(const Point2D& node);
 
-  int GetSize() const;
+  int GetWidth() const;
+  int GetHeight() const;
+
+  // square grids (interactive app)
+  void Resize(int size);
+  // rectangular grids (formal tests): width x height
+  void Resize(int width, int height);
 
 private:
   void step();
