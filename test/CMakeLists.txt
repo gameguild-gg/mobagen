@@ -25,6 +25,7 @@ set(FOUNDATION_TEST_SOURCES
     module_resolver_tests.cpp
     plugin_abi_c_test.c
     plugin_abi_tests.cpp
+    plugin_contract_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
     scene_tests.cpp
@@ -81,7 +82,9 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   target_link_libraries(FoundationTests PRIVATE mobagen::module_lockfile)
 endif()
 
-set(FOUNDATION_COMPILED_TARGETS mobagen_core_assets mobagen_core_jobs mobagen_core_modules)
+set(FOUNDATION_COMPILED_TARGETS mobagen_core_assets mobagen_core_jobs mobagen_core_modules
+                                mobagen_core_plugins
+)
 if(TARGET mobagen_asset_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_asset_cli)
 endif()
