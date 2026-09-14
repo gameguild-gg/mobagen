@@ -22,7 +22,8 @@
 //                  builds always — emdawnwebgpu has no null backend — and
 //                  native builds whose Dawn lacks the null backend).
 //   HeadlessNone — SDL_Init(0) only; zero GPU objects, on_draw never called.
-// Finally gui->init.
+// Finally gui->init, then app on_ready() after every requested host resource
+// exists. This is the safe activation point for resource-backed modules.
 //
 // Frame order (SDL_AppIterate, windowed AND HeadlessNull): dt (clamped at
 // 0.1 s) -> app on_iterate(dt) -> GPU frame: acquire the frame target (window
@@ -38,10 +39,11 @@
 // between iterates through SDL_AppEvent, matching InputState's clear-before-
 // feed contract).
 //
-// Exit paths: on_init/on_event/on_iterate returning SDL_APP_SUCCESS/FAILURE
-// (exit code 0/1) or App::request_exit() stop the loop; SDL_AppQuit always
-// runs afterwards, so on_shutdown and the GUI shutdown must tolerate states
-// where later init stages never ran (e.g. SUCCESS straight out of on_init).
+// Exit paths: on_init/on_ready/on_event/on_iterate returning
+// SDL_APP_SUCCESS/FAILURE (exit code 0/1) or App::request_exit() stop the loop;
+// SDL_AppQuit always runs afterwards, so on_shutdown and the GUI shutdown must
+// tolerate states where later init stages never ran (e.g. SUCCESS straight out
+// of on_init).
 #include "app/app_settings.hpp"
 #include "app/webgpu_context.hpp"
 #include "ecs/world.hpp"
@@ -102,6 +104,15 @@ namespace app {
       (void)app;
       (void)argc;
       (void)argv;
+      return SDL_APP_CONTINUE;
+    }
+
+    // End of SDL_AppInit, AFTER SDL, window/GPU resources and the optional GUI
+    // layer are initialized for the selected render mode. Resource-backed
+    // modules should activate here. A non-CONTINUE result aborts startup;
+    // on_shutdown still runs and must roll back any partial activation.
+    virtual SDL_AppResult on_ready(App& app) {
+      (void)app;
       return SDL_APP_CONTINUE;
     }
 

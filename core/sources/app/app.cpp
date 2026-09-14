@@ -151,6 +151,13 @@ namespace app {
       return SDL_APP_FAILURE;
     }
 
+    // Modules that depend on concrete host resources activate only after the
+    // selected render mode and optional GUI layer are fully initialized.
+    if (app.callbacks != nullptr) {
+      const SDL_AppResult rc = app.callbacks->on_ready(app);
+      if (rc != SDL_APP_CONTINUE) return rc;
+    }
+
     return SDL_APP_CONTINUE;
   }
 
