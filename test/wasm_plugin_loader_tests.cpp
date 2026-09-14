@@ -535,13 +535,15 @@ profiles:
     editor: false
 )yaml");
   FakeWasmBackend backend;
+  std::string host_log;
+  const plugins::WasmHostServices host_services{.state = &host_log, .log = capture_import_log};
   const modules::ResolverOptions options{
       .target = portable_target(),
       .profile = "release",
       .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}},
   };
 
-  auto loaded = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend);
+  auto loaded = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend, {}, {}, host_services);
 
   REQUIRE(loaded.ok());
   CHECK(loaded.runtime->product().name == "portable-project-test");
@@ -551,6 +553,13 @@ profiles:
   CHECK(loaded.runtime->plugin(0)->provider().id == "mobagen.wasm-package");
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Query) == 1);
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 1);
+  REQUIRE(backend.host_imports.size() == 1);
+  REQUIRE(backend.host_imports.front() != nullptr);
+  std::vector<std::byte> import_memory(64);
+  constexpr std::string_view import_message = "project service ready";
+  write_string(import_memory, 8, import_message);
+  CHECK(backend.host_imports.front()->log(import_memory, 2, 8, static_cast<std::uint32_t>(import_message.size())) == MOBAGEN_WASM_STATUS_OK);
+  CHECK(host_log == import_message);
   const auto lockfile = loaded.runtime->lockfile({0, 0, 1});
   REQUIRE(lockfile.ok());
   CHECK(*lockfile.contents

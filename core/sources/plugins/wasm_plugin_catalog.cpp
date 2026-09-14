@@ -63,7 +63,8 @@ namespace mobagen::plugins {
 
   PortableWasmPluginCatalogResult discover_portable_wasm_plugin_catalog(const modules::ProductDescriptor& product,
                                                                         const std::filesystem::path& project_root, PortableWasmBackend& backend,
-                                                                        std::span<const modules::ProviderDescriptor> builtin_providers) {
+                                                                        std::span<const modules::ProviderDescriptor> builtin_providers,
+                                                                        WasmHostServices host_services) {
     PortableWasmPluginCatalogResult result;
     auto descriptor_issues = modules::validate(product);
     if (!descriptor_issues.empty()) {
@@ -113,7 +114,7 @@ namespace mobagen::plugins {
     std::vector<LoadedPortableWasmPlugin> plugins;
     plugins.reserve(packages.size());
     for (const auto& package : packages) {
-      auto loaded = load_portable_wasm_plugin_package(package, backend);
+      auto loaded = load_portable_wasm_plugin_package(package, backend, host_services);
       if (!loaded.plugin.has_value()) {
         add_issue(result, PortableWasmPluginCatalogIssueCode::LoadFailed, package, "plugin package could not be loaded", {},
                   std::move(loaded.issues));
