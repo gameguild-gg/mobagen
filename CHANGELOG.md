@@ -1,3 +1,10 @@
+## [1.24.1](https://github.com/InfiniBrains/mobagen/compare/v1.24.0...v1.24.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* missing includes ([1fdaabc](https://github.com/InfiniBrains/mobagen/commit/1fdaabcf7bb7821b8a07dc332a1133771e33196f))
+
 # [1.24.0](https://github.com/InfiniBrains/mobagen/compare/v1.23.2...v1.24.0) (2026-09-14)
 
 
