@@ -46,6 +46,14 @@ namespace mobagen::compositions {
     std::vector<plugins::ResolvedNativePluginIssue> activation_issues;
   };
 
+  struct NativeProjectLockResult {
+    std::filesystem::path lockfile_path;
+    std::optional<std::string> contents;
+    std::vector<NativeProjectIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept { return contents.has_value() && issues.empty(); }
+  };
+
   class NativeProjectRuntime;
 
   struct NativeProjectResult {
@@ -72,6 +80,7 @@ namespace mobagen::compositions {
     [[nodiscard]] plugins::ResolvedNativePluginActionResult stop();
 
   private:
+    friend struct NativeProjectBuilder;
     friend NativeProjectResult load_native_project(const std::filesystem::path&, modules::ResolverOptions,
                                                    std::span<const modules::ProviderDescriptor>, NativeProjectLockOptions);
 
@@ -84,6 +93,10 @@ namespace mobagen::compositions {
     modules::LockfileMetadata lockfile_metadata_;
     std::unique_ptr<plugins::ResolvedNativePluginActivation> activation_;
   };
+
+  [[nodiscard]] NativeProjectLockResult resolve_native_project_lock(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
+                                                                    modules::SemanticVersion sdk_version,
+                                                                    std::span<const modules::ProviderDescriptor> builtin_providers = {});
 
   [[nodiscard]] NativeProjectResult load_native_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
                                                         std::span<const modules::ProviderDescriptor> builtin_providers = {},

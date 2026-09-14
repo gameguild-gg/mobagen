@@ -229,6 +229,35 @@ TEST_CASE("Native project: failed lock update rolls back and unloads activated p
   CHECK_FALSE(removal_error);
 }
 
+TEST_CASE("Native project: lock resolution inspects plugins without activating them") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(R"yaml(schema: 1
+name: resolve-only-project
+modules:
+  runtime:
+    use: mobagen.lifecycle-failure
+plugins:
+  - ./plugins/unselected.plugin
+profiles:
+  release:
+    linkage: dynamic
+    editor: false
+)yaml");
+
+  const auto resolved = resolve_native_project_lock(project.path() / "mobagen.yaml", runtime_options(), mobagen::modules::SemanticVersion{0, 0, 1});
+
+  REQUIRE(resolved.ok());
+  CHECK(resolved.lockfile_path == std::filesystem::weakly_canonical(project.path()) / "mobagen.lock");
+  CHECK(resolved.contents->contains("provider: mobagen.lifecycle-failure"));
+  CHECK_FALSE(std::filesystem::exists(resolved.lockfile_path));
+
+  const auto activated = load_native_project(project.path() / "mobagen.yaml", runtime_options());
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == NativeProjectIssueCode::Activation);
+}
+
 TEST_CASE("Native project: missing oversized and malformed manifests fail before runtime publication") {
   using namespace mobagen::compositions;
   TemporaryNativeProject project;
