@@ -124,8 +124,16 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
       .target = TargetPlatform::Windows,
       .profile = "release",
       .plugins = {
-          {.provider = "customer.transfer", .version = {2, 0, 1}, .abi_version = 1, .hash = std::string(second_hash)},
-          {.provider = "customer.color", .version = {1, 5, 0}, .abi_version = 1, .hash = std::string(first_hash)},
+          {.provider = "customer.transfer",
+           .version = {2, 0, 1},
+           .abi_version = 1,
+           .package = "plugins/customer-transfer.plugin",
+           .hash = std::string(second_hash)},
+          {.provider = "customer.color",
+           .version = {1, 5, 0},
+           .abi_version = 1,
+           .package = "plugins/customer-color.plugin",
+           .hash = std::string(first_hash)},
       },
   };
 
@@ -155,10 +163,12 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
         "  customer.color:\n"
         "    version: 1.5.0\n"
         "    abi: 1\n"
+        "    package: plugins/customer-color.plugin\n"
         "    hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
         "  customer.transfer:\n"
         "    version: 2.0.1\n"
         "    abi: 1\n"
+        "    package: plugins/customer-transfer.plugin\n"
         "    hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n";
 
   REQUIRE(serialized.ok());
@@ -177,8 +187,16 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
       .target = TargetPlatform::Windows,
       .profile = "Invalid Profile",
       .plugins = {
-          {.provider = "customer.color", .version = {1, 0, 0}, .abi_version = 1, .hash = "sha256:not-a-digest"},
-          {.provider = "customer.color", .version = {1, 1, 0}, .abi_version = 1, .hash = "sha256:short"},
+          {.provider = "customer.color",
+           .version = {1, 0, 0},
+           .abi_version = 1,
+           .package = "../escape.plugin",
+           .hash = "sha256:not-a-digest"},
+          {.provider = "customer.color",
+           .version = {1, 1, 0},
+           .abi_version = 1,
+           .package = "plugins/customer color.plugin",
+           .hash = "sha256:short"},
       },
   };
 
@@ -188,6 +206,7 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
   CHECK_FALSE(result.contents.has_value());
   CHECK(has_lockfile_issue(result, LockfileIssueCode::UnsupportedSchema, "schema"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidValue, "profile"));
+  CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidValue, "plugins.customer.color.package"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidHash, "plugins.customer.color.hash"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::DuplicateEntry, "plugins.customer.color"));
 }
