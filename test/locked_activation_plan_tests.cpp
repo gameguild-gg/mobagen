@@ -76,6 +76,9 @@ TEST_CASE("Locked activation plan: metadata orders selected plugins without touc
   CHECK(result.plan->entries()[1].provider_id == "mobagen.render");
   CHECK(result.plan->entries()[0].capabilities == std::vector<std::string>{"window.surface.v1"});
   CHECK(result.plan->entries()[1].capabilities == std::vector<std::string>{"render.backend.v1"});
+  REQUIRE(result.plan->entries()[1].dependencies.size() == 1);
+  CHECK(result.plan->entries()[1].dependencies[0].provider_id == "mobagen.platform");
+  CHECK(result.plan->entries()[1].dependencies[0].capability == "window.surface.v1");
   CHECK(result.plan->find("mobagen.render") == &result.plan->entries()[1]);
   CHECK(result.plan->find("mobagen.unknown") == nullptr);
 }

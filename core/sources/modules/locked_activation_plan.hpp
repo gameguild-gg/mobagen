@@ -28,6 +28,11 @@ namespace mobagen::modules {
     std::string message;
   };
 
+  struct LockedPluginDependency {
+    std::string provider_id;
+    std::string capability;
+  };
+
   struct LockedPluginActivationEntry {
     std::string provider_id;
     SemanticVersion version;
@@ -37,6 +42,9 @@ namespace mobagen::modules {
     std::filesystem::path package_path;
     std::filesystem::path binary_path;
     std::vector<std::string> capabilities;
+    std::vector<LockedPluginDependency> dependencies;
+    std::string configuration_schema;
+    std::string configuration_hash;
   };
 
   class LockedPluginActivationPlan {

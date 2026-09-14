@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <tuple>
 #include <utility>
 
 namespace mobagen::modules {
@@ -40,7 +41,14 @@ namespace mobagen::modules {
       const LockfileDocument& document, std::span<const VerifiedLockedPlugin> verified_plugins
   ) {
     std::map<std::string, SelectedProvider, std::less<>> selected;
+    std::map<std::string, std::string, std::less<>> selected_capabilities;
     for (const auto& selection : document.resolved) {
+      if (!selected_capabilities.emplace(selection.capability, selection.provider).second) {
+        return failure(
+            LockedActivationPlanIssueCode::InvalidSelection, selection.provider,
+            "locked capabilities must be selected exactly once"
+        );
+      }
       const auto [found, inserted] = selected.try_emplace(
           selection.provider,
           SelectedProvider{selection.version, selection.linkage, {selection.capability}}
@@ -124,22 +132,32 @@ namespace mobagen::modules {
       }
     }
 
+    std::map<std::string, const LockedConfiguration*, std::less<>> configurations;
+    for (const auto& configuration : document.configurations) {
+      if (!selected.contains(configuration.provider)
+          || !configurations.emplace(configuration.provider, &configuration).second) {
+        return failure(
+            LockedActivationPlanIssueCode::InvalidSelection, configuration.provider,
+            "locked configurations must uniquely reference selected providers"
+        );
+      }
+    }
+
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> dependents;
     std::map<std::string, std::size_t, std::less<>> indegree;
+    std::map<std::string, std::vector<LockedPluginDependency>, std::less<>> plugin_dependencies;
     for (const auto& [provider, selection] : selected) {
       (void)selection;
       dependents.try_emplace(provider);
       indegree.try_emplace(provider, 0);
     }
     for (const auto& dependency : document.dependencies) {
-      const auto selected_capability = std::ranges::find(
-          document.resolved, dependency.capability, &LockedProviderSelection::capability
-      );
+      const auto selected_capability = selected_capabilities.find(dependency.capability);
       if (dependency.provider == dependency.required_by
           || !selected.contains(dependency.provider)
           || !selected.contains(dependency.required_by)
-          || selected_capability == document.resolved.end()
-          || selected_capability->provider != dependency.provider) {
+          || selected_capability == selected_capabilities.end()
+          || selected_capability->second != dependency.provider) {
         return failure(
             LockedActivationPlanIssueCode::InvalidDependency, dependency.required_by,
             "locked dependency does not reference a coherent selected provider"
@@ -147,6 +165,12 @@ namespace mobagen::modules {
       }
       if (dependents[dependency.provider].insert(dependency.required_by).second) {
         ++indegree[dependency.required_by];
+      }
+      if (locked.contains(dependency.provider) && locked.contains(dependency.required_by)) {
+        plugin_dependencies[dependency.required_by].push_back({
+            .provider_id = dependency.provider,
+            .capability = dependency.capability,
+        });
       }
     }
 
@@ -180,6 +204,12 @@ namespace mobagen::modules {
       const auto& candidate = *verified.at(provider);
       auto capabilities = selected.at(provider).capabilities;
       std::ranges::sort(capabilities);
+      auto dependencies = std::move(plugin_dependencies[provider]);
+      std::ranges::sort(dependencies, [](const auto& left, const auto& right) {
+        return std::tie(left.provider_id, left.capability)
+               < std::tie(right.provider_id, right.capability);
+      });
+      const auto configuration = configurations.find(provider);
       entries.push_back({
           .provider_id = provider,
           .version = candidate.version,
@@ -189,6 +219,13 @@ namespace mobagen::modules {
           .package_path = candidate.package_path,
           .binary_path = candidate.binary_path,
           .capabilities = std::move(capabilities),
+          .dependencies = std::move(dependencies),
+          .configuration_schema = configuration == configurations.end()
+                                      ? std::string{}
+                                      : configuration->second->schema,
+          .configuration_hash = configuration == configurations.end()
+                                    ? std::string{}
+                                    : configuration->second->hash,
       });
     }
 
