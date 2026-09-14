@@ -38,6 +38,7 @@ namespace mobagen::modules {
     std::string alias;
     std::string provider;
     std::optional<ModuleConfiguration> configuration;
+    std::string capability;
   };
 
   struct ProfileDescriptor {

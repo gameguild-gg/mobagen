@@ -24,11 +24,13 @@ sources:
     url: https://plugins.mobagen.dev/v1/catalog.yaml
 modules:
   render:
+    capability: render.backend.v1
     use: default
     config:
       schema: mobagen.render.config.v1
       data: "sample-count: 4"
   volume-importer:
+    capability: volume.importer.v1
     use: mobagen.import.dicom
 plugins:
   - ./plugins/custom-transfer.plugin
@@ -54,11 +56,13 @@ profiles:
   CHECK(result.descriptor->sources[0].url == "https://plugins.mobagen.dev/v1/catalog.yaml");
   REQUIRE(result.descriptor->modules.size() == 2);
   CHECK(result.descriptor->modules[0].alias == "render");
+  CHECK(result.descriptor->modules[0].capability == "render.backend.v1");
   CHECK(result.descriptor->modules[0].provider == "default");
   REQUIRE(result.descriptor->modules[0].configuration.has_value());
   CHECK(result.descriptor->modules[0].configuration->schema == "mobagen.render.config.v1");
   CHECK(result.descriptor->modules[0].configuration->data == "sample-count: 4");
   CHECK(result.descriptor->modules[1].provider == "mobagen.import.dicom");
+  CHECK(result.descriptor->modules[1].capability == "volume.importer.v1");
   CHECK_FALSE(result.descriptor->modules[1].configuration.has_value());
   CHECK(result.descriptor->plugins == std::vector<std::string>{"./plugins/custom-transfer.plugin"});
   REQUIRE(result.descriptor->profiles.size() == 2);
@@ -248,6 +252,7 @@ TEST_CASE("Module manifest: missing required fields and invalid values fail tran
 name: invalid-product
 modules:
   render:
+    capability: Render.Backend
     use: custom
 plugins:
   - ./plugins/custom.zip
@@ -261,6 +266,7 @@ profiles:
   CHECK_FALSE(result.ok());
   CHECK(has_error(result, ManifestErrorCode::UnsupportedSchema, "schema"));
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "modules.render.use"));
+  CHECK(has_error(result, ManifestErrorCode::InvalidValue, "modules.render.capability"));
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "plugins[0]"));
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "profiles.release.linkage"));
 }

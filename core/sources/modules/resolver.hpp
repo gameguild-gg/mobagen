@@ -34,6 +34,7 @@ namespace mobagen::modules {
     UnknownProfile,
     DuplicateAlias,
     UnknownAlias,
+    AliasMismatch,
     DuplicateDefault,
     MissingDefault,
     UnknownProvider,

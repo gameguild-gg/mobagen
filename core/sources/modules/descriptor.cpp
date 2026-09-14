@@ -217,6 +217,10 @@ namespace mobagen::modules {
       if (request.provider != "default" && !is_provider_id(request.provider)) {
         add_issue(issues, DescriptorIssueCode::InvalidIdentifier, field + ".use", "expected 'default' or a lowercase dotted provider ID");
       }
+      if (!request.capability.empty() && !is_capability_id(request.capability)) {
+        add_issue(issues, DescriptorIssueCode::InvalidCapability, field + ".capability",
+                  "expected a lowercase dotted capability ID ending in .vN");
+      }
       if (!module_aliases.insert(request.alias).second) {
         add_issue(issues, DescriptorIssueCode::DuplicateEntry, field, "module aliases must be unique");
       }

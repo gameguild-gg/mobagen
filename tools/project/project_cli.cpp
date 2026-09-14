@@ -66,15 +66,15 @@ namespace mobagen::compositions::cli {
 
     void print_usage(std::ostream& stream) {
       stream << "usage:\n"
-                "  MobagenProject bootstrap <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "  MobagenProject bootstrap <mobagen.yaml> --profile <name>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--cache <directory>]\n"
-                "  MobagenProject sync <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "  MobagenProject sync <mobagen.yaml> --profile <name>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--cache <directory>]\n"
-                "  MobagenProject resolve <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "  MobagenProject resolve <mobagen.yaml> --profile <name>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n"
-                "  MobagenProject verify <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "  MobagenProject verify <mobagen.yaml> --profile <name>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n"
-                "  MobagenProject explain <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "  MobagenProject explain <mobagen.yaml> --profile <name>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n";
     }
 
@@ -451,9 +451,18 @@ namespace mobagen::compositions::cli {
         const auto alias = std::ranges::find(
             command.resolver.aliases, request.alias, &modules::ModuleAliasBinding::alias
         );
-        if (alias == command.resolver.aliases.end()) return false;
+        if (!request.capability.empty() && alias != command.resolver.aliases.end()
+            && alias->capability != request.capability) {
+          return false;
+        }
+        const std::string_view capability = request.capability.empty()
+                                              ? alias == command.resolver.aliases.end()
+                                                  ? std::string_view{}
+                                                  : std::string_view{alias->capability}
+                                              : std::string_view{request.capability};
+        if (capability.empty()) return false;
         const auto selection = std::ranges::find(
-            document.resolved, alias->capability,
+            document.resolved, capability,
             &modules::LockedProviderSelection::capability
         );
         if (selection == document.resolved.end()
