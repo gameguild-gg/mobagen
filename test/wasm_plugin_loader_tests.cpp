@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "plugins/wasm_plugin_loader.hpp"
@@ -62,7 +63,11 @@ namespace {
 
   class DescriptorInstance final : public mobagen::plugins::PortableWasmInstance {
   public:
+    explicit DescriptorInstance(std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations)
+        : invocations_(std::move(invocations)) {}
+
     mobagen::plugins::WasmInvocationResult invoke(mobagen::plugins::WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
+      invocations_->push_back(function);
       if (function == mobagen::plugins::WasmPluginExport::Allocate) {
         return mobagen::plugins::WasmInvocationResult::success(8);
       }
@@ -71,6 +76,10 @@ namespace {
         return mobagen::plugins::WasmInvocationResult::success(MOBAGEN_WASM_STATUS_OK);
       }
       if (function == mobagen::plugins::WasmPluginExport::Deallocate) {
+        return mobagen::plugins::WasmInvocationResult::success(MOBAGEN_WASM_STATUS_OK);
+      }
+      if (function == mobagen::plugins::WasmPluginExport::Configure || function == mobagen::plugins::WasmPluginExport::Start
+          || function == mobagen::plugins::WasmPluginExport::Quiesce || function == mobagen::plugins::WasmPluginExport::Stop) {
         return mobagen::plugins::WasmInvocationResult::success(MOBAGEN_WASM_STATUS_OK);
       }
       return mobagen::plugins::WasmInvocationResult::failure("unexpected export");
@@ -107,6 +116,7 @@ namespace {
       }
     }
 
+    std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations_;
     std::vector<std::byte> linear_memory = std::vector<std::byte>(256);
   };
 
@@ -117,12 +127,14 @@ namespace {
       observed.assign(binary.begin(), binary.end());
       if (throws) throw std::runtime_error{"backend trapped"};
       if (fails) return mobagen::plugins::PortableWasmInstantiationResult::failure("backend rejected module");
-      auto instance = std::make_unique<DescriptorInstance>();
+      auto instance = std::make_unique<DescriptorInstance>(invocations);
       instance->malformed = malformed_descriptor;
       return mobagen::plugins::PortableWasmInstantiationResult::success(std::move(instance));
     }
 
     std::vector<std::byte> observed;
+    std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations
+        = std::make_shared<std::vector<mobagen::plugins::WasmPluginExport>>();
     std::size_t calls{};
     bool fails{};
     bool throws{};
@@ -208,6 +220,25 @@ TEST_CASE("Portable WASM plugin loader: backend and descriptor failures remain s
   CHECK(has_issue(query_failure, mobagen::plugins::PortableWasmPluginLoadIssueCode::QueryFailed));
   REQUIRE(query_failure.issues.size() == 1);
   CHECK_FALSE(query_failure.issues[0].query_issues.empty());
+}
+
+TEST_CASE("Portable WASM plugin loader: queried metadata transfers into activation without a second query") {
+  TemporaryWasmDirectory directory;
+  const auto binary = directory.path() / "reference.wasm";
+  write_binary(binary, valid_wasm_header);
+  FakeWasmBackend backend;
+  auto loaded = mobagen::plugins::load_portable_wasm_plugin_binary(binary, backend);
+  REQUIRE(loaded.plugin.has_value());
+
+  auto activated = mobagen::plugins::activate_loaded_portable_wasm_plugin(std::move(*loaded.plugin));
+
+  REQUIRE(activated.activation != nullptr);
+  CHECK(activated.activation->provider().id == "mobagen.wasm-package");
+  CHECK(activated.activation->state() == mobagen::plugins::PortableWasmPluginState::Active);
+  CHECK(std::ranges::count(*backend.invocations, mobagen::plugins::WasmPluginExport::Query) == 1);
+  CHECK(backend.invocations->back() == mobagen::plugins::WasmPluginExport::Start);
+  CHECK(activated.activation->quiesce().ok());
+  CHECK(activated.activation->stop().ok());
 }
 
 TEST_CASE("Portable WASM plugin loader: dot-plugin package shape is strict") {
