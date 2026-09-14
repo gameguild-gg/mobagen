@@ -129,6 +129,15 @@ namespace mobagen::modules {
       if (!module_aliases.insert(request.alias).second) {
         add_issue(issues, DescriptorIssueCode::DuplicateEntry, field, "module aliases must be unique");
       }
+      if (request.configuration.has_value()) {
+        if (!is_capability_id(request.configuration->schema)) {
+          add_issue(issues, DescriptorIssueCode::InvalidCapability, field + ".config.schema",
+                    "expected a lowercase dotted configuration schema ending in .vN");
+        }
+        if (request.configuration->data.size() > max_module_configuration_bytes) {
+          add_issue(issues, DescriptorIssueCode::LimitExceeded, field + ".config.data", "module configuration exceeds the 1 MiB limit");
+        }
+      }
     }
 
     std::set<std::string> plugin_paths;

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -8,6 +10,7 @@
 namespace mobagen::modules {
 
   inline constexpr std::uint32_t project_schema_version = 1;
+  inline constexpr std::size_t max_module_configuration_bytes = 1024 * 1024;
 
   struct SemanticVersion {
     std::uint32_t major{};
@@ -23,9 +26,17 @@ namespace mobagen::modules {
 
   enum class ReloadPolicy : std::uint8_t { Never, Restart, SafePoint };
 
+  struct ModuleConfiguration {
+    std::string schema;
+    std::string data;
+
+    friend bool operator==(const ModuleConfiguration&, const ModuleConfiguration&) = default;
+  };
+
   struct ModuleRequest {
     std::string alias;
     std::string provider;
+    std::optional<ModuleConfiguration> configuration;
   };
 
   struct ProfileDescriptor {
@@ -62,6 +73,7 @@ namespace mobagen::modules {
     InvalidIdentifier,
     InvalidCapability,
     InvalidPluginPath,
+    LimitExceeded,
     DuplicateEntry,
     MissingEntry,
     SelfDependency,

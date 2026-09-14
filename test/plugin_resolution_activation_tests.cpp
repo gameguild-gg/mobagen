@@ -72,6 +72,7 @@ TEST_CASE("Resolved plugin activation: manifest selection becomes a callable nat
   TemporaryResolvedPluginProject project;
   project.add("reference", MOBAGEN_REFERENCE_PLUGIN_PATH);
   auto product = product_for("mobagen.reference", "plugins/reference.plugin");
+  product.modules.front().configuration = {"mobagen.reference.config.v1", "41"};
   plugins::PluginHost host;
   auto catalog = plugins::discover_native_plugin_catalog(product, project.path(), host);
   REQUIRE(catalog.ok());
@@ -85,7 +86,7 @@ TEST_CASE("Resolved plugin activation: manifest selection becomes a callable nat
   const auto api = host.find<MobagenRuntimeTickV1>(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
   REQUIRE(api.has_value());
   CHECK((*api)->tick((*api)->plugin_state) == MOBAGEN_STATUS_OK);
-  CHECK((*api)->tick_count((*api)->plugin_state) == 1);
+  CHECK((*api)->tick_count((*api)->plugin_state) == 42);
   CHECK(activated.activation->stop().ok());
   CHECK(host.size() == 0);
 }

@@ -106,6 +106,9 @@ name: native-project-test
 modules:
   runtime:
     use: default
+    config:
+      schema: mobagen.reference.config.v1
+      data: "41"
 plugins:
   - ./plugins/reference.plugin
   - ./plugins/unselected.plugin
@@ -131,7 +134,7 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
   const auto api = loaded.runtime->host().find<MobagenRuntimeTickV1>(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
   REQUIRE(api.has_value());
   CHECK((*api)->tick((*api)->plugin_state) == MOBAGEN_STATUS_OK);
-  CHECK((*api)->tick_count((*api)->plugin_state) == 1);
+  CHECK((*api)->tick_count((*api)->plugin_state) == 42);
   const auto lockfile = loaded.runtime->lockfile({0, 0, 1});
   REQUIRE(lockfile.ok());
   CHECK_FALSE(lockfile.contents->contains("mobagen.lifecycle-failure"));
@@ -184,6 +187,37 @@ profiles:
   CHECK(loaded.issues.front().code == NativeProjectIssueCode::Resolution);
   REQUIRE(loaded.issues.front().resolution_issues.size() == 1);
   CHECK(loaded.issues.front().resolution_issues.front().code == mobagen::modules::ResolutionIssueCode::PermissionDenied);
+  std::error_code removal_error;
+  CHECK(std::filesystem::remove(project.path() / "plugins" / "reference.plugin" / mobagen::plugins::native_plugin_binary_filename(), removal_error));
+  CHECK_FALSE(removal_error);
+}
+
+TEST_CASE("Native project: plugin rejection of configuration rolls back before publication") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(R"yaml(schema: 1
+name: rejected-plugin-configuration
+modules:
+  runtime:
+    use: mobagen.reference
+    config:
+      schema: mobagen.reference.config.v1
+      data: invalid
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: dynamic
+    editor: false
+    permissions:
+      - debug
+)yaml");
+
+  const auto loaded = load_native_project(project.path() / "mobagen.yaml", runtime_options());
+
+  CHECK_FALSE(loaded.ok());
+  REQUIRE(loaded.issues.size() == 1);
+  CHECK(loaded.issues.front().code == NativeProjectIssueCode::Activation);
   std::error_code removal_error;
   CHECK(std::filesystem::remove(project.path() / "plugins" / "reference.plugin" / mobagen::plugins::native_plugin_binary_filename(), removal_error));
   CHECK_FALSE(removal_error);

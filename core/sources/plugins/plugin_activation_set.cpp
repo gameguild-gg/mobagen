@@ -1,7 +1,9 @@
 #include "plugin_activation_set.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <iterator>
+#include <span>
 #include <utility>
 
 namespace mobagen::plugins {
@@ -84,7 +86,11 @@ namespace mobagen::plugins {
       auto plugin = catalog.take_plugin(provider->id);
       if (!plugin.has_value()) continue;
 
-      auto activated = activate_loaded_native_plugin(std::move(*plugin), host);
+      std::span<const std::byte> configuration;
+      if (const auto* resolved = resolution.configuration_for(provider_index)) {
+        configuration = {reinterpret_cast<const std::byte*>(resolved->data.data()), resolved->data.size()};
+      }
+      auto activated = activate_loaded_native_plugin(std::move(*plugin), host, configuration);
       if (!activated.ok()) {
         result.issues.push_back({ResolvedNativePluginIssueCode::ActivationFailed, provider->id, "resolved native plugin failed to activate",
                                  std::move(activated.issues)});

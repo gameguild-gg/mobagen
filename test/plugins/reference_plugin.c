@@ -32,10 +32,18 @@ static const MobagenRuntimeTickV1 tick_api = {
 
 static MobagenStatus MOBAGEN_PLUGIN_CALL configure(void* opaque, const MobagenHostApiV1* host, MobagenByteView configuration) {
   ReferencePluginState* plugin = (ReferencePluginState*)opaque;
-  (void)configuration;
   if (plugin == NULL || host == NULL) return MOBAGEN_STATUS_INVALID_ARGUMENT;
+  if (configuration.size != 0 && configuration.data == NULL) return MOBAGEN_STATUS_INVALID_ARGUMENT;
+  uint64_t initial_ticks = 0;
+  for (size_t index = 0; index < configuration.size; ++index) {
+    const uint8_t digit = configuration.data[index];
+    if (digit < (uint8_t)'0' || digit > (uint8_t)'9' || initial_ticks > (UINT64_MAX - (uint64_t)(digit - (uint8_t)'0')) / 10U) {
+      return MOBAGEN_STATUS_INVALID_ARGUMENT;
+    }
+    initial_ticks = initial_ticks * 10U + (uint64_t)(digit - (uint8_t)'0');
+  }
   ++plugin->configured;
-  plugin->ticks = 0;
+  plugin->ticks = initial_ticks;
   return host->publish_capability(host->host_context, (MobagenStringView){MOBAGEN_RUNTIME_TICK_V1_ID, sizeof(MOBAGEN_RUNTIME_TICK_V1_ID) - 1}, 1,
                                   &tick_api, sizeof(tick_api));
 }

@@ -35,6 +35,9 @@ name: project-cli-test
 modules:
   runtime:
     use: default
+    config:
+      schema: mobagen.reference.config.v1
+      data: "41"
 plugins:
   - ./plugins/reference.plugin
   - ./plugins/alternative.plugin
