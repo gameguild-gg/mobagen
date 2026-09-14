@@ -39,11 +39,13 @@ providers:
     artifacts:
       - target: windows
         linkage: dynamic
+        abi: 1
         url: https://plugins.mobagen.dev/mobagen.render.webgpu/1.4.2/windows.plugin
         size: 1048576
         hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       - target: web
         linkage: wasm
+        abi: 1
         url: https://plugins.mobagen.dev/mobagen.render.webgpu/1.4.2/web.plugin
         size: 524288
         hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -69,6 +71,7 @@ providers:
   REQUIRE(published.artifacts.size() == 2);
   CHECK(published.artifacts[0].target == TargetPlatform::Windows);
   CHECK(published.artifacts[0].linkage == LinkageMode::Dynamic);
+  CHECK(published.artifacts[0].abi_version == 1);
   CHECK(published.artifacts[0].size == 1048576);
 }
 
@@ -83,16 +86,19 @@ providers:
     artifacts:
       - target: windows
         linkage: dynamic
+        abi: 0
         url: http://plugins.mobagen.dev/invalid.plugin
         size: 0
         hash: sha256:not-a-hash
       - target: windows
         linkage: dynamic
+        abi: 1
         url: https://plugins.mobagen.dev/duplicate.plugin
         size: 1
         hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       - target: linux
         linkage: dynamic
+        abi: 1
         url: https://plugins.mobagen.dev/not-a-plugin.bin?release=1
         size: 1
         hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -102,6 +108,7 @@ providers:
 
   CHECK_FALSE(result.ok());
   CHECK(has_error(result, CatalogErrorCode::InvalidValue, "providers.mobagen.render.invalid.artifacts[0].url"));
+  CHECK(has_error(result, CatalogErrorCode::InvalidValue, "providers.mobagen.render.invalid.artifacts[0].abi"));
   CHECK(has_error(result, CatalogErrorCode::InvalidValue, "providers.mobagen.render.invalid.artifacts[0].size"));
   CHECK(has_error(result, CatalogErrorCode::InvalidValue, "providers.mobagen.render.invalid.artifacts[0].hash"));
   CHECK(has_error(result, CatalogErrorCode::DuplicateEntry, "providers.mobagen.render.invalid.artifacts[1]"));
@@ -119,6 +126,7 @@ providers:
     artifacts:
       - target: windows
         linkage: dynamic
+        abi: 1
         url: !include https://plugins.mobagen.dev/runtime.plugin
         size: 1
         hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -154,11 +162,13 @@ TEST_CASE("Module catalog: capability resolution selects metadata before the art
           .artifacts = {
               {.target = TargetPlatform::Windows,
                .linkage = LinkageMode::Dynamic,
+               .abi_version = 1,
                .url = "https://plugins.mobagen.dev/render/windows.plugin",
                .size = 128,
                .hash = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
               {.target = TargetPlatform::Web,
                .linkage = LinkageMode::Wasm,
+               .abi_version = 1,
                .url = "https://plugins.mobagen.dev/render/web.plugin",
                .size = 64,
                .hash = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
@@ -209,6 +219,7 @@ TEST_CASE("Module catalog: duplicate providers across sources fail deterministic
       .artifacts = {{
           .target = TargetPlatform::Windows,
           .linkage = LinkageMode::Dynamic,
+          .abi_version = 1,
           .url = "https://plugins.mobagen.dev/runtime.plugin",
           .size = 1,
           .hash = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

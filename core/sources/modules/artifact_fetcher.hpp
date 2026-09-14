@@ -44,6 +44,7 @@ namespace mobagen::modules {
     assets::AssetId id;
     std::uint64_t size{};
     LinkageMode linkage{};
+    std::uint32_t abi_version{};
     std::filesystem::path cache_path;
     bool downloaded{};
   };

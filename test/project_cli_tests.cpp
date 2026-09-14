@@ -96,6 +96,7 @@ profiles:
       for (const auto platform : {"windows", "linux", "macos"}) {
         catalog << "      - target: " << platform << '\n'
                 << "        linkage: dynamic\n"
+                << "        abi: 1\n"
                 << "        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
                 << platform << ".plugin\n"
                 << "        size: " << artifact_body.size() << '\n'
@@ -176,7 +177,7 @@ profiles:
   CHECK(client.catalog_requests.front().url == "https://plugins.mobagen.dev/v1/catalog.yaml");
   REQUIRE(client.artifact_requests.size() == 1);
   CHECK(output.str().contains("catalogs-synced\tremote-project-cli-test\trelease\n"));
-  const std::string expected_artifact = "artifact\tmobagen.runtime.remote\t2.1.0\tdynamic\t"
+  const std::string expected_artifact = "artifact\tmobagen.runtime.remote\t2.1.0\tdynamic\t1\t"
                                         + std::to_string(client.artifact_body.size()) + '\t'
                                         + client.artifact_hash
                                         + "\thttps://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"

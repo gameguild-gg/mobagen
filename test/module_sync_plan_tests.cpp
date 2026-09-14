@@ -18,6 +18,7 @@ providers:
     artifacts:
       - target: windows
         linkage: dynamic
+        abi: 1
         url: https://plugins.mobagen.dev/mobagen.runtime.tick/1.0.0/windows.plugin
         size: 4096
         hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
