@@ -11,11 +11,13 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace mobagen::plugins {
 
   class WasmCommandChannel;
+  class WasmHostImports;
   struct WasmCommandChannelOpenResult;
   class LoadedPortableWasmPlugin;
 
@@ -55,6 +57,14 @@ namespace mobagen::plugins {
     /* Memory views remain valid only until the next invoke call. */
     [[nodiscard]] virtual std::span<const std::byte> memory() const noexcept = 0;
     [[nodiscard]] virtual std::span<std::byte> writable_memory() noexcept = 0;
+    [[nodiscard]] WasmHostImports* host_imports() noexcept { return host_imports_.get(); }
+    [[nodiscard]] const WasmHostImports* host_imports() const noexcept { return host_imports_.get(); }
+
+  protected:
+    explicit PortableWasmInstance(std::shared_ptr<WasmHostImports> host_imports) : host_imports_(std::move(host_imports)) {}
+
+  private:
+    std::shared_ptr<WasmHostImports> host_imports_;
   };
 
   [[nodiscard]] WasmInvocationResult invoke_portable_wasm(PortableWasmInstance& instance, WasmPluginExport function,

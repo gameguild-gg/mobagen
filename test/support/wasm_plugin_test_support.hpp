@@ -120,8 +120,10 @@ namespace mobagen::test {
   public:
     explicit DescriptorInstance(std::shared_ptr<std::vector<plugins::WasmPluginExport>> invocations,
                                 std::string provider_id = "mobagen.wasm-package", std::string capability_id = "runtime.package.v1",
-                                std::uint32_t start_status = MOBAGEN_WASM_STATUS_OK)
-        : invocations_(std::move(invocations)),
+                                std::uint32_t start_status = MOBAGEN_WASM_STATUS_OK,
+                                std::shared_ptr<plugins::WasmHostImports> host_imports = {})
+        : PortableWasmInstance(std::move(host_imports)),
+          invocations_(std::move(invocations)),
           provider_id_(std::move(provider_id)),
           capability_id_(std::move(capability_id)),
           start_status_(start_status) {}
@@ -186,21 +188,25 @@ namespace mobagen::test {
 
   class FakeWasmBackend final : public plugins::PortableWasmBackend {
   public:
-    plugins::PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary) override {
+    plugins::PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary,
+                                                          std::shared_ptr<plugins::WasmHostImports> imports) override {
       ++calls;
       observed.assign(binary.begin(), binary.end());
+      host_imports.push_back(imports.get());
       if (throws) throw std::runtime_error{"backend trapped"};
       if (fails) return plugins::PortableWasmInstantiationResult::failure("backend rejected module");
       const auto index = calls - 1;
       const auto provider_id = provider_ids.empty() ? std::string{"mobagen.wasm-package"} : provider_ids.at(index);
       const auto capability_id = capability_ids.empty() ? std::string{"runtime.package.v1"} : capability_ids.at(index);
       const auto start_status = start_statuses.empty() ? MOBAGEN_WASM_STATUS_OK : start_statuses.at(index);
-      auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id, capability_id, start_status);
+      auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id, capability_id, start_status,
+                                                           drops_host_imports ? std::shared_ptr<plugins::WasmHostImports>{} : std::move(imports));
       instance->malformed = malformed_descriptor;
       return plugins::PortableWasmInstantiationResult::success(std::move(instance));
     }
 
     std::vector<std::byte> observed;
+    std::vector<plugins::WasmHostImports*> host_imports;
     std::shared_ptr<std::vector<plugins::WasmPluginExport>> invocations = std::make_shared<std::vector<plugins::WasmPluginExport>>();
     std::size_t calls{};
     std::vector<std::string> provider_ids;
@@ -209,6 +215,7 @@ namespace mobagen::test {
     bool fails{};
     bool throws{};
     bool malformed_descriptor{};
+    bool drops_host_imports{};
   };
 
   inline std::size_t invocation_count(const FakeWasmBackend& backend, plugins::WasmPluginExport function) {
