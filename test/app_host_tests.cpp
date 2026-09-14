@@ -34,13 +34,17 @@ namespace {
   // host's call order (init -> event -> iterate xN [-> draw xN] -> shutdown).
   struct RecordingCallbacks : app::AppCallbacks {
     bool fail_init = false;
+    bool fail_ready = false;
     bool parse_flags = false;  // run AppSettings::parse(argc, argv, settings) in on_init
     int exit_at_iteration = 0;
     bool exit_via_request_exit = false;  // request_exit() on the exit frame vs returning SUCCESS
     int iterates = 0;
+    int readies = 0;
     int draws = 0;
     int shutdowns = 0;
     bool saw_pass = false;
+    bool ready_saw_device = false;
+    bool ready_saw_window = false;
     std::vector<std::string> seq;
 
     SDL_AppResult on_init(app::App& a, int argc, char** argv) override {
@@ -48,6 +52,14 @@ namespace {
       if (parse_flags) (void)app::AppSettings::parse(argc, argv, a.settings);
       if (fail_init) return SDL_APP_FAILURE;
       return SDL_APP_CONTINUE;
+    }
+
+    SDL_AppResult on_ready(app::App& a) override {
+      ++readies;
+      ready_saw_device = a.device() != nullptr;
+      ready_saw_window = a.window != nullptr;
+      seq.emplace_back("ready");
+      return fail_ready ? SDL_APP_FAILURE : SDL_APP_CONTINUE;
     }
 
     SDL_AppResult on_event(app::App& a, const SDL_Event& e) override {
@@ -272,7 +284,7 @@ TEST_CASE("app host: HeadlessNone lifecycle order and input feed") {
   CHECK(app.settings.render_mode == app::AppSettings::RenderMode::HeadlessNone);
   CHECK(app.window == nullptr);    // headless: no window was ever created
   CHECK(app.device() == nullptr);  // HeadlessNone: zero GPU objects
-  CHECK(cb.seq == std::vector<std::string>{"init"});
+  CHECK(cb.seq == std::vector<std::string>{"init", "ready"});
 
   // Synthetic key-down through the real SDL event queue, then through the
   // host — the same path a windowed SDL_PollEvent loop would take.
@@ -307,7 +319,7 @@ TEST_CASE("app host: HeadlessNone lifecycle order and input feed") {
   CHECK(cb.iterates == 3);
   CHECK(cb.draws == 0);  // HeadlessNone never calls on_draw
   CHECK(cb.shutdowns == 1);
-  CHECK(cb.seq == std::vector<std::string>({"init", "event", "iterate", "iterate", "iterate", "shutdown"}));
+  CHECK(cb.seq == std::vector<std::string>({"init", "ready", "event", "iterate", "iterate", "iterate", "shutdown"}));
 }
 
 // ---------------------------------------------------------------------------
@@ -375,7 +387,27 @@ TEST_CASE("app host: HeadlessNull integration renders offscreen") {
 
   app::host_quit(app);
   CHECK(cb.shutdowns == 1);
-  CHECK(cb.seq == std::vector<std::string>({"init", "iterate", "draw", "iterate", "draw", "iterate", "shutdown"}));
+  CHECK(cb.readies == 1);
+  CHECK(cb.ready_saw_device);
+  CHECK_FALSE(cb.ready_saw_window);
+  CHECK(cb.seq == std::vector<std::string>({"init", "ready", "iterate", "draw", "iterate", "draw", "iterate", "shutdown"}));
+}
+
+TEST_CASE("app host: ready failure returns after resource startup and still shuts down cleanly") {
+  RecordingCallbacks callbacks;
+  callbacks.parse_flags = true;
+  callbacks.fail_ready = true;
+  app::App application;
+  application.callbacks = &callbacks;
+
+  char arg0[] = "CoreTests";
+  char headless_flag[] = "--mobagen-headless";
+  char* argv[] = {arg0, headless_flag, nullptr};
+
+  CHECK(app::host_init(application, 2, argv) == SDL_APP_FAILURE);
+  CHECK(callbacks.seq == std::vector<std::string>{"init", "ready"});
+  app::host_quit(application);
+  CHECK(callbacks.seq == std::vector<std::string>{"init", "ready", "shutdown"});
 }
 
 TEST_CASE("app host: GPU allocation failures are never submitted") {
