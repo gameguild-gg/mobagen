@@ -33,13 +33,13 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
     PRIVATE mobagen::plugin_sdk
   )
 
-  add_library(mobagen_module_lockfile STATIC lockfile.cpp lockfile_io.cpp)
+  add_library(mobagen_module_lockfile STATIC lockfile.cpp lockfile_io.cpp lockfile_parser.cpp)
   add_library(mobagen::module_lockfile ALIAS mobagen_module_lockfile)
   target_include_directories(mobagen_module_lockfile PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
   target_compile_features(mobagen_module_lockfile PUBLIC cxx_std_20)
   target_link_libraries(
     mobagen_module_lockfile
     PUBLIC mobagen::core_modules
-    PRIVATE mobagen::core_assets
+    PRIVATE mobagen::core_assets yaml-cpp::yaml-cpp
   )
 endif()

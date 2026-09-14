@@ -76,6 +76,13 @@ namespace {
     return std::ranges::any_of(result.issues, [=](const auto& issue) { return issue.code == code && issue.field == field; });
   }
 
+  bool has_parse_issue(const mobagen::modules::LockfileParseResult& result,
+                       mobagen::modules::LockfileParseIssueCode code, std::string_view field) {
+    return std::ranges::any_of(result.issues, [=](const auto& issue) {
+      return issue.code == code && issue.field == field;
+    });
+  }
+
   class TemporaryLockDirectory {
   public:
     TemporaryLockDirectory() {
@@ -188,6 +195,18 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
   REQUIRE(reversed.ok());
   CHECK(*serialized.contents == expected);
   CHECK(*reversed.contents == expected);
+
+  const auto parsed = parse_lockfile(*serialized.contents, "mobagen.lock");
+  REQUIRE(parsed.ok());
+  CHECK(parsed.document->metadata.sdk == SemanticVersion{1, 2, 3});
+  CHECK(parsed.document->metadata.target == TargetPlatform::Windows);
+  CHECK(parsed.document->metadata.profile == "release");
+  CHECK(parsed.document->metadata.manifest_hash == first_hash);
+  REQUIRE(parsed.document->metadata.plugins.size() == 2);
+  CHECK(parsed.document->metadata.plugins.front().provider == "customer.color");
+  CHECK(parsed.document->permissions == std::vector<std::string>{"filesystem-read", "gpu", "windowing"});
+  CHECK(parsed.document->resolved.size() == 2);
+  CHECK(parsed.document->dependencies.size() == 1);
 }
 
 TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML") {
@@ -224,6 +243,56 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidValue, "plugins.customer.color.package"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::InvalidHash, "plugins.customer.color.hash"));
   CHECK(has_lockfile_issue(result, LockfileIssueCode::DuplicateEntry, "plugins.customer.color"));
+}
+
+TEST_CASE("Module lockfile: strict parsing rejects duplicate, unknown, and tagged fields") {
+  using namespace mobagen::modules;
+  constexpr std::string_view source = R"yaml(schema: 1
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+manifest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+permissions: []
+configurations: {}
+resolved: {}
+dependencies: []
+plugins: !include {}
+extra: forbidden
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  CHECK_FALSE(parsed.ok());
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::DuplicateKey, "manifest"));
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::UnsupportedTag, "plugins"));
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::UnknownField, "extra"));
+}
+
+TEST_CASE("Module lockfile: strict parsing rejects control characters in package paths") {
+  using namespace mobagen::modules;
+  constexpr std::string_view source = R"yaml(schema: 1
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+permissions: []
+configurations: {}
+resolved: {}
+dependencies: []
+plugins:
+  customer.color:
+    version: 1.0.0
+    abi: 1
+    package: "plugins/customer\u001f.plugin"
+    hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  CHECK_FALSE(parsed.ok());
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue,
+                        "plugins.customer.color.package"));
 }
 
 TEST_CASE("Module lockfile: atomic write replaces the complete destination") {
