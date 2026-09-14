@@ -1,0 +1,11 @@
+add_library(mobagen_graphics_composition STATIC composition.cpp)
+add_library(mobagen::graphics_composition ALIAS mobagen_graphics_composition)
+target_include_directories(mobagen_graphics_composition PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_features(mobagen_graphics_composition PUBLIC cxx_std_23)
+target_link_libraries(mobagen_graphics_composition PUBLIC mobagen::core_app mobagen::core_modules)
+
+if(MOBAGEN_BUILD_MODULE_COMPOSITIONS)
+  add_executable(MobagenGraphicsComposition main.cpp)
+  target_compile_features(MobagenGraphicsComposition PRIVATE cxx_std_23)
+  target_link_libraries(MobagenGraphicsComposition PRIVATE mobagen::graphics_composition)
+endif()
