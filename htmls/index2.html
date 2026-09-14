@@ -33,7 +33,7 @@
     };
 
     //show Emscripten environment where the canvas is
-    var Module = {};
+    var Module = typeof Module !== "undefined" ? Module : {};
     Module.canvas = canvas;
 </script>
 
