@@ -18,6 +18,8 @@ add_library(
   runtime_tick_v1.h
   wasm_memory.cpp
   wasm_memory.hpp
+  wasm_plugin_contract.cpp
+  wasm_plugin_contract.hpp
 )
 add_library(mobagen::core_plugins ALIAS mobagen_core_plugins)
 target_compile_features(mobagen_core_plugins PUBLIC c_std_11 cxx_std_20)
