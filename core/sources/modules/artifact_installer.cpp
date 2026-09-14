@@ -241,6 +241,7 @@ namespace mobagen::modules {
               .version = source.version,
               .id = source.id,
               .size = source.size,
+              .abi_version = source.abi_version,
               .package_path = destination,
               .binary_path = destination / binary_name,
           },

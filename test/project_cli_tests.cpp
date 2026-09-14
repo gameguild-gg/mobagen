@@ -185,6 +185,7 @@ profiles:
   CHECK(output.str().contains(expected_artifact));
   CHECK(output.str().contains("cache\tmobagen.runtime.remote\tdownloaded\t"));
   CHECK(output.str().contains("plugin\tmobagen.runtime.remote\tinstalled\t"));
+  CHECK(output.str().contains("lock\t"));
   CHECK(output.str().ends_with("selected\t1\n"));
   const auto id = mobagen::assets::parse_asset_id(client.artifact_hash);
   REQUIRE(id.has_value());
@@ -194,6 +195,12 @@ profiles:
   CHECK(std::filesystem::is_regular_file(
       package / mobagen::modules::module_plugin_binary_filename(mobagen::modules::LinkageMode::Dynamic)
   ));
+  const auto lockfile = mobagen::test::read_text(project.path() / "mobagen.lock");
+  CHECK(lockfile.contains("  mobagen.runtime.remote:\n"));
+  CHECK(lockfile.contains("    version: 2.1.0\n"));
+  CHECK(lockfile.contains("    abi: 1\n"));
+  CHECK(lockfile.contains("    package: \".mobagen/plugins/mobagen.runtime.remote.plugin\"\n"));
+  CHECK(lockfile.contains("    hash: " + client.artifact_hash + '\n'));
 
   output.str({});
   error.str({});
@@ -203,6 +210,7 @@ profiles:
   CHECK(client.artifact_requests.size() == 1);
   CHECK(output.str().contains("cache\tmobagen.runtime.remote\tpresent\t"));
   CHECK(output.str().contains("plugin\tmobagen.runtime.remote\tpresent\t"));
+  CHECK(mobagen::test::read_text(project.path() / "mobagen.lock") == lockfile);
 }
 
 TEST_CASE("Project CLI: sync reports a missing injected HTTPS service without network access") {
