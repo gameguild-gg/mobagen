@@ -138,10 +138,12 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
   CHECK(*lockfile.contents
         == "schema: 1\n"
            "sdk: 0.0.1\n"
-           "target: "
+                 "target: "
                + native_target_name()
                + "\n"
                  "profile: release\n"
+                 "permissions:\n"
+                 "  - debug\n"
                  "resolved:\n"
                  "  runtime.tick.v1:\n"
                  "    provider: mobagen.reference\n"

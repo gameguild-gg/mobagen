@@ -160,6 +160,16 @@ namespace mobagen::modules {
       return std::tie(left.capability, left.provider) < std::tie(right.capability, right.provider);
     });
 
+    std::set<std::string> permissions;
+    for (const auto provider_index : resolution.lifecycle_order()) {
+      const auto* provider = registry.provider(provider_index);
+      if (provider == nullptr) {
+        add_issue(result, LockfileIssueCode::InvalidResolution, "permissions", "resolution contains an invalid provider index");
+        continue;
+      }
+      permissions.insert(provider->permissions.begin(), provider->permissions.end());
+    }
+
     std::vector<SerializedDependency> dependencies;
     for (const auto& dependency : resolution.dependencies()) {
       const auto capability = registry.capability_name(dependency.capability);
@@ -191,6 +201,13 @@ namespace mobagen::modules {
     output << '\n';
     output << "target: " << target_name(metadata.target) << '\n';
     output << "profile: " << metadata.profile << '\n';
+
+    if (permissions.empty()) {
+      output << "permissions: []\n";
+    } else {
+      output << "permissions:\n";
+      for (const auto& permission : permissions) output << "  - " << permission << '\n';
+    }
 
     if (providers.empty()) {
       output << "resolved: {}\n";

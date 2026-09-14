@@ -79,6 +79,7 @@ TEST_CASE("Project CLI: resolve writes a canonical lock and verify accepts it") 
   std::ifstream lockfile(project.path() / "mobagen.lock", std::ios::binary);
   const std::string lock_contents{std::istreambuf_iterator<char>{lockfile}, std::istreambuf_iterator<char>{}};
   CHECK(lock_contents.contains("sdk: " MOBAGEN_SDK_VERSION_STRING "\n"));
+  CHECK(lock_contents.contains("permissions:\n  - debug\n"));
 
   output.str({});
   const auto verify_arguments = project_arguments("verify", manifest);
