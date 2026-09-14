@@ -86,6 +86,7 @@ if(TARGET mobagen::module_manifest)
            module_catalog_fetcher_tests.cpp
            module_catalog_tests.cpp
            module_composition_tests.cpp
+           module_artifact_fetcher_tests.cpp
            module_manifest_tests.cpp
            module_sync_plan_tests.cpp
            native_project_tests.cpp
@@ -155,6 +156,9 @@ if(TARGET mobagen::module_manifest)
                             mobagen::native_project mobagen::portable_project
   )
 endif()
+if(TARGET mobagen::module_distribution)
+  target_link_libraries(FoundationTests PRIVATE mobagen::module_distribution)
+endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   target_link_libraries(FoundationTests PRIVATE mobagen::module_lockfile)
 endif()
@@ -185,6 +189,9 @@ if(TARGET mobagen_project_support)
 endif()
 if(TARGET mobagen_module_manifest)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)
+endif()
+if(TARGET mobagen_module_distribution)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_distribution)
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_lockfile)
