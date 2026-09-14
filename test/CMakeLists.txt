@@ -99,10 +99,15 @@ set_tests_properties(foundation::dawn-configure-patch PROPERTIES LABELS foundati
 add_custom_target(CoreTests DEPENDS FoundationTests)
 
 if(TARGET mobagen::core_app)
-  add_executable(AppHostTests Test.cpp app_host_tests.cpp)
+  add_executable(AppHostTests Test.cpp app_host_tests.cpp module_graphics_composition_tests.cpp)
   target_compile_features(AppHostTests PRIVATE cxx_std_23)
-  target_link_libraries(AppHostTests PRIVATE doctest::doctest mobagen::core_app)
-  mobagen_enable_sanitizers(AppHostTests mobagen_core_app)
+  target_include_directories(
+    AppHostTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../apps/module-compositions
+  )
+  target_link_libraries(
+    AppHostTests PRIVATE doctest::doctest mobagen::core_app mobagen::graphics_composition
+  )
+  mobagen_enable_sanitizers(AppHostTests mobagen_core_app mobagen_graphics_composition)
   doctest_discover_tests(AppHostTests TEST_PREFIX "app-host::" PROPERTIES LABELS app-host)
   add_dependencies(CoreTests AppHostTests)
 endif()
@@ -113,5 +118,5 @@ include(../cmake/coverage.cmake)
 
 mobagen_enable_coverage(FoundationTests ${FOUNDATION_COMPILED_TARGETS})
 if(TARGET AppHostTests)
-  mobagen_enable_coverage(AppHostTests mobagen_core_app)
+  mobagen_enable_coverage(AppHostTests mobagen_core_app mobagen_graphics_composition)
 endif()
