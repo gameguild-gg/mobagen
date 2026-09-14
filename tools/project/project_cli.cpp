@@ -1,5 +1,6 @@
 #include "project_cli.hpp"
 
+#include "modules/artifact_fetcher.hpp"
 #include "native/project_runtime.hpp"
 #include "modules/module_sync_plan.hpp"
 #include "portable/project_runtime.hpp"
@@ -40,6 +41,7 @@ namespace mobagen::compositions::cli {
     struct ParsedCommand {
       ProjectCommand command{};
       std::filesystem::path manifest;
+      std::optional<std::filesystem::path> cache_root;
       modules::ResolverOptions resolver;
       modules::SemanticVersion sdk_version{MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH};
     };
@@ -51,6 +53,7 @@ namespace mobagen::compositions::cli {
 
     struct ProjectRouteResult {
       std::optional<modules::ProductDescriptor> product;
+      std::filesystem::path manifest_path;
       std::optional<modules::LinkageMode> linkage;
       std::string error;
       std::vector<modules::ManifestError> manifest_errors;
@@ -59,7 +62,7 @@ namespace mobagen::compositions::cli {
     void print_usage(std::ostream& stream) {
       stream << "usage:\n"
                 "  MobagenProject sync <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
-                "      [--alias <alias=capability> ...] [--default <capability=provider> ...]\n"
+                "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--cache <directory>]\n"
                 "  MobagenProject resolve <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n"
                 "  MobagenProject verify <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
@@ -155,11 +158,13 @@ namespace mobagen::compositions::cli {
           .resolver = {.target = native_target()},
       };
       std::vector<NameBinding> defaults;
+      bool cache_seen = false;
       bool profile_seen = false;
       bool sdk_seen = false;
       for (std::size_t index = 2; index < arguments.size(); ++index) {
         const auto option = arguments[index];
-        if (option != "--profile" && option != "--alias" && option != "--default" && option != "--sdk") {
+        if (option != "--profile" && option != "--alias" && option != "--default" && option != "--sdk"
+            && option != "--cache") {
           result.error = "unknown option: " + std::string{option};
           return result;
         }
@@ -168,7 +173,14 @@ namespace mobagen::compositions::cli {
           return result;
         }
         const auto value = arguments[index];
-        if (option == "--profile") {
+        if (option == "--cache") {
+          if (parsed.command != ProjectCommand::Sync || cache_seen || value.empty()) {
+            result.error = "--cache is valid exactly once for sync with a non-empty directory";
+            return result;
+          }
+          cache_seen = true;
+          parsed.cache_root = std::filesystem::path{value};
+        } else if (option == "--profile") {
           if (profile_seen || value.empty()) {
             result.error = "--profile must appear exactly once with a non-empty value";
             return result;
@@ -234,6 +246,7 @@ namespace mobagen::compositions::cli {
         return result;
       }
       result.linkage = profile->linkage;
+      result.manifest_path = std::move(source.absolute_path);
       result.product = std::move(parsed.descriptor);
       return result;
     }
@@ -391,8 +404,9 @@ namespace mobagen::compositions::cli {
       return 3;
     }
 
-    int sync(const ParsedCommand& command, const modules::ProductDescriptor& product, http::Client& client,
-             std::ostream& output, std::ostream& error) {
+    int sync(const ParsedCommand& command, const modules::ProductDescriptor& product,
+             const std::filesystem::path& manifest_path, http::Client& client, std::ostream& output,
+             std::ostream& error) {
       auto planned = modules::plan_module_sync(product, client, command.resolver);
       if (!planned.ok()) {
         error << "sync failed";
@@ -412,6 +426,31 @@ namespace mobagen::compositions::cli {
         return 3;
       }
 
+      auto configured_cache = command.cache_root.value_or(std::filesystem::path{".mobagen"} / "cache");
+      if (configured_cache.is_relative()) configured_cache = manifest_path.parent_path() / configured_cache;
+      std::error_code cache_path_error;
+      auto cache_root = std::filesystem::absolute(configured_cache, cache_path_error).lexically_normal();
+      if (cache_path_error) {
+        error << "sync failed: module cache path could not be resolved\n";
+        return 3;
+      }
+      assets::AssetCache cache{cache_root, static_cast<std::size_t>(modules::max_module_artifact_bytes)};
+      auto fetched = modules::fetch_module_artifacts(*planned.catalog, *planned.resolution, client, cache);
+      if (!fetched.ok()) {
+        error << "sync failed";
+        if (!fetched.issues.empty()) {
+          const auto& issue = fetched.issues.front();
+          error << ": " << issue.message;
+          if (issue.http_status.has_value()) {
+            error << ": HTTP " << *issue.http_status;
+          } else if (issue.transport_error.has_value()) {
+            error << ": " << issue.transport_error->message;
+          }
+        }
+        error << '\n';
+        return 3;
+      }
+
       output << "catalogs-synced\t" << product.name << '\t' << command.resolver.profile << '\n';
       const auto& registry = planned.catalog->registry();
       for (const auto provider_index : planned.resolution->lifecycle_order()) {
@@ -424,6 +463,11 @@ namespace mobagen::compositions::cli {
         output << "artifact\t" << provider->id << '\t' << version_string(provider->version) << '\t'
                << linkage_name(artifact->linkage) << '\t' << artifact->size << '\t' << artifact->hash << '\t'
                << artifact->url << '\n';
+      }
+      for (const auto& artifact : fetched.artifacts) {
+        output << "cache\t" << artifact.provider_id << '\t'
+               << (artifact.downloaded ? "downloaded" : "present") << '\t'
+               << artifact.cache_path.generic_string() << '\n';
       }
       output << "selected\t" << planned.resolution->lifecycle_order().size() << '\n';
       return 0;
@@ -453,12 +497,13 @@ namespace mobagen::compositions::cli {
             return 3;
           }
           if (services.http_client != nullptr) {
-            return sync(*parsed.command, *route.product, *services.http_client, output, error);
+            return sync(*parsed.command, *route.product, route.manifest_path, *services.http_client,
+                        output, error);
           }
 #if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
           if (use_bundled_backends) {
             http::CurlClient client;
-            return sync(*parsed.command, *route.product, client, output, error);
+            return sync(*parsed.command, *route.product, route.manifest_path, client, output, error);
           }
 #else
           static_cast<void>(use_bundled_backends);
