@@ -12,6 +12,8 @@
 
 namespace mobagen::plugins {
 
+  class NativePluginActivation;
+
   enum class NativePluginLoadIssueCode : std::uint8_t {
     invalid_host,
     invalid_path,
@@ -45,10 +47,12 @@ namespace mobagen::plugins {
     [[nodiscard]] const NativePluginContract& contract() const noexcept { return *contract_; }
 
   private:
+    friend class NativePluginActivation;
     friend struct NativePluginLoadResult;
     friend NativePluginLoadResult load_native_plugin_binary(const std::filesystem::path&, const MobagenHostApiV1&);
 
     NativePlugin(std::filesystem::path path, void* library_handle, NativePluginContract contract);
+    void abandon() noexcept;
     void reset() noexcept;
 
     std::filesystem::path path_;

@@ -1,4 +1,5 @@
 #include "plugins/plugin_abi.h"
+#include "plugins/runtime_tick_v1.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -26,6 +27,7 @@ static MobagenStatus MOBAGEN_PLUGIN_CALL configure_plugin(void* plugin_state, co
 int mobagen_plugin_abi_c_compile_test(void) {
   MobagenHostApiV1 host = {0};
   MobagenPluginDescriptorV1 descriptor = {0};
+  MobagenRuntimeTickV1 tick = {0};
   host.struct_size = (uint32_t)sizeof(host);
   host.abi_version = MOBAGEN_PLUGIN_ABI_VERSION;
   host.allocate = allocate_memory;
@@ -34,5 +36,8 @@ int mobagen_plugin_abi_c_compile_test(void) {
   descriptor.abi_version = MOBAGEN_PLUGIN_ABI_VERSION;
   descriptor.lifecycle.struct_size = (uint32_t)sizeof(descriptor.lifecycle);
   descriptor.lifecycle.configure = configure_plugin;
-  return descriptor.lifecycle.configure(NULL, &host, (MobagenByteView){NULL, 0}) == MOBAGEN_STATUS_OK ? 0 : 1;
+  tick.header.struct_size = MOBAGEN_RUNTIME_TICK_V1_SIZE;
+  tick.header.abi_version = 1;
+  return descriptor.lifecycle.configure(NULL, &host, (MobagenByteView){NULL, 0}) == MOBAGEN_STATUS_OK && tick.header.struct_size == sizeof(tick) ? 0
+                                                                                                                                                 : 1;
 }
