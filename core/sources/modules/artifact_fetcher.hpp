@@ -22,6 +22,7 @@ namespace mobagen::modules {
   enum class ArtifactFetchIssueCode : std::uint8_t {
     InvalidPlan,
     InvalidArtifact,
+    UnsupportedAbi,
     Transport,
     HttpStatus,
     SizeMismatch,
@@ -55,6 +56,9 @@ namespace mobagen::modules {
 
     [[nodiscard]] bool ok() const noexcept { return issues.empty(); }
   };
+
+  /* Returns the host ABI accepted for runtime-loadable plugin linkages, or zero when unsupported. */
+  [[nodiscard]] std::uint32_t runtime_plugin_abi_version(LinkageMode linkage) noexcept;
 
   [[nodiscard]] ArtifactFetchResult fetch_module_artifacts(
       const ModuleCatalogIndex& catalog, const ModuleResolution& resolution, http::Client& client,

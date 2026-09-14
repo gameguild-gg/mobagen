@@ -15,6 +15,7 @@ namespace mobagen::modules {
     InvalidRoot,
     InvalidArtifact,
     UnsupportedLinkage,
+    UnsupportedAbi,
     SourceInvalid,
     StageFailed,
     CommitFailed,

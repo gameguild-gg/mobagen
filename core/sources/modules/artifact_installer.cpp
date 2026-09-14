@@ -181,6 +181,11 @@ namespace mobagen::modules {
                        artifact.cache_path,
                        "only dynamic and WASM artifacts can become runtime .plugin packages");
       }
+      if (artifact.abi_version != runtime_plugin_abi_version(artifact.linkage)) {
+        return failure(ArtifactInstallIssueCode::UnsupportedAbi, artifact.provider_id,
+                       artifact.cache_path,
+                       "cached plugin artifact ABI is not supported by this runtime");
+      }
       error.clear();
       if (!verify_file(artifact.cache_path, artifact.id, artifact.size, error)) {
         return failure(ArtifactInstallIssueCode::SourceInvalid, artifact.provider_id,
