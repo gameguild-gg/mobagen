@@ -1,5 +1,6 @@
 add_library(
   mobagen_core_plugins STATIC
+  fixed_issue_list.hpp
   plugin_activation.cpp
   plugin_activation.hpp
   plugin_activation_set.cpp

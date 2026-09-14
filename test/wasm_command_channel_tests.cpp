@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -10,6 +11,11 @@
 #include <vector>
 
 #include "plugins/wasm_command_channel.hpp"
+
+namespace module_allocation_probe {
+  extern std::atomic_bool enabled;
+  extern std::atomic_size_t count;
+}  // namespace module_allocation_probe
 
 namespace {
 
@@ -143,6 +149,22 @@ TEST_CASE("WASM command channel: invalid input never crosses the sandbox boundar
   CHECK_FALSE(malformed.output.has_value());
   CHECK(has_issue(malformed, mobagen::plugins::WasmCommandChannelIssueCode::InvalidInputBatch));
   CHECK(instance.process_calls == 0);
+}
+
+TEST_CASE("WASM command channel: warmed processing performs zero host allocations") {
+  FakeCommandInstance instance;
+  auto created = mobagen::plugins::create_wasm_command_channel(instance, 64, 64);
+  REQUIRE(created.channel != nullptr);
+  const auto command = one_command();
+  REQUIRE(created.channel->process(command, 1).ok());
+
+  module_allocation_probe::count.store(0, std::memory_order_relaxed);
+  module_allocation_probe::enabled.store(true, std::memory_order_release);
+  const auto measured = created.channel->process(command, 1);
+  module_allocation_probe::enabled.store(false, std::memory_order_release);
+
+  REQUIRE(measured.ok());
+  CHECK(module_allocation_probe::count.load(std::memory_order_relaxed) == 0);
 }
 
 TEST_CASE("WASM command channel: guest result and output mutations fail closed") {
