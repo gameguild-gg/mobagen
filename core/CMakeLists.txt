@@ -29,6 +29,7 @@ add_subdirectory(sources/ecs)
 add_subdirectory(sources/jobs)
 add_subdirectory(sources/reactive)
 add_subdirectory(sources/messaging)
+add_subdirectory(sources/http)
 add_subdirectory(sources/modules)
 add_subdirectory(sources/plugins)
 add_subdirectory(sources/scene)
@@ -94,6 +95,7 @@ target_link_libraries(
             mobagen::core_jobs
             mobagen::core_reactive
             mobagen::core_messaging
+            mobagen::core_http
             mobagen::core_modules
             mobagen::core_plugins
             mobagen::core_scene
