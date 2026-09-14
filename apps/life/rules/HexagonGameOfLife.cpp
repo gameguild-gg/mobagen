@@ -80,6 +80,7 @@ public:
     //   use the context.position to get the current cell's position
 
     context.world.SetNext(context.position, false);
+    return;
 
     throw std::logic_error("Die action not implemented yet");
   }
@@ -91,6 +92,7 @@ public:
     // see hints in DieAction
 
     context.world.SetNext(context.position, true);
+    return;
 
     throw std::logic_error("Born action not implemented yet");
   }
@@ -102,6 +104,7 @@ public:
     // see hints in DieAction
 
     context.world.SetNext(context.position, true);
+    return;
 
     throw std::logic_error("StayAlive action not implemented yet");
   }
@@ -113,6 +116,7 @@ public:
     // see hints in DieAction
 
     context.world.SetNext(context.position, false);
+    return;
 
     throw std::logic_error("StayDead action not implemented yet");
   }

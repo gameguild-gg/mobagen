@@ -129,9 +129,16 @@ JohnConway::JohnConway() {
   // note: log instead of throw - the constructor runs at app startup and at
   // every fixture load; throwing here would kill the process before it runs.
 
+  //Add transitions
   alive -> AddTransition(std::make_shared<Underpopulation>(), dead, {die});
-  dead -> AddTransition(std::make_shared<Overpopulation>(), alive, {born});
+  alive -> AddTransition(std::make_shared<Overpopulation>(), dead, {die});
   dead -> AddTransition(std::make_shared<Reproduction>(), alive, {born});
+
+  //Add actions
+  dead -> AddAction(std::make_shared<StayDeadAction>());
+  alive -> AddAction(std::make_shared<StayAliveAction>());
+
+  return;
 
   SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "JohnConway: transitions and actions for alive and dead states not implemented yet");
 
