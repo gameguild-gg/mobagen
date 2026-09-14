@@ -28,4 +28,9 @@ TEST_CASE("Curl HTTP client: invalid or insecure requests fail before network ac
   REQUIRE(unbounded.error.has_value());
   CHECK(unbounded.error->code == ErrorCode::InvalidRequest);
 
+  valid_limits.max_response_bytes = 1024;
+  const auto missing_sink = client.get_stream(valid_limits, {});
+  REQUIRE_FALSE(missing_sink.ok());
+  REQUIRE(missing_sink.error.has_value());
+  CHECK(missing_sink.error->code == ErrorCode::InvalidRequest);
 }
