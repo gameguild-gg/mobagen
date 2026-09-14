@@ -36,6 +36,7 @@ set(FOUNDATION_TEST_SOURCES
     benchmark_runner_tests.cpp
     binary_reader_tests.cpp
     ecs_tests.cpp
+    http_client_tests.cpp
     jobs_tests.cpp
     messaging_tests.cpp
     module_descriptor_tests.cpp
