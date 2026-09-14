@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "assets/asset_id.hpp"
+#include "native/locked_project.hpp"
 #include "native/project_runtime.hpp"
 #include "plugins/runtime_tick_v1.h"
 
@@ -112,6 +113,7 @@ namespace {
 name: native-project-test
 modules:
   runtime:
+    capability: runtime.tick.v1
     use: default
     config:
       schema: mobagen.reference.config.v1
@@ -274,6 +276,117 @@ TEST_CASE("Native project: update writes a canonical lock that frozen mode accep
   CHECK_FALSE(changed.ok());
   REQUIRE(changed.issues.size() == 1);
   CHECK(changed.issues.front().code == NativeProjectIssueCode::LockMismatch);
+}
+
+TEST_CASE("Locked native project: verified lock opens offline and activates capabilities lazily") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
+  const NativeProjectLockOptions update_lock{
+      .policy = NativeProjectLockPolicy::Update,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+  auto generated = load_native_project(
+      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
+  );
+  REQUIRE(generated.ok());
+  REQUIRE(generated.runtime->stop().ok());
+  generated.runtime.reset();
+  std::error_code removal_error;
+  REQUIRE(std::filesystem::remove(
+      project.path() / "plugins" / "unselected.plugin"
+          / mobagen::plugins::native_plugin_binary_filename(),
+      removal_error
+  ));
+  REQUIRE_FALSE(removal_error);
+
+  auto opened = open_locked_native_project(
+      project.path() / "mobagen.yaml",
+      {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"}
+  );
+
+  REQUIRE(opened.ok());
+  CHECK(opened.manager->active_count() == 0);
+  CHECK(opened.manager->host().size() == 0);
+  REQUIRE(opened.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID).ok());
+  const auto api = opened.manager->host().find<MobagenRuntimeTickV1>(
+      MOBAGEN_RUNTIME_TICK_V1_ID, 1
+  );
+  REQUIRE(api.has_value());
+  CHECK((*api)->tick((*api)->plugin_state) == MOBAGEN_STATUS_OK);
+  CHECK((*api)->tick_count((*api)->plugin_state) == 42);
+  CHECK(opened.manager->stop().ok());
+}
+
+TEST_CASE("Locked native project: tampered plugin bytes fail only when its capability is requested") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
+  const NativeProjectLockOptions update_lock{
+      .policy = NativeProjectLockPolicy::Update,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+  auto generated = load_native_project(
+      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
+  );
+  REQUIRE(generated.ok());
+  REQUIRE(generated.runtime->stop().ok());
+  generated.runtime.reset();
+  std::ofstream tampered{
+      project.path() / "plugins" / "reference.plugin"
+          / mobagen::plugins::native_plugin_binary_filename(),
+      std::ios::binary | std::ios::app
+  };
+  REQUIRE(tampered.is_open());
+  tampered.put('\0');
+  REQUIRE(tampered.good());
+  tampered.close();
+
+  auto opened = open_locked_native_project(
+      project.path() / "mobagen.yaml",
+      {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"}
+  );
+
+  REQUIRE(opened.ok());
+  CHECK(opened.manager->active_count() == 0);
+  const auto activated = opened.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID);
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code
+        == NativeModuleManagerIssueCode::ArtifactVerificationFailed);
+  CHECK(opened.manager->active_count() == 0);
+  CHECK(opened.manager->host().size() == 0);
+}
+
+TEST_CASE("Locked native project: lock permissions cannot exceed the manifest profile") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
+  const NativeProjectLockOptions update_lock{
+      .policy = NativeProjectLockPolicy::Update,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+  auto generated = load_native_project(
+      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
+  );
+  REQUIRE(generated.ok());
+  REQUIRE(generated.runtime->stop().ok());
+  generated.runtime.reset();
+  auto lock = project.read_lockfile();
+  const auto permission = lock.find("  - debug\n");
+  REQUIRE(permission != std::string::npos);
+  lock.replace(permission, std::string_view{"  - debug\n"}.size(), "  - filesystem\n");
+  project.write_lockfile(lock);
+
+  const auto opened = open_locked_native_project(
+      project.path() / "mobagen.yaml",
+      {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"}
+  );
+
+  CHECK_FALSE(opened.ok());
+  CHECK(opened.manager == nullptr);
+  REQUIRE(opened.issues.size() == 1);
+  CHECK(opened.issues.front().code == LockedNativeProjectIssueCode::ProjectMismatch);
 }
 
 TEST_CASE("Native project: frozen mode rejects missing and changed lockfiles") {

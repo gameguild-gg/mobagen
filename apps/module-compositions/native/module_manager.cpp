@@ -1,6 +1,9 @@
 #include "module_manager.hpp"
 
+#include "project_support.hpp"
+
 #include "assets/asset_id.hpp"
+#include "modules/catalog.hpp"
 #include "plugins/plugin_loader.hpp"
 
 #include <algorithm>
@@ -88,6 +91,21 @@ namespace mobagen::compositions {
           .message = "native module manager can activate only dynamic plugins",
       });
       return false;
+    }
+    if (!entry.binary_hash.empty()) {
+      const auto hash = detail::hash_project_plugin_binary(
+          entry.binary_path, modules::max_module_artifact_bytes
+      );
+      if (!hash.ok() || *hash.hash != entry.binary_hash) {
+        result.issues.push_back({
+            .code = NativeModuleManagerIssueCode::ArtifactVerificationFailed,
+            .provider_id = entry.provider_id,
+            .message = hash.ok()
+                         ? "selected native plugin no longer matches mobagen.lock"
+                         : "selected native plugin could not be verified: " + hash.error,
+        });
+        return false;
+      }
     }
     auto loaded = plugins::load_native_plugin_binary(entry.binary_path, host_.api());
     if (!loaded.plugin.has_value()) {

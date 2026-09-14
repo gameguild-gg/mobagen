@@ -45,6 +45,7 @@ namespace mobagen::modules {
     std::vector<LockedPluginDependency> dependencies;
     std::string configuration_schema;
     std::string configuration_hash;
+    std::string binary_hash;
   };
 
   class LockedPluginActivationPlan {
@@ -60,6 +61,9 @@ namespace mobagen::modules {
     friend struct LockedActivationPlanResult;
     friend LockedActivationPlanResult build_locked_plugin_activation_plan(
         const LockfileDocument&, std::span<const VerifiedLockedPlugin>
+    );
+    friend LockedActivationPlanResult build_locked_plugin_activation_plan(
+        const LockfileDocument&, std::span<const StagedLockedPlugin>
     );
 
     explicit LockedPluginActivationPlan(std::vector<LockedPluginActivationEntry> entries)
@@ -78,6 +82,9 @@ namespace mobagen::modules {
   /* Builds a deterministic lifecycle plan from already-verified metadata only. */
   [[nodiscard]] LockedActivationPlanResult build_locked_plugin_activation_plan(
       const LockfileDocument& document, std::span<const VerifiedLockedPlugin> verified_plugins
+  );
+  [[nodiscard]] LockedActivationPlanResult build_locked_plugin_activation_plan(
+      const LockfileDocument& document, std::span<const StagedLockedPlugin> staged_plugins
   );
 
 }  // namespace mobagen::modules
