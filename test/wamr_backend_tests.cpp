@@ -15,7 +15,9 @@
 
 #include "modules/capability_registry.hpp"
 #include "plugins/wamr_backend.hpp"
+#include "plugins/wasm_plugin_activation_set.hpp"
 #include "plugins/wasm_runtime.hpp"
+#include "support/wasm_plugin_test_support.hpp"
 
 namespace {
 
@@ -237,6 +239,123 @@ namespace {
     return std::make_shared<const mobagen::modules::CapabilityRegistry>(std::move(*built.registry));
   }
 
+  std::vector<std::byte> make_reference_plugin_module() {
+    std::vector<std::byte> module{
+        std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d},
+        std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+    };
+
+    std::vector<std::byte> types;
+    append_u32_leb(types, 3);
+    for (const std::uint32_t parameter_count : {2U, 3U, 0U}) {
+      types.push_back(std::byte{0x60});
+      append_u32_leb(types, parameter_count);
+      for (std::uint32_t parameter = 0; parameter < parameter_count; ++parameter) types.push_back(std::byte{0x7f});
+      types.insert(types.end(), {std::byte{0x01}, std::byte{0x7f}});
+    }
+    append_section(module, 1, types);
+
+    std::vector<std::byte> imports;
+    append_u32_leb(imports, 1);
+    append_name(imports, MOBAGEN_WASM_IMPORT_MODULE_V1);
+    append_name(imports, MOBAGEN_WASM_IMPORT_SUBMIT_COMMANDS_V1);
+    imports.insert(imports.end(), {std::byte{0x00}, std::byte{0x00}});
+    append_section(module, 2, imports);
+
+    const std::array function_section{
+        std::byte{0x08},
+        std::byte{0x00}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x02}, std::byte{0x02}, std::byte{0x02}, std::byte{0x01},
+    };
+    append_section(module, 3, function_section);
+    const std::array memory_section{std::byte{0x01}, std::byte{0x00}, std::byte{0x01}};
+    append_section(module, 5, memory_section);
+
+    std::vector<std::byte> exports;
+    append_u32_leb(exports, 9);
+    append_name(exports, "memory");
+    exports.insert(exports.end(), {std::byte{0x02}, std::byte{0x00}});
+    for (std::size_t index = 0; index < 8; ++index) {
+      append_name(exports, mobagen::plugins::wasm_plugin_export_name(static_cast<mobagen::plugins::WasmPluginExport>(index)));
+      exports.push_back(std::byte{0x00});
+      append_u32_leb(exports, static_cast<std::uint32_t>(index + 1));
+    }
+    append_section(module, 7, exports);
+
+    auto status_body = [](std::int32_t status) {
+      std::vector<std::byte> body{std::byte{0x00}};
+      append_i32_const(body, status);
+      body.push_back(std::byte{0x0b});
+      return body;
+    };
+    std::vector<std::byte> code;
+    append_u32_leb(code, 8);
+    append_function_body(code, status_body(8));
+    append_function_body(code, status_body(MOBAGEN_WASM_STATUS_OK));
+    std::vector<std::byte> query_body{std::byte{0x00}, std::byte{0x20}, std::byte{0x00}};
+    append_i32_const(query_body, 512);
+    append_i32_const(query_body, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
+    query_body.insert(query_body.end(), {std::byte{0xfc}, std::byte{0x0a}, std::byte{0x00}, std::byte{0x00}});
+    append_i32_const(query_body, MOBAGEN_WASM_STATUS_OK);
+    query_body.push_back(std::byte{0x0b});
+    append_function_body(code, query_body);
+    append_function_body(code, status_body(MOBAGEN_WASM_STATUS_OK));
+    std::vector<std::byte> start_body{std::byte{0x00}};
+    append_i32_const(start_body, 224);
+    append_i32_const(start_body, 280);
+    start_body.insert(start_body.end(), {std::byte{0x10}, std::byte{0x00}, std::byte{0x0b}});
+    append_function_body(code, start_body);
+    append_function_body(code, status_body(MOBAGEN_WASM_STATUS_OK));
+    append_function_body(code, status_body(MOBAGEN_WASM_STATUS_OK));
+    append_function_body(code, status_body(MOBAGEN_WASM_STATUS_OK));
+    append_section(module, 10, code);
+
+    constexpr std::string_view provider_id = "mobagen.wamr-reference";
+    constexpr std::string_view capability = "runtime.wamr.v1";
+    constexpr std::string_view permission = "gpu";
+    constexpr std::size_t descriptor_template_offset = 512;
+    std::vector<std::byte> image(descriptor_template_offset + MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
+    write_u32(image, descriptor_template_offset, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
+    write_u32(image, descriptor_template_offset + 4, MOBAGEN_WASM_PLUGIN_ABI_VERSION);
+    write_u32(image, descriptor_template_offset + 8, 96);
+    write_u32(image, descriptor_template_offset + 12, static_cast<std::uint32_t>(provider_id.size()));
+    write_u32(image, descriptor_template_offset + 16, 1);
+    write_u32(image, descriptor_template_offset + 20, 0);
+    write_u32(image, descriptor_template_offset + 24, 0);
+    write_u32(image, descriptor_template_offset + 28, MOBAGEN_WASM_RELOAD_RESTART);
+    write_u32(image, descriptor_template_offset + 32, 160);
+    write_u32(image, descriptor_template_offset + 36, 1);
+    write_u32(image, descriptor_template_offset + 72, 176);
+    write_u32(image, descriptor_template_offset + 76, 1);
+    write_text(image, 96, provider_id);
+    write_text(image, 128, capability);
+    write_text(image, 148, permission);
+    write_u32(image, 160, 128);
+    write_u32(image, 164, static_cast<std::uint32_t>(capability.size()));
+    write_u32(image, 176, 148);
+    write_u32(image, 180, static_cast<std::uint32_t>(permission.size()));
+    write_u32(image, 224, MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE);
+    write_u32(image, 228, MOBAGEN_WASM_PLUGIN_ABI_VERSION);
+    write_u32(image, 232, 256);
+    write_u32(image, 236, MOBAGEN_WASM_COMMAND_HEADER_V1_SIZE);
+    write_u32(image, 240, 1);
+    write_u32(image, 244, 0);
+    write_u32(image, 256, MOBAGEN_WASM_COMMAND_HEADER_V1_SIZE);
+    write_u32(image, 260, 42);
+
+    std::vector<std::byte> data;
+    append_u32_leb(data, 1);
+    data.push_back(std::byte{0x00});
+    append_i32_const(data, 8);
+    data.push_back(std::byte{0x0b});
+    const auto payload = std::span<const std::byte>{image}.subspan(8);
+    append_u32_leb(data, static_cast<std::uint32_t>(payload.size()));
+    data.insert(data.end(), payload.begin(), payload.end());
+    append_section(module, 11, data);
+
+    return module;
+  }
+
 }  // namespace
 
 TEST_CASE("WAMR backend: instance owns bytecode and outlives its backend") {
@@ -354,4 +473,83 @@ TEST_CASE("WAMR backend: canonical host imports route through the injected insta
   const auto denied = without_imports.instance->invoke(WasmPluginExport::Start, {});
   REQUIRE(denied.ok());
   CHECK(*denied.value == MOBAGEN_WASM_STATUS_FAILED);
+}
+
+TEST_CASE("WAMR backend: a dot-plugin package resolves and activates end to end") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  const auto bytecode = make_reference_plugin_module();
+  test::write_binary(package / plugins::portable_wasm_plugin_binary_filename(), bytecode);
+
+  const modules::ProductDescriptor product{
+      .name = "wamr-reference-product",
+      .modules = {{.alias = "runtime", .provider = "mobagen.wamr-reference"}},
+      .plugins = {"plugins/reference.plugin"},
+      .profiles = {{.name = "release", .linkage = modules::LinkageMode::Wasm, .editor = false, .permissions = {"gpu"}}},
+  };
+  HostCapture capture;
+  const plugins::WasmHostServices services{.state = &capture, .submit_commands = capture_commands};
+  plugins::WamrBackend backend;
+  auto probe = backend.instantiate(bytecode, nullptr);
+  REQUIRE_MESSAGE(probe.ok(), probe.error.value_or("unknown WAMR error"));
+  CHECK(read_u32(probe.instance->memory(), 512) == MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
+  CHECK(read_u32(probe.instance->memory(), 516) == MOBAGEN_WASM_PLUGIN_ABI_VERSION);
+  const std::array allocate_arguments{MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE, MOBAGEN_WASM_EXCHANGE_ALIGNMENT};
+  const auto allocation = probe.instance->invoke(plugins::WasmPluginExport::Allocate, allocate_arguments);
+  REQUIRE(allocation.ok());
+  CHECK(*allocation.value == 8);
+  const std::array query_arguments{*allocation.value, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE};
+  const auto queried = probe.instance->invoke(plugins::WasmPluginExport::Query, query_arguments);
+  REQUIRE(queried.ok());
+  CHECK(*queried.value == MOBAGEN_WASM_STATUS_OK);
+  CHECK(read_u32(probe.instance->memory(), 8) == MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
+  CHECK(read_u32(probe.instance->memory(), 12) == MOBAGEN_WASM_PLUGIN_ABI_VERSION);
+  probe.instance.reset();
+  auto catalog = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend, {}, services);
+  std::string catalog_error = "unknown catalog error";
+  if (!catalog.issues.empty()) {
+    catalog_error = catalog.issues.front().message;
+    if (!catalog.issues.front().load_issues.empty()) {
+      catalog_error += ": " + catalog.issues.front().load_issues.front().message;
+      if (!catalog.issues.front().load_issues.front().query_issues.empty()) {
+        const auto& query_issue = catalog.issues.front().load_issues.front().query_issues.front();
+        catalog_error += ": " + query_issue.message;
+        if (!query_issue.contract_issues.empty()) {
+          catalog_error += ": " + query_issue.contract_issues.front().field + " " + query_issue.contract_issues.front().message;
+        }
+      }
+    }
+  }
+  REQUIRE_MESSAGE(catalog.ok(), catalog_error);
+  REQUIRE(catalog.catalog->plugin_count() == 1);
+  const auto* loaded = catalog.catalog->plugin(0);
+  REQUIRE(loaded != nullptr);
+  CHECK(loaded->path() == std::filesystem::weakly_canonical(package / plugins::portable_wasm_plugin_binary_filename()));
+  CHECK(loaded->provider().id == "mobagen.wamr-reference");
+  CHECK(loaded->provider().version == modules::SemanticVersion{1, 0, 0});
+  CHECK(loaded->provider().provides == std::vector<std::string>{"runtime.wamr.v1"});
+  CHECK(loaded->provider().permissions == std::vector<std::string>{"gpu"});
+
+  const modules::ResolverOptions options{
+      .target = test::portable_target(),
+      .profile = "release",
+      .aliases = {{.alias = "runtime", .capability = "runtime.wamr.v1"}},
+  };
+  auto resolution = modules::resolve_modules(product, catalog.catalog->registry(), options);
+  REQUIRE(resolution.ok());
+  auto activated = plugins::activate_resolved_portable_wasm_plugins(*catalog.catalog, *resolution.resolution);
+  REQUIRE(activated.ok());
+  REQUIRE(activated.activation->size() == 1);
+  const auto* active = activated.activation->plugin(0);
+  REQUIRE(active != nullptr);
+  CHECK(active->state() == plugins::PortableWasmPluginState::Active);
+  CHECK(capture.submit_calls == 1);
+  CHECK(capture.command_count == 1);
+  CHECK(capture.permissions == std::vector<std::string>{"gpu"});
+
+  CHECK(activated.activation->stop().ok());
+  CHECK(active->state() == plugins::PortableWasmPluginState::Stopped);
 }
