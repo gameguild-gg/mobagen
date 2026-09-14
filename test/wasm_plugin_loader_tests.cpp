@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/wasm_plugin_catalog.hpp"
+#include "plugins/wasm_plugin_activation_set.hpp"
 
 namespace {
 
@@ -64,8 +64,12 @@ namespace {
   class DescriptorInstance final : public mobagen::plugins::PortableWasmInstance {
   public:
     explicit DescriptorInstance(std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations,
-                                std::string provider_id = "mobagen.wasm-package")
-        : invocations_(std::move(invocations)), provider_id_(std::move(provider_id)) {}
+                                std::string provider_id = "mobagen.wasm-package", std::string capability_id = "runtime.package.v1",
+                                std::uint32_t start_status = MOBAGEN_WASM_STATUS_OK)
+        : invocations_(std::move(invocations)),
+          provider_id_(std::move(provider_id)),
+          capability_id_(std::move(capability_id)),
+          start_status_(start_status) {}
 
     mobagen::plugins::WasmInvocationResult invoke(mobagen::plugins::WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
       invocations_->push_back(function);
@@ -79,8 +83,11 @@ namespace {
       if (function == mobagen::plugins::WasmPluginExport::Deallocate) {
         return mobagen::plugins::WasmInvocationResult::success(MOBAGEN_WASM_STATUS_OK);
       }
-      if (function == mobagen::plugins::WasmPluginExport::Configure || function == mobagen::plugins::WasmPluginExport::Start
-          || function == mobagen::plugins::WasmPluginExport::Quiesce || function == mobagen::plugins::WasmPluginExport::Stop) {
+      if (function == mobagen::plugins::WasmPluginExport::Start) {
+        return mobagen::plugins::WasmInvocationResult::success(start_status_);
+      }
+      if (function == mobagen::plugins::WasmPluginExport::Configure || function == mobagen::plugins::WasmPluginExport::Quiesce
+          || function == mobagen::plugins::WasmPluginExport::Stop) {
         return mobagen::plugins::WasmInvocationResult::success(MOBAGEN_WASM_STATUS_OK);
       }
       return mobagen::plugins::WasmInvocationResult::failure("unexpected export");
@@ -96,11 +103,10 @@ namespace {
       constexpr std::uint32_t id_offset = 96;
       constexpr std::uint32_t capability_offset = 128;
       constexpr std::uint32_t provides_offset = 152;
-      constexpr std::string_view capability = "runtime.package.v1";
       write_string(linear_memory, id_offset, provider_id_);
-      write_string(linear_memory, capability_offset, capability);
+      write_string(linear_memory, capability_offset, capability_id_);
       write_u32(linear_memory, provides_offset, capability_offset);
-      write_u32(linear_memory, provides_offset + 4, static_cast<std::uint32_t>(capability.size()));
+      write_u32(linear_memory, provides_offset + 4, static_cast<std::uint32_t>(capability_id_.size()));
       write_u32(linear_memory, descriptor_offset, malformed ? 0 : MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
       write_u32(linear_memory, descriptor_offset + 4, MOBAGEN_WASM_PLUGIN_ABI_VERSION);
       write_u32(linear_memory, descriptor_offset + 8, id_offset);
@@ -118,6 +124,8 @@ namespace {
 
     std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations_;
     std::string provider_id_;
+    std::string capability_id_;
+    std::uint32_t start_status_;
     std::vector<std::byte> linear_memory = std::vector<std::byte>(256);
   };
 
@@ -128,8 +136,11 @@ namespace {
       observed.assign(binary.begin(), binary.end());
       if (throws) throw std::runtime_error{"backend trapped"};
       if (fails) return mobagen::plugins::PortableWasmInstantiationResult::failure("backend rejected module");
-      const auto provider_id = provider_ids.empty() ? std::string{"mobagen.wasm-package"} : provider_ids.at(calls - 1);
-      auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id);
+      const auto index = calls - 1;
+      const auto provider_id = provider_ids.empty() ? std::string{"mobagen.wasm-package"} : provider_ids.at(index);
+      const auto capability_id = capability_ids.empty() ? std::string{"runtime.package.v1"} : capability_ids.at(index);
+      const auto start_status = start_statuses.empty() ? MOBAGEN_WASM_STATUS_OK : start_statuses.at(index);
+      auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id, capability_id, start_status);
       instance->malformed = malformed_descriptor;
       return mobagen::plugins::PortableWasmInstantiationResult::success(std::move(instance));
     }
@@ -139,6 +150,8 @@ namespace {
         = std::make_shared<std::vector<mobagen::plugins::WasmPluginExport>>();
     std::size_t calls{};
     std::vector<std::string> provider_ids;
+    std::vector<std::string> capability_ids;
+    std::vector<std::uint32_t> start_statuses;
     bool fails{};
     bool throws{};
     bool malformed_descriptor{};
@@ -150,6 +163,10 @@ namespace {
 
   bool has_issue(const mobagen::plugins::PortableWasmPluginCatalogResult& result, mobagen::plugins::PortableWasmPluginCatalogIssueCode code) {
     return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
+  }
+
+  std::size_t invocation_count(const FakeWasmBackend& backend, mobagen::plugins::WasmPluginExport function) {
+    return static_cast<std::size_t>(std::ranges::count(*backend.invocations, function));
   }
 
 }  // namespace
@@ -389,4 +406,173 @@ TEST_CASE("Portable WASM plugin catalog: duplicate provider metadata rejects the
   CHECK_FALSE(result.ok());
   CHECK(has_issue(result, plugins::PortableWasmPluginCatalogIssueCode::RegistryFailed));
   CHECK(backend.calls == 2);
+}
+
+TEST_CASE("Resolved portable WASM plugin activation: manifest selection activates without requery") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  const modules::ProductDescriptor product{
+      .name = "resolved-wasm",
+      .modules = {{.alias = "runtime", .provider = "mobagen.wasm-package"}},
+      .plugins = {"plugins/reference.plugin"},
+      .profiles = {{.name = "release", .linkage = modules::LinkageMode::Wasm, .editor = false}},
+  };
+  FakeWasmBackend backend;
+  auto catalog = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend);
+  REQUIRE(catalog.ok());
+  const auto target = catalog.catalog->plugin(0)->provider().targets.front();
+  const auto resolution
+      = modules::resolve_modules(product, catalog.catalog->registry(),
+                                 {.target = target, .profile = "release", .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}}});
+  REQUIRE(resolution.ok());
+
+  auto activated = plugins::activate_resolved_portable_wasm_plugins(*catalog.catalog, *resolution.resolution);
+
+  REQUIRE(activated.ok());
+  CHECK(activated.activation->size() == 1);
+  REQUIRE(activated.activation->plugin(0) != nullptr);
+  CHECK(activated.activation->plugin(0)->provider().id == "mobagen.wasm-package");
+  CHECK(activated.activation->plugin(1) == nullptr);
+  CHECK(catalog.catalog->plugin_count() == 0);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Query) == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Configure) == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 1);
+  CHECK(activated.activation->stop().ok());
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Quiesce) == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Stop) == 1);
+
+  const auto repeated = plugins::activate_resolved_portable_wasm_plugins(*catalog.catalog, *resolution.resolution);
+  CHECK_FALSE(repeated.ok());
+  REQUIRE_FALSE(repeated.issues.empty());
+  CHECK(repeated.issues.front().code == plugins::ResolvedPortableWasmPluginIssueCode::PluginUnavailable);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Configure) == 1);
+}
+
+TEST_CASE("Resolved portable WASM plugin activation: selected failure rolls back the entire set") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  for (const std::string_view name : {"first", "second"}) {
+    const auto package = directory.path() / "plugins" / (std::string{name} + ".plugin");
+    REQUIRE(std::filesystem::create_directory(package));
+    write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  }
+  const modules::ProductDescriptor product{
+      .name = "resolved-wasm",
+      .modules = {
+          {.alias = "first", .provider = "mobagen.first"},
+          {.alias = "second", .provider = "mobagen.second"},
+      },
+      .plugins = {"plugins/first.plugin", "plugins/second.plugin"},
+      .profiles = {{.name = "release", .linkage = modules::LinkageMode::Wasm, .editor = false}},
+  };
+  FakeWasmBackend backend;
+  backend.provider_ids = {"mobagen.first", "mobagen.second"};
+  backend.capability_ids = {"runtime.first.v1", "runtime.second.v1"};
+  backend.start_statuses = {MOBAGEN_WASM_STATUS_OK, MOBAGEN_WASM_STATUS_FAILED};
+  auto catalog = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend);
+  REQUIRE(catalog.ok());
+  const auto target = catalog.catalog->plugin(0)->provider().targets.front();
+  const auto resolution = modules::resolve_modules(product, catalog.catalog->registry(),
+                                                   {.target = target,
+                                                    .profile = "release",
+                                                    .aliases = {
+                                                        {.alias = "first", .capability = "runtime.first.v1"},
+                                                        {.alias = "second", .capability = "runtime.second.v1"},
+                                                    }});
+  REQUIRE(resolution.ok());
+
+  const auto activated = plugins::activate_resolved_portable_wasm_plugins(*catalog.catalog, *resolution.resolution);
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE_FALSE(activated.issues.empty());
+  CHECK(activated.issues.front().code == plugins::ResolvedPortableWasmPluginIssueCode::ActivationFailed);
+  CHECK(activated.issues.front().provider_id == "mobagen.second");
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Configure) == 2);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 2);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Quiesce) == 2);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Stop) == 2);
+}
+
+TEST_CASE("Resolved portable WASM plugin activation: builtins remain outside the plugin lifecycle") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  modules::ProductDescriptor product{
+      .name = "resolved-wasm",
+      .modules = {{.alias = "runtime", .provider = "mobagen.builtin"}},
+      .plugins = {"plugins/reference.plugin"},
+      .profiles = {{.name = "release", .linkage = modules::LinkageMode::Wasm, .editor = false}},
+  };
+  FakeWasmBackend backend;
+  const modules::ProviderDescriptor builtin{
+      .id = "mobagen.builtin",
+      .version = {1, 0, 0},
+      .provides = {"runtime.package.v1"},
+      .targets = {
+          modules::TargetPlatform::Windows,
+          modules::TargetPlatform::Linux,
+          modules::TargetPlatform::MacOS,
+          modules::TargetPlatform::Web,
+          modules::TargetPlatform::Android,
+          modules::TargetPlatform::IOS,
+      },
+      .linkages = {modules::LinkageMode::Wasm},
+  };
+  auto catalog = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend, std::span(&builtin, 1));
+  REQUIRE(catalog.ok());
+  const auto runtime_target = catalog.catalog->plugin(0)->provider().targets.front();
+  const auto resolution = modules::resolve_modules(
+      product, catalog.catalog->registry(),
+      {.target = runtime_target, .profile = "release", .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}}});
+  REQUIRE(resolution.ok());
+
+  const auto activated = plugins::activate_resolved_portable_wasm_plugins(*catalog.catalog, *resolution.resolution);
+
+  REQUIRE(activated.ok());
+  CHECK(activated.activation->size() == 0);
+  CHECK(catalog.catalog->plugin_count() == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Configure) == 0);
+}
+
+TEST_CASE("Resolved portable WASM plugin activation: foreign resolutions are rejected before consumption") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  const modules::ProductDescriptor product{
+      .name = "resolved-wasm",
+      .modules = {{.alias = "runtime", .provider = "mobagen.wasm-package"}},
+      .plugins = {"plugins/reference.plugin"},
+      .profiles = {{.name = "release", .linkage = modules::LinkageMode::Wasm, .editor = false}},
+  };
+  FakeWasmBackend backend;
+  auto catalog = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend);
+  REQUIRE(catalog.ok());
+  modules::CapabilityRegistryBuilder other_builder;
+  other_builder.add(catalog.catalog->plugin(0)->provider());
+  const auto other_registry = other_builder.build();
+  REQUIRE(other_registry.ok());
+  const auto target = catalog.catalog->plugin(0)->provider().targets.front();
+  const auto resolution
+      = modules::resolve_modules(product, *other_registry.registry,
+                                 {.target = target, .profile = "release", .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}}});
+  REQUIRE(resolution.ok());
+
+  const auto activated = plugins::activate_resolved_portable_wasm_plugins(*catalog.catalog, *resolution.resolution);
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE_FALSE(activated.issues.empty());
+  CHECK(activated.issues.front().code == plugins::ResolvedPortableWasmPluginIssueCode::InvalidResolution);
+  CHECK(catalog.catalog->plugin_count() == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Configure) == 0);
 }

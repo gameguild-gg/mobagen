@@ -38,7 +38,11 @@ namespace mobagen::plugins {
   }  // namespace
 
   PortableWasmPluginCatalog::PortableWasmPluginCatalog(std::vector<LoadedPortableWasmPlugin> plugins, modules::CapabilityRegistry registry)
-      : plugins_(std::move(plugins)), registry_(std::move(registry)) {}
+      : plugins_(std::move(plugins)), registry_(std::move(registry)) {
+    plugin_provider_ids_.reserve(plugins_.size());
+    for (const auto& plugin : plugins_) plugin_provider_ids_.push_back(plugin.provider().id);
+    std::ranges::sort(plugin_provider_ids_);
+  }
 
   const LoadedPortableWasmPlugin* PortableWasmPluginCatalog::plugin(std::size_t index) const noexcept {
     return index < plugins_.size() ? &plugins_[index] : nullptr;
@@ -51,6 +55,10 @@ namespace mobagen::plugins {
     std::optional<LoadedPortableWasmPlugin> result{std::move(*found)};
     plugins_.erase(found);
     return result;
+  }
+
+  bool PortableWasmPluginCatalog::is_plugin_provider(std::string_view provider_id) const noexcept {
+    return std::ranges::binary_search(plugin_provider_ids_, provider_id);
   }
 
   PortableWasmPluginCatalogResult discover_portable_wasm_plugin_catalog(const modules::ProductDescriptor& product,
