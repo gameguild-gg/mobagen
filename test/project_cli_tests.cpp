@@ -4,6 +4,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -11,6 +12,7 @@
 
 #include "plugins/plugin_loader.hpp"
 #include "project_cli.hpp"
+#include <mobagen/version.h>
 
 namespace {
 
@@ -56,8 +58,7 @@ profiles:
   };
 
   std::vector<std::string_view> project_arguments(std::string_view command, const std::string& manifest) {
-    return {command, manifest, "--profile", "release", "--alias", "runtime=runtime.tick.v1", "--default", "runtime.tick.v1=mobagen.reference",
-            "--sdk", "0.0.1"};
+    return {command, manifest, "--profile", "release", "--alias", "runtime=runtime.tick.v1", "--default", "runtime.tick.v1=mobagen.reference"};
   }
 
 }  // namespace
@@ -73,6 +74,9 @@ TEST_CASE("Project CLI: resolve writes a canonical lock and verify accepts it") 
   CHECK(error.str().empty());
   CHECK(output.str().starts_with("resolved\t"));
   CHECK(std::filesystem::is_regular_file(project.path() / "mobagen.lock"));
+  std::ifstream lockfile(project.path() / "mobagen.lock", std::ios::binary);
+  const std::string lock_contents{std::istreambuf_iterator<char>{lockfile}, std::istreambuf_iterator<char>{}};
+  CHECK(lock_contents.contains("sdk: " MOBAGEN_SDK_VERSION_STRING "\n"));
 
   output.str({});
   const auto verify_arguments = project_arguments("verify", manifest);
