@@ -16,6 +16,7 @@ namespace mobagen::plugins::cli {
       stream << "usage:\n"
                 "  MobagenPlugins verify <package.plugin>\n"
                 "  MobagenPlugins install <store-root> <package.plugin>\n"
+                "  MobagenPlugins list <store-root>\n"
                 "  MobagenPlugins remove <store-root> <provider-id>\n";
     }
 
@@ -35,6 +36,19 @@ namespace mobagen::plugins::cli {
     }
 
     void print_store_failure(std::string_view operation, const NativePluginStoreActionResult& result, std::ostream& error) {
+      error << operation << " failed";
+      if (!result.issues.empty()) {
+        error << ": " << result.issues.front().message;
+        if (result.issues.front().system_error) {
+          error << ": " << result.issues.front().system_error.message();
+        } else if (!result.issues.front().load_issues.empty()) {
+          error << ": " << result.issues.front().load_issues.front().message;
+        }
+      }
+      error << '\n';
+    }
+
+    void print_store_failure(std::string_view operation, const NativePluginStoreListResult& result, std::ostream& error) {
       error << operation << " failed";
       if (!result.issues.empty()) {
         error << ": " << result.issues.front().message;
@@ -83,6 +97,21 @@ namespace mobagen::plugins::cli {
       return 0;
     }
 
+    int list(std::string_view store_text, std::ostream& output, std::ostream& error) {
+      PluginHost host;
+      const NativePluginStore store{std::filesystem::path{store_text}};
+      const auto inventory = store.list(host);
+      if (!inventory.ok()) {
+        print_store_failure("list", inventory, error);
+        return 3;
+      }
+      for (const auto& entry : inventory.entries) {
+        output << "plugin\t" << entry.provider_id << '\t' << version_string(entry.version) << '\t' << entry.package.generic_string() << '\n';
+      }
+      output << "plugins\t" << inventory.entries.size() << '\n';
+      return 0;
+    }
+
   }  // namespace
 
   int run(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error) {
@@ -92,6 +121,9 @@ namespace mobagen::plugins::cli {
       }
       if (arguments.size() == 3 && arguments[0] == "install") {
         return install(arguments[1], arguments[2], output, error);
+      }
+      if (arguments.size() == 2 && arguments[0] == "list") {
+        return list(arguments[1], output, error);
       }
       if (arguments.size() == 3 && arguments[0] == "remove") {
         return remove(arguments[1], arguments[2], output, error);

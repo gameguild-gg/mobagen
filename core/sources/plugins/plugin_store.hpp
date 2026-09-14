@@ -5,6 +5,7 @@
 
 #include "modules/descriptor.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -15,8 +16,12 @@
 
 namespace mobagen::plugins {
 
+  inline constexpr std::size_t max_native_plugin_store_packages = 4096;
+
   enum class NativePluginStoreIssueCode : std::uint8_t {
     InvalidRoot,
+    EnumerationFailed,
+    LimitExceeded,
     InvalidSource,
     StageFailed,
     CommitFailed,
@@ -45,6 +50,19 @@ namespace mobagen::plugins {
     [[nodiscard]] bool ok() const noexcept { return committed; }
   };
 
+  struct NativePluginStoreEntry {
+    std::string provider_id;
+    modules::SemanticVersion version;
+    std::filesystem::path package;
+  };
+
+  struct NativePluginStoreListResult {
+    std::vector<NativePluginStoreEntry> entries;
+    std::vector<NativePluginStoreIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept { return issues.empty(); }
+  };
+
   class NativePluginStore {
   public:
     explicit NativePluginStore(std::filesystem::path root) : root_(std::move(root)) {}
@@ -52,6 +70,7 @@ namespace mobagen::plugins {
     [[nodiscard]] const std::filesystem::path& root() const noexcept { return root_; }
     [[nodiscard]] NativePluginStoreActionResult install(const std::filesystem::path& source, PluginHost& host) const;
     [[nodiscard]] NativePluginStoreActionResult remove(std::string_view provider_id) const;
+    [[nodiscard]] NativePluginStoreListResult list(PluginHost& host) const;
 
   private:
     std::filesystem::path root_;
