@@ -1,5 +1,13 @@
 option(TEST_INSTALLED_VERSION "Test the version found by find_package" OFF)
 
+add_library(MobagenReferencePlugin MODULE plugins/reference_plugin.c)
+target_link_libraries(MobagenReferencePlugin PRIVATE mobagen::core_plugins)
+target_compile_definitions(MobagenReferencePlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
+set_target_properties(MobagenReferencePlugin PROPERTIES PREFIX "")
+
+add_library(MobagenMissingEntryPlugin MODULE plugins/missing_entry_plugin.c)
+set_target_properties(MobagenMissingEntryPlugin PROPERTIES PREFIX "")
+
 # --- Import tools ----
 
 include(../cmake/tools.cmake)
@@ -26,6 +34,7 @@ set(FOUNDATION_TEST_SOURCES
     plugin_abi_c_test.c
     plugin_abi_tests.cpp
     plugin_contract_tests.cpp
+    plugin_loader_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
     scene_tests.cpp
@@ -44,7 +53,13 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
 endif()
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
+add_dependencies(FoundationTests MobagenMissingEntryPlugin MobagenReferencePlugin)
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
+target_compile_definitions(
+  FoundationTests
+  PRIVATE MOBAGEN_MISSING_ENTRY_PLUGIN_PATH="$<TARGET_FILE:MobagenMissingEntryPlugin>"
+          MOBAGEN_REFERENCE_PLUGIN_PATH="$<TARGET_FILE:MobagenReferencePlugin>"
+)
 target_include_directories(
   FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks
                           ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
