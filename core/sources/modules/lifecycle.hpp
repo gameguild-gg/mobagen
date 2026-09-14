@@ -87,6 +87,7 @@ namespace mobagen::modules {
     ~ModuleActivation();
 
     [[nodiscard]] ModuleLifecycleState state() const noexcept;
+    [[nodiscard]] RegistryGeneration registry_generation() const noexcept { return registry_generation_; }
     [[nodiscard]] ActivationGeneration generation() const noexcept;
     [[nodiscard]] const ModuleContext& context() const noexcept;
     [[nodiscard]] ModuleLifecycleResult quiesce();
@@ -95,10 +96,12 @@ namespace mobagen::modules {
   private:
     friend ModuleActivationResult activate_modules(const CapabilityRegistry&, const ModuleResolution&, std::span<const ModuleLifecycleBinding>);
 
-    ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules, ActivationGeneration generation);
+    ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules, RegistryGeneration registry_generation,
+                     ActivationGeneration generation);
 
     ModuleContext context_;
     std::vector<ModuleLifecycleBinding> modules_;
+    RegistryGeneration registry_generation_;
     ActivationGeneration generation_;
     ModuleLifecycleState state_{ModuleLifecycleState::Active};
   };

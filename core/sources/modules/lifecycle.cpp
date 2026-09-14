@@ -142,8 +142,9 @@ namespace mobagen::modules {
 
   std::span<const RuntimeCapabilityBinding> ModuleContext::bindings() const noexcept { return bindings_; }
 
-  ModuleActivation::ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules, ActivationGeneration generation)
-      : context_(std::move(context)), modules_(std::move(modules)), generation_(generation) {}
+  ModuleActivation::ModuleActivation(ModuleContext context, std::vector<ModuleLifecycleBinding> modules, RegistryGeneration registry_generation,
+                                     ActivationGeneration generation)
+      : context_(std::move(context)), modules_(std::move(modules)), registry_generation_(registry_generation), generation_(generation) {}
 
   ModuleActivation::~ModuleActivation() {
     if (state_ == ModuleLifecycleState::Active) (void)quiesce();
@@ -183,6 +184,11 @@ namespace mobagen::modules {
   ModuleActivationResult activate_modules(const CapabilityRegistry& registry, const ModuleResolution& resolution,
                                           std::span<const ModuleLifecycleBinding> bindings) {
     ModuleActivationResult result;
+    if (registry.generation() != resolution.registry_generation()) {
+      add_issue(result.issues, ModuleLifecycleIssueCode::InvalidBindings, ModuleLifecyclePhase::Validate, {},
+                "module resolution belongs to a different capability registry");
+      return result;
+    }
     auto ordered = order_bindings(registry, resolution, bindings, result.issues);
     if (!result.issues.empty()) return result;
 
@@ -217,7 +223,8 @@ namespace mobagen::modules {
       ++started;
     }
 
-    result.activation = std::unique_ptr<ModuleActivation>(new ModuleActivation(std::move(context), std::move(ordered), next_activation_generation()));
+    result.activation = std::unique_ptr<ModuleActivation>(
+        new ModuleActivation(std::move(context), std::move(ordered), registry.generation(), next_activation_generation()));
     return result;
   }
 

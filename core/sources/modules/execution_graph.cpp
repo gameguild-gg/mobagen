@@ -16,6 +16,10 @@ namespace mobagen::modules {
   ExecutionGraphResult freeze_execution_graph(const CapabilityRegistry& registry, const ModuleResolution& resolution,
                                               const ModuleActivation& activation) {
     ExecutionGraphResult result;
+    if (registry.generation() != resolution.registry_generation() || registry.generation() != activation.registry_generation()) {
+      add_issue(result, ExecutionGraphIssueCode::RegistryMismatch, {}, {}, "registry, resolution, and activation generations must match");
+      return result;
+    }
     if (activation.state() != ModuleLifecycleState::Active) {
       add_issue(result, ExecutionGraphIssueCode::InactiveActivation, {}, {}, "only an active module graph can be frozen");
       return result;

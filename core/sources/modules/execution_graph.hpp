@@ -34,7 +34,7 @@ namespace mobagen::modules {
     ActivationGeneration generation_{};
   };
 
-  enum class ExecutionGraphIssueCode : std::uint8_t { InactiveActivation, InvalidBinding };
+  enum class ExecutionGraphIssueCode : std::uint8_t { InactiveActivation, RegistryMismatch, InvalidBinding };
 
   struct ExecutionGraphIssue {
     ExecutionGraphIssueCode code{};
