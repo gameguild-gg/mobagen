@@ -14,6 +14,10 @@
 #include <utility>
 #include <vector>
 
+namespace mobagen::modules {
+  class CapabilityRegistry;
+}
+
 namespace mobagen::plugins {
 
   class WasmCommandChannel;
@@ -112,6 +116,7 @@ namespace mobagen::plugins {
     InvalidTransition,
     WrongThread,
     OutOfMemory,
+    HostImportsFailed,
   };
 
   struct PortableWasmPluginIssue {
@@ -148,10 +153,14 @@ namespace mobagen::plugins {
   private:
     friend PortableWasmPluginActivationResult activate_portable_wasm_plugin(std::unique_ptr<PortableWasmInstance>, std::span<const std::byte>);
     friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin, std::span<const std::byte>);
+    friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin,
+                                                                                    std::shared_ptr<const modules::CapabilityRegistry>,
+                                                                                    std::span<const std::byte>);
 
     PortableWasmPluginActivation(std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider);
-    [[nodiscard]] static PortableWasmPluginActivationResult activate_queried(std::unique_ptr<PortableWasmInstance>, modules::ProviderDescriptor,
-                                                                             std::span<const std::byte>);
+    [[nodiscard]] static PortableWasmPluginActivationResult activate_queried(
+        std::unique_ptr<PortableWasmInstance>, modules::ProviderDescriptor, std::shared_ptr<const modules::CapabilityRegistry>, bool,
+        std::span<const std::byte>);
     [[nodiscard]] PortableWasmPluginActionResult start();
     void close_command_channels(PortableWasmPluginActionResult& result);
     void shutdown_noexcept() noexcept;

@@ -155,10 +155,33 @@ TEST_CASE("Portable WASM plugin loader: queried metadata transfers into activati
   REQUIRE(activated.activation != nullptr);
   CHECK(activated.activation->provider().id == "mobagen.wasm-package");
   CHECK(activated.activation->state() == mobagen::plugins::PortableWasmPluginState::Active);
+  REQUIRE(backend.host_imports.size() == 1);
+  REQUIRE(backend.host_imports.front() != nullptr);
+  CHECK(backend.host_imports.front()->bound());
+  CHECK(backend.host_imports.front()->permissions().empty());
   CHECK(std::ranges::count(*backend.invocations, mobagen::plugins::WasmPluginExport::Query) == 1);
   CHECK(backend.invocations->back() == mobagen::plugins::WasmPluginExport::Start);
   CHECK(activated.activation->quiesce().ok());
   CHECK(activated.activation->stop().ok());
+  CHECK_FALSE(backend.host_imports.front()->bound());
+}
+
+TEST_CASE("Portable WASM plugin loader: standalone activation denies unresolved permissions") {
+  TemporaryWasmDirectory directory;
+  const auto binary = directory.path() / "privileged.wasm";
+  write_binary(binary, valid_wasm_header);
+  FakeWasmBackend backend;
+  backend.permission_ids = {"gpu"};
+  auto loaded = mobagen::plugins::load_portable_wasm_plugin_binary(binary, backend);
+  REQUIRE(loaded.plugin.has_value());
+
+  const auto activated = mobagen::plugins::activate_loaded_portable_wasm_plugin(std::move(*loaded.plugin));
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == mobagen::plugins::PortableWasmPluginIssueCode::HostImportsFailed);
+  CHECK(invocation_count(backend, mobagen::plugins::WasmPluginExport::Configure) == 0);
+  CHECK(invocation_count(backend, mobagen::plugins::WasmPluginExport::Start) == 0);
 }
 
 TEST_CASE("Portable WASM plugin loader: dot-plugin package shape is strict") {
@@ -311,14 +334,23 @@ TEST_CASE("Resolved portable WASM plugin activation: manifest selection activate
   const auto package = directory.path() / "plugins/reference.plugin";
   REQUIRE(std::filesystem::create_directory(package));
   write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
-  const modules::ProductDescriptor product{
+  modules::ProductDescriptor product{
       .name = "resolved-wasm",
       .modules = {{.alias = "runtime", .provider = "mobagen.wasm-package"}},
       .plugins = {"plugins/reference.plugin"},
       .profiles = {{.name = "release", .linkage = modules::LinkageMode::Wasm, .editor = false}},
   };
   FakeWasmBackend backend;
-  auto catalog = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend);
+  backend.permission_ids = {"gpu"};
+  product.profiles.front().permissions = {"gpu"};
+  const modules::ProviderDescriptor builtin{
+      .id = "mobagen.render.builtin",
+      .version = {1, 0, 0},
+      .provides = {"render.backend.v1"},
+      .targets = {portable_target()},
+      .linkages = {modules::LinkageMode::Wasm},
+  };
+  auto catalog = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend, std::span(&builtin, 1));
   REQUIRE(catalog.ok());
   const auto target = catalog.catalog->plugin(0)->provider().targets.front();
   const auto resolution
@@ -332,6 +364,15 @@ TEST_CASE("Resolved portable WASM plugin activation: manifest selection activate
   CHECK(activated.activation->size() == 1);
   REQUIRE(activated.activation->plugin(0) != nullptr);
   CHECK(activated.activation->plugin(0)->provider().id == "mobagen.wasm-package");
+  REQUIRE(backend.host_imports.size() == 1);
+  REQUIRE(backend.host_imports.front() != nullptr);
+  CHECK(backend.host_imports.front()->bound());
+  CHECK(std::ranges::equal(backend.host_imports.front()->permissions(), std::array{std::string{"gpu"}}));
+  std::vector<std::byte> import_memory(128);
+  constexpr std::string_view builtin_capability = "render.backend.v1";
+  write_string(import_memory, 8, builtin_capability);
+  CHECK(backend.host_imports.front()->find_capability(import_memory, 8, static_cast<std::uint32_t>(builtin_capability.size()), 1, 64)
+        == MOBAGEN_WASM_STATUS_OK);
   CHECK(activated.activation->plugin(1) == nullptr);
   CHECK(catalog.catalog->plugin_count() == 0);
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Query) == 1);
@@ -340,6 +381,7 @@ TEST_CASE("Resolved portable WASM plugin activation: manifest selection activate
   CHECK(activated.activation->stop().ok());
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Quiesce) == 1);
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Stop) == 1);
+  CHECK_FALSE(backend.host_imports.front()->bound());
 
   const auto repeated = plugins::activate_resolved_portable_wasm_plugins(*catalog.catalog, *resolution.resolution);
   CHECK_FALSE(repeated.ok());

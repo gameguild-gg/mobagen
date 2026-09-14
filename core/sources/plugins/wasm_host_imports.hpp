@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -25,8 +26,8 @@ namespace mobagen::plugins {
 
   /*
    * Backend import shims call this object with the current guest memory view.
-   * Service state and a bound registry must outlive every call. Binding occurs
-   * on the owner thread after resolution has granted the provider permissions.
+   * Service state must outlive every call. The bound registry is retained by
+   * shared ownership after resolution has granted the provider permissions.
    */
   class WasmHostImports {
   public:
@@ -36,9 +37,9 @@ namespace mobagen::plugins {
     WasmHostImports(WasmHostImports&&) = delete;
     WasmHostImports& operator=(WasmHostImports&&) = delete;
 
-    [[nodiscard]] bool bind(const modules::CapabilityRegistry& registry, std::span<const std::string> permissions);
+    [[nodiscard]] bool bind(std::shared_ptr<const modules::CapabilityRegistry> registry, std::span<const std::string> permissions);
     void unbind() noexcept;
-    [[nodiscard]] bool bound() const noexcept { return registry_ != nullptr; }
+    [[nodiscard]] bool bound() const noexcept { return static_cast<bool>(registry_); }
     [[nodiscard]] std::span<const std::string> permissions() const noexcept { return permissions_; }
 
     [[nodiscard]] std::uint32_t log(std::span<const std::byte> memory, std::uint32_t level, std::uint32_t message_offset,
@@ -54,7 +55,7 @@ namespace mobagen::plugins {
 
     WasmHostServices services_;
     std::thread::id owner_thread_;
-    const modules::CapabilityRegistry* registry_{};
+    std::shared_ptr<const modules::CapabilityRegistry> registry_;
     std::vector<std::string> permissions_;
   };
 

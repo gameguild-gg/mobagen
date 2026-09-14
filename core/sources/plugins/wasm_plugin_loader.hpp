@@ -59,6 +59,9 @@ namespace mobagen::plugins {
     friend struct PortableWasmPluginLoadResult;
     friend PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path&, PortableWasmBackend&, WasmHostServices);
     friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin, std::span<const std::byte>);
+    friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin,
+                                                                                    std::shared_ptr<const modules::CapabilityRegistry>,
+                                                                                    std::span<const std::byte>);
 
     LoadedPortableWasmPlugin(std::filesystem::path path, std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider)
         : path_(std::move(path)), instance_(std::move(instance)), provider_(std::move(provider)) {}
@@ -103,5 +106,9 @@ namespace mobagen::plugins {
                                                                                 WasmHostServices host_services = {});
   [[nodiscard]] PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin plugin,
                                                                                         std::span<const std::byte> configuration = {});
+  /* The registry and permission grants must come from a successful module resolution over this plugin's catalog. */
+  [[nodiscard]] PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(
+      LoadedPortableWasmPlugin plugin, std::shared_ptr<const modules::CapabilityRegistry> resolved_registry,
+      std::span<const std::byte> configuration = {});
 
 }  // namespace mobagen::plugins
