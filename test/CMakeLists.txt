@@ -23,6 +23,8 @@ set(FOUNDATION_TEST_SOURCES
     module_lifecycle_tests.cpp
     module_registry_tests.cpp
     module_resolver_tests.cpp
+    plugin_abi_c_test.c
+    plugin_abi_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
     scene_tests.cpp
@@ -54,6 +56,7 @@ target_link_libraries(
           mobagen::core_reactive
           mobagen::core_messaging
           mobagen::core_modules
+          mobagen::core_plugins
           mobagen::core_net
           mobagen::core_scene
           mobagen::core_camera
