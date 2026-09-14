@@ -44,5 +44,6 @@ target_link_libraries(mobagen_core_plugins PRIVATE ${CMAKE_DL_LIBS})
 
 if(MOBAGEN_WASM_BACKEND_WAMR)
   add_subdirectory(wamr)
+  target_sources(mobagen_core_plugins PRIVATE wamr_backend.cpp wamr_backend.hpp)
   target_link_libraries(mobagen_core_plugins PRIVATE mobagen::wamr_vm)
 endif()

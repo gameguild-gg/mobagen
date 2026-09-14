@@ -84,6 +84,9 @@ endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   list(APPEND FOUNDATION_TEST_SOURCES module_lockfile_tests.cpp)
 endif()
+if(MOBAGEN_WASM_BACKEND_WAMR)
+  list(APPEND FOUNDATION_TEST_SOURCES wamr_backend_tests.cpp)
+endif()
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
 add_dependencies(
