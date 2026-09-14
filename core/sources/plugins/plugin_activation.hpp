@@ -43,6 +43,9 @@ namespace mobagen::plugins {
 
   struct NativePluginActivationResult;
 
+  [[nodiscard]] NativePluginActivationResult activate_loaded_native_plugin(NativePlugin plugin, PluginHost& host,
+                                                                           std::span<const std::byte> configuration = {});
+
   class NativePluginActivation {
   public:
     NativePluginActivation(const NativePluginActivation&) = delete;
@@ -58,8 +61,9 @@ namespace mobagen::plugins {
 
   private:
     friend NativePluginActivationResult activate_native_plugin_package(const std::filesystem::path&, PluginHost&, std::span<const std::byte>);
+    friend NativePluginActivationResult activate_loaded_native_plugin(NativePlugin, PluginHost&, std::span<const std::byte>);
 
-    NativePluginActivation(PluginHost& host, NativePlugin plugin);
+    NativePluginActivation(PluginHost& host, std::string provider_id, NativePlugin plugin) noexcept;
     [[nodiscard]] NativePluginActionResult start();
     void cleanup_failed_start(NativePluginActionResult& result);
     void shutdown_noexcept() noexcept;

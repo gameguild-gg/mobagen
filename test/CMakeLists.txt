@@ -51,6 +51,7 @@ set(FOUNDATION_TEST_SOURCES
     plugin_host_tests.cpp
     plugin_loader_tests.cpp
     plugin_package_tests.cpp
+    plugin_resolution_activation_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
     scene_tests.cpp

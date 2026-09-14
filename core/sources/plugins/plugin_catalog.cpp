@@ -42,6 +42,15 @@ namespace mobagen::plugins {
 
   const NativePlugin* NativePluginCatalog::plugin(std::size_t index) const noexcept { return index < plugins_.size() ? &plugins_[index] : nullptr; }
 
+  std::optional<NativePlugin> NativePluginCatalog::take_plugin(std::string_view provider_id) {
+    const auto found
+        = std::ranges::find_if(plugins_, [provider_id](const NativePlugin& plugin) { return plugin.contract().provider.id == provider_id; });
+    if (found == plugins_.end()) return std::nullopt;
+    std::optional<NativePlugin> result{std::move(*found)};
+    plugins_.erase(found);
+    return result;
+  }
+
   NativePluginCatalogResult discover_native_plugin_catalog(const modules::ProductDescriptor& product, const std::filesystem::path& project_root,
                                                            PluginHost& host, std::span<const modules::ProviderDescriptor> builtin_providers) {
     NativePluginCatalogResult result;

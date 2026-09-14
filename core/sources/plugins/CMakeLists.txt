@@ -2,6 +2,8 @@ add_library(
   mobagen_core_plugins STATIC
   plugin_activation.cpp
   plugin_activation.hpp
+  plugin_activation_set.cpp
+  plugin_activation_set.hpp
   plugin_catalog.cpp
   plugin_catalog.hpp
   plugin_contract.cpp
