@@ -30,6 +30,7 @@ add_subdirectory(sources/jobs)
 add_subdirectory(sources/reactive)
 add_subdirectory(sources/messaging)
 add_subdirectory(sources/modules)
+add_subdirectory(sources/plugins)
 add_subdirectory(sources/scene)
 add_subdirectory(sources/camera)
 add_subdirectory(sources/input)
@@ -94,6 +95,7 @@ target_link_libraries(
             mobagen::core_reactive
             mobagen::core_messaging
             mobagen::core_modules
+            mobagen::core_plugins
             mobagen::core_scene
             mobagen::core_camera
             mobagen::core_input
