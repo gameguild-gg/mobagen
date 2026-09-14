@@ -1,6 +1,7 @@
 #include "descriptor.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cstddef>
 #include <set>
 #include <string_view>
@@ -86,15 +87,6 @@ namespace mobagen::modules {
       }
     }
 
-    bool is_https_source_url(std::string_view value) noexcept {
-      constexpr std::string_view scheme = "https://";
-      if (!value.starts_with(scheme) || value.size() > max_module_source_url_bytes || value.contains('#') || value.contains('@')) return false;
-
-      const auto authority = value.substr(scheme.size()).substr(0, value.substr(scheme.size()).find_first_of("/?"));
-      if (authority.empty()) return false;
-      return std::ranges::all_of(value, [](unsigned char character) { return character > 0x20U && character < 0x7fU; });
-    }
-
   }  // namespace
 
   bool is_slug(std::string_view value) noexcept {
@@ -117,6 +109,67 @@ namespace mobagen::modules {
                                [](char value_char) { return is_decimal_digit(value_char); });
   }
 
+  bool is_secure_https_url(std::string_view value) noexcept {
+    constexpr std::string_view scheme = "https://";
+    if (!value.starts_with(scheme) || value.size() > max_module_source_url_bytes || value.contains('#') || value.contains('@')
+        || value.contains('\\')) {
+      return false;
+    }
+
+    const auto remainder = value.substr(scheme.size());
+    const auto authority = remainder.substr(0, remainder.find_first_of("/?"));
+    if (authority.empty()) return false;
+    if (!std::ranges::all_of(value, [](unsigned char character) { return character > 0x20U && character < 0x7fU; })) return false;
+
+    std::string_view host = authority;
+    std::string_view port;
+    if (authority.front() == '[') {
+      const auto closing_bracket = authority.find(']');
+      if (closing_bracket == std::string_view::npos || closing_bracket == 1) return false;
+      host = authority.substr(1, closing_bracket - 1);
+      const auto suffix = authority.substr(closing_bracket + 1);
+      if (!suffix.empty()) {
+        if (!suffix.starts_with(':')) return false;
+        port = suffix.substr(1);
+      }
+      if (!std::ranges::all_of(host, [](char character) {
+            return is_decimal_digit(character) || (character >= 'a' && character <= 'f') || (character >= 'A' && character <= 'F')
+                   || character == ':' || character == '.';
+          })) {
+        return false;
+      }
+    } else {
+      const auto separator = authority.rfind(':');
+      if (separator != std::string_view::npos) {
+        if (authority.find(':') != separator) return false;
+        host = authority.substr(0, separator);
+        port = authority.substr(separator + 1);
+      }
+      if (host.empty() || host.front() == '.' || host.back() == '.' || !std::ranges::all_of(host, [](char character) {
+            return is_lower_alphanumeric(character) || (character >= 'A' && character <= 'Z') || character == '-' || character == '.';
+          })) {
+        return false;
+      }
+      std::size_t label_start = 0;
+      while (label_start < host.size()) {
+        const auto label_end = host.find('.', label_start);
+        const auto label = host.substr(label_start, label_end == std::string_view::npos ? host.size() - label_start : label_end - label_start);
+        if (label.empty() || label.front() == '-' || label.back() == '-') return false;
+        if (label_end == std::string_view::npos) break;
+        label_start = label_end + 1;
+      }
+    }
+
+    if (!port.empty()) {
+      std::uint32_t port_number = 0;
+      const auto parsed = std::from_chars(port.data(), port.data() + port.size(), port_number);
+      if (parsed.ec != std::errc{} || parsed.ptr != port.data() + port.size() || port_number == 0 || port_number > 65535) return false;
+    } else if (authority.ends_with(':')) {
+      return false;
+    }
+    return true;
+  }
+
   std::vector<DescriptorIssue> validate(const ProductDescriptor& descriptor) {
     std::vector<DescriptorIssue> issues;
     if (descriptor.schema != project_schema_version) {
@@ -132,7 +185,7 @@ namespace mobagen::modules {
       if (!is_slug(source.name)) {
         add_issue(issues, DescriptorIssueCode::InvalidIdentifier, field, "expected a lowercase source slug");
       }
-      if (!is_https_source_url(source.url)) {
+      if (!is_secure_https_url(source.url)) {
         add_issue(issues, DescriptorIssueCode::InvalidSourceUrl, field + ".url",
                   "source URL must be an HTTPS URL without credentials, fragments, whitespace, or control characters");
       }
