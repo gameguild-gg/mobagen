@@ -8,7 +8,7 @@ private:
   float desiredMinimalDistance = 50;
 
 public:
-  explicit SeparationRule(float desiredSeparation = 20.f, float weight = 1.f, bool isEnabled = true)
+  explicit SeparationRule(float desiredSeparation = 20.f, float weight = 1.f, bool isEnabled = false)
       : FlockingRule(Color::Red, weight, isEnabled), desiredMinimalDistance(desiredSeparation) {}
 
   SeparationRule(const SeparationRule& toCopy) : FlockingRule(toCopy) { desiredMinimalDistance = toCopy.desiredMinimalDistance; }

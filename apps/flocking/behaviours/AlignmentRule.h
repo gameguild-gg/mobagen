@@ -5,7 +5,7 @@
 
 class AlignmentRule : public FlockingRule {
 public:
-  explicit AlignmentRule(float weight = 1.f, bool isEnabled = true) : FlockingRule(Color::Yellow, weight, isEnabled) {}
+  explicit AlignmentRule(float weight = 1.f, bool isEnabled = false) : FlockingRule(Color::Yellow, weight, isEnabled) {}
 
   std::unique_ptr<FlockingRule> clone() override { return std::make_unique<AlignmentRule>(*this); }
 
