@@ -4,9 +4,11 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -36,7 +38,7 @@ namespace {
   class FakeWasmInstance final : public mobagen::plugins::PortableWasmInstance {
   public:
     mobagen::plugins::WasmInvocationResult invoke(mobagen::plugins::WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
-      invocations.push_back({function, {arguments.begin(), arguments.end()}});
+      invocations->push_back({function, {arguments.begin(), arguments.end()}});
       if (function == mobagen::plugins::WasmPluginExport::Allocate) {
         if (allocate_traps) return mobagen::plugins::WasmInvocationResult::failure("missing allocate export");
         return mobagen::plugins::WasmInvocationResult::success(allocation_offset);
@@ -50,6 +52,25 @@ namespace {
       if (function == mobagen::plugins::WasmPluginExport::Deallocate) {
         if (deallocate_traps) return mobagen::plugins::WasmInvocationResult::failure("deallocate trapped");
         return mobagen::plugins::WasmInvocationResult::success(deallocate_status);
+      }
+      if (function == mobagen::plugins::WasmPluginExport::Configure) {
+        if (arguments.size() != 2) return mobagen::plugins::WasmInvocationResult::failure("invalid configure arguments");
+        const auto offset = arguments[0];
+        const auto size = arguments[1];
+        if (size != 0 && (offset > linear_memory.size() || size > linear_memory.size() - offset)) {
+          return mobagen::plugins::WasmInvocationResult::success(MOBAGEN_WASM_STATUS_INVALID_ARGUMENT);
+        }
+        configured.assign(linear_memory.begin() + offset, linear_memory.begin() + offset + size);
+        return mobagen::plugins::WasmInvocationResult::success(configure_status);
+      }
+      if (function == mobagen::plugins::WasmPluginExport::Start) {
+        return mobagen::plugins::WasmInvocationResult::success(start_status);
+      }
+      if (function == mobagen::plugins::WasmPluginExport::Quiesce) {
+        return mobagen::plugins::WasmInvocationResult::success(quiesce_status);
+      }
+      if (function == mobagen::plugins::WasmPluginExport::Stop) {
+        return mobagen::plugins::WasmInvocationResult::success(stop_status);
       }
       return mobagen::plugins::WasmInvocationResult::failure("unexpected export");
     }
@@ -83,10 +104,15 @@ namespace {
     }
 
     std::vector<std::byte> linear_memory = std::vector<std::byte>(256);
-    std::vector<Invocation> invocations;
+    std::shared_ptr<std::vector<Invocation>> invocations = std::make_shared<std::vector<Invocation>>();
+    std::vector<std::byte> configured;
     std::uint32_t allocation_offset{8};
     std::uint32_t query_status{MOBAGEN_WASM_STATUS_OK};
     std::uint32_t deallocate_status{MOBAGEN_WASM_STATUS_OK};
+    std::uint32_t configure_status{MOBAGEN_WASM_STATUS_OK};
+    std::uint32_t start_status{MOBAGEN_WASM_STATUS_OK};
+    std::uint32_t quiesce_status{MOBAGEN_WASM_STATUS_OK};
+    std::uint32_t stop_status{MOBAGEN_WASM_STATUS_OK};
     bool allocate_traps{false};
     bool query_throws{false};
     bool deallocate_traps{false};
@@ -94,6 +120,14 @@ namespace {
   };
 
   bool has_issue(const mobagen::plugins::WasmPluginQueryResult& result, mobagen::plugins::WasmPluginQueryIssueCode code) {
+    return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
+  }
+
+  bool has_issue(const mobagen::plugins::PortableWasmPluginActionResult& result, mobagen::plugins::PortableWasmPluginIssueCode code) {
+    return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
+  }
+
+  bool has_issue(const mobagen::plugins::PortableWasmPluginActivationResult& result, mobagen::plugins::PortableWasmPluginIssueCode code) {
     return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
   }
 
@@ -105,13 +139,14 @@ TEST_CASE("WASM runtime: descriptor query owns metadata and releases guest scrat
 
   REQUIRE(result.provider.has_value());
   CHECK(result.provider->id == "mobagen.wasm-ref");
-  REQUIRE(instance.invocations.size() == 3);
-  CHECK(instance.invocations[0].function == mobagen::plugins::WasmPluginExport::Allocate);
-  CHECK(instance.invocations[0].arguments == std::vector<std::uint32_t>{MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE, MOBAGEN_WASM_EXCHANGE_ALIGNMENT});
-  CHECK(instance.invocations[1].function == mobagen::plugins::WasmPluginExport::Query);
-  CHECK(instance.invocations[1].arguments == std::vector<std::uint32_t>{8, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE});
-  CHECK(instance.invocations[2].function == mobagen::plugins::WasmPluginExport::Deallocate);
-  CHECK(instance.invocations[2].arguments == std::vector<std::uint32_t>{8, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE, MOBAGEN_WASM_EXCHANGE_ALIGNMENT});
+  REQUIRE(instance.invocations->size() == 3);
+  CHECK((*instance.invocations)[0].function == mobagen::plugins::WasmPluginExport::Allocate);
+  CHECK((*instance.invocations)[0].arguments == std::vector<std::uint32_t>{MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE, MOBAGEN_WASM_EXCHANGE_ALIGNMENT});
+  CHECK((*instance.invocations)[1].function == mobagen::plugins::WasmPluginExport::Query);
+  CHECK((*instance.invocations)[1].arguments == std::vector<std::uint32_t>{8, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE});
+  CHECK((*instance.invocations)[2].function == mobagen::plugins::WasmPluginExport::Deallocate);
+  CHECK((*instance.invocations)[2].arguments
+        == std::vector<std::uint32_t>{8, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE, MOBAGEN_WASM_EXCHANGE_ALIGNMENT});
   instance.linear_memory[96] = std::byte{};
   CHECK(result.provider->id == "mobagen.wasm-ref");
 }
@@ -135,22 +170,22 @@ TEST_CASE("WASM runtime: allocation and exchange bounds fail before query") {
   const auto unavailable = mobagen::plugins::query_portable_wasm_plugin(instance);
   CHECK_FALSE(unavailable.provider.has_value());
   CHECK(has_issue(unavailable, mobagen::plugins::WasmPluginQueryIssueCode::AllocationFailed));
-  CHECK(instance.invocations.size() == 1);
+  CHECK(instance.invocations->size() == 1);
 
   FakeWasmInstance invalid;
   invalid.allocation_offset = 3;
   const auto misaligned = mobagen::plugins::query_portable_wasm_plugin(invalid);
   CHECK_FALSE(misaligned.provider.has_value());
   CHECK(has_issue(misaligned, mobagen::plugins::WasmPluginQueryIssueCode::InvalidExchangeBuffer));
-  REQUIRE(invalid.invocations.size() == 2);
-  CHECK(invalid.invocations.back().function == mobagen::plugins::WasmPluginExport::Deallocate);
+  REQUIRE(invalid.invocations->size() == 2);
+  CHECK(invalid.invocations->back().function == mobagen::plugins::WasmPluginExport::Deallocate);
 
   FakeWasmInstance trapped;
   trapped.allocate_traps = true;
   const auto backend_failure = mobagen::plugins::query_portable_wasm_plugin(trapped);
   CHECK_FALSE(backend_failure.provider.has_value());
   CHECK(has_issue(backend_failure, mobagen::plugins::WasmPluginQueryIssueCode::BackendFailure));
-  CHECK(trapped.invocations.size() == 1);
+  CHECK(trapped.invocations->size() == 1);
 }
 
 TEST_CASE("WASM runtime: query traps callback failures and malformed contracts clean up") {
@@ -159,21 +194,21 @@ TEST_CASE("WASM runtime: query traps callback failures and malformed contracts c
   const auto trap = mobagen::plugins::query_portable_wasm_plugin(trapped);
   CHECK_FALSE(trap.provider.has_value());
   CHECK(has_issue(trap, mobagen::plugins::WasmPluginQueryIssueCode::BackendFailure));
-  CHECK(trapped.invocations.back().function == mobagen::plugins::WasmPluginExport::Deallocate);
+  CHECK(trapped.invocations->back().function == mobagen::plugins::WasmPluginExport::Deallocate);
 
   FakeWasmInstance callback_failure;
   callback_failure.query_status = MOBAGEN_WASM_STATUS_FAILED;
   const auto failed = mobagen::plugins::query_portable_wasm_plugin(callback_failure);
   CHECK_FALSE(failed.provider.has_value());
   CHECK(has_issue(failed, mobagen::plugins::WasmPluginQueryIssueCode::CallbackFailed));
-  CHECK(callback_failure.invocations.back().function == mobagen::plugins::WasmPluginExport::Deallocate);
+  CHECK(callback_failure.invocations->back().function == mobagen::plugins::WasmPluginExport::Deallocate);
 
   FakeWasmInstance malformed;
   malformed.malformed_descriptor = true;
   const auto invalid = mobagen::plugins::query_portable_wasm_plugin(malformed);
   CHECK_FALSE(invalid.provider.has_value());
   CHECK(has_issue(invalid, mobagen::plugins::WasmPluginQueryIssueCode::ContractInvalid));
-  CHECK(malformed.invocations.back().function == mobagen::plugins::WasmPluginExport::Deallocate);
+  CHECK(malformed.invocations->back().function == mobagen::plugins::WasmPluginExport::Deallocate);
 }
 
 TEST_CASE("WASM runtime: deallocation failure invalidates an otherwise valid query") {
@@ -189,4 +224,96 @@ TEST_CASE("WASM runtime: deallocation failure invalidates an otherwise valid que
   const auto backend_failure = mobagen::plugins::query_portable_wasm_plugin(trapped);
   CHECK_FALSE(backend_failure.provider.has_value());
   CHECK(has_issue(backend_failure, mobagen::plugins::WasmPluginQueryIssueCode::DeallocationFailed));
+}
+
+TEST_CASE("WASM activation: configuration and lifecycle complete transactionally") {
+  auto instance = std::make_unique<FakeWasmInstance>();
+  auto* observed = instance.get();
+  const std::array configuration{std::byte{4}, std::byte{2}};
+
+  auto result = mobagen::plugins::activate_portable_wasm_plugin(std::move(instance), configuration);
+
+  REQUIRE(result.activation != nullptr);
+  CHECK(result.issues.empty());
+  CHECK(result.activation->provider().id == "mobagen.wasm-ref");
+  CHECK(result.activation->state() == mobagen::plugins::PortableWasmPluginState::Active);
+  CHECK(observed->configured == std::vector<std::byte>{configuration.begin(), configuration.end()});
+  CHECK((*observed->invocations)[3].function == mobagen::plugins::WasmPluginExport::Allocate);
+  CHECK((*observed->invocations)[4].function == mobagen::plugins::WasmPluginExport::Configure);
+  CHECK((*observed->invocations)[5].function == mobagen::plugins::WasmPluginExport::Deallocate);
+  CHECK((*observed->invocations)[6].function == mobagen::plugins::WasmPluginExport::Start);
+
+  CHECK(result.activation->quiesce().ok());
+  CHECK(result.activation->state() == mobagen::plugins::PortableWasmPluginState::Quiesced);
+  CHECK(result.activation->stop().ok());
+  CHECK(result.activation->state() == mobagen::plugins::PortableWasmPluginState::Stopped);
+}
+
+TEST_CASE("WASM activation: configure and start failures roll back without an activation") {
+  auto configure_failure = std::make_unique<FakeWasmInstance>();
+  auto configure_invocations = configure_failure->invocations;
+  configure_failure->configure_status = MOBAGEN_WASM_STATUS_FAILED;
+  const std::array configuration{std::byte{1}};
+  const auto failed_configure = mobagen::plugins::activate_portable_wasm_plugin(std::move(configure_failure), configuration);
+  CHECK_FALSE(failed_configure.activation);
+  CHECK(has_issue(failed_configure, mobagen::plugins::PortableWasmPluginIssueCode::CallbackFailed));
+  CHECK(std::ranges::none_of(*configure_invocations,
+                             [](const Invocation& invocation) { return invocation.function == mobagen::plugins::WasmPluginExport::Start; }));
+
+  auto start_failure = std::make_unique<FakeWasmInstance>();
+  auto start_invocations = start_failure->invocations;
+  start_failure->start_status = MOBAGEN_WASM_STATUS_FAILED;
+  const auto failed_start = mobagen::plugins::activate_portable_wasm_plugin(std::move(start_failure));
+  CHECK_FALSE(failed_start.activation);
+  CHECK(has_issue(failed_start, mobagen::plugins::PortableWasmPluginIssueCode::CallbackFailed));
+  CHECK(std::ranges::any_of(*start_invocations,
+                            [](const Invocation& invocation) { return invocation.function == mobagen::plugins::WasmPluginExport::Quiesce; }));
+  CHECK(std::ranges::any_of(*start_invocations,
+                            [](const Invocation& invocation) { return invocation.function == mobagen::plugins::WasmPluginExport::Stop; }));
+}
+
+TEST_CASE("WASM activation: destruction performs best-effort reverse lifecycle") {
+  auto instance = std::make_unique<FakeWasmInstance>();
+  auto invocations = instance->invocations;
+  auto result = mobagen::plugins::activate_portable_wasm_plugin(std::move(instance));
+  REQUIRE(result.activation != nullptr);
+
+  result.activation.reset();
+
+  REQUIRE(invocations->size() >= 2);
+  CHECK((*invocations)[invocations->size() - 2].function == mobagen::plugins::WasmPluginExport::Quiesce);
+  CHECK(invocations->back().function == mobagen::plugins::WasmPluginExport::Stop);
+}
+
+TEST_CASE("WASM activation: lifecycle rejects wrong threads and invalid transitions") {
+  auto result = mobagen::plugins::activate_portable_wasm_plugin(std::make_unique<FakeWasmInstance>());
+  REQUIRE(result.activation != nullptr);
+
+  const auto premature_stop = result.activation->stop();
+  CHECK(has_issue(premature_stop, mobagen::plugins::PortableWasmPluginIssueCode::InvalidTransition));
+  CHECK(result.activation->state() == mobagen::plugins::PortableWasmPluginState::Active);
+
+  mobagen::plugins::PortableWasmPluginActionResult foreign_thread;
+  std::thread worker([&] { foreign_thread = result.activation->quiesce(); });
+  worker.join();
+  CHECK(has_issue(foreign_thread, mobagen::plugins::PortableWasmPluginIssueCode::WrongThread));
+  CHECK(result.activation->state() == mobagen::plugins::PortableWasmPluginState::Active);
+
+  CHECK(result.activation->quiesce().ok());
+  CHECK(result.activation->stop().ok());
+}
+
+TEST_CASE("WASM activation: oversized configuration and null instances fail before configure") {
+  auto instance = std::make_unique<FakeWasmInstance>();
+  auto invocations = instance->invocations;
+  const std::vector<std::byte> configuration(MOBAGEN_WASM_MAX_CONFIGURATION_BYTES + 1);
+  const auto oversized = mobagen::plugins::activate_portable_wasm_plugin(std::move(instance), configuration);
+  CHECK_FALSE(oversized.activation);
+  CHECK(has_issue(oversized, mobagen::plugins::PortableWasmPluginIssueCode::ConfigurationTooLarge));
+  CHECK(std::ranges::none_of(*invocations,
+                             [](const Invocation& invocation) { return invocation.function == mobagen::plugins::WasmPluginExport::Configure; }));
+
+  const auto missing = mobagen::plugins::activate_portable_wasm_plugin(nullptr);
+  CHECK_FALSE(missing.activation);
+  CHECK(has_issue(missing, mobagen::plugins::PortableWasmPluginIssueCode::InvalidInstance));
 }

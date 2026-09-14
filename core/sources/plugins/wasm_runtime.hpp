@@ -5,10 +5,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace mobagen::plugins {
@@ -77,5 +79,73 @@ namespace mobagen::plugins {
   };
 
   [[nodiscard]] WasmPluginQueryResult query_portable_wasm_plugin(PortableWasmInstance& instance);
+
+  enum class PortableWasmPluginState : std::uint8_t { Configured, Active, Quiesced, Stopped };
+
+  enum class PortableWasmPluginIssueCode : std::uint8_t {
+    InvalidInstance,
+    QueryFailed,
+    ConfigurationTooLarge,
+    BackendFailure,
+    AllocationFailed,
+    InvalidExchangeBuffer,
+    CallbackFailed,
+    DeallocationFailed,
+    InvalidTransition,
+    WrongThread,
+    OutOfMemory,
+  };
+
+  struct PortableWasmPluginIssue {
+    PortableWasmPluginIssueCode code{};
+    WasmPluginExport phase{};
+    std::uint32_t status{MOBAGEN_WASM_STATUS_OK};
+    std::string message;
+    std::vector<WasmPluginQueryIssue> query_issues;
+  };
+
+  struct PortableWasmPluginActionResult {
+    std::vector<PortableWasmPluginIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept { return issues.empty(); }
+  };
+
+  struct PortableWasmPluginActivationResult;
+
+  class PortableWasmPluginActivation {
+  public:
+    PortableWasmPluginActivation(const PortableWasmPluginActivation&) = delete;
+    PortableWasmPluginActivation& operator=(const PortableWasmPluginActivation&) = delete;
+    PortableWasmPluginActivation(PortableWasmPluginActivation&&) = delete;
+    PortableWasmPluginActivation& operator=(PortableWasmPluginActivation&&) = delete;
+    ~PortableWasmPluginActivation();
+
+    [[nodiscard]] PortableWasmPluginState state() const noexcept { return state_; }
+    [[nodiscard]] const modules::ProviderDescriptor& provider() const noexcept { return provider_; }
+    [[nodiscard]] PortableWasmPluginActionResult quiesce();
+    [[nodiscard]] PortableWasmPluginActionResult stop();
+
+  private:
+    friend PortableWasmPluginActivationResult activate_portable_wasm_plugin(std::unique_ptr<PortableWasmInstance>, std::span<const std::byte>);
+
+    PortableWasmPluginActivation(std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider);
+    [[nodiscard]] PortableWasmPluginActionResult start();
+    void shutdown_noexcept() noexcept;
+
+    std::unique_ptr<PortableWasmInstance> instance_;
+    modules::ProviderDescriptor provider_;
+    std::thread::id owner_thread_;
+    PortableWasmPluginState state_{PortableWasmPluginState::Configured};
+  };
+
+  struct PortableWasmPluginActivationResult {
+    std::unique_ptr<PortableWasmPluginActivation> activation;
+    std::vector<PortableWasmPluginIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept { return activation != nullptr && issues.empty(); }
+  };
+
+  [[nodiscard]] PortableWasmPluginActivationResult activate_portable_wasm_plugin(std::unique_ptr<PortableWasmInstance> instance,
+                                                                                 std::span<const std::byte> configuration = {});
 
 }  // namespace mobagen::plugins
