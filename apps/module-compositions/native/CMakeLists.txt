@@ -5,5 +5,5 @@ target_compile_features(mobagen_native_project PUBLIC cxx_std_20)
 target_link_libraries(
   mobagen_native_project
   PUBLIC mobagen::core_plugins mobagen::module_manifest mobagen::module_lockfile
-  PRIVATE mobagen::core_assets
+  PRIVATE mobagen::project_support
 )

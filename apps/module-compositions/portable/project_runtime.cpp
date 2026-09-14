@@ -1,60 +1,11 @@
 #include "project_runtime.hpp"
 
-#include <fstream>
-#include <limits>
-#include <system_error>
+#include "project_support.hpp"
+
 #include <utility>
 
 namespace mobagen::compositions {
   namespace {
-
-    struct ManifestReadResult {
-      std::optional<std::string> contents;
-      std::filesystem::path absolute_path;
-      std::string error;
-    };
-
-    ManifestReadResult read_manifest(const std::filesystem::path& path) {
-      ManifestReadResult result;
-      std::error_code error;
-      result.absolute_path = std::filesystem::absolute(path, error);
-      if (error) {
-        result.error = "mobagen.yaml path could not be resolved";
-        return result;
-      }
-      const auto status = std::filesystem::symlink_status(result.absolute_path, error);
-      if (error || !std::filesystem::is_regular_file(status) || std::filesystem::is_symlink(status)) {
-        result.error = "mobagen.yaml must be a readable regular file, not a symbolic link";
-        return result;
-      }
-      const auto size = std::filesystem::file_size(result.absolute_path, error);
-      if (error || size > modules::max_product_manifest_bytes || size > static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max())) {
-        result.error = "mobagen.yaml exceeds the 1 MiB input limit or its size is unavailable";
-        return result;
-      }
-
-      std::ifstream stream(result.absolute_path, std::ios::binary);
-      if (!stream.is_open()) {
-        result.error = "mobagen.yaml could not be opened";
-        return result;
-      }
-      std::string contents(static_cast<std::size_t>(size), '\0');
-      if (!contents.empty()) {
-        stream.read(contents.data(), static_cast<std::streamsize>(contents.size()));
-        if (stream.gcount() != static_cast<std::streamsize>(contents.size())) {
-          result.error = "mobagen.yaml changed or became unreadable while loading";
-          return result;
-        }
-      }
-      char trailing = 0;
-      stream.read(&trailing, 1);
-      if (stream.gcount() != 0 || stream.bad()) {
-        result.error = "mobagen.yaml changed or became unreadable while loading";
-        return result;
-      }
-      result.contents = std::move(contents);
-      return result;
-    }
 
     void add_issue(PortableProjectResult& result, PortableProjectIssue issue) { result.issues.push_back(std::move(issue)); }
 
@@ -75,7 +26,7 @@ namespace mobagen::compositions {
   PortableProjectResult load_portable_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
                                               plugins::PortableWasmBackend& backend, std::span<const modules::ProviderDescriptor> builtin_providers) {
     PortableProjectResult result;
-    auto source = read_manifest(manifest_path);
+    auto source = detail::read_project_manifest_bounded(manifest_path);
     if (!source.contents.has_value()) {
       add_issue(result, {.code = PortableProjectIssueCode::ReadManifest, .message = std::move(source.error)});
       return result;
