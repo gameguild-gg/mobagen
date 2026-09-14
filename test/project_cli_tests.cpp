@@ -137,13 +137,11 @@ profiles:
 #endif
   }
 
-}  // namespace
-
-TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a local package") {
-  TemporaryProjectCliRoot project;
-  std::ofstream manifest_file(project.path() / "mobagen.yaml", std::ios::binary | std::ios::trunc);
-  REQUIRE(manifest_file.is_open());
-  manifest_file << R"yaml(schema: 1
+  void write_remote_project_manifest(const std::filesystem::path& path,
+                                     std::string_view trailing = {}) {
+    std::ofstream manifest_file(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(manifest_file.is_open());
+    manifest_file << R"yaml(schema: 1
 name: remote-project-cli-test
 sources:
   official:
@@ -157,14 +155,26 @@ profiles:
   release:
     linkage: dynamic
     editor: false
-)yaml";
-  REQUIRE(manifest_file.good());
-  manifest_file.close();
+)yaml" << trailing;
+    REQUIRE(manifest_file.good());
+  }
+
+  std::vector<std::string_view> remote_project_arguments(
+      std::string_view command, const std::string& manifest
+  ) {
+    return {
+        command, manifest, "--profile", "release", "--alias", "runtime=runtime.tick.v1",
+        "--default", "runtime.tick.v1=mobagen.runtime.remote",
+    };
+  }
+
+}  // namespace
+
+TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a local package") {
+  TemporaryProjectCliRoot project;
+  write_remote_project_manifest(project.path() / "mobagen.yaml");
   const auto manifest = (project.path() / "mobagen.yaml").string();
-  const std::vector<std::string_view> arguments{
-      "sync", manifest, "--profile", "release", "--alias", "runtime=runtime.tick.v1", "--default",
-      "runtime.tick.v1=mobagen.runtime.remote",
-  };
+  const auto arguments = remote_project_arguments("sync", manifest);
   ProjectCatalogHttpClient client;
   std::ostringstream output;
   std::ostringstream error;
@@ -212,6 +222,55 @@ profiles:
   CHECK(output.str().contains("cache\tmobagen.runtime.remote\tpresent\t"));
   CHECK(output.str().contains("plugin\tmobagen.runtime.remote\tpresent\t"));
   CHECK(mobagen::test::read_text(project.path() / "mobagen.lock") == lockfile);
+}
+
+TEST_CASE("Project CLI: bootstrap downloads once then validates the locked project without HTTP") {
+  TemporaryProjectCliRoot project;
+  write_remote_project_manifest(project.path() / "mobagen.yaml");
+  const auto manifest = (project.path() / "mobagen.yaml").string();
+  const auto arguments = remote_project_arguments("bootstrap", manifest);
+  ProjectCatalogHttpClient client;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
+  CHECK(error.str().empty());
+  CHECK(client.catalog_requests.size() == 1);
+  CHECK(client.artifact_requests.size() == 1);
+
+  output.str({});
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
+  CHECK(error.str().empty());
+  CHECK(output.str().contains("ready\tremote-project-cli-test\trelease\n"));
+  CHECK(output.str().contains("plugins\t1\n"));
+  CHECK(client.catalog_requests.size() == 1);
+  CHECK(client.artifact_requests.size() == 1);
+
+  output.str({});
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {}) == 0);
+  CHECK(output.str().contains("ready\tremote-project-cli-test\trelease\n"));
+  CHECK(error.str().empty());
+
+  const auto package = project.path() / ".mobagen" / "plugins"
+                       / "mobagen.runtime.remote.plugin";
+  const auto binary = package
+                      / mobagen::modules::module_plugin_binary_filename(
+                          mobagen::modules::LinkageMode::Dynamic
+                      );
+  std::ofstream(binary, std::ios::binary | std::ios::app) << "tampered";
+  output.str({});
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
+  CHECK(error.str().empty());
+  CHECK(client.catalog_requests.size() == 2);
+  CHECK(client.artifact_requests.size() == 1);
+  CHECK(output.str().contains("plugin\tmobagen.runtime.remote\tinstalled\t"));
+
+  write_remote_project_manifest(project.path() / "mobagen.yaml", "# changed\n");
+  output.str({});
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
+  CHECK(error.str().empty());
+  CHECK(client.catalog_requests.size() == 3);
+  CHECK(client.artifact_requests.size() == 1);
 }
 
 TEST_CASE("Project CLI: sync reports a missing injected HTTPS service without network access") {
