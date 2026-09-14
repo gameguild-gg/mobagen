@@ -34,7 +34,7 @@ namespace mobagen::plugins {
 
     [[nodiscard]] bool valid_array(const MobagenStringView* values, std::uint32_t count, std::string_view field, PluginContractResult& result) {
       if (count > max_plugin_capabilities) {
-        add_issue(result, PluginContractIssueCode::limit_exceeded, std::string{field}, "plugin capability count exceeds 1024");
+        add_issue(result, PluginContractIssueCode::limit_exceeded, std::string{field}, "plugin array entry count exceeds 1024");
         return false;
       }
       if (count != 0 && values == nullptr) {
@@ -55,6 +55,10 @@ namespace mobagen::plugins {
         result.emplace_back(values[index].data == nullptr ? "" : std::string_view{values[index].data, values[index].size});
       }
       return result;
+    }
+
+    [[nodiscard]] std::string copy_view(MobagenStringView value) {
+      return value.data == nullptr ? std::string{} : std::string{std::string_view{value.data, value.size}};
     }
 
     [[nodiscard]] modules::TargetPlatform current_target() {
@@ -93,8 +97,11 @@ namespace mobagen::plugins {
     if (descriptor.abi_version != MOBAGEN_PLUGIN_ABI_VERSION) {
       add_issue(result, PluginContractIssueCode::unsupported_abi, "abi_version", "plugin ABI version is not supported");
     }
-    if (descriptor.struct_size < MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE) {
-      add_issue(result, PluginContractIssueCode::truncated_descriptor, "struct_size", "plugin descriptor is smaller than ABI v1");
+    if (descriptor.struct_size < MOBAGEN_PLUGIN_DESCRIPTOR_V1_BASE_SIZE) {
+      add_issue(result, PluginContractIssueCode::truncated_descriptor, "struct_size", "plugin descriptor is smaller than the ABI v1 base");
+    } else if (descriptor.struct_size > MOBAGEN_PLUGIN_DESCRIPTOR_V1_BASE_SIZE && descriptor.struct_size < MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE) {
+      add_issue(result, PluginContractIssueCode::truncated_descriptor, "struct_size",
+                "plugin descriptor contains a partial ABI v1 metadata extension");
     }
     if (descriptor.lifecycle.struct_size < MOBAGEN_PLUGIN_LIFECYCLE_V1_SIZE) {
       add_issue(result, PluginContractIssueCode::truncated_lifecycle, "lifecycle.struct_size", "plugin lifecycle is smaller than ABI v1");
@@ -104,6 +111,13 @@ namespace mobagen::plugins {
     const auto required_valid = valid_array(descriptor.required, descriptor.required_count, "required", result);
     const auto optional_valid = valid_array(descriptor.optional, descriptor.optional_count, "optional", result);
     const auto conflicts_valid = valid_array(descriptor.conflicts, descriptor.conflicts_count, "conflicts", result);
+    const bool has_extended_metadata = descriptor.struct_size >= MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE;
+    bool configuration_schema_valid = true;
+    bool permissions_valid = true;
+    if (has_extended_metadata) {
+      configuration_schema_valid = valid_view(descriptor.configuration_schema, "configuration_schema", result);
+      permissions_valid = valid_array(descriptor.permissions, descriptor.permissions_count, "permissions", result);
+    }
 
     if (descriptor.lifecycle.configure == nullptr || descriptor.lifecycle.start == nullptr || descriptor.lifecycle.quiesce == nullptr
         || descriptor.lifecycle.stop == nullptr || descriptor.lifecycle.destroy == nullptr) {
@@ -114,7 +128,8 @@ namespace mobagen::plugins {
       add_issue(result, PluginContractIssueCode::invalid_reload_policy, "reload_policy", "plugin reload policy is not supported");
     }
 
-    if (!result.issues.empty() || !id_valid || !provides_valid || !required_valid || !optional_valid || !conflicts_valid || !reload.has_value()) {
+    if (!result.issues.empty() || !id_valid || !provides_valid || !required_valid || !optional_valid || !conflicts_valid
+        || !configuration_schema_valid || !permissions_valid || !reload.has_value()) {
       return result;
     }
 
@@ -128,6 +143,8 @@ namespace mobagen::plugins {
         .targets = {current_target()},
         .linkages = {modules::LinkageMode::Dynamic},
         .reload = *reload,
+        .configuration_schema = has_extended_metadata ? copy_view(descriptor.configuration_schema) : std::string{},
+        .permissions = has_extended_metadata ? copy_array(descriptor.permissions, descriptor.permissions_count) : std::vector<std::string>{},
     };
     for (const auto& issue : modules::validate(provider)) {
       add_issue(result, PluginContractIssueCode::invalid_provider_descriptor, issue.field, issue.message);

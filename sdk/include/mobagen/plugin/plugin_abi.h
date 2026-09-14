@@ -124,10 +124,14 @@ typedef struct MobagenPluginDescriptorV1 {
   const MobagenStringView* conflicts;
   uint32_t conflicts_count;
   MobagenPluginLifecycleV1 lifecycle;
+  MobagenStringView configuration_schema;
+  const MobagenStringView* permissions;
+  uint32_t permissions_count;
 } MobagenPluginDescriptorV1;
 
 #define MOBAGEN_PLUGIN_HOST_API_V1_SIZE ((uint32_t)sizeof(MobagenHostApiV1))
 #define MOBAGEN_PLUGIN_LIFECYCLE_V1_SIZE ((uint32_t)sizeof(MobagenPluginLifecycleV1))
+#define MOBAGEN_PLUGIN_DESCRIPTOR_V1_BASE_SIZE ((uint32_t)offsetof(MobagenPluginDescriptorV1, configuration_schema))
 #define MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE ((uint32_t)sizeof(MobagenPluginDescriptorV1))
 
 typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenPluginEntryV1Fn)(const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor);

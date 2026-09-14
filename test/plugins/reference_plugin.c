@@ -70,6 +70,7 @@ static void MOBAGEN_PLUGIN_CALL destroy(void* opaque) {
 
 MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor) {
   static const MobagenStringView provides[] = {{MOBAGEN_RUNTIME_TICK_V1_ID, sizeof(MOBAGEN_RUNTIME_TICK_V1_ID) - 1}};
+  static const MobagenStringView permissions[] = {{"debug", sizeof("debug") - 1}};
   if (host == NULL || descriptor == NULL || host->abi_version != MOBAGEN_PLUGIN_ABI_VERSION || host->struct_size < MOBAGEN_PLUGIN_HOST_API_V1_SIZE
       || descriptor->struct_size < MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE) {
     return MOBAGEN_STATUS_UNSUPPORTED;
@@ -101,6 +102,9 @@ MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(
               .stop = stop,
               .destroy = destroy,
           },
+      .configuration_schema = {"mobagen.reference.config.v1", sizeof("mobagen.reference.config.v1") - 1},
+      .permissions = permissions,
+      .permissions_count = 1,
   };
   return MOBAGEN_STATUS_OK;
 }

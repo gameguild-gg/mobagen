@@ -174,6 +174,8 @@ TEST_CASE("Plugin store: inventory validates and deterministically reports insta
   CHECK(inventory.entries[1].provider.version == mobagen::modules::SemanticVersion{1, 0, 0});
   CHECK(inventory.entries[1].provider.provides == std::vector<std::string>{MOBAGEN_RUNTIME_TICK_V1_ID});
   CHECK(inventory.entries[1].provider.reload == mobagen::modules::ReloadPolicy::Restart);
+  CHECK(inventory.entries[1].provider.configuration_schema == "mobagen.reference.config.v1");
+  CHECK(inventory.entries[1].provider.permissions == std::vector<std::string>{"debug"});
   CHECK(inventory.entries[1].package == std::filesystem::absolute(root.store() / "mobagen.reference.plugin"));
 }
 
