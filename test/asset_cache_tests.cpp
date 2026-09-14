@@ -59,7 +59,77 @@ namespace {
                                [](const auto& entry) { return entry.path().filename().string().contains(".tmp-"); });
   }
 
+  struct ChunkedAssetSource {
+    std::span<const std::byte> contents;
+    std::size_t split{};
+    std::size_t calls{};
+    bool fail{};
+
+    static bool produce(void* context, mobagen::assets::AssetCacheSink sink) noexcept {
+      auto& source = *static_cast<ChunkedAssetSource*>(context);
+      ++source.calls;
+      if (source.fail) return false;
+      const auto first_size = std::min(source.split, source.contents.size());
+      if (first_size != 0 && !sink.write(sink.context, source.contents.first(first_size))) return false;
+      const auto remaining = source.contents.subspan(first_size);
+      return remaining.empty() || sink.write(sink.context, remaining);
+    }
+  };
+
 }  // namespace
+
+TEST_CASE("Asset cache: verified streams commit incrementally and skip cached producers") {
+  using namespace mobagen::assets;
+  TemporaryCacheDirectory directory;
+  AssetCache cache(directory.path(), 1024);
+  const auto contents = bytes("streamed immutable plugin bytes");
+  const auto id = sha256(contents);
+  REQUIRE(id.has_value());
+  ChunkedAssetSource source{.contents = contents, .split = 7};
+
+  const auto stored = cache.store_stream(
+      *id, contents.size(), {.context = &source, .produce = ChunkedAssetSource::produce}
+  );
+
+  REQUIRE(stored.status == AssetCacheStatus::stored);
+  REQUIRE(stored.id == id);
+  CHECK(source.calls == 1);
+  const auto loaded = cache.load(*id);
+  REQUIRE(loaded.ok());
+  CHECK(std::ranges::equal(loaded.bytes, contents));
+  CHECK_FALSE(has_temporary_file(directory.path()));
+
+  ChunkedAssetSource duplicate{.contents = contents, .split = 1};
+  const auto cached = cache.store_stream(
+      *id, contents.size(), {.context = &duplicate, .produce = ChunkedAssetSource::produce}
+  );
+  CHECK(cached.status == AssetCacheStatus::already_present);
+  CHECK(duplicate.calls == 0);
+}
+
+TEST_CASE("Asset cache: failed or mismatched streams never publish partial blobs") {
+  using namespace mobagen::assets;
+  TemporaryCacheDirectory directory;
+  AssetCache cache(directory.path(), 1024);
+  const auto expected = sha256(bytes("trusted-stream"));
+  REQUIRE(expected.has_value());
+
+  ChunkedAssetSource wrong_hash{.contents = bytes("untrust-stream"), .split = 4};
+  const auto mismatched = cache.store_stream(
+      *expected, wrong_hash.contents.size(), {.context = &wrong_hash, .produce = ChunkedAssetSource::produce}
+  );
+  CHECK(mismatched.status == AssetCacheStatus::source_changed);
+  CHECK(cache.load(*expected).status == AssetCacheStatus::not_found);
+  CHECK_FALSE(has_temporary_file(directory.path()));
+
+  ChunkedAssetSource failed{.contents = bytes("trusted-stream"), .fail = true};
+  const auto aborted = cache.store_stream(
+      *expected, failed.contents.size(), {.context = &failed, .produce = ChunkedAssetSource::produce}
+  );
+  CHECK(aborted.status == AssetCacheStatus::source_changed);
+  CHECK(cache.load(*expected).status == AssetCacheStatus::not_found);
+  CHECK_FALSE(has_temporary_file(directory.path()));
+}
 
 TEST_CASE("Asset cache: store and load use a canonical content path") {
   using mobagen::assets::AssetCache;

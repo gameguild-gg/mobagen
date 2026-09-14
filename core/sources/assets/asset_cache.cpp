@@ -270,6 +270,32 @@ namespace mobagen::assets {
       return {AssetCacheStatus::loaded, hasher.finish(), total, {}};
     }
 
+    struct StreamStoreState {
+      TemporaryBlobFile* file{};
+      Sha256Hasher hasher;
+      std::size_t expected_size{};
+      std::size_t received{};
+      std::error_code system_error;
+      bool size_mismatch{};
+      bool hash_failed{};
+    };
+
+    bool store_stream_chunk(void* context, std::span<const std::byte> bytes) noexcept {
+      auto& state = *static_cast<StreamStoreState*>(context);
+      if (state.size_mismatch || state.hash_failed || state.system_error) return false;
+      if (bytes.size() > state.expected_size - state.received) {
+        state.size_mismatch = true;
+        return false;
+      }
+      if (!state.hasher.update(bytes)) {
+        state.hash_failed = true;
+        return false;
+      }
+      if (!state.file->write_all(bytes, state.system_error)) return false;
+      state.received += bytes.size();
+      return true;
+    }
+
   }  // namespace
 
   std::filesystem::path AssetCache::path_for(const AssetId& id) const {
@@ -414,6 +440,76 @@ namespace mobagen::assets {
       return {AssetCacheStatus::already_present, hashed.id, destination, {}};
     }
     return store_failure(existing.status, hashed.id, destination, existing.system_error);
+  }
+
+  AssetCacheStoreResult AssetCache::store_stream(const AssetId& expected_id, std::size_t expected_size,
+                                                 AssetCacheSource source) const {
+    if (root_.empty()) {
+      return store_failure(AssetCacheStatus::invalid_root, std::nullopt, {});
+    }
+    if (expected_size > max_blob_bytes_) {
+      return store_failure(AssetCacheStatus::too_large, std::nullopt, {});
+    }
+    if (source.produce == nullptr) {
+      return store_failure(AssetCacheStatus::source_changed, std::nullopt, {});
+    }
+
+    const auto destination = path_for(expected_id);
+    std::error_code error;
+    const auto exists = std::filesystem::exists(destination, error);
+    if (error) {
+      return store_failure(AssetCacheStatus::io_error, expected_id, destination, error);
+    }
+    if (exists) {
+      const auto existing = hash_file(destination, max_blob_bytes_);
+      if (existing.status != AssetCacheStatus::loaded || !existing.id.has_value()) {
+        return store_failure(existing.status, expected_id, destination, existing.system_error);
+      }
+      if (*existing.id == expected_id && existing.size == expected_size) {
+        return {AssetCacheStatus::already_present, expected_id, destination, {}};
+      }
+      return store_failure(AssetCacheStatus::integrity_error, expected_id, destination);
+    }
+
+    std::filesystem::create_directories(destination.parent_path(), error);
+    if (error) {
+      return store_failure(AssetCacheStatus::io_error, expected_id, destination, error);
+    }
+    auto temporary = create_temporary_file(destination, error);
+    if (!temporary) {
+      return store_failure(AssetCacheStatus::io_error, expected_id, destination, error);
+    }
+
+    StreamStoreState state{.file = temporary.get(), .expected_size = expected_size};
+    const auto produced = source.produce(source.context, {.context = &state, .write = store_stream_chunk});
+    if (!produced || state.size_mismatch || state.hash_failed || state.received != expected_size) {
+      if (state.system_error) {
+        return store_failure(AssetCacheStatus::io_error, expected_id, destination, state.system_error);
+      }
+      return store_failure(AssetCacheStatus::source_changed, std::nullopt, destination);
+    }
+    const auto actual_id = state.hasher.finish();
+    if (!actual_id.has_value() || *actual_id != expected_id) {
+      return store_failure(AssetCacheStatus::source_changed, std::nullopt, destination);
+    }
+    if (!temporary->flush_and_close(error)) {
+      return store_failure(AssetCacheStatus::io_error, expected_id, destination, error);
+    }
+
+    const auto installed = install_temporary_file(temporary->path(), destination, error);
+    if (installed == InstallStatus::installed) {
+      return {AssetCacheStatus::stored, expected_id, destination, {}};
+    }
+    if (installed == InstallStatus::failed) {
+      return store_failure(AssetCacheStatus::io_error, expected_id, destination, error);
+    }
+    const auto existing = hash_file(destination, max_blob_bytes_);
+    if (existing.status == AssetCacheStatus::loaded && existing.id == expected_id
+        && existing.size == expected_size) {
+      return {AssetCacheStatus::already_present, expected_id, destination, {}};
+    }
+    return store_failure(existing.status == AssetCacheStatus::loaded ? AssetCacheStatus::integrity_error : existing.status,
+                         expected_id, destination, existing.system_error);
   }
 
   AssetCacheLoadResult AssetCache::load(const AssetId& id) const {
