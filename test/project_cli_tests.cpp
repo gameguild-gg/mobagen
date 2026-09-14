@@ -121,11 +121,16 @@ TEST_CASE("Project CLI: explain reports selected and available providers without
   REQUIRE(mobagen::compositions::cli::run(arguments, output, error) == 0);
   CHECK(error.str().empty());
   CHECK(output.str().contains("project\tproject-cli-test\n"));
+  CHECK(output.str().contains("profile\trelease\n"));
+  CHECK(output.str().contains("grant\trelease\tdebug\n"));
   CHECK(output.str().contains("provider\tmobagen.lifecycle-failure\t1.0.0\tavailable\n"));
   CHECK(output.str().contains("provides\tmobagen.lifecycle-failure\truntime.tick.v1\n"));
   CHECK(output.str().contains("provider\tmobagen.reference\t1.0.0\tselected\n"));
+  CHECK(output.str().contains("config-schema\tmobagen.reference\tmobagen.reference.config.v1\n"));
   CHECK(output.str().contains("permission\tmobagen.reference\tdebug\n"));
+  CHECK(output.str().contains("configuration\tmobagen.reference\tmobagen.reference.config.v1\t2\n"));
   CHECK(output.str().contains("selection\truntime.tick.v1\tmobagen.reference\tdynamic\tdefault for profile 'release'\n"));
-  CHECK(output.str().contains("providers\t2\nselections\t1\ndependencies\t0\n"));
+  CHECK(output.str().contains("providers\t2\nselections\t1\ndependencies\t0\nconfigurations\t1\n"));
+  CHECK_FALSE(output.str().contains("configuration-data"));
   CHECK_FALSE(std::filesystem::exists(project.path() / "mobagen.lock"));
 }

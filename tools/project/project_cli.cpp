@@ -266,6 +266,13 @@ namespace mobagen::compositions::cli {
       }
 
       output << "project\t" << preview.product.name << '\n';
+      const auto profile = std::ranges::find(preview.product.profiles, command.resolver.profile, &modules::ProfileDescriptor::name);
+      if (profile == preview.product.profiles.end()) {
+        error << "explain failed: resolved profile is unavailable\n";
+        return 3;
+      }
+      output << "profile\t" << profile->name << '\n';
+      write_sorted_relations(output, "grant", profile->name, profile->permissions);
       for (std::size_t index = 0; index < preview.registry.provider_count(); ++index) {
         const auto* provider = preview.registry.provider(modules::ProviderIndex{static_cast<std::uint32_t>(index)});
         if (provider == nullptr) {
@@ -278,7 +285,18 @@ namespace mobagen::compositions::cli {
         write_sorted_relations(output, "requires", provider->id, provider->required);
         write_sorted_relations(output, "optional", provider->id, provider->optional);
         write_sorted_relations(output, "conflicts", provider->id, provider->conflicts);
+        if (!provider->configuration_schema.empty()) {
+          output << "config-schema\t" << provider->id << '\t' << provider->configuration_schema << '\n';
+        }
         write_sorted_relations(output, "permission", provider->id, provider->permissions);
+      }
+      for (const auto& configuration : preview.resolution.configurations()) {
+        const auto* provider = preview.registry.provider(configuration.provider);
+        if (provider == nullptr) {
+          error << "explain failed: configured provider is outside the registry\n";
+          return 3;
+        }
+        output << "configuration\t" << provider->id << '\t' << configuration.schema << '\t' << configuration.data.size() << '\n';
       }
       for (const auto& selection : preview.resolution.selections()) {
         const auto* provider = preview.registry.provider(selection.provider);
@@ -301,7 +319,8 @@ namespace mobagen::compositions::cli {
       }
       output << "providers\t" << preview.registry.provider_count() << '\n'
              << "selections\t" << preview.resolution.selections().size() << '\n'
-             << "dependencies\t" << preview.resolution.dependencies().size() << '\n';
+             << "dependencies\t" << preview.resolution.dependencies().size() << '\n'
+             << "configurations\t" << preview.resolution.configurations().size() << '\n';
       return 0;
     }
 
