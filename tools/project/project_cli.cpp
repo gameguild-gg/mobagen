@@ -1,6 +1,11 @@
 #include "project_cli.hpp"
 
 #include "native/project_runtime.hpp"
+#include "portable/project_runtime.hpp"
+#include "project_support.hpp"
+#if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)
+#include "plugins/wamr_backend.hpp"
+#endif
 #include <mobagen/version.h>
 
 #include <algorithm>
@@ -38,6 +43,12 @@ namespace mobagen::compositions::cli {
     struct ParseResult {
       std::optional<ParsedCommand> command;
       std::string error;
+    };
+
+    struct ProjectRouteResult {
+      std::optional<modules::LinkageMode> linkage;
+      std::string error;
+      std::vector<modules::ManifestError> manifest_errors;
     };
 
     void print_usage(std::ostream& stream) {
@@ -193,7 +204,36 @@ namespace mobagen::compositions::cli {
       return result;
     }
 
-    void print_project_failure(std::string_view operation, const NativeProjectLockResult& result, std::ostream& error) {
+    ProjectRouteResult select_project_linkage(const ParsedCommand& command) {
+      ProjectRouteResult result;
+      auto source = detail::read_project_manifest_bounded(command.manifest);
+      if (!source.ok()) {
+        result.error = std::move(source.error);
+        return result;
+      }
+      auto parsed = modules::parse_product_manifest(*source.contents, source.absolute_path.generic_string());
+      if (!parsed.ok()) {
+        result.error = "mobagen.yaml is invalid";
+        result.manifest_errors = std::move(parsed.errors);
+        return result;
+      }
+      const auto profile = std::ranges::find(parsed.descriptor->profiles, command.resolver.profile, &modules::ProfileDescriptor::name);
+      if (profile == parsed.descriptor->profiles.end()) {
+        result.error = "selected profile '" + command.resolver.profile + "' is not declared by mobagen.yaml";
+        return result;
+      }
+      result.linkage = profile->linkage;
+      return result;
+    }
+
+    void print_route_failure(std::string_view operation, const ProjectRouteResult& result, std::ostream& error) {
+      error << operation << " failed: " << result.error;
+      if (!result.manifest_errors.empty()) error << ": " << result.manifest_errors.front().message;
+      error << '\n';
+    }
+
+    template <typename ProjectLockResult>
+    void print_project_failure(std::string_view operation, const ProjectLockResult& result, std::ostream& error) {
       error << operation << " failed";
       if (!result.issues.empty()) {
         const auto& issue = result.issues.front();
@@ -211,8 +251,8 @@ namespace mobagen::compositions::cli {
       error << '\n';
     }
 
-    int resolve(const ParsedCommand& command, std::ostream& output, std::ostream& error) {
-      auto generated = resolve_native_project_lock(command.manifest, command.resolver, command.sdk_version);
+    template <typename ProjectLockResult>
+    int resolve(const ParsedCommand&, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
       if (!generated.ok()) {
         print_project_failure("resolve", generated, error);
         return 3;
@@ -228,8 +268,8 @@ namespace mobagen::compositions::cli {
       return 0;
     }
 
-    int verify(const ParsedCommand& command, std::ostream& output, std::ostream& error) {
-      auto generated = resolve_native_project_lock(command.manifest, command.resolver, command.sdk_version);
+    template <typename ProjectLockResult>
+    int verify(const ParsedCommand&, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
       if (!generated.ok()) {
         print_project_failure("verify", generated, error);
         return 3;
@@ -249,8 +289,8 @@ namespace mobagen::compositions::cli {
       return 0;
     }
 
-    int explain(const ParsedCommand& command, std::ostream& output, std::ostream& error) {
-      auto generated = resolve_native_project_lock(command.manifest, command.resolver, command.sdk_version);
+    template <typename ProjectLockResult>
+    int explain(const ParsedCommand& command, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
       if (!generated.ok()) {
         print_project_failure("explain", generated, error);
         return 3;
@@ -324,36 +364,78 @@ namespace mobagen::compositions::cli {
       return 0;
     }
 
+    template <typename ProjectLockResult>
+    int execute(const ParsedCommand& command, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
+      switch (command.command) {
+        case ProjectCommand::Resolve:
+          return resolve(command, std::move(generated), output, error);
+        case ProjectCommand::Verify:
+          return verify(command, std::move(generated), output, error);
+        case ProjectCommand::Explain:
+          return explain(command, std::move(generated), output, error);
+      }
+      return 3;
+    }
+
+    int run_with_services(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error, ProjectCliServices services,
+                          bool use_bundled_portable_backend) {
+      try {
+        if (arguments.size() == 1 && (arguments[0] == "help" || arguments[0] == "--help")) {
+          print_usage(output);
+          return 0;
+        }
+        auto parsed = parse(arguments);
+        if (!parsed.command.has_value()) {
+          if (!parsed.error.empty()) error << "invalid project command: " << parsed.error << '\n';
+          print_usage(error);
+          return 2;
+        }
+        auto route = select_project_linkage(*parsed.command);
+        if (!route.linkage.has_value()) {
+          print_route_failure(arguments.front(), route, error);
+          return 3;
+        }
+        if (*route.linkage == modules::LinkageMode::Wasm) {
+#if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)
+          std::optional<plugins::WamrBackend> bundled_backend;
+          if (services.portable_backend == nullptr && use_bundled_portable_backend) {
+            bundled_backend.emplace();
+            services.portable_backend = &*bundled_backend;
+          }
+#else
+          static_cast<void>(use_bundled_portable_backend);
+#endif
+          if (services.portable_backend == nullptr) {
+            error << arguments.front() << " failed: portable WASM backend is unavailable in this build\n";
+            return 3;
+          }
+          auto generated = resolve_portable_project_lock(parsed.command->manifest, parsed.command->resolver, *services.portable_backend,
+                                                         parsed.command->sdk_version);
+          return execute(*parsed.command, std::move(generated), output, error);
+        }
+        if (*route.linkage == modules::LinkageMode::Process) {
+          error << arguments.front() << " failed: process plugin linkage is not implemented\n";
+          return 3;
+        }
+        auto generated = resolve_native_project_lock(parsed.command->manifest, parsed.command->resolver, parsed.command->sdk_version);
+        return execute(*parsed.command, std::move(generated), output, error);
+      } catch (const std::exception& exception) {
+        error << "project command failed: " << exception.what() << '\n';
+        return 3;
+      } catch (...) {
+        error << "project command failed: unknown error\n";
+        return 3;
+      }
+    }
+
   }  // namespace
 
   int run(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error) {
-    try {
-      if (arguments.size() == 1 && (arguments[0] == "help" || arguments[0] == "--help")) {
-        print_usage(output);
-        return 0;
-      }
-      auto parsed = parse(arguments);
-      if (!parsed.command.has_value()) {
-        if (!parsed.error.empty()) error << "invalid project command: " << parsed.error << '\n';
-        print_usage(error);
-        return 2;
-      }
-      switch (parsed.command->command) {
-        case ProjectCommand::Resolve:
-          return resolve(*parsed.command, output, error);
-        case ProjectCommand::Verify:
-          return verify(*parsed.command, output, error);
-        case ProjectCommand::Explain:
-          return explain(*parsed.command, output, error);
-      }
-      return 3;
-    } catch (const std::exception& exception) {
-      error << "project command failed: " << exception.what() << '\n';
-      return 3;
-    } catch (...) {
-      error << "project command failed: unknown error\n";
-      return 3;
-    }
+    return run_with_services(arguments, output, error, {}, true);
+  }
+
+  int run(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error, ProjectCliServices services) {
+    return run_with_services(arguments, output, error, services, false);
   }
 
 }  // namespace mobagen::compositions::cli
