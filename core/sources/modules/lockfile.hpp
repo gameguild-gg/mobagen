@@ -18,6 +18,7 @@ namespace mobagen::modules {
     std::string provider;
     SemanticVersion version;
     std::uint32_t abi_version{};
+    std::string package;
     std::string hash;
   };
 

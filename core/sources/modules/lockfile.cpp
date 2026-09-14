@@ -38,6 +38,25 @@ namespace mobagen::modules {
                                  [](char digit) { return (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f'); });
     }
 
+    bool is_portable_package_path(std::string_view value) {
+      if (value.empty() || value.contains('\\')) return false;
+
+      const std::filesystem::path path{value};
+      if (path.is_absolute() || path.has_root_path() || path.extension() != ".plugin" || path.generic_string() != value) {
+        return false;
+      }
+      for (const auto& component : path) {
+        const auto text = component.generic_string();
+        if (text.empty() || text == "." || text == ".." || !std::ranges::all_of(text, [](char value_char) {
+              return (value_char >= 'a' && value_char <= 'z') || (value_char >= 'A' && value_char <= 'Z') || (value_char >= '0' && value_char <= '9')
+                     || value_char == '.' || value_char == '-' || value_char == '_';
+            })) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     std::string_view target_name(TargetPlatform target) {
       switch (target) {
         case TargetPlatform::Windows:
@@ -89,8 +108,8 @@ namespace mobagen::modules {
 
     auto plugins = metadata.plugins;
     std::ranges::sort(plugins, [](const PluginLockEntry& left, const PluginLockEntry& right) {
-      return std::tie(left.provider, left.version.major, left.version.minor, left.version.patch, left.abi_version, left.hash)
-             < std::tie(right.provider, right.version.major, right.version.minor, right.version.patch, right.abi_version, right.hash);
+      return std::tie(left.provider, left.version.major, left.version.minor, left.version.patch, left.abi_version, left.package, left.hash)
+             < std::tie(right.provider, right.version.major, right.version.minor, right.version.patch, right.abi_version, right.package, right.hash);
     });
     for (std::size_t index = 0; index < plugins.size(); ++index) {
       const auto& plugin = plugins[index];
@@ -100,6 +119,9 @@ namespace mobagen::modules {
       }
       if (plugin.abi_version == 0) {
         add_issue(result, LockfileIssueCode::InvalidValue, field + ".abi", "plugin ABI version must be positive");
+      }
+      if (!is_portable_package_path(plugin.package)) {
+        add_issue(result, LockfileIssueCode::InvalidValue, field + ".package", "plugin package must be a portable relative path ending in .plugin");
       }
       if (!is_sha256(plugin.hash)) {
         add_issue(result, LockfileIssueCode::InvalidHash, field + ".hash", "expected sha256 followed by 64 lowercase hexadecimal digits");
@@ -196,6 +218,7 @@ namespace mobagen::modules {
         write_version(output, plugin.version);
         output << '\n';
         output << "    abi: " << plugin.abi_version << '\n';
+        output << "    package: " << plugin.package << '\n';
         output << "    hash: " << plugin.hash << '\n';
       }
     }
