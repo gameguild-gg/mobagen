@@ -164,6 +164,11 @@ if(MOBAGEN_BUILD_ASSET_TOOLS)
   add_subdirectory(tools/assets)
 endif()
 
+option(MOBAGEN_BUILD_PLUGIN_TOOLS "Build the native Mobagen plugin command-line tools" ON)
+if(MOBAGEN_BUILD_PLUGIN_TOOLS AND NOT EMSCRIPTEN)
+  add_subdirectory(tools/plugins)
+endif()
+
 option(BUILD_TESTING "Build Mobagen tests" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"
