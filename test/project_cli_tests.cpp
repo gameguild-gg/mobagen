@@ -12,6 +12,7 @@
 
 #include "assets/asset_cache.hpp"
 #include "http/client.hpp"
+#include "modules/artifact_installer.hpp"
 #include "plugins/plugin_loader.hpp"
 #include "project_cli.hpp"
 #include "support/wasm_plugin_test_support.hpp"
@@ -182,11 +183,16 @@ profiles:
                                         + std::string{native_artifact_filename()} + '\n';
   CHECK(output.str().contains(expected_artifact));
   CHECK(output.str().contains("cache\tmobagen.runtime.remote\tdownloaded\t"));
+  CHECK(output.str().contains("plugin\tmobagen.runtime.remote\tinstalled\t"));
   CHECK(output.str().ends_with("selected\t1\n"));
   const auto id = mobagen::assets::parse_asset_id(client.artifact_hash);
   REQUIRE(id.has_value());
   mobagen::assets::AssetCache cache(project.path() / ".mobagen" / "cache");
   CHECK(std::filesystem::is_regular_file(cache.path_for(*id)));
+  const auto package = project.path() / ".mobagen" / "plugins" / "mobagen.runtime.remote.plugin";
+  CHECK(std::filesystem::is_regular_file(
+      package / mobagen::modules::module_plugin_binary_filename(mobagen::modules::LinkageMode::Dynamic)
+  ));
 
   output.str({});
   error.str({});
@@ -195,6 +201,7 @@ profiles:
   CHECK(client.catalog_requests.size() == 2);
   CHECK(client.artifact_requests.size() == 1);
   CHECK(output.str().contains("cache\tmobagen.runtime.remote\tpresent\t"));
+  CHECK(output.str().contains("plugin\tmobagen.runtime.remote\tpresent\t"));
 }
 
 TEST_CASE("Project CLI: sync reports a missing injected HTTPS service without network access") {
