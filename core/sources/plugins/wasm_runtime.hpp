@@ -15,6 +15,9 @@
 
 namespace mobagen::plugins {
 
+  class WasmCommandChannel;
+  struct WasmCommandChannelOpenResult;
+
   enum class WasmPluginExport : std::uint8_t {
     Allocate,
     Deallocate,
@@ -94,6 +97,7 @@ namespace mobagen::plugins {
     InvalidExchangeBuffer,
     CallbackFailed,
     DeallocationFailed,
+    CommandChannelCloseFailed,
     InvalidTransition,
     WrongThread,
     OutOfMemory,
@@ -125,6 +129,8 @@ namespace mobagen::plugins {
 
     [[nodiscard]] PortableWasmPluginState state() const noexcept { return state_; }
     [[nodiscard]] const modules::ProviderDescriptor& provider() const noexcept { return provider_; }
+    [[nodiscard]] std::size_t command_channel_count() const noexcept { return command_channels_.size(); }
+    [[nodiscard]] WasmCommandChannelOpenResult open_command_channel(std::uint32_t input_capacity, std::uint32_t output_capacity);
     [[nodiscard]] PortableWasmPluginActionResult quiesce();
     [[nodiscard]] PortableWasmPluginActionResult stop();
 
@@ -133,12 +139,14 @@ namespace mobagen::plugins {
 
     PortableWasmPluginActivation(std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider);
     [[nodiscard]] PortableWasmPluginActionResult start();
+    void close_command_channels(PortableWasmPluginActionResult& result);
     void shutdown_noexcept() noexcept;
 
     std::unique_ptr<PortableWasmInstance> instance_;
     modules::ProviderDescriptor provider_;
     std::thread::id owner_thread_;
     PortableWasmPluginState state_{PortableWasmPluginState::Configured};
+    std::vector<std::unique_ptr<WasmCommandChannel>> command_channels_;
   };
 
   struct PortableWasmPluginActivationResult {

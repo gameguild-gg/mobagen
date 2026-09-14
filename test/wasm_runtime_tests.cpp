@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/wasm_runtime.hpp"
+#include "plugins/wasm_command_channel.hpp"
 
 namespace {
 
@@ -72,6 +72,11 @@ namespace {
       if (function == mobagen::plugins::WasmPluginExport::Stop) {
         return mobagen::plugins::WasmInvocationResult::success(stop_status);
       }
+      if (function == mobagen::plugins::WasmPluginExport::Process) {
+        if (arguments.size() != 3) return mobagen::plugins::WasmInvocationResult::failure("invalid process arguments");
+        write_u32(linear_memory, arguments[2] + 8, MOBAGEN_WASM_STATUS_OK);
+        return mobagen::plugins::WasmInvocationResult::success(MOBAGEN_WASM_STATUS_OK);
+      }
       return mobagen::plugins::WasmInvocationResult::failure("unexpected export");
     }
 
@@ -128,6 +133,10 @@ namespace {
   }
 
   bool has_issue(const mobagen::plugins::PortableWasmPluginActivationResult& result, mobagen::plugins::PortableWasmPluginIssueCode code) {
+    return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
+  }
+
+  bool has_issue(const mobagen::plugins::WasmCommandChannelOpenResult& result, mobagen::plugins::WasmCommandChannelIssueCode code) {
     return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
   }
 
@@ -316,4 +325,52 @@ TEST_CASE("WASM activation: oversized configuration and null instances fail befo
   const auto missing = mobagen::plugins::activate_portable_wasm_plugin(nullptr);
   CHECK_FALSE(missing.activation);
   CHECK(has_issue(missing, mobagen::plugins::PortableWasmPluginIssueCode::InvalidInstance));
+}
+
+TEST_CASE("WASM activation: persistent command channels are owned and closed before quiesce") {
+  auto instance = std::make_unique<FakeWasmInstance>();
+  auto* observed = instance.get();
+  auto result = mobagen::plugins::activate_portable_wasm_plugin(std::move(instance));
+  REQUIRE(result.activation != nullptr);
+
+  mobagen::plugins::WasmCommandChannelOpenResult foreign_thread;
+  std::thread worker([&] { foreign_thread = result.activation->open_command_channel(0, 0); });
+  worker.join();
+  CHECK(has_issue(foreign_thread, mobagen::plugins::WasmCommandChannelIssueCode::WrongThread));
+  CHECK(result.activation->command_channel_count() == 0);
+
+  auto opened = result.activation->open_command_channel(0, 0);
+  REQUIRE(opened.channel != nullptr);
+  CHECK(opened.issues.empty());
+  CHECK(result.activation->command_channel_count() == 1);
+  CHECK(opened.channel->process({}, 0).ok());
+
+  const auto quiesced = result.activation->quiesce();
+  CHECK(quiesced.ok());
+  CHECK(result.activation->command_channel_count() == 0);
+  REQUIRE(observed->invocations->size() >= 2);
+  CHECK((*observed->invocations)[observed->invocations->size() - 2].function == mobagen::plugins::WasmPluginExport::Deallocate);
+  CHECK(observed->invocations->back().function == mobagen::plugins::WasmPluginExport::Quiesce);
+
+  const auto inactive = result.activation->open_command_channel(0, 0);
+  CHECK_FALSE(inactive.ok());
+  CHECK(has_issue(inactive, mobagen::plugins::WasmCommandChannelIssueCode::InvalidState));
+  CHECK(result.activation->stop().ok());
+}
+
+TEST_CASE("WASM activation: channel cleanup failure is reported without skipping quiesce") {
+  auto instance = std::make_unique<FakeWasmInstance>();
+  auto* observed = instance.get();
+  auto result = mobagen::plugins::activate_portable_wasm_plugin(std::move(instance));
+  REQUIRE(result.activation != nullptr);
+  REQUIRE(result.activation->open_command_channel(0, 0).ok());
+  observed->deallocate_status = MOBAGEN_WASM_STATUS_FAILED;
+
+  const auto quiesced = result.activation->quiesce();
+
+  CHECK_FALSE(quiesced.ok());
+  CHECK(has_issue(quiesced, mobagen::plugins::PortableWasmPluginIssueCode::CommandChannelCloseFailed));
+  CHECK(result.activation->state() == mobagen::plugins::PortableWasmPluginState::Quiesced);
+  CHECK(observed->invocations->back().function == mobagen::plugins::WasmPluginExport::Quiesce);
+  CHECK(result.activation->stop().ok());
 }

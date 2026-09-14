@@ -1,5 +1,7 @@
 #include "wasm_runtime.hpp"
 
+#include "wasm_command_channel.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -265,9 +267,22 @@ namespace mobagen::plugins {
                            "only an active WASM plugin can be quiesced");
       return result;
     }
+    close_command_channels(result);
     invoke_lifecycle(*instance_, WasmPluginExport::Quiesce, result);
     state_ = PortableWasmPluginState::Quiesced;
     return result;
+  }
+
+  void PortableWasmPluginActivation::close_command_channels(PortableWasmPluginActionResult& result) {
+    for (auto& channel : command_channels_) {
+      auto closed = channel->close();
+      if (!closed.ok()) {
+        const auto& issue = closed.issues[0];
+        add_activation_issue(result, PortableWasmPluginIssueCode::CommandChannelCloseFailed, WasmPluginExport::Deallocate, issue.message,
+                             issue.status);
+      }
+    }
+    command_channels_.clear();
   }
 
   PortableWasmPluginActionResult PortableWasmPluginActivation::stop() {
