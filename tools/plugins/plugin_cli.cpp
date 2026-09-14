@@ -106,7 +106,7 @@ namespace mobagen::plugins::cli {
         return 3;
       }
       for (const auto& entry : inventory.entries) {
-        output << "plugin\t" << entry.provider_id << '\t' << version_string(entry.version) << '\t' << entry.package.generic_string() << '\n';
+        output << "plugin\t" << entry.provider.id << '\t' << version_string(entry.provider.version) << '\t' << entry.package.generic_string() << '\n';
       }
       output << "plugins\t" << inventory.entries.size() << '\n';
       return 0;

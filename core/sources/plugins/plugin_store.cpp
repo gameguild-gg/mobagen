@@ -268,7 +268,7 @@ namespace mobagen::plugins {
         add_issue(result, NativePluginStoreIssueCode::InvalidProvider, package, "installed plugin package filename does not match its provider ID");
         continue;
       }
-      result.entries.push_back({provider.id, provider.version, package});
+      result.entries.push_back({provider, package});
     }
     return result;
   }

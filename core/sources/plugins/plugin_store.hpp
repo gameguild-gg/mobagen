@@ -51,8 +51,7 @@ namespace mobagen::plugins {
   };
 
   struct NativePluginStoreEntry {
-    std::string provider_id;
-    modules::SemanticVersion version;
+    modules::ProviderDescriptor provider;
     std::filesystem::path package;
   };
 
