@@ -53,6 +53,9 @@ namespace mobagen::plugins {
     [[nodiscard]] virtual std::span<std::byte> writable_memory() noexcept = 0;
   };
 
+  [[nodiscard]] WasmInvocationResult invoke_portable_wasm(PortableWasmInstance& instance, WasmPluginExport function,
+                                                          std::span<const std::uint32_t> arguments);
+
   enum class WasmPluginQueryIssueCode : std::uint8_t {
     BackendFailure,
     AllocationFailed,
