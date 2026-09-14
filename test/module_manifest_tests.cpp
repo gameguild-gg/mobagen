@@ -82,6 +82,8 @@ sources:
     url: https://token@plugins.mobagen.dev/catalog.yaml
   fragment:
     url: https://plugins.mobagen.dev/catalog.yaml#mutable
+  hostless:
+    url: https://:443/catalog.yaml
 modules: {}
 )yaml";
 
@@ -91,6 +93,7 @@ modules: {}
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "sources.insecure.url"));
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "sources.credentials.url"));
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "sources.fragment.url"));
+  CHECK(has_error(result, ManifestErrorCode::InvalidValue, "sources.hostless.url"));
 }
 
 TEST_CASE("Module manifest: source mappings remain strict and names are unique") {

@@ -96,6 +96,7 @@ namespace mobagen::modules {
   [[nodiscard]] bool is_slug(std::string_view value) noexcept;
   [[nodiscard]] bool is_provider_id(std::string_view value) noexcept;
   [[nodiscard]] bool is_capability_id(std::string_view value) noexcept;
+  [[nodiscard]] bool is_secure_https_url(std::string_view value) noexcept;
   [[nodiscard]] std::vector<DescriptorIssue> validate(const ProductDescriptor& descriptor);
   [[nodiscard]] std::vector<DescriptorIssue> validate(const ProviderDescriptor& descriptor);
 
