@@ -34,6 +34,7 @@ set(FOUNDATION_TEST_SOURCES
     plugin_abi_c_test.c
     plugin_abi_tests.cpp
     plugin_contract_tests.cpp
+    plugin_host_tests.cpp
     plugin_loader_tests.cpp
     plugin_package_tests.cpp
     reactive_tests.cpp
