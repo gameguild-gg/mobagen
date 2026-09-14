@@ -34,6 +34,7 @@ add_subdirectory(sources/scene)
 add_subdirectory(sources/camera)
 add_subdirectory(sources/input)
 add_subdirectory(sources/resource)
+add_subdirectory(sources/assets)
 add_subdirectory(sources/serialization)
 add_subdirectory(sources/render)
 add_subdirectory(sources/net)
@@ -98,6 +99,7 @@ target_link_libraries(
             mobagen::core_input
             mobagen::core_render
             mobagen::core_resource
+            mobagen::core_assets
             mobagen::core_net
 )
 
