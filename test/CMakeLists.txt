@@ -60,6 +60,7 @@ set(FOUNDATION_TEST_SOURCES
     volume_file_tests.cpp
     wasm_memory_tests.cpp
     wasm_plugin_contract_tests.cpp
+    wasm_runtime_tests.cpp
 )
 
 if(TARGET mobagen::asset_cli)
