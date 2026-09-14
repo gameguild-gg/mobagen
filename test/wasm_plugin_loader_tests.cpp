@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <stdexcept>
@@ -16,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "assets/asset_id.hpp"
 #include "portable/project_runtime.hpp"
 #include "plugins/wasm_plugin_activation_set.hpp"
 
@@ -59,6 +61,18 @@ namespace {
     REQUIRE(output.good());
   }
 
+  std::string read_text(const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.is_open());
+    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+  }
+
+  std::string valid_wasm_hash() {
+    const auto hash = mobagen::assets::sha256(valid_wasm_header);
+    REQUIRE(hash.has_value());
+    return mobagen::assets::to_string(*hash);
+  }
+
   mobagen::modules::TargetPlatform portable_target() {
 #if defined(__EMSCRIPTEN__)
     return mobagen::modules::TargetPlatform::Web;
@@ -71,6 +85,24 @@ namespace {
 #else
     return mobagen::modules::TargetPlatform::Linux;
 #endif
+  }
+
+  std::string portable_target_name() {
+    switch (portable_target()) {
+      case mobagen::modules::TargetPlatform::Windows:
+        return "windows";
+      case mobagen::modules::TargetPlatform::Linux:
+        return "linux";
+      case mobagen::modules::TargetPlatform::MacOS:
+        return "macos";
+      case mobagen::modules::TargetPlatform::Web:
+        return "web";
+      case mobagen::modules::TargetPlatform::Android:
+        return "android";
+      case mobagen::modules::TargetPlatform::IOS:
+        return "ios";
+    }
+    return {};
   }
 
   void write_u32(std::vector<std::byte>& memory, std::size_t offset, std::uint32_t value) {
@@ -635,6 +667,30 @@ profiles:
   CHECK(loaded.runtime->plugin(0)->provider().id == "mobagen.wasm-package");
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Query) == 1);
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 1);
+  const auto lockfile = loaded.runtime->lockfile({0, 0, 1});
+  REQUIRE(lockfile.ok());
+  CHECK(*lockfile.contents
+        == "schema: 1\n"
+           "sdk: 0.0.1\n"
+           "target: "
+               + portable_target_name()
+               + "\n"
+                 "profile: release\n"
+                 "permissions: []\n"
+                 "configurations: {}\n"
+                 "resolved:\n"
+                 "  runtime.package.v1:\n"
+                 "    provider: mobagen.wasm-package\n"
+                 "    version: 1.0.0\n"
+                 "    linkage: wasm\n"
+                 "dependencies: []\n"
+                 "plugins:\n"
+                 "  mobagen.wasm-package:\n"
+                 "    version: 1.0.0\n"
+                 "    abi: 1\n"
+                 "    package: \"plugins/reference.plugin\"\n"
+                 "    hash: "
+               + valid_wasm_hash() + "\n");
   CHECK(loaded.runtime->stop().ok());
 }
 
@@ -691,6 +747,145 @@ profiles:
   CHECK_FALSE(rejected.ok());
   REQUIRE_FALSE(rejected.issues.empty());
   CHECK(rejected.issues.front().code == compositions::PortableProjectIssueCode::Activation);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Quiesce) == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Stop) == 1);
+}
+
+TEST_CASE("Portable project: update writes a canonical lock that frozen mode enforces") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  const auto binary = package / plugins::portable_wasm_plugin_binary_filename();
+  write_binary(binary, valid_wasm_header);
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+name: portable-lock-test
+modules:
+  runtime:
+    use: mobagen.wasm-package
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml");
+  FakeWasmBackend backend;
+  const modules::ResolverOptions options{
+      .target = portable_target(),
+      .profile = "release",
+      .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}},
+  };
+  const compositions::PortableProjectLockOptions update_lock{
+      .policy = compositions::PortableProjectLockPolicy::Update,
+      .sdk_version = {0, 0, 1},
+  };
+
+  auto updated = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend, {}, update_lock);
+
+  REQUIRE(updated.ok());
+  const auto generated = updated.runtime->lockfile({0, 0, 1});
+  REQUIRE(generated.ok());
+  CHECK(read_text(directory.path() / "mobagen.lock") == *generated.contents);
+  CHECK(updated.runtime->stop().ok());
+  updated.runtime.reset();
+
+  const compositions::PortableProjectLockOptions frozen_lock{
+      .policy = compositions::PortableProjectLockPolicy::Frozen,
+      .sdk_version = {0, 0, 1},
+  };
+  auto frozen = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend, {}, frozen_lock);
+  REQUIRE(frozen.ok());
+  CHECK(frozen.runtime->stop().ok());
+  frozen.runtime.reset();
+
+  std::vector changed_binary(valid_wasm_header.begin(), valid_wasm_header.end());
+  changed_binary.push_back(std::byte{0x00});
+  write_binary(binary, changed_binary);
+  const auto changed = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend, {}, frozen_lock);
+  CHECK_FALSE(changed.ok());
+  REQUIRE_FALSE(changed.issues.empty());
+  CHECK(changed.issues.front().code == compositions::PortableProjectIssueCode::LockMismatch);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 2);
+}
+
+TEST_CASE("Portable project: lock preview does not activate plugins") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+name: portable-preview-test
+modules:
+  runtime:
+    use: mobagen.wasm-package
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml");
+  FakeWasmBackend backend;
+  const modules::ResolverOptions options{
+      .target = portable_target(),
+      .profile = "release",
+      .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}},
+  };
+
+  const auto resolved = compositions::resolve_portable_project_lock(directory.path() / "mobagen.yaml", options, backend, {0, 0, 1});
+
+  REQUIRE(resolved.ok());
+  CHECK(resolved.lockfile_path == std::filesystem::weakly_canonical(directory.path()) / "mobagen.lock");
+  CHECK(resolved.contents->contains("provider: mobagen.wasm-package"));
+  CHECK(resolved.preview->product.name == "portable-preview-test");
+  CHECK(resolved.preview->registry.provider_count() == 1);
+  CHECK(resolved.preview->resolution.registry_generation() == resolved.preview->registry.generation());
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Query) == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 0);
+  CHECK_FALSE(std::filesystem::exists(resolved.lockfile_path));
+}
+
+TEST_CASE("Portable project: failed lock update rolls back activated plugins") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+name: portable-lock-write-failure
+modules:
+  runtime:
+    use: mobagen.wasm-package
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml");
+  REQUIRE(std::filesystem::create_directory(directory.path() / "mobagen.lock"));
+  FakeWasmBackend backend;
+  const modules::ResolverOptions options{
+      .target = portable_target(),
+      .profile = "release",
+      .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}},
+  };
+  const compositions::PortableProjectLockOptions update_lock{
+      .policy = compositions::PortableProjectLockPolicy::Update,
+      .sdk_version = {0, 0, 1},
+  };
+
+  const auto failed = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend, {}, update_lock);
+
+  CHECK_FALSE(failed.ok());
+  REQUIRE_FALSE(failed.issues.empty());
+  CHECK(failed.issues.front().code == compositions::PortableProjectIssueCode::LockWrite);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 1);
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Quiesce) == 1);
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Stop) == 1);
 }

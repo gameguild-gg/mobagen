@@ -4,6 +4,6 @@ target_include_directories(mobagen_portable_project PUBLIC ${CMAKE_CURRENT_SOURC
 target_compile_features(mobagen_portable_project PUBLIC cxx_std_20)
 target_link_libraries(
   mobagen_portable_project
-  PUBLIC mobagen::core_plugins mobagen::module_manifest
+  PUBLIC mobagen::core_plugins mobagen::module_manifest mobagen::module_lockfile
   PRIVATE mobagen::project_support
 )
