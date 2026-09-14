@@ -2,4 +2,8 @@ add_library(mobagen_portable_project STATIC project_runtime.cpp project_runtime.
 add_library(mobagen::portable_project ALIAS mobagen_portable_project)
 target_include_directories(mobagen_portable_project PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_compile_features(mobagen_portable_project PUBLIC cxx_std_20)
-target_link_libraries(mobagen_portable_project PUBLIC mobagen::core_plugins mobagen::module_manifest)
+target_link_libraries(
+  mobagen_portable_project
+  PUBLIC mobagen::core_plugins mobagen::module_manifest
+  PRIVATE mobagen::project_support
+)
