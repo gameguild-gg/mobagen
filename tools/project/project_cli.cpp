@@ -475,8 +475,8 @@ namespace mobagen::compositions::cli {
           return 3;
         }
         output << "artifact\t" << provider->id << '\t' << version_string(provider->version) << '\t'
-               << linkage_name(artifact->linkage) << '\t' << artifact->size << '\t' << artifact->hash << '\t'
-               << artifact->url << '\n';
+               << linkage_name(artifact->linkage) << '\t' << artifact->abi_version << '\t'
+               << artifact->size << '\t' << artifact->hash << '\t' << artifact->url << '\n';
       }
       for (const auto& artifact : fetched.artifacts) {
         output << "cache\t" << artifact.provider_id << '\t'

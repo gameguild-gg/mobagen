@@ -57,6 +57,7 @@ namespace {
         .id = *stored.id,
         .size = bytes.size(),
         .linkage = linkage,
+        .abi_version = 1,
         .cache_path = stored.path,
         .downloaded = true,
     };

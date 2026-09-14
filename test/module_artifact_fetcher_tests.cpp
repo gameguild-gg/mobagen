@@ -93,6 +93,7 @@ namespace {
             .artifacts = {{
                 .target = TargetPlatform::Windows,
                 .linkage = LinkageMode::Dynamic,
+                .abi_version = 1,
                 .url = "https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/windows.plugin",
                 .size = size,
                 .hash = std::move(hash),
@@ -140,6 +141,7 @@ TEST_CASE("Module artifact fetcher: selected plugins stream once into the conten
   REQUIRE(fetched.ok());
   REQUIRE(fetched.artifacts.size() == 1);
   CHECK(fetched.artifacts.front().provider_id == "mobagen.runtime.remote");
+  CHECK(fetched.artifacts.front().abi_version == 1);
   CHECK(fetched.artifacts.front().downloaded);
   CHECK(fetched.artifacts.front().cache_path == cache.path_for(*id));
   CHECK(client.buffered_calls == 0);

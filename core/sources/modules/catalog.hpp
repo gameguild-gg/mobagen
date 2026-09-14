@@ -17,6 +17,7 @@ namespace mobagen::modules {
   struct ModuleArtifactDescriptor {
     TargetPlatform target{};
     LinkageMode linkage{};
+    std::uint32_t abi_version{};
     std::string url;
     std::uint64_t size{};
     std::string hash;

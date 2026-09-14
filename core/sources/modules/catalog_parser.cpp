@@ -365,9 +365,11 @@ namespace mobagen::modules {
         std::set<LinkageMode> linkages;
         for (std::size_t index = 0; index < node.size(); ++index) {
           const std::string artifact_field = field + '[' + std::to_string(index) + ']';
-          const auto entries = read_map(node[index], artifact_field, {"target", "linkage", "url", "size", "hash"});
+          const auto entries = read_map(node[index], artifact_field,
+                                        {"target", "linkage", "abi", "url", "size", "hash"});
           const auto* target = require_entry(entries, "target", artifact_field, node[index].Mark());
           const auto* linkage = require_entry(entries, "linkage", artifact_field, node[index].Mark());
+          const auto* abi = require_entry(entries, "abi", artifact_field, node[index].Mark());
           const auto* url = require_entry(entries, "url", artifact_field, node[index].Mark());
           const auto* size = require_entry(entries, "size", artifact_field, node[index].Mark());
           const auto* hash = require_entry(entries, "hash", artifact_field, node[index].Mark());
@@ -375,6 +377,15 @@ namespace mobagen::modules {
           ModuleArtifactDescriptor artifact;
           const bool target_ok = target && read_target(*target, artifact_field + ".target", artifact.target);
           const bool linkage_ok = linkage && read_linkage(*linkage, artifact_field + ".linkage", artifact.linkage);
+          std::uint64_t abi_version = 0;
+          if (abi && read_unsigned(*abi, artifact_field + ".abi", abi_version)) {
+            if (abi_version == 0 || abi_version > UINT32_MAX) {
+              add_error(CatalogErrorCode::InvalidValue, abi->Mark(), artifact_field + ".abi",
+                        "plugin ABI version must be between 1 and 4294967295");
+            } else {
+              artifact.abi_version = static_cast<std::uint32_t>(abi_version);
+            }
+          }
           if (url && read_string(*url, artifact_field + ".url", artifact.url)
               && !is_secure_plugin_artifact_url(artifact.url)) {
             add_error(CatalogErrorCode::InvalidValue, url->Mark(), artifact_field + ".url",

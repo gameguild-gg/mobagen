@@ -56,6 +56,11 @@ namespace mobagen::modules {
                     "artifact URL must satisfy HTTPS policy and name a .plugin package");
           valid = false;
         }
+        if (artifact.abi_version == 0) {
+          add_issue(result, CatalogIndexIssueCode::InvalidArtifact, provider.id, field + ".abi",
+                    "plugin ABI version must be positive");
+          valid = false;
+        }
         if (artifact.size == 0 || artifact.size > max_module_artifact_bytes) {
           add_issue(result, CatalogIndexIssueCode::InvalidArtifact, provider.id, field + ".size", "artifact size is outside the 512 MiB limit");
           valid = false;
