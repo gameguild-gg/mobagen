@@ -1,4 +1,4 @@
-#include "plugins/runtime_tick_v1.h"
+#include <mobagen/plugin/runtime_tick_v1.h>
 
 #include <stddef.h>
 

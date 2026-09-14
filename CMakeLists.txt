@@ -155,6 +155,7 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   include(external/yaml-cpp.cmake)
 endif()
 
+add_subdirectory(sdk)
 add_subdirectory(core)
 add_subdirectory(modules)
 

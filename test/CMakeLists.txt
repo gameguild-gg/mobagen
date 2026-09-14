@@ -1,7 +1,7 @@
 option(TEST_INSTALLED_VERSION "Test the version found by find_package" OFF)
 
 add_library(MobagenReferencePlugin MODULE plugins/reference_plugin.c)
-target_link_libraries(MobagenReferencePlugin PRIVATE mobagen::core_plugins)
+target_link_libraries(MobagenReferencePlugin PRIVATE mobagen::plugin_sdk)
 target_compile_definitions(MobagenReferencePlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
 set_target_properties(MobagenReferencePlugin PROPERTIES PREFIX "")
 
@@ -12,7 +12,7 @@ foreach(FAILURE_MODE IN ITEMS 1 2 3)
   add_library(
     MobagenLifecycleFailurePlugin${FAILURE_MODE} MODULE plugins/lifecycle_failure_plugin.c
   )
-  target_link_libraries(MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE mobagen::core_plugins)
+  target_link_libraries(MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE mobagen::plugin_sdk)
   target_compile_definitions(
     MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE MOBAGEN_PLUGIN_BUILD
                                                          MOBAGEN_TEST_FAILURE_MODE=${FAILURE_MODE}
@@ -160,6 +160,18 @@ add_test(NAME foundation::dawn-configure-patch
          COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dawn_patch_test.cmake
 )
 set_tests_properties(foundation::dawn-configure-patch PROPERTIES LABELS foundation)
+
+add_test(
+  NAME foundation::plugin-sdk-installed-consumer
+  COMMAND
+    ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/plugin-sdk-consumer"
+    "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/plugin-sdk-consumer-build"
+    "-DINSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/plugin-sdk-install"
+    "-DHOST_BINARY_DIR=${CMAKE_BINARY_DIR}" "-DHOST_CONFIG=$<CONFIG>"
+    "-DHOST_GENERATOR=${CMAKE_GENERATOR}" -P
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/plugin_sdk_consumer_test.cmake
+)
+set_tests_properties(foundation::plugin-sdk-installed-consumer PROPERTIES LABELS foundation)
 
 # Preserve the historical build target while keeping dependency boundaries explicit.
 add_custom_target(CoreTests DEPENDS FoundationTests)
