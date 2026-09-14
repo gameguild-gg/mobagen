@@ -9,6 +9,7 @@ include(../cmake/tools.cmake)
 set(FOUNDATION_TEST_SOURCES
     Test.cpp
     asset_id_tests.cpp
+    asset_registry_tests.cpp
     benchmark_runner_tests.cpp
     binary_reader_tests.cpp
     ecs_tests.cpp
