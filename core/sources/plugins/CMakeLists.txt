@@ -23,6 +23,8 @@ add_library(
   wasm_plugin_loader.hpp
   wasm_plugin_catalog.cpp
   wasm_plugin_catalog.hpp
+  wasm_plugin_activation_set.cpp
+  wasm_plugin_activation_set.hpp
   wasm_command_channel.cpp
   wasm_command_channel.hpp
   wasm_plugin_contract.cpp

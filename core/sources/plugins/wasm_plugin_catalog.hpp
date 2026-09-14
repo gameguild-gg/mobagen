@@ -52,6 +52,7 @@ namespace mobagen::plugins {
     [[nodiscard]] std::size_t plugin_count() const noexcept { return plugins_.size(); }
     [[nodiscard]] const LoadedPortableWasmPlugin* plugin(std::size_t index) const noexcept;
     [[nodiscard]] std::optional<LoadedPortableWasmPlugin> take_plugin(std::string_view provider_id);
+    [[nodiscard]] bool is_plugin_provider(std::string_view provider_id) const noexcept;
     void discard_plugins() noexcept { plugins_.clear(); }
     [[nodiscard]] const modules::CapabilityRegistry& registry() const noexcept { return registry_; }
 
@@ -62,6 +63,7 @@ namespace mobagen::plugins {
     PortableWasmPluginCatalog(std::vector<LoadedPortableWasmPlugin> plugins, modules::CapabilityRegistry registry);
 
     std::vector<LoadedPortableWasmPlugin> plugins_;
+    std::vector<std::string> plugin_provider_ids_;
     modules::CapabilityRegistry registry_;
   };
 
