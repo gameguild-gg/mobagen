@@ -43,7 +43,7 @@ profiles:
   constexpr std::string_view target = "linux";
 #endif
   const std::string expected = "schema: 1\nsdk: 1.0.0\ntarget: " + std::string(target)
-                               + "\nprofile: release\npermissions: []\nresolved:\n"
+                               + "\nprofile: release\npermissions: []\nconfigurations: {}\nresolved:\n"
                                  "  runtime.tick.v1:\n"
                                  "    provider: mobagen.runtime.headless\n"
                                  "    version: 1.0.0\n"

@@ -1,5 +1,7 @@
 #include "lockfile.hpp"
 
+#include "assets/asset_id.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <locale>
@@ -25,6 +27,12 @@ namespace mobagen::modules {
       std::string capability;
       std::string provider;
       std::string required_by;
+    };
+
+    struct SerializedConfiguration {
+      std::string provider;
+      std::string schema;
+      std::string hash;
     };
 
     void add_issue(LockfileSerializeResult& result, LockfileIssueCode code, std::string field, std::string message) {
@@ -170,6 +178,25 @@ namespace mobagen::modules {
       permissions.insert(provider->permissions.begin(), provider->permissions.end());
     }
 
+    std::vector<SerializedConfiguration> configurations;
+    configurations.reserve(resolution.configurations().size());
+    for (const auto& configuration : resolution.configurations()) {
+      const auto* provider = registry.provider(configuration.provider);
+      if (provider == nullptr) {
+        add_issue(result, LockfileIssueCode::InvalidResolution, "configurations", "configuration contains an invalid provider index");
+        continue;
+      }
+      const auto data = std::span{configuration.data.data(), configuration.data.size()};
+      const auto digest = assets::sha256(std::as_bytes(data));
+      if (!digest.has_value()) {
+        add_issue(result, LockfileIssueCode::InvalidHash, "configurations." + provider->id + ".hash",
+                  "module configuration could not be fingerprinted");
+        continue;
+      }
+      configurations.push_back({provider->id, configuration.schema, assets::to_string(*digest)});
+    }
+    std::ranges::sort(configurations, {}, &SerializedConfiguration::provider);
+
     std::vector<SerializedDependency> dependencies;
     for (const auto& dependency : resolution.dependencies()) {
       const auto capability = registry.capability_name(dependency.capability);
@@ -207,6 +234,17 @@ namespace mobagen::modules {
     } else {
       output << "permissions:\n";
       for (const auto& permission : permissions) output << "  - " << permission << '\n';
+    }
+
+    if (configurations.empty()) {
+      output << "configurations: {}\n";
+    } else {
+      output << "configurations:\n";
+      for (const auto& configuration : configurations) {
+        output << "  " << configuration.provider << ":\n";
+        output << "    schema: " << configuration.schema << '\n';
+        output << "    hash: " << configuration.hash << '\n';
+      }
     }
 
     if (providers.empty()) {

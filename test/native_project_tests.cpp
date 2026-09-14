@@ -147,6 +147,10 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
                  "profile: release\n"
                  "permissions:\n"
                  "  - debug\n"
+                 "configurations:\n"
+                 "  mobagen.reference:\n"
+                 "    schema: mobagen.reference.config.v1\n"
+                 "    hash: sha256:3d914f9348c9cc0ff8a79716700b9fcd4d2f3e711608004eb8f138bcba7f14d9\n"
                  "resolved:\n"
                  "  runtime.tick.v1:\n"
                  "    provider: mobagen.reference\n"
@@ -249,6 +253,17 @@ TEST_CASE("Native project: update writes a canonical lock that frozen mode accep
   REQUIRE(frozen.ok());
   CHECK(frozen.runtime->host().size() == 1);
   CHECK(frozen.runtime->stop().ok());
+  frozen.runtime.reset();
+
+  std::string changed_configuration{valid_native_project_manifest};
+  const auto configuration = changed_configuration.find("data: \"41\"");
+  REQUIRE(configuration != std::string::npos);
+  changed_configuration.replace(configuration, std::string_view{"data: \"41\""}.size(), "data: \"42\"");
+  project.write(changed_configuration);
+  const auto changed = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, frozen_lock);
+  CHECK_FALSE(changed.ok());
+  REQUIRE(changed.issues.size() == 1);
+  CHECK(changed.issues.front().code == NativeProjectIssueCode::LockMismatch);
 }
 
 TEST_CASE("Native project: frozen mode rejects missing and changed lockfiles") {

@@ -39,6 +39,7 @@ namespace {
     auto renderer = lockfile_provider("mobagen.render.webgpu", {1, 4, 2}, {"render.backend.v1"});
     renderer.required = {"window.surface.v1"};
     renderer.permissions = {"gpu", "filesystem-read"};
+    renderer.configuration_schema = "mobagen.render.config.v1";
     auto window = lockfile_provider("mobagen.window.sdl3", {3, 1, 0}, {"window.surface.v1"});
     window.permissions = {"windowing"};
 
@@ -52,7 +53,7 @@ namespace {
     ProductDescriptor product{
         .schema = project_schema_version,
         .name = "lockfile-test",
-        .modules = {{.alias = "render", .provider = "default"}},
+        .modules = {{.alias = "render", .provider = "default", .configuration = ModuleConfiguration{"mobagen.render.config.v1", "sample-count: 4"}}},
         .profiles = {{.name = "release", .linkage = LinkageMode::Static, .editor = false, .permissions = {"windowing", "gpu", "filesystem-read"}}},
     };
     ResolverOptions options{
@@ -152,6 +153,10 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
         "  - filesystem-read\n"
         "  - gpu\n"
         "  - windowing\n"
+        "configurations:\n"
+        "  mobagen.render.webgpu:\n"
+        "    schema: mobagen.render.config.v1\n"
+        "    hash: sha256:54ce6a0a614a7f41fd32f108e3c853947dd0dc97793b2a3691f3beb2837ee072\n"
         "resolved:\n"
         "  render.backend.v1:\n"
         "    provider: mobagen.render.webgpu\n"
