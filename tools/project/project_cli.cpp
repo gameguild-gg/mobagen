@@ -2,6 +2,7 @@
 
 #include "native/project_runtime.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
@@ -19,7 +20,7 @@ namespace mobagen::compositions::cli {
 
     constexpr std::size_t max_project_cli_arguments = 4096;
 
-    enum class ProjectCommand : std::uint8_t { Resolve, Verify };
+    enum class ProjectCommand : std::uint8_t { Resolve, Verify, Explain };
 
     struct NameBinding {
       std::string left;
@@ -43,6 +44,8 @@ namespace mobagen::compositions::cli {
                 "  MobagenProject resolve <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n"
                 "  MobagenProject verify <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n"
+                "  MobagenProject explain <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n";
     }
 
@@ -85,19 +88,46 @@ namespace mobagen::compositions::cli {
       return version;
     }
 
+    std::string version_string(modules::SemanticVersion version) {
+      return std::to_string(version.major) + '.' + std::to_string(version.minor) + '.' + std::to_string(version.patch);
+    }
+
+    std::string_view linkage_name(modules::LinkageMode linkage) noexcept {
+      switch (linkage) {
+        case modules::LinkageMode::Static:
+          return "static";
+        case modules::LinkageMode::Dynamic:
+          return "dynamic";
+        case modules::LinkageMode::Wasm:
+          return "wasm";
+        case modules::LinkageMode::Process:
+          return "process";
+      }
+      return "unknown";
+    }
+
+    void write_sorted_relations(std::ostream& output, std::string_view relation, std::string_view provider_id,
+                                const std::vector<std::string>& values) {
+      auto sorted = values;
+      std::ranges::sort(sorted);
+      for (const auto& value : sorted) output << relation << '\t' << provider_id << '\t' << value << '\n';
+    }
+
     ParseResult parse(std::span<const std::string_view> arguments) {
       ParseResult result;
       if (arguments.size() > max_project_cli_arguments) {
         result.error = "argument count exceeds limit";
         return result;
       }
-      if (arguments.size() < 2 || (arguments[0] != "resolve" && arguments[0] != "verify") || arguments[1].empty()) {
-        result.error = "expected resolve or verify and a mobagen.yaml path";
+      if (arguments.size() < 2 || (arguments[0] != "resolve" && arguments[0] != "verify" && arguments[0] != "explain") || arguments[1].empty()) {
+        result.error = "expected resolve, verify, or explain and a mobagen.yaml path";
         return result;
       }
 
       ParsedCommand parsed{
-          .command = arguments[0] == "resolve" ? ProjectCommand::Resolve : ProjectCommand::Verify,
+          .command = arguments[0] == "resolve"  ? ProjectCommand::Resolve
+                     : arguments[0] == "verify" ? ProjectCommand::Verify
+                                                : ProjectCommand::Explain,
           .manifest = std::filesystem::path{arguments[1]},
           .resolver = {.target = native_target()},
       };
@@ -218,6 +248,62 @@ namespace mobagen::compositions::cli {
       return 0;
     }
 
+    int explain(const ParsedCommand& command, std::ostream& output, std::ostream& error) {
+      auto generated = resolve_native_project_lock(command.manifest, command.resolver, command.sdk_version);
+      if (!generated.ok()) {
+        print_project_failure("explain", generated, error);
+        return 3;
+      }
+      const auto& preview = *generated.preview;
+      std::vector<bool> selected(preview.registry.provider_count());
+      for (const auto provider_index : preview.resolution.lifecycle_order()) {
+        if (provider_index.value >= selected.size()) {
+          error << "explain failed: resolved provider index is outside the registry\n";
+          return 3;
+        }
+        selected[provider_index.value] = true;
+      }
+
+      output << "project\t" << preview.product.name << '\n';
+      for (std::size_t index = 0; index < preview.registry.provider_count(); ++index) {
+        const auto* provider = preview.registry.provider(modules::ProviderIndex{static_cast<std::uint32_t>(index)});
+        if (provider == nullptr) {
+          error << "explain failed: registry provider is unavailable\n";
+          return 3;
+        }
+        output << "provider\t" << provider->id << '\t' << version_string(provider->version) << '\t' << (selected[index] ? "selected" : "available")
+               << '\n';
+        write_sorted_relations(output, "provides", provider->id, provider->provides);
+        write_sorted_relations(output, "requires", provider->id, provider->required);
+        write_sorted_relations(output, "optional", provider->id, provider->optional);
+        write_sorted_relations(output, "conflicts", provider->id, provider->conflicts);
+        write_sorted_relations(output, "permission", provider->id, provider->permissions);
+      }
+      for (const auto& selection : preview.resolution.selections()) {
+        const auto* provider = preview.registry.provider(selection.provider);
+        const auto capability = preview.registry.capability_name(selection.capability);
+        if (provider == nullptr || capability.empty()) {
+          error << "explain failed: resolved selection is outside the registry\n";
+          return 3;
+        }
+        output << "selection\t" << capability << '\t' << provider->id << '\t' << linkage_name(selection.linkage) << '\t' << selection.reason << '\n';
+      }
+      for (const auto& dependency : preview.resolution.dependencies()) {
+        const auto* provider = preview.registry.provider(dependency.dependency);
+        const auto* dependent = preview.registry.provider(dependency.dependent);
+        const auto capability = preview.registry.capability_name(dependency.capability);
+        if (provider == nullptr || dependent == nullptr || capability.empty()) {
+          error << "explain failed: resolved dependency is outside the registry\n";
+          return 3;
+        }
+        output << "dependency\t" << provider->id << '\t' << dependent->id << '\t' << capability << '\n';
+      }
+      output << "providers\t" << preview.registry.provider_count() << '\n'
+             << "selections\t" << preview.resolution.selections().size() << '\n'
+             << "dependencies\t" << preview.resolution.dependencies().size() << '\n';
+      return 0;
+    }
+
   }  // namespace
 
   int run(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error) {
@@ -232,7 +318,15 @@ namespace mobagen::compositions::cli {
         print_usage(error);
         return 2;
       }
-      return parsed.command->command == ProjectCommand::Resolve ? resolve(*parsed.command, output, error) : verify(*parsed.command, output, error);
+      switch (parsed.command->command) {
+        case ProjectCommand::Resolve:
+          return resolve(*parsed.command, output, error);
+        case ProjectCommand::Verify:
+          return verify(*parsed.command, output, error);
+        case ProjectCommand::Explain:
+          return explain(*parsed.command, output, error);
+      }
+      return 3;
     } catch (const std::exception& exception) {
       error << "project command failed: " << exception.what() << '\n';
       return 3;

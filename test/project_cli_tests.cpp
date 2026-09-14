@@ -23,6 +23,9 @@ namespace {
       REQUIRE(std::filesystem::create_directories(path_ / "plugins" / "reference.plugin"));
       REQUIRE(std::filesystem::copy_file(MOBAGEN_REFERENCE_PLUGIN_PATH,
                                          path_ / "plugins" / "reference.plugin" / mobagen::plugins::native_plugin_binary_filename()));
+      REQUIRE(std::filesystem::create_directories(path_ / "plugins" / "alternative.plugin"));
+      REQUIRE(std::filesystem::copy_file(MOBAGEN_CONFIGURE_FAILURE_PLUGIN_PATH,
+                                         path_ / "plugins" / "alternative.plugin" / mobagen::plugins::native_plugin_binary_filename()));
       std::ofstream manifest(path_ / "mobagen.yaml", std::ios::binary);
       REQUIRE(manifest.is_open());
       manifest << R"yaml(schema: 1
@@ -32,6 +35,7 @@ modules:
     use: default
 plugins:
   - ./plugins/reference.plugin
+  - ./plugins/alternative.plugin
 profiles:
   release:
     linkage: dynamic
@@ -91,5 +95,23 @@ TEST_CASE("Project CLI: malformed options fail with usage without touching a loc
 
   CHECK(mobagen::compositions::cli::run(arguments, output, error) == 2);
   CHECK(error.str().contains("usage:"));
+  CHECK_FALSE(std::filesystem::exists(project.path() / "mobagen.lock"));
+}
+
+TEST_CASE("Project CLI: explain reports selected and available providers without writing a lock") {
+  TemporaryProjectCliRoot project;
+  const auto manifest = (project.path() / "mobagen.yaml").string();
+  const auto arguments = project_arguments("explain", manifest);
+  std::ostringstream output;
+  std::ostringstream error;
+
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error) == 0);
+  CHECK(error.str().empty());
+  CHECK(output.str().contains("project\tproject-cli-test\n"));
+  CHECK(output.str().contains("provider\tmobagen.lifecycle-failure\t1.0.0\tavailable\n"));
+  CHECK(output.str().contains("provides\tmobagen.lifecycle-failure\truntime.tick.v1\n"));
+  CHECK(output.str().contains("provider\tmobagen.reference\t1.0.0\tselected\n"));
+  CHECK(output.str().contains("selection\truntime.tick.v1\tmobagen.reference\tdynamic\tdefault for profile 'release'\n"));
+  CHECK(output.str().contains("providers\t2\nselections\t1\ndependencies\t0\n"));
   CHECK_FALSE(std::filesystem::exists(project.path() / "mobagen.lock"));
 }
