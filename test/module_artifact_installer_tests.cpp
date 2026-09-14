@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <span>
 #include <string>
 #include <string_view>
@@ -13,6 +14,7 @@
 
 #include "assets/asset_cache.hpp"
 #include "modules/artifact_installer.hpp"
+#include "modules/lockfile_verifier.hpp"
 
 namespace {
 
@@ -60,6 +62,41 @@ namespace {
         .abi_version = 1,
         .cache_path = stored.path,
         .downloaded = true,
+    };
+  }
+
+  mobagen::modules::LockfileDocument locked_project(
+      const mobagen::modules::CachedModuleArtifact& artifact
+  ) {
+    return {
+        .metadata = {
+            .sdk = {1, 0, 0},
+            .target = mobagen::modules::TargetPlatform::Windows,
+            .profile = "release",
+            .manifest_hash = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            .plugins = {{
+                .provider = artifact.provider_id,
+                .version = artifact.version,
+                .abi_version = artifact.abi_version,
+                .package = ".mobagen/plugins/" + artifact.provider_id + ".plugin",
+                .hash = mobagen::assets::to_string(artifact.id),
+            }},
+        },
+        .resolved = {{
+            .capability = "runtime.tick.v1",
+            .provider = artifact.provider_id,
+            .version = artifact.version,
+            .linkage = artifact.linkage,
+        }},
+    };
+  }
+
+  mobagen::modules::LockfileVerificationContext locked_context() {
+    return {
+        .sdk = {1, 0, 0},
+        .target = mobagen::modules::TargetPlatform::Windows,
+        .profile = "release",
+        .manifest_hash = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     };
   }
 
@@ -152,4 +189,54 @@ TEST_CASE("Module artifact installer: incompatible ABI never changes an active p
   REQUIRE(rejected.issues.size() == 1);
   CHECK(rejected.issues.front().code == modules::ArtifactInstallIssueCode::UnsupportedAbi);
   CHECK_FALSE(std::filesystem::exists(root.path() / "plugins"));
+}
+
+TEST_CASE("Module lock verifier: installed packages validate offline without loading code") {
+  using namespace mobagen;
+  TemporaryModuleInstallRoot root;
+  assets::AssetCache cache(root.path() / "cache", 1024);
+  const auto cached = cache_artifact(cache, "mobagen.runtime.remote", "not-an-executable");
+  REQUIRE(modules::materialize_module_plugins(std::span{&cached, 1},
+                                              root.path() / ".mobagen" / "plugins").ok());
+  const auto document = locked_project(cached);
+
+  const auto verified = modules::verify_locked_project(document, root.path(), locked_context());
+
+  REQUIRE(verified.ok());
+  REQUIRE(verified.plugins.size() == 1);
+  CHECK(verified.plugins.front().provider_id == cached.provider_id);
+  CHECK(verified.plugins.front().linkage == modules::LinkageMode::Dynamic);
+  CHECK(verified.plugins.front().size == std::string_view{"not-an-executable"}.size());
+  CHECK(verified.plugins.front().binary_path.filename()
+        == modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic));
+}
+
+TEST_CASE("Module lock verifier: metadata, resolution, and package tampering fail closed") {
+  using namespace mobagen;
+  TemporaryModuleInstallRoot root;
+  assets::AssetCache cache(root.path() / "cache", 1024);
+  const auto cached = cache_artifact(cache, "mobagen.runtime.remote", "locked-plugin");
+  REQUIRE(modules::materialize_module_plugins(std::span{&cached, 1},
+                                              root.path() / ".mobagen" / "plugins").ok());
+  auto document = locked_project(cached);
+
+  auto context = locked_context();
+  context.profile = "debug";
+  auto rejected = modules::verify_locked_project(document, root.path(), context);
+  REQUIRE_FALSE(rejected.ok());
+  CHECK(rejected.issues.front().code == modules::LockfileVerificationIssueCode::MetadataMismatch);
+
+  document.resolved.front().version = {2, 0, 0};
+  rejected = modules::verify_locked_project(document, root.path(), locked_context());
+  REQUIRE_FALSE(rejected.ok());
+  CHECK(rejected.issues.front().code == modules::LockfileVerificationIssueCode::InvalidResolution);
+
+  document.resolved.front().version = cached.version;
+  const auto binary = root.path() / document.metadata.plugins.front().package
+                      / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
+  std::ofstream(binary, std::ios::binary | std::ios::app) << "tampered";
+  rejected = modules::verify_locked_project(document, root.path(), locked_context());
+  REQUIRE_FALSE(rejected.ok());
+  CHECK(rejected.issues.front().code == modules::LockfileVerificationIssueCode::HashMismatch);
+  CHECK(rejected.plugins.empty());
 }
