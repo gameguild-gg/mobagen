@@ -288,6 +288,69 @@ TEST_CASE("Module resolver: selected providers require explicit profile permissi
   }
 }
 
+TEST_CASE("Module resolver: configuration schema is checked before bytes enter the lifecycle") {
+  using namespace mobagen::modules;
+
+  auto renderer = resolver_provider("mobagen.render.webgpu", {"render.backend.v1"});
+  renderer.configuration_schema = "mobagen.render.config.v1";
+  const auto registry = build_resolver_registry({renderer});
+
+  SUBCASE("matching schema freezes provider configuration") {
+    auto product = resolver_product("default");
+    product.modules.front().configuration = ModuleConfiguration{"mobagen.render.config.v1", "sample-count: 4"};
+
+    const auto result = resolve_modules(product, registry, resolver_options());
+
+    REQUIRE(result.ok());
+    const auto provider = registry.find_provider("mobagen.render.webgpu");
+    REQUIRE(provider.has_value());
+    const auto* configuration = result.resolution->configuration_for(*provider);
+    REQUIRE(configuration != nullptr);
+    CHECK(configuration->schema == "mobagen.render.config.v1");
+    CHECK(configuration->data == "sample-count: 4");
+  }
+
+  SUBCASE("mismatched schema is rejected") {
+    auto product = resolver_product("default");
+    product.modules.front().configuration = ModuleConfiguration{"customer.render.config.v1", "sample-count: 4"};
+
+    const auto result = resolve_modules(product, registry, resolver_options());
+
+    CHECK_FALSE(result.ok());
+    CHECK(has_resolution_issue(result, ResolutionIssueCode::ConfigurationSchemaMismatch));
+  }
+
+  SUBCASE("configuration is rejected when the provider declares no schema") {
+    auto no_schema = renderer;
+    no_schema.configuration_schema.clear();
+    const auto no_schema_registry = build_resolver_registry({no_schema});
+    auto product = resolver_product("default");
+    product.modules.front().configuration = ModuleConfiguration{"mobagen.render.config.v1", "sample-count: 4"};
+
+    const auto result = resolve_modules(product, no_schema_registry, resolver_options());
+
+    CHECK_FALSE(result.ok());
+    CHECK(has_resolution_issue(result, ResolutionIssueCode::UnexpectedConfiguration));
+  }
+
+  SUBCASE("one provider cannot receive conflicting configurations through two aliases") {
+    auto multi = renderer;
+    multi.provides.push_back("render.post.v1");
+    const auto multi_registry = build_resolver_registry({multi});
+    auto product = resolver_product("mobagen.render.webgpu");
+    product.modules.front().configuration = ModuleConfiguration{"mobagen.render.config.v1", "sample-count: 4"};
+    product.modules.push_back(
+        {.alias = "post", .provider = "mobagen.render.webgpu", .configuration = ModuleConfiguration{"mobagen.render.config.v1", "sample-count: 8"}});
+    auto options = resolver_options();
+    options.aliases.push_back({.alias = "post", .capability = "render.post.v1"});
+
+    const auto result = resolve_modules(product, multi_registry, options);
+
+    CHECK_FALSE(result.ok());
+    CHECK(has_resolution_issue(result, ResolutionIssueCode::ConflictingConfiguration));
+  }
+}
+
 TEST_CASE("Module resolver: invalid selection contracts return structured errors") {
   using namespace mobagen::modules;
 

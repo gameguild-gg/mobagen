@@ -39,6 +39,9 @@ namespace mobagen::modules {
     UnknownProvider,
     MissingCapability,
     ProviderDoesNotProvide,
+    UnexpectedConfiguration,
+    ConfigurationSchemaMismatch,
+    ConflictingConfiguration,
     UnsupportedTarget,
     UnsupportedLinkage,
     ConflictingSelection,
@@ -72,6 +75,12 @@ namespace mobagen::modules {
     friend bool operator==(const ProviderDependency&, const ProviderDependency&) = default;
   };
 
+  struct ResolvedProviderConfiguration {
+    ProviderIndex provider{};
+    std::string schema;
+    std::string data;
+  };
+
   class ModuleResolution {
   public:
     [[nodiscard]] RegistryGeneration registry_generation() const noexcept { return registry_generation_; }
@@ -79,6 +88,8 @@ namespace mobagen::modules {
     [[nodiscard]] std::span<const ResolvedCapability> selections() const noexcept;
     [[nodiscard]] std::span<const ProviderDependency> dependencies() const noexcept;
     [[nodiscard]] std::span<const ProviderIndex> lifecycle_order() const noexcept;
+    [[nodiscard]] const ResolvedProviderConfiguration* configuration_for(ProviderIndex provider) const noexcept;
+    [[nodiscard]] std::span<const ResolvedProviderConfiguration> configurations() const noexcept;
 
   private:
     friend struct ModuleResolutionBuilder;
@@ -87,6 +98,7 @@ namespace mobagen::modules {
     std::vector<ResolvedCapability> selections_;
     std::vector<ProviderDependency> dependencies_;
     std::vector<ProviderIndex> lifecycle_order_;
+    std::vector<ResolvedProviderConfiguration> configurations_;
   };
 
   struct ResolutionResult {

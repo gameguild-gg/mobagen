@@ -22,6 +22,9 @@ name: dicom-viewer
 modules:
   render:
     use: default
+    config:
+      schema: mobagen.render.config.v1
+      data: "sample-count: 4"
   volume-importer:
     use: mobagen.import.dicom
 plugins:
@@ -46,7 +49,11 @@ profiles:
   REQUIRE(result.descriptor->modules.size() == 2);
   CHECK(result.descriptor->modules[0].alias == "render");
   CHECK(result.descriptor->modules[0].provider == "default");
+  REQUIRE(result.descriptor->modules[0].configuration.has_value());
+  CHECK(result.descriptor->modules[0].configuration->schema == "mobagen.render.config.v1");
+  CHECK(result.descriptor->modules[0].configuration->data == "sample-count: 4");
   CHECK(result.descriptor->modules[1].provider == "mobagen.import.dicom");
+  CHECK_FALSE(result.descriptor->modules[1].configuration.has_value());
   CHECK(result.descriptor->plugins == std::vector<std::string>{"./plugins/custom-transfer.plugin"});
   REQUIRE(result.descriptor->profiles.size() == 2);
   CHECK(result.descriptor->profiles[0].linkage == LinkageMode::Dynamic);
@@ -158,6 +165,27 @@ profiles:
   CHECK_FALSE(result.ok());
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "profiles.release.permissions[1]"));
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "profiles.release.permissions[2]"));
+}
+
+TEST_CASE("Module manifest: module configuration is a strict schema and data mapping") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 1
+name: invalid-configuration
+modules:
+  render:
+    use: default
+    config:
+      schema: mobagen.render.config.v1
+      unknown: rejected
+profiles: {}
+)yaml";
+
+  const auto result = parse_product_manifest(source, "mobagen.yaml");
+
+  CHECK_FALSE(result.ok());
+  CHECK(has_error(result, ManifestErrorCode::UnknownField, "modules.render.config.unknown"));
+  CHECK(has_error(result, ManifestErrorCode::MissingField, "modules.render.config.data"));
 }
 
 TEST_CASE("Module manifest: missing required fields and invalid values fail transactionally") {
