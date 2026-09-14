@@ -127,6 +127,7 @@ option(BUILD_VOLUME_DEMOS "Build volume smoke tests under apps/volume_demos" ON)
 option(BUILD_DICOM_VIEWER "Build the DICOM viewer app" ON)
 option(BUILD_PROTOTYPES "Build learning prototypes (dawn_probe, fibers)" OFF)
 option(MOBAGEN_BUILD_MANIFEST_TOOLS "Build the mobagen.yaml parser and composition tooling" ON)
+option(MOBAGEN_WASM_BACKEND_WAMR "Build the optional WAMR portable plugin backend" OFF)
 
 if(MOBAGEN_BUILD_RUNTIME)
   include(external/external.cmake)
@@ -153,6 +154,9 @@ include(external/format-cmake.cmake)
 
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   include(external/yaml-cpp.cmake)
+endif()
+if(MOBAGEN_WASM_BACKEND_WAMR)
+  include(external/wasm.cmake)
 endif()
 
 add_subdirectory(sdk)

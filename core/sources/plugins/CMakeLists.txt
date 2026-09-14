@@ -41,3 +41,8 @@ target_compile_features(mobagen_core_plugins PUBLIC c_std_11 cxx_std_20)
 target_include_directories(mobagen_core_plugins PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(mobagen_core_plugins PUBLIC mobagen::core_modules mobagen::plugin_sdk)
 target_link_libraries(mobagen_core_plugins PRIVATE ${CMAKE_DL_LIBS})
+
+if(MOBAGEN_WASM_BACKEND_WAMR)
+  add_subdirectory(wamr)
+  target_link_libraries(mobagen_core_plugins PRIVATE mobagen::wamr_vm)
+endif()
