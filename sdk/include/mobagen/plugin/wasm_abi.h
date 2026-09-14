@@ -45,6 +45,8 @@ extern "C" {
 #define MOBAGEN_WASM_IMPORT_FIND_CAPABILITY_V1 "find_capability"
 #define MOBAGEN_WASM_IMPORT_SUBMIT_COMMANDS_V1 "submit_commands"
 
+/* The default 32-bit linear memory must be exported under this canonical name. */
+#define MOBAGEN_WASM_MEMORY_EXPORT_V1 "memory"
 /* Canonical function exports required from a portable guest. */
 #define MOBAGEN_WASM_EXPORT_ALLOCATE_V1 "mobagen_wasm_plugin_allocate_v1"
 #define MOBAGEN_WASM_EXPORT_DEALLOCATE_V1 "mobagen_wasm_plugin_deallocate_v1"

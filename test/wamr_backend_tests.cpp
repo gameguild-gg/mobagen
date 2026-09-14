@@ -54,7 +54,8 @@ namespace {
     module.insert(module.end(), contents.begin(), contents.end());
   }
 
-  std::vector<std::byte> make_module(std::string_view function_name, bool traps = false) {
+  std::vector<std::byte> make_module(std::string_view function_name, bool traps = false, std::uint32_t memory_pages = 1,
+                                     bool grows_memory = false, std::string_view memory_export = MOBAGEN_WASM_MEMORY_EXPORT_V1) {
     std::vector<std::byte> module{
         std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d},
         std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
@@ -72,12 +73,13 @@ namespace {
     const std::array function_section{std::byte{0x01}, std::byte{0x00}};
     append_section(module, 3, function_section);
 
-    const std::array memory_section{std::byte{0x01}, std::byte{0x00}, std::byte{0x01}};
+    std::vector<std::byte> memory_section{std::byte{0x01}, std::byte{0x00}};
+    append_u32_leb(memory_section, memory_pages);
     append_section(module, 5, memory_section);
 
     std::vector<std::byte> export_section;
     append_u32_leb(export_section, 2);
-    append_name(export_section, "memory");
+    append_name(export_section, memory_export);
     export_section.push_back(std::byte{0x02});
     export_section.push_back(std::byte{0x00});
     append_name(export_section, function_name);
@@ -85,9 +87,17 @@ namespace {
     export_section.push_back(std::byte{0x00});
     append_section(module, 7, export_section);
 
-    const std::array returning_body{std::byte{0x00}, std::byte{0x41}, std::byte{0x00}, std::byte{0x0b}};
-    const std::array trapping_body{std::byte{0x00}, std::byte{0x00}, std::byte{0x0b}};
-    const auto body = traps ? std::span<const std::byte>{trapping_body} : std::span<const std::byte>{returning_body};
+    std::vector<std::byte> body{std::byte{0x00}};
+    if (traps) {
+      body.push_back(std::byte{0x00});
+    } else if (grows_memory) {
+      append_i32_const(body, 1);
+      body.insert(body.end(), {std::byte{0x40}, std::byte{0x00}, std::byte{0x1a}});
+      append_i32_const(body, 0);
+    } else {
+      append_i32_const(body, 0);
+    }
+    body.push_back(std::byte{0x0b});
     std::vector<std::byte> code_section;
     append_u32_leb(code_section, 1);
     append_u32_leb(code_section, static_cast<std::uint32_t>(body.size()));
@@ -140,7 +150,7 @@ namespace {
 
     std::vector<std::byte> exports;
     append_u32_leb(exports, 4);
-    append_name(exports, "memory");
+    append_name(exports, MOBAGEN_WASM_MEMORY_EXPORT_V1);
     exports.insert(exports.end(), {std::byte{0x02}, std::byte{0x00}});
     for (const auto& [name, index] : std::array{
              std::pair<std::string_view, std::uint32_t>{MOBAGEN_WASM_EXPORT_START_V1, 3},
@@ -273,7 +283,7 @@ namespace {
 
     std::vector<std::byte> exports;
     append_u32_leb(exports, 9);
-    append_name(exports, "memory");
+    append_name(exports, MOBAGEN_WASM_MEMORY_EXPORT_V1);
     exports.insert(exports.end(), {std::byte{0x02}, std::byte{0x00}});
     for (std::size_t index = 0; index < 8; ++index) {
       append_name(exports, mobagen::plugins::wasm_plugin_export_name(static_cast<mobagen::plugins::WasmPluginExport>(index)));
@@ -415,6 +425,37 @@ TEST_CASE("WAMR backend: an instance rejects calls from a foreign thread") {
   CHECK_FALSE(result.ok());
   REQUIRE(result.error.has_value());
   CHECK(result.error->find("owner thread") != std::string::npos);
+}
+
+TEST_CASE("WAMR backend: resource budgets reject oversized or invalid instances") {
+  using namespace mobagen::plugins;
+  WamrBackend bounded({.stack_size_bytes = 64U * 1024U, .max_memory_pages = 1});
+  REQUIRE(bounded.available());
+  auto two_page_module = make_module(wasm_plugin_export_name(WasmPluginExport::Start), false, 2);
+  const auto oversized = bounded.instantiate(two_page_module, nullptr);
+  CHECK_FALSE(oversized.ok());
+  REQUIRE(oversized.error.has_value());
+  CHECK(oversized.error->find("memory") != std::string::npos);
+
+  auto growth_module = make_module(wasm_plugin_export_name(WasmPluginExport::Start), false, 1, true);
+  auto capped = bounded.instantiate(growth_module, nullptr);
+  REQUIRE_MESSAGE(capped.ok(), capped.error.value_or("unknown WAMR error"));
+  REQUIRE(capped.instance->memory().size() == MOBAGEN_WASM_LINEAR_MEMORY_PAGE_BYTES);
+  REQUIRE(capped.instance->invoke(WasmPluginExport::Start, {}).ok());
+  CHECK(capped.instance->memory().size() == MOBAGEN_WASM_LINEAR_MEMORY_PAGE_BYTES);
+
+  auto hidden_memory = make_module(wasm_plugin_export_name(WasmPluginExport::Start), false, 1, false, "private_memory");
+  const auto hidden = bounded.instantiate(hidden_memory, nullptr);
+  CHECK_FALSE(hidden.ok());
+  REQUIRE(hidden.error.has_value());
+  CHECK(hidden.error->find("export") != std::string::npos);
+
+  WamrBackend invalid({.stack_size_bytes = 0, .max_memory_pages = 0});
+  CHECK_FALSE(invalid.available());
+  const auto rejected = invalid.instantiate(make_module(wasm_plugin_export_name(WasmPluginExport::Start)), nullptr);
+  CHECK_FALSE(rejected.ok());
+  REQUIRE(rejected.error.has_value());
+  CHECK(rejected.error->find("options") != std::string::npos);
 }
 
 TEST_CASE("WAMR backend: canonical host imports route through the injected instance") {

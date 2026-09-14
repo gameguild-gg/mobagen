@@ -13,6 +13,7 @@
 #include <mutex>
 #include <new>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -20,9 +21,79 @@
 namespace mobagen::plugins {
   namespace {
 
-    constexpr std::uint32_t wamr_stack_size = 64U * 1024U;
     constexpr std::size_t export_count = static_cast<std::size_t>(WasmPluginExport::Process) + 1U;
     constexpr std::size_t max_argument_cells = 8U;
+
+    [[nodiscard]] bool read_u32_leb(std::span<const std::byte> bytes, std::size_t& cursor, std::uint32_t& value) noexcept {
+      value = 0;
+      for (std::uint32_t octet_index = 0; octet_index < 5U; ++octet_index) {
+        if (cursor == bytes.size()) return false;
+        const auto octet = std::to_integer<std::uint8_t>(bytes[cursor++]);
+        const auto payload = static_cast<std::uint32_t>(octet & 0x7fU);
+        if (octet_index == 4U && payload > 0x0fU) return false;
+        value |= payload << (octet_index * 7U);
+        if ((octet & 0x80U) == 0U) return true;
+      }
+      return false;
+    }
+
+    [[nodiscard]] bool validate_binary_memory_budget(std::span<const std::byte> binary, std::uint32_t max_memory_pages,
+                                                     std::string& error) noexcept {
+      constexpr std::size_t wasm_header_size = 8U;
+      constexpr std::uint8_t memory_section_id = 5U;
+      if (binary.size() < wasm_header_size) return true;
+
+      bool found_memory = false;
+      std::size_t cursor = wasm_header_size;
+      while (cursor < binary.size()) {
+        const auto section_id = std::to_integer<std::uint8_t>(binary[cursor++]);
+        std::uint32_t section_size = 0;
+        if (!read_u32_leb(binary, cursor, section_size) || section_size > binary.size() - cursor) {
+          error = "WAMR module has malformed section framing before its memory declaration";
+          return false;
+        }
+        const auto section_end = cursor + section_size;
+        if (section_id != memory_section_id) {
+          cursor = section_end;
+          continue;
+        }
+        if (found_memory) {
+          error = "WAMR module contains duplicate memory sections";
+          return false;
+        }
+        found_memory = true;
+
+        std::uint32_t memory_count = 0;
+        std::uint32_t flags = 0;
+        std::uint32_t initial_pages = 0;
+        if (!read_u32_leb(binary.first(section_end), cursor, memory_count) || memory_count != 1U
+            || !read_u32_leb(binary.first(section_end), cursor, flags) || (flags & ~1U) != 0U
+            || !read_u32_leb(binary.first(section_end), cursor, initial_pages)) {
+          error = "WAMR module must declare one unshared 32-bit linear memory";
+          return false;
+        }
+        if (initial_pages > max_memory_pages) {
+          error = "WAMR module initial linear memory exceeds the configured memory budget";
+          return false;
+        }
+        if ((flags & 1U) != 0U) {
+          std::uint32_t maximum_pages = 0;
+          if (!read_u32_leb(binary.first(section_end), cursor, maximum_pages) || maximum_pages < initial_pages) {
+            error = "WAMR module has malformed linear memory limits";
+            return false;
+          }
+        }
+        if (cursor != section_end) {
+          error = "WAMR module has trailing data in its memory section";
+          return false;
+        }
+      }
+      if (!found_memory) {
+        error = "WAMR module must declare a linear memory";
+        return false;
+      }
+      return true;
+    }
 
     [[nodiscard]] std::span<std::byte> module_memory(wasm_module_inst_t module_instance) noexcept {
       if (module_instance == nullptr) return {};
@@ -80,6 +151,40 @@ namespace mobagen::plugins {
           {MOBAGEN_WASM_IMPORT_SUBMIT_COMMANDS_V1, reinterpret_cast<void*>(host_submit_commands), "(ii)i", nullptr},
       }};
       return symbols;
+    }
+
+    [[nodiscard]] bool validate_module_memory(wasm_module_t module, std::uint32_t max_memory_pages,
+                                              std::uint32_t& instantiation_memory_pages, std::string& error) {
+      const auto export_total = wasm_runtime_get_export_count(module);
+      if (export_total < 0) {
+        error = "WAMR module memory exports could not be inspected";
+        return false;
+      }
+      for (std::int32_t index = 0; index < export_total; ++index) {
+        wasm_export_t exported{};
+        wasm_runtime_get_export_type(module, index, &exported);
+        if (exported.name == nullptr || std::string_view{exported.name} != MOBAGEN_WASM_MEMORY_EXPORT_V1
+            || exported.kind != WASM_IMPORT_EXPORT_KIND_MEMORY) {
+          continue;
+        }
+        if (exported.u.memory_type == nullptr) {
+          error = "WAMR module has an invalid linear memory export";
+          return false;
+        }
+        if (wasm_memory_type_get_shared(exported.u.memory_type)) {
+          error = "WAMR module requests unsupported shared linear memory";
+          return false;
+        }
+        if (wasm_memory_type_get_init_page_count(exported.u.memory_type) > max_memory_pages) {
+          error = "WAMR module initial linear memory exceeds the configured memory budget";
+          return false;
+        }
+        const auto module_maximum = wasm_memory_type_get_max_page_count(exported.u.memory_type);
+        instantiation_memory_pages = module_maximum == 0U ? max_memory_pages : std::min(max_memory_pages, module_maximum);
+        return true;
+      }
+      error = "WAMR module must export its default linear memory as 'memory'";
+      return false;
     }
 
     struct RuntimeLease;
@@ -207,13 +312,21 @@ namespace mobagen::plugins {
 
   class WamrBackend::Impl {
   public:
-    Impl() : runtime(acquire_runtime(error)) {}
+    explicit Impl(WamrBackendOptions configured) : options(configured) {
+      if (options.stack_size_bytes == 0U || options.stack_size_bytes > max_wamr_stack_size_bytes || options.max_memory_pages == 0U
+          || options.max_memory_pages > max_wamr_memory_pages) {
+        error = "WAMR backend options exceed the supported stack or memory budget";
+        return;
+      }
+      runtime = acquire_runtime(error);
+    }
 
+    WamrBackendOptions options;
     std::shared_ptr<RuntimeLease> runtime;
     std::string error;
   };
 
-  WamrBackend::WamrBackend() : impl_(std::make_unique<Impl>()) {}
+  WamrBackend::WamrBackend(WamrBackendOptions options) : impl_(std::make_unique<Impl>(options)) {}
 
   WamrBackend::~WamrBackend() = default;
 
@@ -224,6 +337,10 @@ namespace mobagen::plugins {
     if (binary.empty()) return PortableWasmInstantiationResult::failure("WAMR cannot instantiate an empty module");
     if (binary.size() > std::numeric_limits<std::uint32_t>::max()) {
       return PortableWasmInstantiationResult::failure("WAMR module exceeds the 32-bit binary size limit");
+    }
+    std::string memory_error;
+    if (!validate_binary_memory_budget(binary, impl_->options.max_memory_pages, memory_error)) {
+      return PortableWasmInstantiationResult::failure(std::move(memory_error));
     }
 
     std::vector<std::uint8_t> owned_binary;
@@ -239,13 +356,25 @@ namespace mobagen::plugins {
                                     static_cast<std::uint32_t>(error_buffer.size()));
     if (module == nullptr) return PortableWasmInstantiationResult::failure(std::string{"WAMR module load failed: "} + error_buffer.data());
 
-    auto module_instance = wasm_runtime_instantiate(module, wamr_stack_size, 0U, error_buffer.data(), static_cast<std::uint32_t>(error_buffer.size()));
+    memory_error.clear();
+    auto instantiation_memory_pages = impl_->options.max_memory_pages;
+    if (!validate_module_memory(module, impl_->options.max_memory_pages, instantiation_memory_pages, memory_error)) {
+      wasm_runtime_unload(module);
+      return PortableWasmInstantiationResult::failure(std::move(memory_error));
+    }
+
+    InstantiationArgs instantiation{};
+    instantiation.default_stack_size = impl_->options.stack_size_bytes;
+    instantiation.host_managed_heap_size = 0U;
+    instantiation.max_memory_pages = instantiation_memory_pages;
+    auto module_instance
+        = wasm_runtime_instantiate_ex(module, &instantiation, error_buffer.data(), static_cast<std::uint32_t>(error_buffer.size()));
     if (module_instance == nullptr) {
       wasm_runtime_unload(module);
       return PortableWasmInstantiationResult::failure(std::string{"WAMR module instantiation failed: "} + error_buffer.data());
     }
 
-    auto execution_environment = wasm_runtime_create_exec_env(module_instance, wamr_stack_size);
+    auto execution_environment = wasm_runtime_create_exec_env(module_instance, impl_->options.stack_size_bytes);
     if (execution_environment == nullptr) {
       wasm_runtime_deinstantiate(module_instance);
       wasm_runtime_unload(module);
