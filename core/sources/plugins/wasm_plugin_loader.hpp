@@ -56,6 +56,7 @@ namespace mobagen::plugins {
   private:
     friend struct PortableWasmPluginLoadResult;
     friend PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path&, PortableWasmBackend&);
+    friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin, std::span<const std::byte>);
 
     LoadedPortableWasmPlugin(std::filesystem::path path, std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider)
         : path_(std::move(path)), instance_(std::move(instance)), provider_(std::move(provider)) {}
@@ -96,5 +97,7 @@ namespace mobagen::plugins {
   [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend);
   [[nodiscard]] std::filesystem::path portable_wasm_plugin_binary_filename();
   [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend);
+  [[nodiscard]] PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin plugin,
+                                                                                        std::span<const std::byte> configuration = {});
 
 }  // namespace mobagen::plugins

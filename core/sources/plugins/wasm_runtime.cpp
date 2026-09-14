@@ -1,6 +1,7 @@
 #include "wasm_runtime.hpp"
 
 #include "wasm_command_channel.hpp"
+#include "wasm_plugin_loader.hpp"
 
 #include <algorithm>
 #include <array>
@@ -312,6 +313,44 @@ namespace mobagen::plugins {
     state_ = PortableWasmPluginState::Stopped;
   }
 
+  PortableWasmPluginActivationResult PortableWasmPluginActivation::activate_queried(std::unique_ptr<PortableWasmInstance> instance,
+                                                                                    modules::ProviderDescriptor provider,
+                                                                                    std::span<const std::byte> configuration) {
+    PortableWasmPluginActivationResult result;
+    if (instance == nullptr) {
+      result.issues.push_back({PortableWasmPluginIssueCode::InvalidInstance,
+                               WasmPluginExport::Query,
+                               MOBAGEN_WASM_STATUS_INVALID_ARGUMENT,
+                               "portable WASM plugin instance is null",
+                               {}});
+      return result;
+    }
+
+    auto configured = configure_instance(*instance, configuration);
+    if (!configured.ok()) {
+      result.issues = std::move(configured.issues);
+      return result;
+    }
+
+    try {
+      result.activation = std::unique_ptr<PortableWasmPluginActivation>(new PortableWasmPluginActivation(std::move(instance), std::move(provider)));
+    } catch (const std::bad_alloc&) {
+      result.issues.push_back({PortableWasmPluginIssueCode::OutOfMemory,
+                               WasmPluginExport::Start,
+                               MOBAGEN_WASM_STATUS_OUT_OF_MEMORY,
+                               "portable WASM plugin activation ran out of memory",
+                               {}});
+      return result;
+    }
+
+    auto started = result.activation->start();
+    if (!started.ok()) {
+      result.issues = std::move(started.issues);
+      result.activation.reset();
+    }
+    return result;
+  }
+
   PortableWasmPluginActivationResult activate_portable_wasm_plugin(std::unique_ptr<PortableWasmInstance> instance,
                                                                    std::span<const std::byte> configuration) {
     PortableWasmPluginActivationResult result;
@@ -330,30 +369,11 @@ namespace mobagen::plugins {
                                "portable WASM plugin query failed", std::move(queried.issues)});
       return result;
     }
-    auto configured = configure_instance(*instance, configuration);
-    if (!configured.ok()) {
-      result.issues = std::move(configured.issues);
-      return result;
-    }
+    return PortableWasmPluginActivation::activate_queried(std::move(instance), std::move(*queried.provider), configuration);
+  }
 
-    try {
-      result.activation
-          = std::unique_ptr<PortableWasmPluginActivation>(new PortableWasmPluginActivation(std::move(instance), std::move(*queried.provider)));
-    } catch (const std::bad_alloc&) {
-      result.issues.push_back({PortableWasmPluginIssueCode::OutOfMemory,
-                               WasmPluginExport::Start,
-                               MOBAGEN_WASM_STATUS_OUT_OF_MEMORY,
-                               "portable WASM plugin activation ran out of memory",
-                               {}});
-      return result;
-    }
-
-    auto started = result.activation->start();
-    if (!started.ok()) {
-      result.issues = std::move(started.issues);
-      result.activation.reset();
-    }
-    return result;
+  PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin plugin, std::span<const std::byte> configuration) {
+    return PortableWasmPluginActivation::activate_queried(std::move(plugin.instance_), std::move(plugin.provider_), configuration);
   }
 
 }  // namespace mobagen::plugins

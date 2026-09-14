@@ -17,6 +17,7 @@ namespace mobagen::plugins {
 
   class WasmCommandChannel;
   struct WasmCommandChannelOpenResult;
+  class LoadedPortableWasmPlugin;
 
   enum class WasmPluginExport : std::uint8_t {
     Allocate,
@@ -136,8 +137,11 @@ namespace mobagen::plugins {
 
   private:
     friend PortableWasmPluginActivationResult activate_portable_wasm_plugin(std::unique_ptr<PortableWasmInstance>, std::span<const std::byte>);
+    friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin, std::span<const std::byte>);
 
     PortableWasmPluginActivation(std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider);
+    [[nodiscard]] static PortableWasmPluginActivationResult activate_queried(std::unique_ptr<PortableWasmInstance>, modules::ProviderDescriptor,
+                                                                             std::span<const std::byte>);
     [[nodiscard]] PortableWasmPluginActionResult start();
     void close_command_channels(PortableWasmPluginActionResult& result);
     void shutdown_noexcept() noexcept;
