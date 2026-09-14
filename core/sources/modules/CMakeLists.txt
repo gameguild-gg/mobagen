@@ -20,6 +20,15 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
     PRIVATE yaml-cpp::yaml-cpp
   )
 
+  add_library(mobagen_module_distribution STATIC artifact_fetcher.cpp artifact_fetcher.hpp)
+  add_library(mobagen::module_distribution ALIAS mobagen_module_distribution)
+  target_include_directories(mobagen_module_distribution PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+  target_compile_features(mobagen_module_distribution PUBLIC cxx_std_20)
+  target_link_libraries(
+    mobagen_module_distribution
+    PUBLIC mobagen::core_assets mobagen::core_http mobagen::module_manifest
+  )
+
   add_library(mobagen_module_lockfile STATIC lockfile.cpp lockfile_io.cpp)
   add_library(mobagen::module_lockfile ALIAS mobagen_module_lockfile)
   target_include_directories(mobagen_module_lockfile PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
