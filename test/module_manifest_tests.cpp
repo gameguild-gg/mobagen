@@ -29,6 +29,9 @@ plugins:
 profiles:
   editor:
     linkage: dynamic
+    permissions:
+      - filesystem-read
+      - gpu
   web:
     linkage: static
     editor: false
@@ -48,8 +51,10 @@ profiles:
   REQUIRE(result.descriptor->profiles.size() == 2);
   CHECK(result.descriptor->profiles[0].linkage == LinkageMode::Dynamic);
   CHECK(result.descriptor->profiles[0].editor);
+  CHECK(result.descriptor->profiles[0].permissions == std::vector<std::string>{"filesystem-read", "gpu"});
   CHECK(result.descriptor->profiles[1].linkage == LinkageMode::Static);
   CHECK_FALSE(result.descriptor->profiles[1].editor);
+  CHECK(result.descriptor->profiles[1].permissions.empty());
 }
 
 TEST_CASE("Module manifest: duplicate keys are rejected with source coordinates") {
@@ -120,6 +125,7 @@ profiles:
   release:
     linkage: static
     editor: nope
+    permissions: {}
 )yaml";
 
   const auto result = parse_product_manifest(source, "mobagen.yaml");
@@ -129,6 +135,29 @@ profiles:
   CHECK(has_error(result, ManifestErrorCode::WrongType, "modules"));
   CHECK(has_error(result, ManifestErrorCode::WrongType, "plugins"));
   CHECK(has_error(result, ManifestErrorCode::InvalidValue, "profiles.release.editor"));
+  CHECK(has_error(result, ManifestErrorCode::WrongType, "profiles.release.permissions"));
+}
+
+TEST_CASE("Module manifest: profile permissions must be unique lowercase slugs") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 1
+name: invalid-permissions
+modules: {}
+profiles:
+  release:
+    linkage: static
+    permissions:
+      - gpu
+      - GPU
+      - gpu
+)yaml";
+
+  const auto result = parse_product_manifest(source, "mobagen.yaml");
+
+  CHECK_FALSE(result.ok());
+  CHECK(has_error(result, ManifestErrorCode::InvalidValue, "profiles.release.permissions[1]"));
+  CHECK(has_error(result, ManifestErrorCode::InvalidValue, "profiles.release.permissions[2]"));
 }
 
 TEST_CASE("Module manifest: missing required fields and invalid values fail transactionally") {

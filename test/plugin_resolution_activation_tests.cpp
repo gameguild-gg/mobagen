@@ -54,7 +54,7 @@ namespace {
         .name = "resolved-plugin-test",
         .modules = {{.alias = "runtime", .provider = std::move(provider)}},
         .plugins = {std::move(package)},
-        .profiles = {{.name = "release", .linkage = mobagen::modules::LinkageMode::Dynamic, .editor = false}},
+        .profiles = {{.name = "release", .linkage = mobagen::modules::LinkageMode::Dynamic, .editor = false, .permissions = {"debug"}}},
     };
   }
 

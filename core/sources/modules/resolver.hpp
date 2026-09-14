@@ -43,6 +43,7 @@ namespace mobagen::modules {
     UnsupportedLinkage,
     ConflictingSelection,
     AmbiguousProvider,
+    PermissionDenied,
     ProviderConflict,
     DependencyCycle,
   };

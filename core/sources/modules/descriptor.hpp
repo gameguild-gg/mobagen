@@ -32,6 +32,7 @@ namespace mobagen::modules {
     std::string name;
     LinkageMode linkage{LinkageMode::Static};
     bool editor{true};
+    std::vector<std::string> permissions;
   };
 
   struct ProductDescriptor {

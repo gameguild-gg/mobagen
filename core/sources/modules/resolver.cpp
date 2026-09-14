@@ -213,6 +213,22 @@ namespace mobagen::modules {
         }
       }
 
+      void validate_permissions() {
+        auto granted = profile.permissions;
+        std::ranges::sort(granted);
+        for (const auto provider_value : selected_providers) {
+          const auto* provider = registry.provider(ProviderIndex{provider_value});
+          if (provider == nullptr) continue;
+          auto requested = provider->permissions;
+          std::ranges::sort(requested);
+          for (const auto& permission : requested) {
+            if (std::ranges::binary_search(granted, permission)) continue;
+            add_issue(result, ResolutionIssueCode::PermissionDenied, {}, {}, provider->id,
+                      "selected provider requires permission '" + permission + "' not granted by profile '" + profile.name + "'");
+          }
+        }
+      }
+
       std::vector<ProviderIndex> topological_order() {
         std::map<std::uint32_t, std::set<std::uint32_t>> dependents;
         std::map<std::uint32_t, std::size_t> indegree;
@@ -345,6 +361,8 @@ namespace mobagen::modules {
     if (!result.issues.empty()) return result;
 
     staged.expand_dependencies();
+    if (!result.issues.empty()) return result;
+    staged.validate_permissions();
     if (!result.issues.empty()) return result;
     staged.validate_conflicts();
     if (!result.issues.empty()) return result;
