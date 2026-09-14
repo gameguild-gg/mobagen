@@ -25,6 +25,12 @@ static MobagenStatus MOBAGEN_PLUGIN_CALL configure_plugin(void* plugin_state, co
   return host != NULL && host->abi_version == MOBAGEN_PLUGIN_ABI_VERSION ? MOBAGEN_STATUS_OK : MOBAGEN_STATUS_INVALID_ARGUMENT;
 }
 
+static uint32_t wasm_allocate(uint32_t size, uint32_t alignment) { return size == 8 && alignment == MOBAGEN_WASM_EXCHANGE_ALIGNMENT ? 8 : 0; }
+
+static uint32_t wasm_deallocate(uint32_t offset, uint32_t size, uint32_t alignment) {
+  return offset == 8 && size == 8 && alignment == MOBAGEN_WASM_EXCHANGE_ALIGNMENT ? MOBAGEN_WASM_STATUS_OK : MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
+}
+
 int mobagen_plugin_abi_c_compile_test(void) {
   MobagenHostApiV1 host = {0};
   MobagenPluginDescriptorV1 descriptor = {0};
@@ -46,9 +52,14 @@ int mobagen_plugin_abi_c_compile_test(void) {
 int mobagen_wasm_abi_c_compile_test(void) {
   MobagenWasmPluginDescriptorV1 descriptor = {0};
   MobagenWasmCommandBatchV1 batch = {0};
+  MobagenWasmPluginAllocateV1Fn allocate = wasm_allocate;
+  MobagenWasmPluginDeallocateV1Fn deallocate = wasm_deallocate;
   descriptor.struct_size = MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE;
   descriptor.abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION;
   batch.struct_size = MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE;
   batch.abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION;
-  return descriptor.struct_size == sizeof(descriptor) && batch.struct_size == sizeof(batch) ? 0 : 1;
+  return descriptor.struct_size == sizeof(descriptor) && batch.struct_size == sizeof(batch) && allocate(8, MOBAGEN_WASM_EXCHANGE_ALIGNMENT) == 8
+                 && deallocate(8, 8, MOBAGEN_WASM_EXCHANGE_ALIGNMENT) == MOBAGEN_WASM_STATUS_OK
+             ? 0
+             : 1;
 }
