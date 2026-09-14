@@ -86,6 +86,7 @@ if(TARGET mobagen::module_manifest)
            module_catalog_fetcher_tests.cpp
            module_catalog_tests.cpp
            module_composition_tests.cpp
+           module_artifact_installer_tests.cpp
            module_artifact_fetcher_tests.cpp
            module_manifest_tests.cpp
            module_sync_plan_tests.cpp

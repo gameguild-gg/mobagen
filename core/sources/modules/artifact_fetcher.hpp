@@ -42,6 +42,8 @@ namespace mobagen::modules {
     std::string provider_id;
     SemanticVersion version;
     assets::AssetId id;
+    std::uint64_t size{};
+    LinkageMode linkage{};
     std::filesystem::path cache_path;
     bool downloaded{};
   };
