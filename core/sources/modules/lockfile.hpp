@@ -57,6 +57,66 @@ namespace mobagen::modules {
   [[nodiscard]] LockfileSerializeResult serialize_lockfile(const CapabilityRegistry& registry, const ModuleResolution& resolution,
                                                            const LockfileMetadata& metadata);
 
+  struct LockedConfiguration {
+    std::string provider;
+    std::string schema;
+    std::string hash;
+  };
+
+  struct LockedProviderSelection {
+    std::string capability;
+    std::string provider;
+    SemanticVersion version;
+    LinkageMode linkage{};
+  };
+
+  struct LockedDependency {
+    std::string capability;
+    std::string provider;
+    std::string required_by;
+  };
+
+  struct LockfileDocument {
+    LockfileMetadata metadata;
+    std::vector<std::string> permissions;
+    std::vector<LockedConfiguration> configurations;
+    std::vector<LockedProviderSelection> resolved;
+    std::vector<LockedDependency> dependencies;
+  };
+
+  enum class LockfileParseIssueCode : std::uint8_t {
+    Syntax,
+    DuplicateKey,
+    UnsupportedTag,
+    UnknownField,
+    MissingField,
+    WrongType,
+    UnsupportedSchema,
+    InvalidValue,
+    InvalidHash,
+    LimitExceeded,
+    DuplicateEntry,
+  };
+
+  struct LockfileParseIssue {
+    LockfileParseIssueCode code{};
+    std::string source_path;
+    std::size_t line{};
+    std::size_t column{};
+    std::string field;
+    std::string message;
+  };
+
+  struct LockfileParseResult {
+    std::optional<LockfileDocument> document;
+    std::vector<LockfileParseIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept { return document.has_value() && issues.empty(); }
+  };
+
+  [[nodiscard]] LockfileParseResult parse_lockfile(std::string_view source,
+                                                   std::string_view source_path = "mobagen.lock");
+
   enum class LockfileReadIssueCode : std::uint8_t {
     InvalidPath,
     NotFound,
