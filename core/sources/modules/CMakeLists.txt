@@ -21,5 +21,9 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   add_library(mobagen::module_lockfile ALIAS mobagen_module_lockfile)
   target_include_directories(mobagen_module_lockfile PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
   target_compile_features(mobagen_module_lockfile PUBLIC cxx_std_20)
-  target_link_libraries(mobagen_module_lockfile PUBLIC mobagen::core_modules)
+  target_link_libraries(
+    mobagen_module_lockfile
+    PUBLIC mobagen::core_modules
+    PRIVATE mobagen::core_assets
+  )
 endif()
