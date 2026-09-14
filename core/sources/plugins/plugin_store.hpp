@@ -1,0 +1,60 @@
+#pragma once
+
+#include "plugin_host.hpp"
+#include "plugin_loader.hpp"
+
+#include "modules/descriptor.hpp"
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
+#include <vector>
+
+namespace mobagen::plugins {
+
+  enum class NativePluginStoreIssueCode : std::uint8_t {
+    InvalidRoot,
+    InvalidSource,
+    StageFailed,
+    CommitFailed,
+    RollbackFailed,
+    CleanupDeferred,
+    InvalidProvider,
+    NotFound,
+  };
+
+  struct NativePluginStoreIssue {
+    NativePluginStoreIssueCode code{};
+    std::filesystem::path path;
+    std::error_code system_error;
+    std::string message;
+    std::vector<NativePluginLoadIssue> load_issues;
+  };
+
+  struct NativePluginStoreActionResult {
+    bool changed{false};
+    bool committed{false};
+    std::string provider_id;
+    modules::SemanticVersion version;
+    std::filesystem::path package;
+    std::vector<NativePluginStoreIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept { return committed; }
+  };
+
+  class NativePluginStore {
+  public:
+    explicit NativePluginStore(std::filesystem::path root) : root_(std::move(root)) {}
+
+    [[nodiscard]] const std::filesystem::path& root() const noexcept { return root_; }
+    [[nodiscard]] NativePluginStoreActionResult install(const std::filesystem::path& source, PluginHost& host) const;
+    [[nodiscard]] NativePluginStoreActionResult remove(std::string_view provider_id) const;
+
+  private:
+    std::filesystem::path root_;
+  };
+
+}  // namespace mobagen::plugins
