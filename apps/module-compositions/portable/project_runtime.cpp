@@ -64,7 +64,8 @@ namespace mobagen::compositions {
     };
 
     static Result prepare(const std::filesystem::path& manifest_path, modules::ResolverOptions options, plugins::PortableWasmBackend& backend,
-                          std::span<const modules::ProviderDescriptor> builtin_providers, modules::SemanticVersion sdk_version) {
+                          std::span<const modules::ProviderDescriptor> builtin_providers, modules::SemanticVersion sdk_version,
+                          plugins::WasmHostServices host_services) {
       Result result;
       auto source = detail::read_project_manifest_bounded(manifest_path);
       if (!source.ok()) {
@@ -81,8 +82,8 @@ namespace mobagen::compositions {
       }
 
       auto runtime = std::unique_ptr<PortableProjectRuntime>(new PortableProjectRuntime(std::move(*parsed.descriptor)));
-      auto catalog
-          = plugins::discover_portable_wasm_plugin_catalog(runtime->product_, source.absolute_path.parent_path(), backend, builtin_providers);
+      auto catalog = plugins::discover_portable_wasm_plugin_catalog(runtime->product_, source.absolute_path.parent_path(), backend,
+                                                                    builtin_providers, host_services);
       if (!catalog.ok()) {
         add_issue(result, {.code = PortableProjectIssueCode::Catalog,
                            .message = "portable WASM plugin catalog could not be created",
@@ -145,8 +146,9 @@ namespace mobagen::compositions {
 
   PortableProjectLockResult resolve_portable_project_lock(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
                                                           plugins::PortableWasmBackend& backend, modules::SemanticVersion sdk_version,
-                                                          std::span<const modules::ProviderDescriptor> builtin_providers) {
-    auto prepared = PortableProjectBuilder::prepare(manifest_path, std::move(options), backend, builtin_providers, sdk_version);
+                                                          std::span<const modules::ProviderDescriptor> builtin_providers,
+                                                          plugins::WasmHostServices host_services) {
+    auto prepared = PortableProjectBuilder::prepare(manifest_path, std::move(options), backend, builtin_providers, sdk_version, host_services);
     std::optional<PortableProjectPreview> preview;
     if (prepared.ok()) {
       preview.emplace(prepared.runtime->product(), prepared.runtime->registry(), prepared.runtime->resolution());
@@ -161,8 +163,9 @@ namespace mobagen::compositions {
 
   PortableProjectResult load_portable_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
                                               plugins::PortableWasmBackend& backend, std::span<const modules::ProviderDescriptor> builtin_providers,
-                                              PortableProjectLockOptions lock_options) {
-    auto prepared = PortableProjectBuilder::prepare(manifest_path, std::move(options), backend, builtin_providers, lock_options.sdk_version);
+                                              PortableProjectLockOptions lock_options, plugins::WasmHostServices host_services) {
+    auto prepared
+        = PortableProjectBuilder::prepare(manifest_path, std::move(options), backend, builtin_providers, lock_options.sdk_version, host_services);
     PortableProjectResult result{.issues = std::move(prepared.issues)};
     if (!prepared.ok()) return result;
     auto runtime = std::move(prepared.runtime);

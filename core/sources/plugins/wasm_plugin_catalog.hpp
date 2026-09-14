@@ -58,7 +58,8 @@ namespace mobagen::plugins {
 
   private:
     friend PortableWasmPluginCatalogResult discover_portable_wasm_plugin_catalog(const modules::ProductDescriptor&, const std::filesystem::path&,
-                                                                                 PortableWasmBackend&, std::span<const modules::ProviderDescriptor>);
+                                                                                 PortableWasmBackend&, std::span<const modules::ProviderDescriptor>,
+                                                                                 WasmHostServices);
 
     PortableWasmPluginCatalog(std::vector<LoadedPortableWasmPlugin> plugins, modules::CapabilityRegistry registry);
 
@@ -67,10 +68,12 @@ namespace mobagen::plugins {
     modules::CapabilityRegistry registry_;
   };
 
+  /* host_services.state must remain valid until the catalog and every activation created from it are destroyed. */
   [[nodiscard]] PortableWasmPluginCatalogResult discover_portable_wasm_plugin_catalog(const modules::ProductDescriptor& product,
                                                                                       const std::filesystem::path& project_root,
                                                                                       PortableWasmBackend& backend,
                                                                                       std::span<const modules::ProviderDescriptor> builtin_providers
-                                                                                      = {});
+                                                                                      = {},
+                                                                                      WasmHostServices host_services = {});
 
 }  // namespace mobagen::plugins

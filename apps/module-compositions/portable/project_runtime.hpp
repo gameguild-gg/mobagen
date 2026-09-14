@@ -93,7 +93,8 @@ namespace mobagen::compositions {
   private:
     friend struct PortableProjectBuilder;
     friend PortableProjectResult load_portable_project(const std::filesystem::path&, modules::ResolverOptions, plugins::PortableWasmBackend&,
-                                                       std::span<const modules::ProviderDescriptor>, PortableProjectLockOptions);
+                                                       std::span<const modules::ProviderDescriptor>, PortableProjectLockOptions,
+                                                       plugins::WasmHostServices);
 
     explicit PortableProjectRuntime(modules::ProductDescriptor product) : product_(std::move(product)) {}
 
@@ -104,15 +105,17 @@ namespace mobagen::compositions {
     std::unique_ptr<plugins::ResolvedPortableWasmPluginActivation> activation_;
   };
 
+  /* host_services.state must remain valid until this preview operation returns. */
   [[nodiscard]] PortableProjectLockResult resolve_portable_project_lock(
       const std::filesystem::path& manifest_path, modules::ResolverOptions options, plugins::PortableWasmBackend& backend,
       modules::SemanticVersion sdk_version = {MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH},
-      std::span<const modules::ProviderDescriptor> builtin_providers = {});
+      std::span<const modules::ProviderDescriptor> builtin_providers = {}, plugins::WasmHostServices host_services = {});
 
-  /* The backend must keep every returned instance valid for the lifetime of the project runtime. */
+  /* The backend instances and host_services.state must remain valid for the lifetime of the project runtime. */
   [[nodiscard]] PortableProjectResult load_portable_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
                                                             plugins::PortableWasmBackend& backend,
                                                             std::span<const modules::ProviderDescriptor> builtin_providers = {},
-                                                            PortableProjectLockOptions lock_options = {});
+                                                            PortableProjectLockOptions lock_options = {},
+                                                            plugins::WasmHostServices host_services = {});
 
 }  // namespace mobagen::compositions
