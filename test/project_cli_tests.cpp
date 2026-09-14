@@ -42,6 +42,8 @@ profiles:
   release:
     linkage: dynamic
     editor: false
+    permissions:
+      - debug
 )yaml";
       REQUIRE(manifest.good());
     }

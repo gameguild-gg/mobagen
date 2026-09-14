@@ -256,6 +256,38 @@ TEST_CASE("Module resolver: conflicts and dependency cycles reject the staged gr
   }
 }
 
+TEST_CASE("Module resolver: selected providers require explicit profile permissions") {
+  using namespace mobagen::modules;
+
+  auto renderer = resolver_provider("mobagen.render.webgpu", {"render.backend.v1"});
+  renderer.permissions = {"filesystem-read", "gpu"};
+  const auto registry = build_resolver_registry({renderer});
+
+  SUBCASE("all requested permissions are granted") {
+    auto product = resolver_product("default");
+    product.profiles.front().permissions = {"gpu", "filesystem-read"};
+
+    const auto result = resolve_modules(product, registry, resolver_options());
+
+    REQUIRE(result.ok());
+  }
+
+  SUBCASE("a missing grant rejects resolution") {
+    auto product = resolver_product("default");
+    product.profiles.front().permissions = {"gpu"};
+
+    const auto result = resolve_modules(product, registry, resolver_options());
+
+    CHECK_FALSE(result.ok());
+    CHECK_FALSE(result.resolution.has_value());
+    CHECK(has_resolution_issue(result, ResolutionIssueCode::PermissionDenied));
+    REQUIRE(result.issues.size() == 1);
+    CHECK(result.issues.front().provider_id == "mobagen.render.webgpu");
+    CHECK(result.issues.front().message.contains("filesystem-read"));
+    CHECK(result.issues.front().message.contains("release"));
+  }
+}
+
 TEST_CASE("Module resolver: invalid selection contracts return structured errors") {
   using namespace mobagen::modules;
 

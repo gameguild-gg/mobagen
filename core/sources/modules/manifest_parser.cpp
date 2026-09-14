@@ -294,6 +294,23 @@ namespace mobagen::modules {
         }
       }
 
+      void parse_permissions(const YAML::Node& node, const std::string& field, std::vector<std::string>& output) {
+        if (!node.IsSequence()) {
+          add_error(ManifestErrorCode::WrongType, node.Mark(), field, "expected a sequence");
+          return;
+        }
+        if (node.size() > max_manifest_collection_entries) {
+          add_error(ManifestErrorCode::LimitExceeded, node.Mark(), field, "permission count exceeds the 1024-entry manifest limit");
+          return;
+        }
+        for (std::size_t index = 0; index < node.size(); ++index) {
+          std::string permission;
+          if (read_string(node[index], field + '[' + std::to_string(index) + ']', permission)) {
+            output.push_back(std::move(permission));
+          }
+        }
+      }
+
       void parse_profiles(const YAML::Node& node) {
         if (!node.IsMap()) {
           add_error(ManifestErrorCode::WrongType, node.Mark(), "profiles", "expected a mapping");
@@ -317,12 +334,15 @@ namespace mobagen::modules {
             add_error(ManifestErrorCode::DuplicateKey, pair.first.Mark(), field, "profile names must be unique");
           }
 
-          const auto profile_entries = read_map(pair.second, field, {"linkage", "editor"});
+          const auto profile_entries = read_map(pair.second, field, {"linkage", "editor", "permissions"});
           const auto* linkage = require_entry(profile_entries, "linkage", field, pair.second.Mark());
           ProfileDescriptor profile{.name = name};
           if (linkage) read_linkage(*linkage, field + ".linkage", profile.linkage);
           if (const auto* editor = find_entry(profile_entries, "editor")) {
             read_bool(*editor, field + ".editor", profile.editor);
+          }
+          if (const auto* permissions = find_entry(profile_entries, "permissions")) {
+            parse_permissions(*permissions, field + ".permissions", profile.permissions);
           }
           descriptor_.profiles.push_back(std::move(profile));
         }

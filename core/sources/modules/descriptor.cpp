@@ -63,6 +63,19 @@ namespace mobagen::modules {
       }
     }
 
+    void check_permission_list(const std::vector<std::string>& values, std::string_view field, std::vector<DescriptorIssue>& issues) {
+      std::set<std::string> seen;
+      for (std::size_t index = 0; index < values.size(); ++index) {
+        const std::string item_field = std::string(field) + '[' + std::to_string(index) + ']';
+        if (!is_slug(values[index])) {
+          add_issue(issues, DescriptorIssueCode::InvalidIdentifier, item_field, "expected a lowercase permission slug");
+        }
+        if (!seen.insert(values[index]).second) {
+          add_issue(issues, DescriptorIssueCode::DuplicateEntry, item_field, "permissions must be unique");
+        }
+      }
+    }
+
     void check_self_dependencies(const std::vector<std::string>& dependencies, std::string_view field, const std::vector<std::string>& provided,
                                  std::vector<DescriptorIssue>& issues) {
       for (std::size_t index = 0; index < dependencies.size(); ++index) {
@@ -139,6 +152,7 @@ namespace mobagen::modules {
       if (!profile_names.insert(profile.name).second) {
         add_issue(issues, DescriptorIssueCode::DuplicateEntry, field, "profile names must be unique");
       }
+      check_permission_list(profile.permissions, field + ".permissions", issues);
     }
     return issues;
   }
@@ -186,16 +200,7 @@ namespace mobagen::modules {
                 "expected an empty value or a lowercase dotted schema ending in .vN");
     }
 
-    std::set<std::string> permissions;
-    for (std::size_t index = 0; index < descriptor.permissions.size(); ++index) {
-      const std::string field = "permissions[" + std::to_string(index) + ']';
-      if (!is_slug(descriptor.permissions[index])) {
-        add_issue(issues, DescriptorIssueCode::InvalidIdentifier, field, "expected a lowercase permission slug");
-      }
-      if (!permissions.insert(descriptor.permissions[index]).second) {
-        add_issue(issues, DescriptorIssueCode::DuplicateEntry, field, "permissions must be unique");
-      }
-    }
+    check_permission_list(descriptor.permissions, "permissions", issues);
     return issues;
   }
 

@@ -113,6 +113,8 @@ profiles:
   release:
     linkage: dynamic
     editor: false
+    permissions:
+      - debug
 )yaml";
 
 }  // namespace
@@ -155,6 +157,34 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
                + reference_plugin_hash() + "\n");
   CHECK(loaded.runtime->stop().ok());
   CHECK(loaded.runtime->host().size() == 0);
+}
+
+TEST_CASE("Native project: denied plugin permissions fail before lifecycle activation") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(R"yaml(schema: 1
+name: denied-plugin-permission
+modules:
+  runtime:
+    use: mobagen.reference
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: dynamic
+    editor: false
+)yaml");
+
+  const auto loaded = load_native_project(project.path() / "mobagen.yaml", runtime_options());
+
+  CHECK_FALSE(loaded.ok());
+  REQUIRE(loaded.issues.size() == 1);
+  CHECK(loaded.issues.front().code == NativeProjectIssueCode::Resolution);
+  REQUIRE(loaded.issues.front().resolution_issues.size() == 1);
+  CHECK(loaded.issues.front().resolution_issues.front().code == mobagen::modules::ResolutionIssueCode::PermissionDenied);
+  std::error_code removal_error;
+  CHECK(std::filesystem::remove(project.path() / "plugins" / "reference.plugin" / mobagen::plugins::native_plugin_binary_filename(), removal_error));
+  CHECK_FALSE(removal_error);
 }
 
 TEST_CASE("Native project: update writes a canonical lock that frozen mode accepts") {
