@@ -21,11 +21,12 @@ namespace mobagen::modules {
 
     constexpr std::size_t hash_buffer_size = 64 * 1024;
 
-    LockfileVerificationResult failure(
+    LockfileInspectionResult inspection_failure(
         LockfileVerificationIssueCode code, std::string provider_id,
-        std::filesystem::path path, std::string message, std::error_code system_error = {}
+        std::filesystem::path path, std::string message,
+        std::error_code system_error = {}
     ) {
-      LockfileVerificationResult result;
+      LockfileInspectionResult result;
       result.issues.push_back({
           code, std::move(provider_id), std::move(path), system_error, std::move(message)
       });
@@ -185,7 +186,7 @@ namespace mobagen::modules {
 
   }  // namespace
 
-  LockfileVerificationResult verify_locked_project(
+  LockfileInspectionResult inspect_locked_project(
       const LockfileDocument& document, const std::filesystem::path& project_root,
       const LockfileVerificationContext& context
   ) {
@@ -193,7 +194,7 @@ namespace mobagen::modules {
         || document.metadata.sdk != context.sdk || document.metadata.target != context.target
         || document.metadata.profile != context.profile
         || document.metadata.manifest_hash != context.manifest_hash) {
-      return failure(
+      return inspection_failure(
           LockfileVerificationIssueCode::MetadataMismatch, {}, {},
           "mobagen.lock metadata does not match the requested project runtime"
       );
@@ -202,7 +203,7 @@ namespace mobagen::modules {
     std::error_code error;
     const auto root = std::filesystem::absolute(project_root, error).lexically_normal();
     if (error) {
-      return failure(
+      return inspection_failure(
           LockfileVerificationIssueCode::InvalidRoot, {}, project_root,
           "project root could not be resolved", error
       );
@@ -210,31 +211,31 @@ namespace mobagen::modules {
     const auto root_status = std::filesystem::symlink_status(root, error);
     if (error || !std::filesystem::is_directory(root_status)
         || std::filesystem::is_symlink(root_status)) {
-      return failure(
+      return inspection_failure(
           LockfileVerificationIssueCode::InvalidRoot, {}, root,
           "project root must be a real directory", error
       );
     }
 
     std::set<std::string, std::less<>> providers;
-    std::vector<VerifiedLockedPlugin> staged;
+    std::vector<StagedLockedPlugin> staged;
     staged.reserve(document.metadata.plugins.size());
     for (const auto& plugin : document.metadata.plugins) {
       if (!providers.insert(plugin.provider).second) {
-        return failure(
+        return inspection_failure(
             LockfileVerificationIssueCode::InvalidResolution, plugin.provider, {},
             "mobagen.lock contains a duplicate plugin provider"
         );
       }
       const auto linkage = locked_linkage(document, plugin);
       if (!linkage.has_value()) {
-        return failure(
+        return inspection_failure(
             LockfileVerificationIssueCode::InvalidResolution, plugin.provider, {},
             "locked plugin is not selected with one matching runtime linkage and version"
         );
       }
       if (plugin.abi_version != runtime_plugin_abi_version(*linkage)) {
-        return failure(
+        return inspection_failure(
             LockfileVerificationIssueCode::UnsupportedAbi, plugin.provider, {},
             "locked plugin ABI is not supported by this runtime"
         );
@@ -242,13 +243,13 @@ namespace mobagen::modules {
 
       std::filesystem::path package;
       if (auto issue = inspect_path_components(root, plugin, package); issue.has_value()) {
-        LockfileVerificationResult result;
+        LockfileInspectionResult result;
         result.issues.push_back(std::move(*issue));
         return result;
       }
       const auto inspected = plugins::inspect_plugin_package(package);
       if (!inspected.ok()) {
-        return failure(
+        return inspection_failure(
             LockfileVerificationIssueCode::InvalidPackage, plugin.provider, package,
             inspected.issue.has_value() ? inspected.issue->message
                                         : "locked plugin package is invalid",
@@ -259,31 +260,60 @@ namespace mobagen::modules {
                                    ? plugins::PluginPackageKind::PortableWasm
                                    : plugins::PluginPackageKind::Native;
       if (*inspected.kind != expected_kind) {
-        return failure(
+        return inspection_failure(
             LockfileVerificationIssueCode::InvalidPackage, plugin.provider, package,
             "locked plugin package kind does not match its resolved linkage"
         );
       }
 
       const auto binary = package / module_plugin_binary_filename(*linkage);
-      std::uint64_t size = 0;
-      if (auto issue = verify_binary(plugin, binary, size); issue.has_value()) {
-        LockfileVerificationResult result;
-        result.issues.push_back(std::move(*issue));
-        return result;
-      }
       staged.push_back({
           .provider_id = plugin.provider,
           .version = plugin.version,
           .linkage = *linkage,
           .abi_version = plugin.abi_version,
-          .size = size,
+          .expected_hash = plugin.hash,
           .package_path = std::move(package),
           .binary_path = binary,
       });
     }
 
     return {.plugins = std::move(staged)};
+  }
+
+  LockfileVerificationResult verify_locked_project(
+      const LockfileDocument& document, const std::filesystem::path& project_root,
+      const LockfileVerificationContext& context
+  ) {
+    auto inspected = inspect_locked_project(document, project_root, context);
+    if (!inspected.ok()) {
+      return {.issues = std::move(inspected.issues)};
+    }
+
+    std::vector<VerifiedLockedPlugin> verified;
+    verified.reserve(inspected.plugins.size());
+    for (auto& plugin : inspected.plugins) {
+      const PluginLockEntry expected{
+          .provider = plugin.provider_id,
+          .hash = plugin.expected_hash,
+      };
+      std::uint64_t size = 0;
+      if (auto issue = verify_binary(expected, plugin.binary_path, size); issue.has_value()) {
+        LockfileVerificationResult result;
+        result.issues.push_back(std::move(*issue));
+        return result;
+      }
+      verified.push_back({
+          .provider_id = std::move(plugin.provider_id),
+          .version = plugin.version,
+          .linkage = plugin.linkage,
+          .abi_version = plugin.abi_version,
+          .size = size,
+          .package_path = std::move(plugin.package_path),
+          .binary_path = std::move(plugin.binary_path),
+      });
+    }
+    return {.plugins = std::move(verified)};
   }
 
 }  // namespace mobagen::modules

@@ -1,5 +1,7 @@
 #include "locked_activation_plan.hpp"
 
+#include "assets/asset_id.hpp"
+
 #include <algorithm>
 #include <map>
 #include <set>
@@ -233,6 +235,37 @@ namespace mobagen::modules {
     result.plan = std::unique_ptr<LockedPluginActivationPlan>(
         new LockedPluginActivationPlan(std::move(entries))
     );
+    return result;
+  }
+
+  LockedActivationPlanResult build_locked_plugin_activation_plan(
+      const LockfileDocument& document, std::span<const StagedLockedPlugin> staged_plugins
+  ) {
+    std::vector<VerifiedLockedPlugin> metadata;
+    metadata.reserve(staged_plugins.size());
+    std::map<std::string, std::string, std::less<>> hashes;
+    for (const auto& plugin : staged_plugins) {
+      if (!assets::parse_asset_id(plugin.expected_hash).has_value()
+          || !hashes.emplace(plugin.provider_id, plugin.expected_hash).second) {
+        return failure(
+            LockedActivationPlanIssueCode::MetadataMismatch, plugin.provider_id,
+            "staged plugin hash metadata is invalid or duplicated"
+        );
+      }
+      metadata.push_back({
+          .provider_id = plugin.provider_id,
+          .version = plugin.version,
+          .linkage = plugin.linkage,
+          .abi_version = plugin.abi_version,
+          .package_path = plugin.package_path,
+          .binary_path = plugin.binary_path,
+      });
+    }
+    auto result = build_locked_plugin_activation_plan(document, metadata);
+    if (!result.ok()) return result;
+    for (auto& entry : result.plan->entries_) {
+      entry.binary_hash = hashes.at(entry.provider_id);
+    }
     return result;
   }
 

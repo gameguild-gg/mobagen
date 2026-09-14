@@ -20,6 +20,7 @@ namespace mobagen::compositions {
     WrongThread,
     UnknownCapability,
     UnsupportedLinkage,
+    ArtifactVerificationFailed,
     LoadFailed,
     DescriptorMismatch,
     ActivationFailed,
