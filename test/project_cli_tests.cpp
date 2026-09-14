@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "assets/asset_cache.hpp"
 #include "http/client.hpp"
 #include "plugins/plugin_loader.hpp"
 #include "project_cli.hpp"
@@ -70,42 +71,73 @@ profiles:
 
   class ProjectCatalogHttpClient final : public mobagen::http::Client {
   public:
+    ProjectCatalogHttpClient() {
+      constexpr std::string_view artifact = "remote-native-plugin";
+      artifact_body.resize(artifact.size());
+      for (std::size_t index = 0; index < artifact.size(); ++index) {
+        artifact_body[index] = static_cast<std::byte>(artifact[index]);
+      }
+      const auto id = mobagen::assets::sha256(artifact_body);
+      REQUIRE(id.has_value());
+      artifact_hash = mobagen::assets::to_string(*id);
+    }
+
     mobagen::http::GetResult get(const mobagen::http::GetRequest& request) override {
-      requests.push_back(request);
-      constexpr std::string_view catalog = R"yaml(schema: 1
-providers:
-  mobagen.runtime.remote:
-    version: 2.1.0
-    provides: [runtime.tick.v1]
-    reload: restart
-    artifacts:
-      - target: windows
-        linkage: dynamic
-        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/windows.plugin
-        size: 8192
-        hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      - target: linux
-        linkage: dynamic
-        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/linux.plugin
-        size: 8192
-        hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      - target: macos
-        linkage: dynamic
-        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/macos.plugin
-        size: 8192
-        hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-)yaml";
-      std::vector<std::byte> body(catalog.size());
-      for (std::size_t index = 0; index < catalog.size(); ++index) body[index] = static_cast<std::byte>(catalog[index]);
+      catalog_requests.push_back(request);
+      std::ostringstream catalog;
+      catalog << "schema: 1\n"
+                 "providers:\n"
+                 "  mobagen.runtime.remote:\n"
+                 "    version: 2.1.0\n"
+                 "    provides: [runtime.tick.v1]\n"
+                 "    reload: restart\n"
+                 "    artifacts:\n";
+      for (const auto platform : {"windows", "linux", "macos"}) {
+        catalog << "      - target: " << platform << '\n'
+                << "        linkage: dynamic\n"
+                << "        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
+                << platform << ".plugin\n"
+                << "        size: " << artifact_body.size() << '\n'
+                << "        hash: " << artifact_hash << '\n';
+      }
+      const auto text = std::move(catalog).str();
+      std::vector<std::byte> body(text.size());
+      for (std::size_t index = 0; index < text.size(); ++index) {
+        body[index] = static_cast<std::byte>(text[index]);
+      }
       return {.response = mobagen::http::Response{200, std::move(body)}};
     }
 
-    std::vector<mobagen::http::GetRequest> requests;
+    mobagen::http::StreamGetResult get_stream(const mobagen::http::GetRequest& request,
+                                              mobagen::http::BodySink sink) override {
+      artifact_requests.push_back(request);
+      if (!sink.write(sink.context, artifact_body)) {
+        return {.error = mobagen::http::Error{
+                    mobagen::http::ErrorCode::SinkRejected, "artifact cache rejected test bytes"
+                }};
+      }
+      return {.response = mobagen::http::StreamResponse{200, artifact_body.size()}};
+    }
+
+    std::vector<std::byte> artifact_body;
+    std::string artifact_hash;
+    std::vector<mobagen::http::GetRequest> catalog_requests;
+    std::vector<mobagen::http::GetRequest> artifact_requests;
   };
+
+  constexpr std::string_view native_artifact_filename() noexcept {
+#ifdef _WIN32
+    return "windows.plugin";
+#elif defined(__APPLE__)
+    return "macos.plugin";
+#else
+    return "linux.plugin";
+#endif
+  }
 
 }  // namespace
 
-TEST_CASE("Project CLI: sync resolves remote metadata without requiring a local plugin package") {
+TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a local package") {
   TemporaryProjectCliRoot project;
   std::ofstream manifest_file(project.path() / "mobagen.yaml", std::ios::binary | std::ios::trunc);
   REQUIRE(manifest_file.is_open());
@@ -139,23 +171,30 @@ profiles:
 
   REQUIRE(result == 0);
   CHECK(error.str().empty());
-  REQUIRE(client.requests.size() == 1);
-  CHECK(client.requests.front().url == "https://plugins.mobagen.dev/v1/catalog.yaml");
+  REQUIRE(client.catalog_requests.size() == 1);
+  CHECK(client.catalog_requests.front().url == "https://plugins.mobagen.dev/v1/catalog.yaml");
+  REQUIRE(client.artifact_requests.size() == 1);
   CHECK(output.str().contains("catalogs-synced\tremote-project-cli-test\trelease\n"));
-#ifdef _WIN32
-  constexpr std::string_view native_artifact = "windows.plugin";
-#elif defined(__APPLE__)
-  constexpr std::string_view native_artifact = "macos.plugin";
-#else
-  constexpr std::string_view native_artifact = "linux.plugin";
-#endif
-  const std::string expected_artifact
-      = "artifact\tmobagen.runtime.remote\t2.1.0\tdynamic\t8192\t"
-        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\t"
-        "https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
-        + std::string{native_artifact} + '\n';
+  const std::string expected_artifact = "artifact\tmobagen.runtime.remote\t2.1.0\tdynamic\t"
+                                        + std::to_string(client.artifact_body.size()) + '\t'
+                                        + client.artifact_hash
+                                        + "\thttps://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
+                                        + std::string{native_artifact_filename()} + '\n';
   CHECK(output.str().contains(expected_artifact));
+  CHECK(output.str().contains("cache\tmobagen.runtime.remote\tdownloaded\t"));
   CHECK(output.str().ends_with("selected\t1\n"));
+  const auto id = mobagen::assets::parse_asset_id(client.artifact_hash);
+  REQUIRE(id.has_value());
+  mobagen::assets::AssetCache cache(project.path() / ".mobagen" / "cache");
+  CHECK(std::filesystem::is_regular_file(cache.path_for(*id)));
+
+  output.str({});
+  error.str({});
+  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
+  CHECK(error.str().empty());
+  CHECK(client.catalog_requests.size() == 2);
+  CHECK(client.artifact_requests.size() == 1);
+  CHECK(output.str().contains("cache\tmobagen.runtime.remote\tpresent\t"));
 }
 
 TEST_CASE("Project CLI: sync reports a missing injected HTTPS service without network access") {

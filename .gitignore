@@ -104,6 +104,7 @@ data/state_store.db
 .omo/
 
 .cache/
+.mobagen/
 graphify-out/
 
 # Local agent planning artifacts (never publish)
