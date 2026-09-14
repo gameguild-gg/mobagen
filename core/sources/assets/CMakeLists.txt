@@ -1,6 +1,12 @@
 add_library(
-  mobagen_core_assets STATIC asset_dependency_graph.cpp asset_dependency_graph.hpp asset_id.cpp
-                             asset_id.hpp asset_registry.hpp
+  mobagen_core_assets STATIC
+  asset_cache.cpp
+  asset_cache.hpp
+  asset_dependency_graph.cpp
+  asset_dependency_graph.hpp
+  asset_id.cpp
+  asset_id.hpp
+  asset_registry.hpp
 )
 add_library(mobagen::core_assets ALIAS mobagen_core_assets)
 

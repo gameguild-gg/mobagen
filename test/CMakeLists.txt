@@ -8,6 +8,7 @@ include(../cmake/tools.cmake)
 
 set(FOUNDATION_TEST_SOURCES
     Test.cpp
+    asset_cache_tests.cpp
     asset_dependency_graph_tests.cpp
     asset_id_tests.cpp
     asset_registry_tests.cpp
