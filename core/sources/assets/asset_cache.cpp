@@ -1,6 +1,7 @@
 #include "asset_cache.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cerrno>
@@ -30,9 +31,17 @@ namespace mobagen::assets {
   namespace {
 
     constexpr std::size_t temporary_file_attempts = 128;
+    constexpr std::size_t streaming_buffer_size = 64 * 1024;
     std::atomic_uint64_t temporary_file_sequence{0};
 
     enum class InstallStatus : std::uint8_t { installed, destination_exists, failed };
+
+    struct FileHashResult {
+      AssetCacheStatus status{AssetCacheStatus::io_error};
+      std::optional<AssetId> id;
+      std::uintmax_t size{0};
+      std::error_code system_error;
+    };
 
     [[nodiscard]] std::error_code last_system_error() {
 #ifdef _WIN32
@@ -212,6 +221,55 @@ namespace mobagen::assets {
       return {status, id, std::move(path), error};
     }
 
+    [[nodiscard]] FileHashResult hash_file(const std::filesystem::path& source, std::size_t max_bytes) {
+      std::error_code error;
+      const auto exists = std::filesystem::exists(source, error);
+      if (error) {
+        return {AssetCacheStatus::io_error, std::nullopt, 0, error};
+      }
+      if (!exists) {
+        return {AssetCacheStatus::not_found, std::nullopt, 0, {}};
+      }
+      if (!std::filesystem::is_regular_file(source, error)) {
+        return {AssetCacheStatus::io_error, std::nullopt, 0, error ? error : std::make_error_code(std::errc::invalid_argument)};
+      }
+      const auto expected_size = std::filesystem::file_size(source, error);
+      if (error) {
+        return {AssetCacheStatus::io_error, std::nullopt, 0, error};
+      }
+      if (expected_size > max_bytes) {
+        return {AssetCacheStatus::too_large, std::nullopt, expected_size, {}};
+      }
+
+      std::ifstream stream(source, std::ios::binary);
+      if (!stream.good()) {
+        return {AssetCacheStatus::io_error, std::nullopt, 0, std::make_error_code(std::errc::io_error)};
+      }
+      Sha256Hasher hasher;
+      std::array<std::byte, streaming_buffer_size> buffer{};
+      std::uintmax_t total = 0;
+      while (stream) {
+        stream.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
+        const auto read = stream.gcount();
+        if (read > 0) {
+          total += static_cast<std::uintmax_t>(read);
+          if (total > max_bytes) {
+            return {AssetCacheStatus::too_large, std::nullopt, total, {}};
+          }
+          if (!hasher.update(std::span<const std::byte>{buffer.data(), static_cast<std::size_t>(read)})) {
+            return {AssetCacheStatus::too_large, std::nullopt, total, {}};
+          }
+        }
+      }
+      if (stream.bad()) {
+        return {AssetCacheStatus::io_error, std::nullopt, total, std::make_error_code(std::errc::io_error)};
+      }
+      if (total != expected_size) {
+        return {AssetCacheStatus::source_changed, std::nullopt, total, {}};
+      }
+      return {AssetCacheStatus::loaded, hasher.finish(), total, {}};
+    }
+
   }  // namespace
 
   std::filesystem::path AssetCache::path_for(const AssetId& id) const {
@@ -274,6 +332,88 @@ namespace mobagen::assets {
       return {AssetCacheStatus::already_present, id, destination, {}};
     }
     return store_failure(existing.status, id, destination, existing.system_error);
+  }
+
+  AssetCacheStoreResult AssetCache::store_file(const std::filesystem::path& source) const {
+    if (root_.empty()) {
+      return store_failure(AssetCacheStatus::invalid_root, std::nullopt, {});
+    }
+
+    const auto hashed = hash_file(source, max_blob_bytes_);
+    if (hashed.status != AssetCacheStatus::loaded || !hashed.id.has_value()) {
+      return store_failure(hashed.status, std::nullopt, source, hashed.system_error);
+    }
+    const auto destination = path_for(*hashed.id);
+
+    std::error_code error;
+    const auto exists = std::filesystem::exists(destination, error);
+    if (error) {
+      return store_failure(AssetCacheStatus::io_error, hashed.id, destination, error);
+    }
+    if (exists) {
+      const auto existing = load(*hashed.id);
+      if (existing.ok()) {
+        return {AssetCacheStatus::already_present, hashed.id, destination, {}};
+      }
+      return store_failure(existing.status, hashed.id, destination, existing.system_error);
+    }
+
+    std::filesystem::create_directories(destination.parent_path(), error);
+    if (error) {
+      return store_failure(AssetCacheStatus::io_error, hashed.id, destination, error);
+    }
+    auto temporary = create_temporary_file(destination, error);
+    if (!temporary) {
+      return store_failure(AssetCacheStatus::io_error, hashed.id, destination, error);
+    }
+
+    std::ifstream stream(source, std::ios::binary);
+    if (!stream.good()) {
+      return store_failure(AssetCacheStatus::io_error, hashed.id, source, std::make_error_code(std::errc::io_error));
+    }
+    Sha256Hasher copied_hasher;
+    std::array<std::byte, streaming_buffer_size> buffer{};
+    std::uintmax_t copied_size = 0;
+    while (stream) {
+      stream.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
+      const auto read = stream.gcount();
+      if (read > 0) {
+        copied_size += static_cast<std::uintmax_t>(read);
+        if (copied_size > max_blob_bytes_) {
+          return store_failure(AssetCacheStatus::too_large, std::nullopt, source);
+        }
+        const auto chunk = std::span<const std::byte>{buffer.data(), static_cast<std::size_t>(read)};
+        if (!copied_hasher.update(chunk)) {
+          return store_failure(AssetCacheStatus::too_large, std::nullopt, source);
+        }
+        if (!temporary->write_all(chunk, error)) {
+          return store_failure(AssetCacheStatus::io_error, hashed.id, destination, error);
+        }
+      }
+    }
+    if (stream.bad()) {
+      return store_failure(AssetCacheStatus::io_error, hashed.id, source, std::make_error_code(std::errc::io_error));
+    }
+    const auto copied_id = copied_hasher.finish();
+    if (copied_size != hashed.size || !copied_id.has_value() || *copied_id != *hashed.id) {
+      return store_failure(AssetCacheStatus::source_changed, std::nullopt, source);
+    }
+    if (!temporary->flush_and_close(error)) {
+      return store_failure(AssetCacheStatus::io_error, hashed.id, destination, error);
+    }
+
+    const auto installed = install_temporary_file(temporary->path(), destination, error);
+    if (installed == InstallStatus::installed) {
+      return {AssetCacheStatus::stored, hashed.id, destination, {}};
+    }
+    if (installed == InstallStatus::failed) {
+      return store_failure(AssetCacheStatus::io_error, hashed.id, destination, error);
+    }
+    const auto existing = load(*hashed.id);
+    if (existing.ok()) {
+      return {AssetCacheStatus::already_present, hashed.id, destination, {}};
+    }
+    return store_failure(existing.status, hashed.id, destination, existing.system_error);
   }
 
   AssetCacheLoadResult AssetCache::load(const AssetId& id) const {

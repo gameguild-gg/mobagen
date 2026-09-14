@@ -23,6 +23,7 @@ namespace mobagen::assets {
     invalid_root,
     too_large,
     integrity_error,
+    source_changed,
     io_error,
   };
 
@@ -52,6 +53,7 @@ namespace mobagen::assets {
     [[nodiscard]] std::size_t max_blob_bytes() const noexcept { return max_blob_bytes_; }
     [[nodiscard]] std::filesystem::path path_for(const AssetId& id) const;
     [[nodiscard]] AssetCacheStoreResult store(std::span<const std::byte> bytes) const;
+    [[nodiscard]] AssetCacheStoreResult store_file(const std::filesystem::path& source) const;
     [[nodiscard]] AssetCacheLoadResult load(const AssetId& id) const;
 
   private:

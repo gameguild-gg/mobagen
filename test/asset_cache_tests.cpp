@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 #include "assets/asset_cache.hpp"
 
@@ -43,6 +44,13 @@ namespace {
     std::ofstream stream(path, std::ios::binary | std::ios::trunc);
     REQUIRE(stream.good());
     stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+    REQUIRE(stream.good());
+  }
+
+  void write_bytes(const std::filesystem::path& path, std::span<const std::byte> contents) {
+    std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(stream.good());
+    stream.write(reinterpret_cast<const char*>(contents.data()), static_cast<std::streamsize>(contents.size()));
     REQUIRE(stream.good());
   }
 
@@ -127,6 +135,34 @@ TEST_CASE("Asset cache: concurrent writers converge on one immutable blob") {
   CHECK_FALSE(has_temporary_file(directory.path()));
 }
 
+TEST_CASE("Asset cache: files are ingested incrementally without changing their identity") {
+  using mobagen::assets::AssetCache;
+  using mobagen::assets::AssetCacheStatus;
+
+  TemporaryCacheDirectory directory;
+  const auto source = directory.path() / "large-source.bin";
+  std::vector<std::byte> contents(1024 * 1024 + 17);
+  for (std::size_t index = 0; index < contents.size(); ++index) {
+    contents[index] = std::byte{static_cast<unsigned char>(index % 251)};
+  }
+  write_bytes(source, contents);
+
+  AssetCache cache(directory.path() / "cache", contents.size());
+  const auto from_file = cache.store_file(source);
+  REQUIRE(from_file.status == AssetCacheStatus::stored);
+  REQUIRE(from_file.id.has_value());
+  const auto from_memory = cache.store(contents);
+  CHECK(from_memory.status == AssetCacheStatus::already_present);
+  REQUIRE(from_memory.id.has_value());
+  CHECK(*from_file.id == *from_memory.id);
+
+  const auto loaded = cache.load(*from_file.id);
+  REQUIRE(loaded.status == AssetCacheStatus::loaded);
+  CHECK(loaded.bytes.size() == contents.size());
+  CHECK((std::equal(loaded.bytes.begin(), loaded.bytes.end(), contents.begin())));
+  CHECK_FALSE(has_temporary_file(cache.root()));
+}
+
 TEST_CASE("Asset cache: configured size limits apply before allocation or writes") {
   using mobagen::assets::AssetCache;
   using mobagen::assets::AssetCacheStatus;
@@ -145,6 +181,12 @@ TEST_CASE("Asset cache: configured size limits apply before allocation or writes
   const auto loaded = cache.load(*id);
   CHECK(loaded.status == AssetCacheStatus::too_large);
   CHECK(loaded.bytes.empty());
+
+  const auto source = directory.path() / "oversized-source.bin";
+  write_text(source, "12345");
+  const auto file_rejected = cache.store_file(source);
+  CHECK(file_rejected.status == AssetCacheStatus::too_large);
+  CHECK_FALSE(file_rejected.id.has_value());
 }
 
 TEST_CASE("Asset cache: invalid roots and missing entries report explicit status") {
@@ -160,4 +202,5 @@ TEST_CASE("Asset cache: invalid roots and missing entries report explicit status
   TemporaryCacheDirectory directory;
   AssetCache valid(directory.path(), 1024);
   CHECK(valid.load(*id).status == AssetCacheStatus::not_found);
+  CHECK(valid.store_file(directory.path() / "missing.bin").status == AssetCacheStatus::not_found);
 }
