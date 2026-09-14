@@ -115,6 +115,7 @@ TEST_CASE("Project CLI: explain reports selected and available providers without
   CHECK(output.str().contains("provider\tmobagen.lifecycle-failure\t1.0.0\tavailable\n"));
   CHECK(output.str().contains("provides\tmobagen.lifecycle-failure\truntime.tick.v1\n"));
   CHECK(output.str().contains("provider\tmobagen.reference\t1.0.0\tselected\n"));
+  CHECK(output.str().contains("permission\tmobagen.reference\tdebug\n"));
   CHECK(output.str().contains("selection\truntime.tick.v1\tmobagen.reference\tdynamic\tdefault for profile 'release'\n"));
   CHECK(output.str().contains("providers\t2\nselections\t1\ndependencies\t0\n"));
   CHECK_FALSE(std::filesystem::exists(project.path() / "mobagen.lock"));

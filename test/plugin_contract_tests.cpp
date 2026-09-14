@@ -22,6 +22,7 @@ namespace {
   MobagenPluginDescriptorV1 valid_descriptor() {
     static const std::array provides{view("render.backend.v1")};
     static const std::array required{view("render.target.v1")};
+    static const std::array permissions{view("gpu")};
     static int plugin_state = 0;
     return {
         .struct_size = MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE,
@@ -49,6 +50,9 @@ namespace {
                 .stop = stop,
                 .destroy = destroy,
             },
+        .configuration_schema = view("customer.renderer.config.v1"),
+        .permissions = permissions.data(),
+        .permissions_count = static_cast<std::uint32_t>(permissions.size()),
     };
   }
 
@@ -72,8 +76,41 @@ TEST_CASE("Plugin contract: valid ABI descriptor becomes an owned provider contr
   CHECK(result.contract->provider.linkages == std::vector{mobagen::modules::LinkageMode::Dynamic});
   CHECK_FALSE(result.contract->provider.targets.empty());
   CHECK(result.contract->provider.reload == mobagen::modules::ReloadPolicy::Restart);
+  CHECK(result.contract->provider.configuration_schema == "customer.renderer.config.v1");
+  CHECK(result.contract->provider.permissions == std::vector<std::string>{"gpu"});
   CHECK(result.contract->plugin_state == descriptor.plugin_state);
   CHECK(result.contract->lifecycle.start == descriptor.lifecycle.start);
+}
+
+TEST_CASE("Plugin contract: ABI v1 base descriptors remain valid without appended metadata") {
+  using namespace mobagen::plugins;
+  auto descriptor = valid_descriptor();
+  descriptor.struct_size = MOBAGEN_PLUGIN_DESCRIPTOR_V1_BASE_SIZE;
+  descriptor.configuration_schema = {nullptr, max_plugin_string_bytes + 1};
+  descriptor.permissions = nullptr;
+  descriptor.permissions_count = max_plugin_capabilities + 1;
+
+  const auto result = validate_native_plugin(descriptor);
+
+  REQUIRE(result.contract.has_value());
+  CHECK(result.contract->provider.configuration_schema.empty());
+  CHECK(result.contract->provider.permissions.empty());
+}
+
+TEST_CASE("Plugin contract: partial or malformed appended metadata is rejected") {
+  using namespace mobagen::plugins;
+  auto partial = valid_descriptor();
+  partial.struct_size = MOBAGEN_PLUGIN_DESCRIPTOR_V1_BASE_SIZE + 1;
+  const auto partial_result = validate_native_plugin(partial);
+  CHECK_FALSE(partial_result.contract.has_value());
+  CHECK(has_issue(partial_result, PluginContractIssueCode::truncated_descriptor));
+
+  auto invalid = valid_descriptor();
+  invalid.permissions = nullptr;
+  invalid.permissions_count = 1;
+  const auto invalid_result = validate_native_plugin(invalid);
+  CHECK_FALSE(invalid_result.contract.has_value());
+  CHECK(has_issue(invalid_result, PluginContractIssueCode::missing_array));
 }
 
 TEST_CASE("Plugin contract: incompatible and truncated ABI structures are rejected") {
