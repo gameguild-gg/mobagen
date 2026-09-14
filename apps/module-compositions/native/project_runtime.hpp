@@ -46,12 +46,19 @@ namespace mobagen::compositions {
     std::vector<plugins::ResolvedNativePluginIssue> activation_issues;
   };
 
+  struct NativeProjectPreview {
+    modules::ProductDescriptor product;
+    modules::CapabilityRegistry registry;
+    modules::ModuleResolution resolution;
+  };
+
   struct NativeProjectLockResult {
     std::filesystem::path lockfile_path;
     std::optional<std::string> contents;
+    std::optional<NativeProjectPreview> preview;
     std::vector<NativeProjectIssue> issues;
 
-    [[nodiscard]] bool ok() const noexcept { return contents.has_value() && issues.empty(); }
+    [[nodiscard]] bool ok() const noexcept { return contents.has_value() && preview.has_value() && issues.empty(); }
   };
 
   class NativeProjectRuntime;
