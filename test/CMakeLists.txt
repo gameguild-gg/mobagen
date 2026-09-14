@@ -134,7 +134,7 @@ if(TARGET mobagen::module_manifest)
   )
   target_link_libraries(
     FoundationTests PRIVATE mobagen::headless_composition mobagen::module_manifest
-                            mobagen::native_project
+                            mobagen::native_project mobagen::portable_project
   )
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
@@ -158,6 +158,9 @@ if(TARGET mobagen_headless_composition)
 endif()
 if(TARGET mobagen_native_project)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_native_project)
+endif()
+if(TARGET mobagen_portable_project)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_portable_project)
 endif()
 if(TARGET mobagen_module_manifest)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)
