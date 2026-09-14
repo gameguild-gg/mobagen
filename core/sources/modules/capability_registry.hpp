@@ -12,6 +12,12 @@
 
 namespace mobagen::modules {
 
+  struct RegistryGeneration {
+    std::uint64_t value{};
+
+    friend bool operator==(const RegistryGeneration&, const RegistryGeneration&) = default;
+  };
+
   struct ProviderIndex {
     std::uint32_t value{};
 
@@ -37,6 +43,7 @@ namespace mobagen::modules {
 
   class CapabilityRegistry {
   public:
+    [[nodiscard]] RegistryGeneration generation() const noexcept { return generation_; }
     [[nodiscard]] std::size_t provider_count() const noexcept;
     [[nodiscard]] std::size_t capability_count() const noexcept;
 
@@ -50,9 +57,10 @@ namespace mobagen::modules {
   private:
     friend class CapabilityRegistryBuilder;
 
-    CapabilityRegistry(std::vector<ProviderDescriptor> providers, std::vector<std::string> capabilities,
+    CapabilityRegistry(RegistryGeneration generation, std::vector<ProviderDescriptor> providers, std::vector<std::string> capabilities,
                        std::vector<std::vector<ProviderIndex>> providers_by_capability);
 
+    RegistryGeneration generation_;
     std::vector<ProviderDescriptor> providers_;
     std::vector<std::string> capabilities_;
     std::vector<std::vector<ProviderIndex>> providers_by_capability_;

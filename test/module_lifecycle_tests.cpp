@@ -262,3 +262,16 @@ TEST_CASE("Module lifecycle: invalid lifecycle tables are rejected before callba
   CHECK(events.empty());
   CHECK(has_lifecycle_issue(result, ModuleLifecycleIssueCode::InvalidBindings, ModuleLifecyclePhase::Validate));
 }
+
+TEST_CASE("Module lifecycle: indices from an equivalent registry generation are rejected") {
+  using namespace mobagen::modules;
+
+  const auto first = make_lifecycle_fixture();
+  const auto second = make_lifecycle_fixture();
+  CHECK(first.registry.generation() != second.registry.generation());
+
+  const auto result = activate_modules(second.registry, first.resolution, {});
+
+  CHECK_FALSE(result.ok());
+  CHECK(has_lifecycle_issue(result, ModuleLifecycleIssueCode::InvalidBindings, ModuleLifecyclePhase::Validate));
+}

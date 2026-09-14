@@ -235,3 +235,19 @@ TEST_CASE("Module execution graph: warmed compact dispatch performs zero allocat
   REQUIRE(active.activation.activation->quiesce().ok());
   REQUIRE(active.activation.activation->stop().ok());
 }
+
+TEST_CASE("Module execution graph: activation from another registry generation cannot be frozen") {
+  using namespace mobagen::modules;
+
+  const auto first = make_execution_fixture();
+  const auto second = make_execution_fixture();
+  auto active = activate_execution_fixture(first);
+
+  const auto frozen = freeze_execution_graph(second.registry, second.resolution, *active.activation.activation);
+
+  CHECK_FALSE(frozen.ok());
+  REQUIRE(frozen.issues.size() == 1);
+  CHECK(frozen.issues.front().code == ExecutionGraphIssueCode::RegistryMismatch);
+  REQUIRE(active.activation.activation->quiesce().ok());
+  REQUIRE(active.activation.activation->stop().ok());
+}

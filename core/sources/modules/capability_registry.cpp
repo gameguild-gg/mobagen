@@ -1,15 +1,30 @@
 #include "capability_registry.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <iterator>
 #include <tuple>
 #include <utility>
 
 namespace mobagen::modules {
+  namespace {
 
-  CapabilityRegistry::CapabilityRegistry(std::vector<ProviderDescriptor> providers, std::vector<std::string> capabilities,
-                                         std::vector<std::vector<ProviderIndex>> providers_by_capability)
-      : providers_(std::move(providers)), capabilities_(std::move(capabilities)), providers_by_capability_(std::move(providers_by_capability)) {}
+    std::atomic_uint64_t registry_generation_sequence{1};
+
+    RegistryGeneration next_registry_generation() noexcept {
+      auto value = registry_generation_sequence.fetch_add(1, std::memory_order_relaxed);
+      if (value == 0) value = registry_generation_sequence.fetch_add(1, std::memory_order_relaxed);
+      return {value};
+    }
+
+  }  // namespace
+
+  CapabilityRegistry::CapabilityRegistry(RegistryGeneration generation, std::vector<ProviderDescriptor> providers,
+                                         std::vector<std::string> capabilities, std::vector<std::vector<ProviderIndex>> providers_by_capability)
+      : generation_(generation),
+        providers_(std::move(providers)),
+        capabilities_(std::move(capabilities)),
+        providers_by_capability_(std::move(providers_by_capability)) {}
 
   std::size_t CapabilityRegistry::provider_count() const noexcept { return providers_.size(); }
 
@@ -81,7 +96,8 @@ namespace mobagen::modules {
       }
     }
 
-    result.registry = CapabilityRegistry{std::move(providers), std::move(capabilities), std::move(providers_by_capability)};
+    result.registry
+        = CapabilityRegistry{next_registry_generation(), std::move(providers), std::move(capabilities), std::move(providers_by_capability)};
     return result;
   }
 

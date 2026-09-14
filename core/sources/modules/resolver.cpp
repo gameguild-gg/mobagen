@@ -250,6 +250,7 @@ namespace mobagen::modules {
   struct ModuleResolutionBuilder {
     ModuleResolution resolution;
 
+    explicit ModuleResolutionBuilder(RegistryGeneration generation) { resolution.registry_generation_ = generation; }
     void add_selection(ResolvedCapability selection) { resolution.selections_.push_back(std::move(selection)); }
     void add_dependency(ProviderDependency dependency) { resolution.dependencies_.push_back(dependency); }
     void add_provider(ProviderIndex provider) { resolution.lifecycle_order_.push_back(provider); }
@@ -356,7 +357,7 @@ namespace mobagen::modules {
     });
     staged.dependencies.erase(std::ranges::unique(staged.dependencies).begin(), staged.dependencies.end());
 
-    ModuleResolutionBuilder builder;
+    ModuleResolutionBuilder builder{registry.generation()};
     for (auto& [_, selection] : staged.selections) builder.add_selection(std::move(selection));
     for (const auto dependency : staged.dependencies) builder.add_dependency(dependency);
     for (const auto provider : lifecycle_order) builder.add_provider(provider);

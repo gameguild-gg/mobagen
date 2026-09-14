@@ -73,6 +73,7 @@ namespace mobagen::modules {
 
   class ModuleResolution {
   public:
+    [[nodiscard]] RegistryGeneration registry_generation() const noexcept { return registry_generation_; }
     [[nodiscard]] const ResolvedCapability* selection_for(CapabilityIndex capability) const noexcept;
     [[nodiscard]] std::span<const ResolvedCapability> selections() const noexcept;
     [[nodiscard]] std::span<const ProviderDependency> dependencies() const noexcept;
@@ -81,6 +82,7 @@ namespace mobagen::modules {
   private:
     friend struct ModuleResolutionBuilder;
 
+    RegistryGeneration registry_generation_;
     std::vector<ResolvedCapability> selections_;
     std::vector<ProviderDependency> dependencies_;
     std::vector<ProviderIndex> lifecycle_order_;
