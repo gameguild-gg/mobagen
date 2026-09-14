@@ -238,6 +238,7 @@ modules:
   runtime:
     use: mobagen.lifecycle-failure
 plugins:
+  - ./plugins/reference.plugin
   - ./plugins/unselected.plugin
 profiles:
   release:
@@ -250,6 +251,13 @@ profiles:
   REQUIRE(resolved.ok());
   CHECK(resolved.lockfile_path == std::filesystem::weakly_canonical(project.path()) / "mobagen.lock");
   CHECK(resolved.contents->contains("provider: mobagen.lifecycle-failure"));
+  REQUIRE(resolved.preview.has_value());
+  CHECK(resolved.preview->product.name == "resolve-only-project");
+  CHECK(resolved.preview->registry.provider_count() == 2);
+  CHECK(resolved.preview->registry.find_provider("mobagen.reference").has_value());
+  REQUIRE(resolved.preview->resolution.selections().size() == 1);
+  CHECK(resolved.preview->resolution.selections().front().reason == "explicit provider for module 'runtime'");
+  CHECK(resolved.preview->resolution.registry_generation() == resolved.preview->registry.generation());
   CHECK_FALSE(std::filesystem::exists(resolved.lockfile_path));
 
   const auto activated = load_native_project(project.path() / "mobagen.yaml", runtime_options());

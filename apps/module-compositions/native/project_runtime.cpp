@@ -252,9 +252,14 @@ namespace mobagen::compositions {
                                                       modules::SemanticVersion sdk_version,
                                                       std::span<const modules::ProviderDescriptor> builtin_providers) {
     auto prepared = NativeProjectBuilder::prepare(manifest_path, std::move(options), builtin_providers, sdk_version);
+    std::optional<NativeProjectPreview> preview;
+    if (prepared.ok()) {
+      preview.emplace(prepared.runtime->product(), prepared.runtime->registry(), prepared.runtime->resolution());
+    }
     NativeProjectLockResult result{
         .lockfile_path = std::move(prepared.lockfile_path),
         .contents = std::move(prepared.lockfile_contents),
+        .preview = std::move(preview),
         .issues = std::move(prepared.issues),
     };
     return result;
