@@ -159,6 +159,14 @@ add_subdirectory(core)
 add_subdirectory(modules)
 
 option(BUILD_TESTING "Build Mobagen tests" ON)
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"
+       ${BUILD_EXAMPLES}
+)
+if(BUILD_TESTING OR MOBAGEN_BUILD_MODULE_COMPOSITIONS)
+  add_subdirectory(apps/module-compositions)
+endif()
+
 option(ENABLE_TEST_COVERAGE "Instrument supported test targets for coverage" ON)
 if(BUILD_TESTING)
   enable_testing()
@@ -170,7 +178,6 @@ if(MOBAGEN_BUILD_BENCHMARKS)
   add_subdirectory(benchmarks)
 endif()
 
-option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 if(BUILD_EXAMPLES)
   add_subdirectory(apps)
 endif()

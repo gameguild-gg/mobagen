@@ -26,7 +26,7 @@ set(FOUNDATION_TEST_SOURCES
 )
 
 if(TARGET mobagen::module_manifest)
-  list(APPEND FOUNDATION_TEST_SOURCES module_manifest_tests.cpp)
+  list(APPEND FOUNDATION_TEST_SOURCES module_composition_tests.cpp module_manifest_tests.cpp)
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   list(APPEND FOUNDATION_TEST_SOURCES module_lockfile_tests.cpp)
@@ -55,13 +55,21 @@ target_link_libraries(
           mobagen::volume
 )
 if(TARGET mobagen::module_manifest)
-  target_link_libraries(FoundationTests PRIVATE mobagen::module_manifest)
+  target_include_directories(
+    FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../apps/module-compositions
+  )
+  target_link_libraries(
+    FoundationTests PRIVATE mobagen::headless_composition mobagen::module_manifest
+  )
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   target_link_libraries(FoundationTests PRIVATE mobagen::module_lockfile)
 endif()
 
 set(FOUNDATION_COMPILED_TARGETS mobagen_core_jobs mobagen_core_modules)
+if(TARGET mobagen_headless_composition)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_headless_composition)
+endif()
 if(TARGET mobagen_module_manifest)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)
 endif()

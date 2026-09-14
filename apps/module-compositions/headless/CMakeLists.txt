@@ -1,0 +1,11 @@
+add_library(mobagen_headless_composition STATIC composition.cpp)
+add_library(mobagen::headless_composition ALIAS mobagen_headless_composition)
+target_include_directories(mobagen_headless_composition PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_features(mobagen_headless_composition PUBLIC cxx_std_20)
+target_link_libraries(mobagen_headless_composition PUBLIC mobagen::core_modules)
+
+if(MOBAGEN_BUILD_MODULE_COMPOSITIONS)
+  add_executable(MobagenHeadlessComposition main.cpp)
+  target_compile_features(MobagenHeadlessComposition PRIVATE cxx_std_20)
+  target_link_libraries(MobagenHeadlessComposition PRIVATE mobagen::headless_composition)
+endif()
