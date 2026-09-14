@@ -91,6 +91,11 @@ providers:
         url: https://plugins.mobagen.dev/duplicate.plugin
         size: 1
         hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      - target: linux
+        linkage: dynamic
+        url: https://plugins.mobagen.dev/not-a-plugin.bin?release=1
+        size: 1
+        hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 )yaml";
 
   const auto result = parse_module_catalog(source, "catalog.yaml");
@@ -100,6 +105,7 @@ providers:
   CHECK(has_error(result, CatalogErrorCode::InvalidValue, "providers.mobagen.render.invalid.artifacts[0].size"));
   CHECK(has_error(result, CatalogErrorCode::InvalidValue, "providers.mobagen.render.invalid.artifacts[0].hash"));
   CHECK(has_error(result, CatalogErrorCode::DuplicateEntry, "providers.mobagen.render.invalid.artifacts[1]"));
+  CHECK(has_error(result, CatalogErrorCode::InvalidValue, "providers.mobagen.render.invalid.artifacts[2].url"));
 }
 
 TEST_CASE("Module catalog: unknown fields, duplicate providers, and custom tags fail transactionally") {

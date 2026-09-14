@@ -170,6 +170,20 @@ namespace mobagen::modules {
     return true;
   }
 
+  bool is_secure_plugin_artifact_url(std::string_view value) noexcept {
+    if (!is_secure_https_url(value)) return false;
+
+    constexpr std::size_t scheme_size = std::string_view{"https://"}.size();
+    constexpr std::string_view extension = ".plugin";
+    const auto path_begin = value.find('/', scheme_size);
+    if (path_begin == std::string_view::npos) return false;
+    const auto path_end = value.find('?', path_begin);
+    const auto path = value.substr(path_begin, path_end - path_begin);
+    const auto filename_begin = path.rfind('/');
+    const auto filename = path.substr(filename_begin == std::string_view::npos ? 0 : filename_begin + 1);
+    return filename.size() > extension.size() && filename.ends_with(extension);
+  }
+
   std::vector<DescriptorIssue> validate(const ProductDescriptor& descriptor) {
     std::vector<DescriptorIssue> issues;
     if (descriptor.schema != project_schema_version) {

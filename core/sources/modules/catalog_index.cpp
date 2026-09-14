@@ -51,8 +51,9 @@ namespace mobagen::modules {
       for (std::size_t index = 0; index < published.artifacts.size(); ++index) {
         const auto& artifact = published.artifacts[index];
         const std::string field = "artifacts[" + std::to_string(index) + ']';
-        if (!is_secure_https_url(artifact.url)) {
-          add_issue(result, CatalogIndexIssueCode::InvalidArtifact, provider.id, field + ".url", "artifact URL violates HTTPS policy");
+        if (!is_secure_plugin_artifact_url(artifact.url)) {
+          add_issue(result, CatalogIndexIssueCode::InvalidArtifact, provider.id, field + ".url",
+                    "artifact URL must satisfy HTTPS policy and name a .plugin package");
           valid = false;
         }
         if (artifact.size == 0 || artifact.size > max_module_artifact_bytes) {

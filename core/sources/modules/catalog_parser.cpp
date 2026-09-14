@@ -375,8 +375,10 @@ namespace mobagen::modules {
           ModuleArtifactDescriptor artifact;
           const bool target_ok = target && read_target(*target, artifact_field + ".target", artifact.target);
           const bool linkage_ok = linkage && read_linkage(*linkage, artifact_field + ".linkage", artifact.linkage);
-          if (url && read_string(*url, artifact_field + ".url", artifact.url) && !is_secure_https_url(artifact.url)) {
-            add_error(CatalogErrorCode::InvalidValue, url->Mark(), artifact_field + ".url", "artifact URL must satisfy the secure HTTPS policy");
+          if (url && read_string(*url, artifact_field + ".url", artifact.url)
+              && !is_secure_plugin_artifact_url(artifact.url)) {
+            add_error(CatalogErrorCode::InvalidValue, url->Mark(), artifact_field + ".url",
+                      "artifact URL must satisfy the secure HTTPS policy and name a .plugin package");
           }
           if (size && read_unsigned(*size, artifact_field + ".size", artifact.size)
               && (artifact.size == 0 || artifact.size > max_module_artifact_bytes)) {
