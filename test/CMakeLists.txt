@@ -77,7 +77,7 @@ if(TARGET mobagen::project_cli)
   list(APPEND FOUNDATION_TEST_SOURCES project_cli_tests.cpp)
 endif()
 if(TARGET mobagen::module_manifest)
-  list(APPEND FOUNDATION_TEST_SOURCES module_catalog_tests.cpp module_composition_tests.cpp module_manifest_tests.cpp
+  list(APPEND FOUNDATION_TEST_SOURCES module_catalog_fetcher_tests.cpp module_catalog_tests.cpp module_composition_tests.cpp module_manifest_tests.cpp
        native_project_tests.cpp
   )
 endif()
