@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -10,6 +11,8 @@
 #include <string>
 
 #include "plugins/plugin_loader.hpp"
+#include "plugins/plugin_package.hpp"
+#include "plugins/wasm_plugin_loader.hpp"
 
 namespace {
 
@@ -105,4 +108,36 @@ TEST_CASE("Plugin package: extension directory and binary shape are strict") {
   const auto extra_result = load_native_plugin_package(extra_files, host);
   CHECK_FALSE(extra_result.plugin.has_value());
   CHECK(has_issue(extra_result, NativePluginLoadIssueCode::invalid_package));
+}
+
+TEST_CASE("Plugin package: canonical contents classify native and portable packages without loading them") {
+  using namespace mobagen::plugins;
+  TemporaryPackageDirectory directory;
+
+  const auto native_package = directory.path() / "native.plugin";
+  REQUIRE(std::filesystem::create_directory(native_package));
+  REQUIRE(std::filesystem::copy_file(MOBAGEN_REFERENCE_PLUGIN_PATH, native_package / native_plugin_binary_filename()));
+  const auto native = inspect_plugin_package(native_package);
+  REQUIRE(native.ok());
+  CHECK(*native.kind == PluginPackageKind::Native);
+
+  const auto portable_package = directory.path() / "portable.plugin";
+  REQUIRE(std::filesystem::create_directory(portable_package));
+  const std::array wasm_header{
+      std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d},
+      std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+  };
+  std::ofstream wasm(portable_package / portable_wasm_plugin_binary_filename(), std::ios::binary);
+  REQUIRE(wasm.is_open());
+  wasm.write(reinterpret_cast<const char*>(wasm_header.data()), static_cast<std::streamsize>(wasm_header.size()));
+  wasm.close();
+  const auto portable = inspect_plugin_package(portable_package);
+  REQUIRE(portable.ok());
+  CHECK(*portable.kind == PluginPackageKind::PortableWasm);
+
+  std::ofstream(portable_package / "unexpected.txt") << "ambiguous package";
+  const auto ambiguous = inspect_plugin_package(portable_package);
+  CHECK_FALSE(ambiguous.ok());
+  REQUIRE(ambiguous.issue.has_value());
+  CHECK(ambiguous.issue->code == PluginPackageInspectionIssueCode::InvalidContents);
 }
