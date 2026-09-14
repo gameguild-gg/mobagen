@@ -59,6 +59,7 @@ set(FOUNDATION_TEST_SOURCES
     subsystems_tests.cpp
     volume_file_tests.cpp
     wasm_memory_tests.cpp
+    wasm_plugin_loader_tests.cpp
     wasm_plugin_contract_tests.cpp
     wasm_runtime_tests.cpp
     wasm_command_channel_tests.cpp
