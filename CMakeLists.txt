@@ -158,6 +158,11 @@ endif()
 add_subdirectory(core)
 add_subdirectory(modules)
 
+option(MOBAGEN_BUILD_ASSET_TOOLS "Build the native Mobagen asset command-line tools" ON)
+if(MOBAGEN_BUILD_ASSET_TOOLS)
+  add_subdirectory(tools/assets)
+endif()
+
 option(BUILD_TESTING "Build Mobagen tests" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"
