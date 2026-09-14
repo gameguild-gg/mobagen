@@ -1,16 +1,28 @@
 #include "project_runtime.hpp"
 
+#include "assets/asset_id.hpp"
+
+#include <array>
+#include <cstddef>
 #include <fstream>
 #include <limits>
+#include <string_view>
 #include <system_error>
 #include <utility>
 
 namespace mobagen::compositions {
   namespace {
 
+    constexpr std::uintmax_t max_locked_plugin_binary_bytes = std::uintmax_t{1} << 30U;
+
     struct ManifestReadResult {
       std::optional<std::string> contents;
       std::filesystem::path absolute_path;
+      std::string error;
+    };
+
+    struct PluginHashResult {
+      std::optional<std::string> hash;
       std::string error;
     };
 
@@ -58,10 +70,112 @@ namespace mobagen::compositions {
 
     void add_issue(NativeProjectResult& result, NativeProjectIssue issue) { result.issues.push_back(std::move(issue)); }
 
+    PluginHashResult hash_plugin_binary(const std::filesystem::path& path) {
+      PluginHashResult result;
+      std::error_code error;
+      const auto status = std::filesystem::symlink_status(path, error);
+      if (error || !std::filesystem::is_regular_file(status) || std::filesystem::is_symlink(status)) {
+        result.error = "plugin binary is not a real regular file";
+        return result;
+      }
+      const auto expected_size = std::filesystem::file_size(path, error);
+      const auto expected_write_time = std::filesystem::last_write_time(path, error);
+      if (error || expected_size > max_locked_plugin_binary_bytes) {
+        result.error = "plugin binary size or modification time is unavailable, or exceeds 1 GiB";
+        return result;
+      }
+
+      std::ifstream stream(path, std::ios::binary);
+      if (!stream.is_open()) {
+        result.error = "plugin binary could not be opened for hashing";
+        return result;
+      }
+      assets::Sha256Hasher hasher;
+      std::array<std::byte, 64 * 1024> buffer{};
+      std::uintmax_t total = 0;
+      while (stream) {
+        stream.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
+        const auto read = stream.gcount();
+        if (read > 0) {
+          total += static_cast<std::uintmax_t>(read);
+          if (total > expected_size || !hasher.update(std::span<const std::byte>{buffer.data(), static_cast<std::size_t>(read)})) {
+            result.error = "plugin binary changed or exceeded the hashing limit while being read";
+            return result;
+          }
+        }
+      }
+      if (stream.bad() || total != expected_size) {
+        result.error = "plugin binary changed or became unreadable while being hashed";
+        return result;
+      }
+
+      const auto actual_size = std::filesystem::file_size(path, error);
+      const auto actual_write_time = std::filesystem::last_write_time(path, error);
+      if (error || actual_size != expected_size || actual_write_time != expected_write_time) {
+        result.error = "plugin binary changed while being hashed";
+        return result;
+      }
+      const auto digest = hasher.finish();
+      if (!digest.has_value()) {
+        result.error = "plugin binary could not be hashed";
+        return result;
+      }
+      result.hash = assets::to_string(*digest);
+      return result;
+    }
+
+    const plugins::NativePlugin* find_catalog_plugin(const plugins::NativePluginCatalog& catalog, std::string_view provider_id) {
+      for (std::size_t index = 0; index < catalog.plugin_count(); ++index) {
+        const auto* plugin = catalog.plugin(index);
+        if (plugin != nullptr && plugin->contract().provider.id == provider_id) {
+          return plugin;
+        }
+      }
+      return nullptr;
+    }
+
+    bool capture_lock_metadata(const plugins::NativePluginCatalog& catalog, const modules::ModuleResolution& resolution,
+                               const std::filesystem::path& project_root, const modules::ResolverOptions& options,
+                               modules::LockfileMetadata& metadata, NativeProjectResult& result) {
+      metadata.target = options.target;
+      metadata.profile = options.profile;
+      for (const auto provider_index : resolution.lifecycle_order()) {
+        const auto* provider = catalog.registry().provider(provider_index);
+        if (provider == nullptr) {
+          add_issue(result, {.code = NativeProjectIssueCode::LockMetadata, .message = "resolved provider is unavailable for lock metadata"});
+          return false;
+        }
+        const auto* plugin = find_catalog_plugin(catalog, provider->id);
+        if (plugin == nullptr) {
+          continue;
+        }
+
+        const auto package = plugin->path().parent_path().lexically_relative(project_root).lexically_normal().generic_string();
+        const auto hash = hash_plugin_binary(plugin->path());
+        if (!hash.hash.has_value()) {
+          add_issue(result, {.code = NativeProjectIssueCode::LockMetadata,
+                             .message = "could not fingerprint selected plugin " + provider->id + ": " + hash.error});
+          return false;
+        }
+        metadata.plugins.push_back({.provider = provider->id,
+                                    .version = provider->version,
+                                    .abi_version = MOBAGEN_PLUGIN_ABI_VERSION,
+                                    .package = package,
+                                    .hash = std::move(*hash.hash)});
+      }
+      return true;
+    }
+
   }  // namespace
 
   plugins::ResolvedNativePluginActionResult NativeProjectRuntime::stop() {
     return activation_ == nullptr ? plugins::ResolvedNativePluginActionResult{} : activation_->stop();
+  }
+
+  modules::LockfileSerializeResult NativeProjectRuntime::lockfile(modules::SemanticVersion sdk_version) const {
+    auto metadata = lockfile_metadata_;
+    metadata.sdk = sdk_version;
+    return modules::serialize_lockfile(catalog_->registry(), *resolution_, metadata);
   }
 
   NativeProjectResult load_native_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
@@ -98,6 +212,23 @@ namespace mobagen::compositions {
       return result;
     }
     runtime->resolution_ = std::move(*resolution.resolution);
+
+    std::error_code root_error;
+    const auto project_root = std::filesystem::weakly_canonical(source.absolute_path.parent_path(), root_error);
+    if (root_error) {
+      add_issue(result, {.code = NativeProjectIssueCode::LockMetadata, .message = "project root could not be canonicalized for lock metadata"});
+      return result;
+    }
+    if (!capture_lock_metadata(*runtime->catalog_, *runtime->resolution_, project_root, options, runtime->lockfile_metadata_, result)) {
+      return result;
+    }
+    auto lockfile = runtime->lockfile({});
+    if (!lockfile.ok()) {
+      add_issue(result, {.code = NativeProjectIssueCode::LockMetadata,
+                         .message = "selected native plugins could not be represented in mobagen.lock",
+                         .lockfile_issues = std::move(lockfile.issues)});
+      return result;
+    }
 
     auto activation = plugins::activate_resolved_native_plugins(*runtime->catalog_, *runtime->resolution_, runtime->host_);
     if (!activation.ok()) {

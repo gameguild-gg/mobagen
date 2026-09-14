@@ -1,5 +1,6 @@
 #pragma once
 
+#include "modules/lockfile.hpp"
 #include "modules/manifest_parser.hpp"
 #include "plugins/plugin_activation_set.hpp"
 
@@ -19,6 +20,7 @@ namespace mobagen::compositions {
     ParseManifest,
     Catalog,
     Resolution,
+    LockMetadata,
     Activation,
   };
 
@@ -28,6 +30,7 @@ namespace mobagen::compositions {
     std::vector<modules::ManifestError> manifest_errors;
     std::vector<plugins::NativePluginCatalogIssue> catalog_issues;
     std::vector<modules::ResolutionIssue> resolution_issues;
+    std::vector<modules::LockfileIssue> lockfile_issues;
     std::vector<plugins::ResolvedNativePluginIssue> activation_issues;
   };
 
@@ -51,6 +54,7 @@ namespace mobagen::compositions {
     [[nodiscard]] const modules::ProductDescriptor& product() const noexcept { return product_; }
     [[nodiscard]] const modules::CapabilityRegistry& registry() const noexcept { return catalog_->registry(); }
     [[nodiscard]] const modules::ModuleResolution& resolution() const noexcept { return *resolution_; }
+    [[nodiscard]] modules::LockfileSerializeResult lockfile(modules::SemanticVersion sdk_version) const;
     [[nodiscard]] plugins::PluginHost& host() noexcept { return host_; }
     [[nodiscard]] const plugins::PluginHost& host() const noexcept { return host_; }
     [[nodiscard]] plugins::ResolvedNativePluginActionResult stop();
@@ -65,6 +69,7 @@ namespace mobagen::compositions {
     modules::ProductDescriptor product_;
     std::unique_ptr<plugins::NativePluginCatalog> catalog_;
     std::optional<modules::ModuleResolution> resolution_;
+    modules::LockfileMetadata lockfile_metadata_;
     std::unique_ptr<plugins::ResolvedNativePluginActivation> activation_;
   };
 
