@@ -2,6 +2,7 @@
 
 #include "modules/artifact_fetcher.hpp"
 #include "modules/artifact_installer.hpp"
+#include "modules/lockfile.hpp"
 #include "native/project_runtime.hpp"
 #include "modules/module_sync_plan.hpp"
 #include "portable/project_runtime.hpp"
@@ -465,6 +466,41 @@ namespace mobagen::compositions::cli {
         return 3;
       }
 
+      modules::LockfileMetadata lock_metadata{
+          .sdk = command.sdk_version,
+          .target = command.resolver.target,
+          .profile = command.resolver.profile,
+      };
+      lock_metadata.plugins.reserve(installed.artifacts.size());
+      for (const auto& artifact : installed.artifacts) {
+        const auto package = artifact.package_path.lexically_relative(manifest_path.parent_path())
+                                 .lexically_normal()
+                                 .generic_string();
+        lock_metadata.plugins.push_back({
+            .provider = artifact.provider_id,
+            .version = artifact.version,
+            .abi_version = artifact.abi_version,
+            .package = package,
+            .hash = assets::to_string(artifact.id),
+        });
+      }
+      auto lockfile = modules::serialize_lockfile(planned.catalog->registry(), *planned.resolution,
+                                                 lock_metadata);
+      if (!lockfile.ok()) {
+        error << "sync failed: selected remote modules could not be represented in mobagen.lock";
+        if (!lockfile.issues.empty()) error << ": " << lockfile.issues.front().message;
+        error << '\n';
+        return 3;
+      }
+      const auto lockfile_path = manifest_path.parent_path() / "mobagen.lock";
+      auto lock_written = modules::write_lockfile_atomic(lockfile_path, *lockfile.contents);
+      if (!lock_written.ok()) {
+        error << "sync failed: mobagen.lock could not be updated";
+        if (lock_written.issue.has_value()) error << ": " << lock_written.issue->message;
+        error << '\n';
+        return 3;
+      }
+
       output << "catalogs-synced\t" << product.name << '\t' << command.resolver.profile << '\n';
       const auto& registry = planned.catalog->registry();
       for (const auto provider_index : planned.resolution->lifecycle_order()) {
@@ -488,6 +524,7 @@ namespace mobagen::compositions::cli {
                << (artifact.installed ? "installed" : "present") << '\t'
                << artifact.package_path.generic_string() << '\n';
       }
+      output << "lock\t" << lockfile_path.generic_string() << '\n';
       output << "selected\t" << planned.resolution->lifecycle_order().size() << '\n';
       return 0;
     }

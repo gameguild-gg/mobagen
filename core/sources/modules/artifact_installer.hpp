@@ -36,6 +36,7 @@ namespace mobagen::modules {
     SemanticVersion version;
     assets::AssetId id;
     std::uint64_t size{};
+    std::uint32_t abi_version{};
     std::filesystem::path package_path;
     std::filesystem::path binary_path;
     bool installed{};

@@ -76,6 +76,7 @@ TEST_CASE("Module artifact installer: cached native plugins materialize without 
   REQUIRE(installed.ok());
   REQUIRE(installed.artifacts.size() == 1);
   CHECK(installed.artifacts.front().installed);
+  CHECK(installed.artifacts.front().abi_version == 1);
   const auto package = root.path() / "plugins" / "mobagen.runtime.remote.plugin";
   const auto binary = package / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
   CHECK(installed.artifacts.front().package_path == package);
