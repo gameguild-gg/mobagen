@@ -6,6 +6,8 @@ add_library(
   asset_dependency_graph.hpp
   asset_id.cpp
   asset_id.hpp
+  asset_pipeline.cpp
+  asset_pipeline.hpp
   asset_registry.hpp
 )
 add_library(mobagen::core_assets ALIAS mobagen_core_assets)
