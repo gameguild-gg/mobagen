@@ -63,7 +63,9 @@ if(TARGET mobagen::asset_cli)
   list(APPEND FOUNDATION_TEST_SOURCES asset_cli_tests.cpp)
 endif()
 if(TARGET mobagen::module_manifest)
-  list(APPEND FOUNDATION_TEST_SOURCES module_composition_tests.cpp module_manifest_tests.cpp)
+  list(APPEND FOUNDATION_TEST_SOURCES module_composition_tests.cpp module_manifest_tests.cpp
+       native_project_tests.cpp
+  )
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   list(APPEND FOUNDATION_TEST_SOURCES module_lockfile_tests.cpp)
@@ -114,6 +116,7 @@ if(TARGET mobagen::module_manifest)
   )
   target_link_libraries(
     FoundationTests PRIVATE mobagen::headless_composition mobagen::module_manifest
+                            mobagen::native_project
   )
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
@@ -128,6 +131,9 @@ if(TARGET mobagen_asset_cli)
 endif()
 if(TARGET mobagen_headless_composition)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_headless_composition)
+endif()
+if(TARGET mobagen_native_project)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_native_project)
 endif()
 if(TARGET mobagen_module_manifest)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)

@@ -53,6 +53,7 @@ namespace mobagen::plugins {
     [[nodiscard]] std::size_t plugin_count() const noexcept { return plugins_.size(); }
     [[nodiscard]] const NativePlugin* plugin(std::size_t index) const noexcept;
     [[nodiscard]] std::optional<NativePlugin> take_plugin(std::string_view provider_id);
+    void discard_plugins() noexcept { plugins_.clear(); }
     [[nodiscard]] const modules::CapabilityRegistry& registry() const noexcept { return registry_; }
 
   private:
