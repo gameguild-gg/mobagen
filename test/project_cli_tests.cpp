@@ -12,6 +12,7 @@
 
 #include "plugins/plugin_loader.hpp"
 #include "project_cli.hpp"
+#include "support/wasm_plugin_test_support.hpp"
 #include <mobagen/version.h>
 
 namespace {
@@ -132,5 +133,79 @@ TEST_CASE("Project CLI: explain reports selected and available providers without
   CHECK(output.str().contains("selection\truntime.tick.v1\tmobagen.reference\tdynamic\tdefault for profile 'release'\n"));
   CHECK(output.str().contains("providers\t2\nselections\t1\ndependencies\t0\nconfigurations\t1\n"));
   CHECK_FALSE(output.str().contains("configuration-data"));
+  CHECK_FALSE(std::filesystem::exists(project.path() / "mobagen.lock"));
+}
+
+TEST_CASE("Project CLI: a wasm profile resolves through the injected portable backend") {
+  using namespace mobagen;
+  using namespace mobagen::test;
+  TemporaryWasmDirectory project;
+  REQUIRE(std::filesystem::create_directory(project.path() / "plugins"));
+  const auto package = project.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(project.path() / "mobagen.yaml", R"yaml(schema: 1
+name: portable-project-cli-test
+modules:
+  runtime:
+    use: default
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml");
+  FakeWasmBackend backend;
+  const auto manifest = (project.path() / "mobagen.yaml").string();
+  const std::vector<std::string_view> arguments{"resolve", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1",
+                                                "--default", "runtime.package.v1=mobagen.wasm-package"};
+  std::ostringstream output;
+  std::ostringstream error;
+
+  REQUIRE(compositions::cli::run(arguments, output, error, {.portable_backend = &backend}) == 0);
+  CHECK(error.str().empty());
+  CHECK(output.str().starts_with("resolved\t"));
+  CHECK(backend.calls == 1);
+  CHECK(read_text(project.path() / "mobagen.lock").contains("linkage: wasm\n"));
+
+  output.str({});
+  const std::vector<std::string_view> verify_arguments{"verify", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1",
+                                                       "--default", "runtime.package.v1=mobagen.wasm-package"};
+  REQUIRE(compositions::cli::run(verify_arguments, output, error, {.portable_backend = &backend}) == 0);
+  CHECK(error.str().empty());
+  CHECK(output.str().starts_with("verified\t"));
+  CHECK(backend.calls == 2);
+
+  output.str({});
+  const std::vector<std::string_view> explain_arguments{"explain", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1",
+                                                        "--default", "runtime.package.v1=mobagen.wasm-package"};
+  REQUIRE(compositions::cli::run(explain_arguments, output, error, {.portable_backend = &backend}) == 0);
+  CHECK(error.str().empty());
+  CHECK(output.str().contains("selection\truntime.package.v1\tmobagen.wasm-package\twasm\t"));
+  CHECK(backend.calls == 3);
+}
+
+TEST_CASE("Project CLI: a wasm profile fails clearly when no portable backend is available") {
+  using namespace mobagen;
+  using namespace mobagen::test;
+  TemporaryWasmDirectory project;
+  write_text(project.path() / "mobagen.yaml", R"yaml(schema: 1
+name: unavailable-portable-project-cli-test
+modules: {}
+plugins: []
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml");
+  const auto manifest = (project.path() / "mobagen.yaml").string();
+  const auto arguments = project_arguments("resolve", manifest);
+  std::ostringstream output;
+  std::ostringstream error;
+
+  CHECK(compositions::cli::run(arguments, output, error, {}) == 3);
+  CHECK(output.str().empty());
+  CHECK(error.str().contains("portable WASM backend is unavailable"));
   CHECK_FALSE(std::filesystem::exists(project.path() / "mobagen.lock"));
 }
