@@ -16,6 +16,8 @@ add_library(
   plugin_host.hpp
   plugin_abi.h
   runtime_tick_v1.h
+  wasm_memory.cpp
+  wasm_memory.hpp
 )
 add_library(mobagen::core_plugins ALIAS mobagen_core_plugins)
 target_compile_features(mobagen_core_plugins PUBLIC c_std_11 cxx_std_20)

@@ -58,6 +58,7 @@ set(FOUNDATION_TEST_SOURCES
     scene_tests.cpp
     subsystems_tests.cpp
     volume_file_tests.cpp
+    wasm_memory_tests.cpp
 )
 
 if(TARGET mobagen::asset_cli)
