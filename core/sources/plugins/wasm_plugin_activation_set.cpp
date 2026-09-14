@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <new>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -84,7 +85,27 @@ namespace mobagen::plugins {
       return result;
     }
     std::vector<std::unique_ptr<PortableWasmPluginActivation>> activations;
-    activations.reserve(resolution.lifecycle_order().size());
+    std::shared_ptr<const modules::CapabilityRegistry> activation_registry;
+    try {
+      activations.reserve(resolution.lifecycle_order().size());
+      const auto has_selected_plugin = std::ranges::any_of(resolution.lifecycle_order(), [&](const auto provider_index) {
+        const auto* provider = catalog.registry().provider(provider_index);
+        return provider != nullptr && catalog.is_plugin_provider(provider->id);
+      });
+      if (has_selected_plugin) {
+        activation_registry = std::make_shared<const modules::CapabilityRegistry>(catalog.registry());
+      }
+    } catch (const std::bad_alloc&) {
+      result.issues.push_back({ResolvedPortableWasmPluginIssueCode::ActivationFailed,
+                               {},
+                               "portable WASM activation registry snapshot ran out of memory",
+                               {{PortableWasmPluginIssueCode::OutOfMemory,
+                                 WasmPluginExport::Configure,
+                                 MOBAGEN_WASM_STATUS_OUT_OF_MEMORY,
+                                 "portable WASM activation registry snapshot ran out of memory",
+                                 {}}}});
+      return result;
+    }
 
     for (const auto provider_index : resolution.lifecycle_order()) {
       const auto* provider = catalog.registry().provider(provider_index);
@@ -114,7 +135,7 @@ namespace mobagen::plugins {
       if (const auto* resolved = resolution.configuration_for(provider_index)) {
         configuration = {reinterpret_cast<const std::byte*>(resolved->data.data()), resolved->data.size()};
       }
-      auto activated = activate_loaded_portable_wasm_plugin(std::move(*plugin), configuration);
+      auto activated = activate_loaded_portable_wasm_plugin(std::move(*plugin), activation_registry, configuration);
       if (!activated.ok()) {
         result.issues.push_back({ResolvedPortableWasmPluginIssueCode::ActivationFailed, provider->id,
                                  "resolved portable WASM plugin failed to activate", std::move(activated.issues)});

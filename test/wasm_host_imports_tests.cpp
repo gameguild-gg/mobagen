@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -101,7 +102,7 @@ TEST_CASE("WASM host imports: logging validates borrowed guest text") {
 
 TEST_CASE("WASM host imports: capability lookup returns a bounded generational handle") {
   using namespace mobagen::plugins;
-  auto capabilities = registry();
+  auto capabilities = std::make_shared<const mobagen::modules::CapabilityRegistry>(registry());
   WasmHostImports imports;
   REQUIRE(imports.bind(capabilities, {}));
   std::vector<std::byte> memory(256);
@@ -109,11 +110,16 @@ TEST_CASE("WASM host imports: capability lookup returns a bounded generational h
   mobagen::test::write_string(memory, 32, capability);
 
   CHECK(imports.find_capability(memory, 32, static_cast<std::uint32_t>(capability.size()), 1, 128) == MOBAGEN_WASM_STATUS_OK);
-  const auto index = capabilities.find_capability(capability);
+  const auto index = capabilities->find_capability(capability);
   REQUIRE(index.has_value());
+  const auto generation = capabilities->generation().value;
   CHECK(read_u32(memory, 128) == index->value);
-  CHECK(read_u32(memory, 132) == capabilities.generation().value);
+  CHECK(read_u32(memory, 132) == generation);
+  capabilities.reset();
 
+  CHECK(imports.find_capability(memory, 32, static_cast<std::uint32_t>(capability.size()), 1, 128) == MOBAGEN_WASM_STATUS_OK);
+  CHECK(read_u32(memory, 128) == index->value);
+  CHECK(read_u32(memory, 132) == generation);
   CHECK(imports.find_capability(memory, 32, static_cast<std::uint32_t>(capability.size()), 2, 128) == MOBAGEN_WASM_STATUS_NOT_FOUND);
   CHECK(read_u32(memory, 128) == 0);
   CHECK(read_u32(memory, 132) == 0);
@@ -125,7 +131,7 @@ TEST_CASE("WASM host imports: capability lookup returns a bounded generational h
 TEST_CASE("WASM host imports: command submission validates the whole batch before dispatch") {
   using namespace mobagen::plugins;
   HostCapture capture;
-  auto capabilities = registry();
+  auto capabilities = std::make_shared<const mobagen::modules::CapabilityRegistry>(registry());
   WasmHostImports imports{{.state = &capture, .log = capture_log, .submit_commands = capture_commands}};
   const std::vector<std::string> permissions{"gpu", "debug"};
   REQUIRE(imports.bind(capabilities, permissions));
@@ -162,7 +168,7 @@ TEST_CASE("WASM host imports: command submission validates the whole batch befor
 
 TEST_CASE("WASM host imports: unbound and cross-thread control-plane calls are denied") {
   using namespace mobagen::plugins;
-  auto capabilities = registry();
+  auto capabilities = std::make_shared<const mobagen::modules::CapabilityRegistry>(registry());
   WasmHostImports imports;
   std::vector<std::byte> memory(128);
   constexpr std::string_view capability = "render.backend.v1";
@@ -172,6 +178,8 @@ TEST_CASE("WASM host imports: unbound and cross-thread control-plane calls are d
   REQUIRE(imports.bind(capabilities, {}));
   const std::array invalid_permissions{std::string{"gpu"}, std::string{"gpu"}};
   CHECK_FALSE(imports.bind(capabilities, invalid_permissions));
+  CHECK_FALSE(imports.bind({}, {}));
+  CHECK(imports.bound());
   CHECK(imports.permissions().empty());
   std::atomic_uint32_t status{MOBAGEN_WASM_STATUS_OK};
   std::thread other([&] {
@@ -183,7 +191,7 @@ TEST_CASE("WASM host imports: unbound and cross-thread control-plane calls are d
 
 TEST_CASE("WASM host imports: warmed successful dispatch performs zero allocations") {
   using namespace mobagen::plugins;
-  auto capabilities = registry();
+  auto capabilities = std::make_shared<const mobagen::modules::CapabilityRegistry>(registry());
   std::size_t calls = 0;
   WasmHostImports imports{{.state = &calls, .log = count_log, .submit_commands = count_commands}};
   const std::vector<std::string> permissions{"gpu"};

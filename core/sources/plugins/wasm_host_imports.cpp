@@ -72,8 +72,8 @@ namespace mobagen::plugins {
 
   WasmHostImports::WasmHostImports(WasmHostServices services) noexcept : services_(services), owner_thread_(std::this_thread::get_id()) {}
 
-  bool WasmHostImports::bind(const modules::CapabilityRegistry& registry, std::span<const std::string> permissions) {
-    if (!owner_thread()) return false;
+  bool WasmHostImports::bind(std::shared_ptr<const modules::CapabilityRegistry> registry, std::span<const std::string> permissions) {
+    if (!owner_thread() || registry == nullptr) return false;
     std::vector<std::string> validated{permissions.begin(), permissions.end()};
     std::ranges::sort(validated);
     if (std::ranges::any_of(validated, [](const auto& permission) { return !modules::is_slug(permission); })
@@ -81,13 +81,13 @@ namespace mobagen::plugins {
       return false;
     }
     permissions_ = std::move(validated);
-    registry_ = &registry;
+    registry_ = std::move(registry);
     return true;
   }
 
   void WasmHostImports::unbind() noexcept {
     if (!owner_thread()) return;
-    registry_ = nullptr;
+    registry_.reset();
     permissions_.clear();
   }
 

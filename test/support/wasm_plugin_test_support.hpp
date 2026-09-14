@@ -119,13 +119,14 @@ namespace mobagen::test {
   class DescriptorInstance final : public plugins::PortableWasmInstance {
   public:
     explicit DescriptorInstance(std::shared_ptr<std::vector<plugins::WasmPluginExport>> invocations,
-                                std::string provider_id = "mobagen.wasm-package", std::string capability_id = "runtime.package.v1",
-                                std::uint32_t start_status = MOBAGEN_WASM_STATUS_OK,
-                                std::shared_ptr<plugins::WasmHostImports> host_imports = {})
+                                 std::string provider_id = "mobagen.wasm-package", std::string capability_id = "runtime.package.v1",
+                                 std::string permission_id = {}, std::uint32_t start_status = MOBAGEN_WASM_STATUS_OK,
+                                 std::shared_ptr<plugins::WasmHostImports> host_imports = {})
         : PortableWasmInstance(std::move(host_imports)),
           invocations_(std::move(invocations)),
           provider_id_(std::move(provider_id)),
           capability_id_(std::move(capability_id)),
+          permission_id_(std::move(permission_id)),
           start_status_(start_status) {}
 
     plugins::WasmInvocationResult invoke(plugins::WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
@@ -160,6 +161,8 @@ namespace mobagen::test {
       constexpr std::uint32_t id_offset = 96;
       constexpr std::uint32_t capability_offset = 128;
       constexpr std::uint32_t provides_offset = 152;
+      constexpr std::uint32_t permission_offset = 184;
+      constexpr std::uint32_t permissions_offset = 216;
       write_string(linear_memory, id_offset, provider_id_);
       write_string(linear_memory, capability_offset, capability_id_);
       write_u32(linear_memory, provides_offset, capability_offset);
@@ -177,11 +180,19 @@ namespace mobagen::test {
       for (std::uint32_t field = 40; field < MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE; field += 4) {
         write_u32(linear_memory, descriptor_offset + field, 0);
       }
+      if (!permission_id_.empty()) {
+        write_string(linear_memory, permission_offset, permission_id_);
+        write_u32(linear_memory, permissions_offset, permission_offset);
+        write_u32(linear_memory, permissions_offset + 4, static_cast<std::uint32_t>(permission_id_.size()));
+        write_u32(linear_memory, descriptor_offset + 72, permissions_offset);
+        write_u32(linear_memory, descriptor_offset + 76, 1);
+      }
     }
 
     std::shared_ptr<std::vector<plugins::WasmPluginExport>> invocations_;
     std::string provider_id_;
     std::string capability_id_;
+    std::string permission_id_;
     std::uint32_t start_status_;
     std::vector<std::byte> linear_memory = std::vector<std::byte>(256);
   };
@@ -198,8 +209,9 @@ namespace mobagen::test {
       const auto index = calls - 1;
       const auto provider_id = provider_ids.empty() ? std::string{"mobagen.wasm-package"} : provider_ids.at(index);
       const auto capability_id = capability_ids.empty() ? std::string{"runtime.package.v1"} : capability_ids.at(index);
+      const auto permission_id = permission_ids.empty() ? std::string{} : permission_ids.at(index);
       const auto start_status = start_statuses.empty() ? MOBAGEN_WASM_STATUS_OK : start_statuses.at(index);
-      auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id, capability_id, start_status,
+      auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id, capability_id, permission_id, start_status,
                                                            drops_host_imports ? std::shared_ptr<plugins::WasmHostImports>{} : std::move(imports));
       instance->malformed = malformed_descriptor;
       return plugins::PortableWasmInstantiationResult::success(std::move(instance));
@@ -211,6 +223,7 @@ namespace mobagen::test {
     std::size_t calls{};
     std::vector<std::string> provider_ids;
     std::vector<std::string> capability_ids;
+    std::vector<std::string> permission_ids;
     std::vector<std::uint32_t> start_statuses;
     bool fails{};
     bool throws{};

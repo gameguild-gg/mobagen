@@ -1,6 +1,8 @@
 #include "wasm_runtime.hpp"
 
+#include "modules/capability_registry.hpp"
 #include "wasm_command_channel.hpp"
+#include "wasm_host_imports.hpp"
 #include "wasm_plugin_loader.hpp"
 
 #include <algorithm>
@@ -69,6 +71,19 @@ namespace mobagen::plugins {
         add_activation_issue(result, PortableWasmPluginIssueCode::CallbackFailed, phase, "WASM plugin lifecycle callback reported failure",
                              *invoked.value);
       }
+    }
+
+    [[nodiscard]] bool same_provider(const modules::ProviderDescriptor& left, const modules::ProviderDescriptor& right) {
+      return left.id == right.id && left.version == right.version && left.provides == right.provides && left.required == right.required
+             && left.optional == right.optional && left.conflicts == right.conflicts && left.targets == right.targets
+             && left.linkages == right.linkages && left.reload == right.reload && left.configuration_schema == right.configuration_schema
+             && left.permissions == right.permissions;
+    }
+
+    [[nodiscard]] bool registry_contains_provider(const modules::CapabilityRegistry& registry, const modules::ProviderDescriptor& provider) {
+      const auto provider_index = registry.find_provider(provider.id);
+      return provider_index.has_value() && registry.provider(*provider_index) != nullptr
+             && same_provider(*registry.provider(*provider_index), provider);
     }
 
     PortableWasmPluginActionResult configure_instance(PortableWasmInstance& instance, std::span<const std::byte> configuration) {
@@ -252,6 +267,7 @@ namespace mobagen::plugins {
     }
     invoke_lifecycle(*instance_, WasmPluginExport::Quiesce, result);
     invoke_lifecycle(*instance_, WasmPluginExport::Stop, result);
+    if (auto* imports = instance_->host_imports()) imports->unbind();
     state_ = PortableWasmPluginState::Stopped;
     return result;
   }
@@ -299,23 +315,27 @@ namespace mobagen::plugins {
       return result;
     }
     invoke_lifecycle(*instance_, WasmPluginExport::Stop, result);
+    if (auto* imports = instance_->host_imports()) imports->unbind();
     state_ = PortableWasmPluginState::Stopped;
     return result;
   }
 
   void PortableWasmPluginActivation::shutdown_noexcept() noexcept {
-    if (state_ == PortableWasmPluginState::Stopped || std::this_thread::get_id() != owner_thread_) return;
+    if (std::this_thread::get_id() != owner_thread_) return;
     try {
       if (state_ == PortableWasmPluginState::Active) (void)quiesce();
       if (state_ == PortableWasmPluginState::Quiesced) (void)stop();
     } catch (...) {
     }
+    if (auto* imports = instance_->host_imports()) imports->unbind();
     state_ = PortableWasmPluginState::Stopped;
   }
 
   PortableWasmPluginActivationResult PortableWasmPluginActivation::activate_queried(std::unique_ptr<PortableWasmInstance> instance,
-                                                                                    modules::ProviderDescriptor provider,
-                                                                                    std::span<const std::byte> configuration) {
+                                                                                     modules::ProviderDescriptor provider,
+                                                                                     std::shared_ptr<const modules::CapabilityRegistry> registry,
+                                                                                     bool permissions_authorized,
+                                                                                     std::span<const std::byte> configuration) {
     PortableWasmPluginActivationResult result;
     if (instance == nullptr) {
       result.issues.push_back({PortableWasmPluginIssueCode::InvalidInstance,
@@ -326,8 +346,58 @@ namespace mobagen::plugins {
       return result;
     }
 
+    if (auto* imports = instance->host_imports()) {
+      if (!permissions_authorized && !provider.permissions.empty()) {
+        result.issues.push_back({PortableWasmPluginIssueCode::HostImportsFailed,
+                                 WasmPluginExport::Configure,
+                                 MOBAGEN_WASM_STATUS_UNSUPPORTED,
+                                 "portable WASM plugin permissions require a successful module resolution",
+                                 {}});
+        return result;
+      }
+      try {
+        if (registry == nullptr) {
+          modules::CapabilityRegistryBuilder builder;
+          builder.add(provider);
+          auto built = builder.build();
+          if (!built.ok()) {
+            result.issues.push_back({PortableWasmPluginIssueCode::HostImportsFailed,
+                                     WasmPluginExport::Configure,
+                                     MOBAGEN_WASM_STATUS_FAILED,
+                                     "portable WASM plugin could not build its standalone capability registry",
+                                     {}});
+            return result;
+          }
+          registry = std::make_shared<const modules::CapabilityRegistry>(std::move(*built.registry));
+        } else if (!registry_contains_provider(*registry, provider)) {
+          result.issues.push_back({PortableWasmPluginIssueCode::HostImportsFailed,
+                                   WasmPluginExport::Configure,
+                                   MOBAGEN_WASM_STATUS_INVALID_ARGUMENT,
+                                   "resolved capability registry does not contain the queried portable WASM provider",
+                                   {}});
+          return result;
+        }
+        if (!imports->bind(std::move(registry), provider.permissions)) {
+          result.issues.push_back({PortableWasmPluginIssueCode::HostImportsFailed,
+                                   WasmPluginExport::Configure,
+                                   MOBAGEN_WASM_STATUS_FAILED,
+                                   "portable WASM host imports could not be bound on the activation owner thread",
+                                   {}});
+          return result;
+        }
+      } catch (const std::bad_alloc&) {
+        result.issues.push_back({PortableWasmPluginIssueCode::OutOfMemory,
+                                 WasmPluginExport::Configure,
+                                 MOBAGEN_WASM_STATUS_OUT_OF_MEMORY,
+                                 "portable WASM host import binding ran out of memory",
+                                 {}});
+        return result;
+      }
+    }
+
     auto configured = configure_instance(*instance, configuration);
     if (!configured.ok()) {
+      if (auto* imports = instance->host_imports()) imports->unbind();
       result.issues = std::move(configured.issues);
       return result;
     }
@@ -335,6 +405,7 @@ namespace mobagen::plugins {
     try {
       result.activation = std::unique_ptr<PortableWasmPluginActivation>(new PortableWasmPluginActivation(std::move(instance), std::move(provider)));
     } catch (const std::bad_alloc&) {
+      if (auto* imports = instance->host_imports()) imports->unbind();
       result.issues.push_back({PortableWasmPluginIssueCode::OutOfMemory,
                                WasmPluginExport::Start,
                                MOBAGEN_WASM_STATUS_OUT_OF_MEMORY,
@@ -369,11 +440,18 @@ namespace mobagen::plugins {
                                "portable WASM plugin query failed", std::move(queried.issues)});
       return result;
     }
-    return PortableWasmPluginActivation::activate_queried(std::move(instance), std::move(*queried.provider), configuration);
+    return PortableWasmPluginActivation::activate_queried(std::move(instance), std::move(*queried.provider), nullptr, false, configuration);
   }
 
   PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin plugin, std::span<const std::byte> configuration) {
-    return PortableWasmPluginActivation::activate_queried(std::move(plugin.instance_), std::move(plugin.provider_), configuration);
+    return PortableWasmPluginActivation::activate_queried(std::move(plugin.instance_), std::move(plugin.provider_), nullptr, false, configuration);
+  }
+
+  PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(
+      LoadedPortableWasmPlugin plugin, std::shared_ptr<const modules::CapabilityRegistry> resolved_registry,
+      std::span<const std::byte> configuration) {
+    return PortableWasmPluginActivation::activate_queried(std::move(plugin.instance_), std::move(plugin.provider_),
+                                                          std::move(resolved_registry), true, configuration);
   }
 
 }  // namespace mobagen::plugins
