@@ -3,6 +3,7 @@
 #include "modules/artifact_fetcher.hpp"
 #include "modules/artifact_installer.hpp"
 #include "modules/lockfile.hpp"
+#include "modules/lockfile_verifier.hpp"
 #include "native/project_runtime.hpp"
 #include "modules/module_sync_plan.hpp"
 #include "portable/project_runtime.hpp"
@@ -23,6 +24,7 @@
 #include <filesystem>
 #include <optional>
 #include <ostream>
+#include <set>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -33,7 +35,7 @@ namespace mobagen::compositions::cli {
 
     constexpr std::size_t max_project_cli_arguments = 4096;
 
-    enum class ProjectCommand : std::uint8_t { Sync, Resolve, Verify, Explain };
+    enum class ProjectCommand : std::uint8_t { Bootstrap, Sync, Resolve, Verify, Explain };
 
     struct NameBinding {
       std::string left;
@@ -64,6 +66,8 @@ namespace mobagen::compositions::cli {
 
     void print_usage(std::ostream& stream) {
       stream << "usage:\n"
+                "  MobagenProject bootstrap <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--cache <directory>]\n"
                 "  MobagenProject sync <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--cache <directory>]\n"
                 "  MobagenProject resolve <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
@@ -145,15 +149,17 @@ namespace mobagen::compositions::cli {
         return result;
       }
       if (arguments.size() < 2
-          || (arguments[0] != "sync" && arguments[0] != "resolve" && arguments[0] != "verify"
+          || (arguments[0] != "bootstrap" && arguments[0] != "sync"
+              && arguments[0] != "resolve" && arguments[0] != "verify"
               && arguments[0] != "explain")
           || arguments[1].empty()) {
-        result.error = "expected sync, resolve, verify, or explain and a mobagen.yaml path";
+        result.error = "expected bootstrap, sync, resolve, verify, or explain and a mobagen.yaml path";
         return result;
       }
 
       ParsedCommand parsed{
-          .command = arguments[0] == "sync"      ? ProjectCommand::Sync
+          .command = arguments[0] == "bootstrap" ? ProjectCommand::Bootstrap
+                     : arguments[0] == "sync"    ? ProjectCommand::Sync
                      : arguments[0] == "resolve" ? ProjectCommand::Resolve
                      : arguments[0] == "verify"  ? ProjectCommand::Verify
                                                   : ProjectCommand::Explain,
@@ -177,8 +183,10 @@ namespace mobagen::compositions::cli {
         }
         const auto value = arguments[index];
         if (option == "--cache") {
-          if (parsed.command != ProjectCommand::Sync || cache_seen || value.empty()) {
-            result.error = "--cache is valid exactly once for sync with a non-empty directory";
+          if ((parsed.command != ProjectCommand::Sync
+               && parsed.command != ProjectCommand::Bootstrap)
+              || cache_seen || value.empty()) {
+            result.error = "--cache is valid exactly once for bootstrap or sync with a non-empty directory";
             return result;
           }
           cache_seen = true;
@@ -407,18 +415,109 @@ namespace mobagen::compositions::cli {
           return verify(command, std::move(generated), output, error);
         case ProjectCommand::Explain:
           return explain(command, std::move(generated), output, error);
+        case ProjectCommand::Bootstrap:
         case ProjectCommand::Sync:
           break;
       }
       return 3;
     }
 
-    int sync(const ParsedCommand& command, const modules::ProductDescriptor& product,
+    struct BootstrapProbe {
+      bool ready{};
+      std::size_t plugin_count{};
+      std::string reason;
+    };
+
+    bool lock_matches_request(const ParsedCommand& command,
+                              const modules::ProductDescriptor& product,
+                              modules::LinkageMode profile_linkage,
+                              const modules::LockfileDocument& document) {
+      std::set<std::string, std::less<>> aliases;
+      for (const auto& alias : command.resolver.aliases) {
+        if (!aliases.insert(alias.alias).second) return false;
+      }
+      std::set<std::string, std::less<>> default_capabilities;
+      for (const auto& binding : command.resolver.defaults) {
+        if (!default_capabilities.insert(binding.capability).second) return false;
+        const auto selection = std::ranges::find(
+            document.resolved, binding.capability,
+            &modules::LockedProviderSelection::capability
+        );
+        if (selection == document.resolved.end() || selection->provider != binding.provider) {
+          return false;
+        }
+      }
+      for (const auto& request : product.modules) {
+        const auto alias = std::ranges::find(
+            command.resolver.aliases, request.alias, &modules::ModuleAliasBinding::alias
+        );
+        if (alias == command.resolver.aliases.end()) return false;
+        const auto selection = std::ranges::find(
+            document.resolved, alias->capability,
+            &modules::LockedProviderSelection::capability
+        );
+        if (selection == document.resolved.end()
+            || (request.provider != "default" && selection->provider != request.provider)) {
+          return false;
+        }
+      }
+
+      std::set<std::string, std::less<>> plugin_providers;
+      for (const auto& plugin : document.metadata.plugins) {
+        plugin_providers.insert(plugin.provider);
+      }
+      std::set<std::string, std::less<>> selected_providers;
+      for (const auto& selection : document.resolved) {
+        if (selection.linkage != profile_linkage) return false;
+        selected_providers.insert(selection.provider);
+      }
+      return !selected_providers.empty() && selected_providers == plugin_providers;
+    }
+
+    BootstrapProbe probe_bootstrap(const ParsedCommand& command,
+                                   const modules::ProductDescriptor& product,
+                                   modules::LinkageMode profile_linkage,
+                                   const std::filesystem::path& manifest_path,
+                                   std::string_view manifest_hash) {
+      const auto lockfile_path = manifest_path.parent_path() / "mobagen.lock";
+      const auto source = modules::read_lockfile_bounded(lockfile_path);
+      if (!source.ok()) {
+        return {.reason = "mobagen.lock is missing or unreadable"};
+      }
+      const auto parsed = modules::parse_lockfile(*source.contents,
+                                                  lockfile_path.generic_string());
+      if (!parsed.ok()) {
+        return {.reason = "mobagen.lock is invalid"};
+      }
+      const auto verified = modules::verify_locked_project(
+          *parsed.document, manifest_path.parent_path(),
+          {
+              .sdk = command.sdk_version,
+              .target = command.resolver.target,
+              .profile = command.resolver.profile,
+              .manifest_hash = std::string{manifest_hash},
+          }
+      );
+      if (!verified.ok()) {
+        return {
+            .reason = verified.issues.empty()
+                        ? "locked plugin packages are invalid"
+                        : verified.issues.front().message,
+        };
+      }
+      if (!lock_matches_request(command, product, profile_linkage, *parsed.document)) {
+        return {.reason = "mobagen.lock does not match the requested module selection"};
+      }
+      return {.ready = true, .plugin_count = verified.plugins.size()};
+    }
+
+    int sync(std::string_view operation, const ParsedCommand& command,
+             const modules::ProductDescriptor& product,
              const std::filesystem::path& manifest_path, std::string_view manifest_hash,
              http::Client& client, std::ostream& output, std::ostream& error) {
       auto planned = modules::plan_module_sync(product, client, command.resolver);
       if (!planned.ok()) {
-        error << "sync failed";
+        error << operation << " failed";
         if (!planned.fetch_issues.empty()) {
           error << ": " << planned.fetch_issues.front().message;
           if (!planned.fetch_issues.front().catalog_errors.empty()) {
@@ -440,13 +539,13 @@ namespace mobagen::compositions::cli {
       std::error_code cache_path_error;
       auto cache_root = std::filesystem::absolute(configured_cache, cache_path_error).lexically_normal();
       if (cache_path_error) {
-        error << "sync failed: module cache path could not be resolved\n";
+        error << operation << " failed: module cache path could not be resolved\n";
         return 3;
       }
       assets::AssetCache cache{cache_root, static_cast<std::size_t>(modules::max_module_artifact_bytes)};
       auto fetched = modules::fetch_module_artifacts(*planned.catalog, *planned.resolution, client, cache);
       if (!fetched.ok()) {
-        error << "sync failed";
+        error << operation << " failed";
         if (!fetched.issues.empty()) {
           const auto& issue = fetched.issues.front();
           error << ": " << issue.message;
@@ -463,7 +562,7 @@ namespace mobagen::compositions::cli {
       const auto install_root = manifest_path.parent_path() / ".mobagen" / "plugins";
       auto installed = modules::materialize_module_plugins(fetched.artifacts, install_root);
       if (!installed.ok()) {
-        error << "sync failed";
+        error << operation << " failed";
         if (!installed.issues.empty()) {
           const auto& issue = installed.issues.front();
           error << ": " << issue.message;
@@ -495,7 +594,7 @@ namespace mobagen::compositions::cli {
       auto lockfile = modules::serialize_lockfile(planned.catalog->registry(), *planned.resolution,
                                                  lock_metadata);
       if (!lockfile.ok()) {
-        error << "sync failed: selected remote modules could not be represented in mobagen.lock";
+        error << operation << " failed: selected remote modules could not be represented in mobagen.lock";
         if (!lockfile.issues.empty()) error << ": " << lockfile.issues.front().message;
         error << '\n';
         return 3;
@@ -503,7 +602,7 @@ namespace mobagen::compositions::cli {
       const auto lockfile_path = manifest_path.parent_path() / "mobagen.lock";
       auto lock_written = modules::write_lockfile_atomic(lockfile_path, *lockfile.contents);
       if (!lock_written.ok()) {
-        error << "sync failed: mobagen.lock could not be updated";
+        error << operation << " failed: mobagen.lock could not be updated";
         if (lock_written.issue.has_value()) error << ": " << lock_written.issue->message;
         error << '\n';
         return 3;
@@ -515,7 +614,7 @@ namespace mobagen::compositions::cli {
         const auto* provider = registry.provider(provider_index);
         const auto* artifact = planned.catalog->artifact_for(provider_index);
         if (provider == nullptr || artifact == nullptr) {
-          error << "sync failed: selected provider has no catalog artifact\n";
+          error << operation << " failed: selected provider has no catalog artifact\n";
           return 3;
         }
         output << "artifact\t" << provider->id << '\t' << version_string(provider->version) << '\t'
@@ -555,26 +654,44 @@ namespace mobagen::compositions::cli {
           print_route_failure(arguments.front(), route, error);
           return 3;
         }
-        if (parsed.command->command == ProjectCommand::Sync) {
+        if (parsed.command->command == ProjectCommand::Bootstrap
+            || parsed.command->command == ProjectCommand::Sync) {
           if (!route.product.has_value()) {
-            error << "sync failed: parsed project descriptor is unavailable\n";
+            error << arguments.front() << " failed: parsed project descriptor is unavailable\n";
             return 3;
           }
+          BootstrapProbe bootstrap;
+          if (parsed.command->command == ProjectCommand::Bootstrap) {
+            bootstrap = probe_bootstrap(
+                *parsed.command, *route.product, *route.linkage, route.manifest_path,
+                route.manifest_hash
+            );
+            if (bootstrap.ready) {
+              output << "ready\t" << route.product->name << '\t'
+                     << parsed.command->resolver.profile << '\n'
+                     << "plugins\t" << bootstrap.plugin_count << '\n';
+              return 0;
+            }
+          }
           if (services.http_client != nullptr) {
-            return sync(*parsed.command, *route.product, route.manifest_path, route.manifest_hash,
+            return sync(arguments.front(), *parsed.command, *route.product,
+                        route.manifest_path, route.manifest_hash,
                         *services.http_client,
                         output, error);
           }
 #if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
           if (use_bundled_backends) {
             http::CurlClient client;
-            return sync(*parsed.command, *route.product, route.manifest_path, route.manifest_hash,
+            return sync(arguments.front(), *parsed.command, *route.product,
+                        route.manifest_path, route.manifest_hash,
                         client, output, error);
           }
 #else
           static_cast<void>(use_bundled_backends);
 #endif
-          error << "sync failed: HTTPS client is unavailable in this build\n";
+          error << arguments.front() << " failed";
+          if (!bootstrap.reason.empty()) error << ": " << bootstrap.reason;
+          error << ": HTTPS client is unavailable in this build\n";
           return 3;
         }
         if (*route.linkage == modules::LinkageMode::Wasm) {
