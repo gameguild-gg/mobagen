@@ -19,6 +19,9 @@ TEST_CASE("Module manifest: canonical mobagen yaml parses into product intent") 
 
   constexpr std::string_view source = R"yaml(schema: 1
 name: dicom-viewer
+sources:
+  official:
+    url: https://plugins.mobagen.dev/v1/catalog.yaml
 modules:
   render:
     use: default
@@ -46,6 +49,9 @@ profiles:
   REQUIRE(result.descriptor.has_value());
   CHECK(result.descriptor->schema == 1);
   CHECK(result.descriptor->name == "dicom-viewer");
+  REQUIRE(result.descriptor->sources.size() == 1);
+  CHECK(result.descriptor->sources[0].name == "official");
+  CHECK(result.descriptor->sources[0].url == "https://plugins.mobagen.dev/v1/catalog.yaml");
   REQUIRE(result.descriptor->modules.size() == 2);
   CHECK(result.descriptor->modules[0].alias == "render");
   CHECK(result.descriptor->modules[0].provider == "default");
@@ -62,6 +68,50 @@ profiles:
   CHECK(result.descriptor->profiles[1].linkage == LinkageMode::Static);
   CHECK_FALSE(result.descriptor->profiles[1].editor);
   CHECK(result.descriptor->profiles[1].permissions.empty());
+}
+
+TEST_CASE("Module manifest: remote module sources require safe HTTPS URLs") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 1
+name: source-policy
+sources:
+  insecure:
+    url: http://plugins.mobagen.dev/catalog.yaml
+  credentials:
+    url: https://token@plugins.mobagen.dev/catalog.yaml
+  fragment:
+    url: https://plugins.mobagen.dev/catalog.yaml#mutable
+modules: {}
+)yaml";
+
+  const auto result = parse_product_manifest(source, "mobagen.yaml");
+
+  CHECK_FALSE(result.ok());
+  CHECK(has_error(result, ManifestErrorCode::InvalidValue, "sources.insecure.url"));
+  CHECK(has_error(result, ManifestErrorCode::InvalidValue, "sources.credentials.url"));
+  CHECK(has_error(result, ManifestErrorCode::InvalidValue, "sources.fragment.url"));
+}
+
+TEST_CASE("Module manifest: source mappings remain strict and names are unique") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 1
+name: invalid-sources
+sources:
+  official:
+    url: https://plugins.mobagen.dev/catalog.yaml
+    token: forbidden
+  official:
+    url: https://mirror.mobagen.dev/catalog.yaml
+modules: {}
+)yaml";
+
+  const auto result = parse_product_manifest(source, "mobagen.yaml");
+
+  CHECK_FALSE(result.ok());
+  CHECK(has_error(result, ManifestErrorCode::UnknownField, "sources.official.token"));
+  CHECK(has_error(result, ManifestErrorCode::DuplicateKey, "sources.official"));
 }
 
 TEST_CASE("Module manifest: duplicate keys are rejected with source coordinates") {

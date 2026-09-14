@@ -71,6 +71,7 @@ namespace mobagen::modules {
           case DescriptorIssueCode::InvalidIdentifier:
           case DescriptorIssueCode::InvalidCapability:
           case DescriptorIssueCode::InvalidPluginPath:
+          case DescriptorIssueCode::InvalidSourceUrl:
           case DescriptorIssueCode::SelfDependency:
             return ManifestErrorCode::InvalidValue;
           case DescriptorIssueCode::LimitExceeded:
@@ -234,16 +235,49 @@ namespace mobagen::modules {
       }
 
       void parse_root(const YAML::Node& root) {
-        const auto entries = read_map(root, {}, {"schema", "name", "modules", "plugins", "profiles"});
+        const auto entries = read_map(root, {}, {"schema", "name", "sources", "modules", "plugins", "profiles"});
         const auto* schema = require_entry(entries, "schema", {}, root.Mark());
         const auto* name = require_entry(entries, "name", {}, root.Mark());
         const auto* modules = require_entry(entries, "modules", {}, root.Mark());
 
         if (schema) read_schema(*schema);
         if (name) read_string(*name, "name", descriptor_.name);
+        if (const auto* sources = find_entry(entries, "sources")) parse_sources(*sources);
         if (modules) parse_modules(*modules);
         if (const auto* plugins = find_entry(entries, "plugins")) parse_plugins(*plugins);
         if (const auto* profiles = find_entry(entries, "profiles")) parse_profiles(*profiles);
+      }
+
+      void parse_sources(const YAML::Node& node) {
+        if (!node.IsMap()) {
+          add_error(ManifestErrorCode::WrongType, node.Mark(), "sources", "expected a mapping");
+          return;
+        }
+        if (node.size() > max_manifest_collection_entries) {
+          add_error(ManifestErrorCode::LimitExceeded, node.Mark(), "sources", "source count exceeds the 1024-entry manifest limit");
+          return;
+        }
+
+        std::set<std::string> seen;
+        for (const auto& pair : node) {
+          if (!pair.first.IsScalar()) {
+            add_error(ManifestErrorCode::WrongType, pair.first.Mark(), "sources", "source names must be strings");
+            continue;
+          }
+          const std::string name = pair.first.Scalar();
+          const std::string field = "sources." + name;
+          remember_location(field, pair.first.Mark());
+          if (!seen.insert(name).second) {
+            add_error(ManifestErrorCode::DuplicateKey, pair.first.Mark(), field, "source names must be unique");
+          }
+
+          const auto source_entries = read_map(pair.second, field, {"url"});
+          const auto* url = require_entry(source_entries, "url", field, pair.second.Mark());
+          std::string parsed_url;
+          if (url && read_string(*url, field + ".url", parsed_url)) {
+            descriptor_.sources.push_back({name, std::move(parsed_url)});
+          }
+        }
       }
 
       void parse_modules(const YAML::Node& node) {

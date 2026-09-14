@@ -11,6 +11,7 @@ namespace mobagen::modules {
 
   inline constexpr std::uint32_t project_schema_version = 1;
   inline constexpr std::size_t max_module_configuration_bytes = 1024 * 1024;
+  inline constexpr std::size_t max_module_source_url_bytes = 2048;
 
   struct SemanticVersion {
     std::uint32_t major{};
@@ -46,9 +47,15 @@ namespace mobagen::modules {
     std::vector<std::string> permissions;
   };
 
+  struct ModuleSourceDescriptor {
+    std::string name;
+    std::string url;
+  };
+
   struct ProductDescriptor {
     std::uint32_t schema{project_schema_version};
     std::string name;
+    std::vector<ModuleSourceDescriptor> sources;
     std::vector<ModuleRequest> modules;
     std::vector<std::string> plugins;
     std::vector<ProfileDescriptor> profiles;
@@ -73,6 +80,7 @@ namespace mobagen::modules {
     InvalidIdentifier,
     InvalidCapability,
     InvalidPluginPath,
+    InvalidSourceUrl,
     LimitExceeded,
     DuplicateEntry,
     MissingEntry,
