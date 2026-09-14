@@ -1,6 +1,7 @@
 #include "project_cli.hpp"
 
 #include "native/project_runtime.hpp"
+#include <mobagen/version.h>
 
 #include <algorithm>
 #include <charconv>
@@ -31,7 +32,7 @@ namespace mobagen::compositions::cli {
       ProjectCommand command{};
       std::filesystem::path manifest;
       modules::ResolverOptions resolver;
-      modules::SemanticVersion sdk_version{0, 0, 1};
+      modules::SemanticVersion sdk_version{MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH};
     };
 
     struct ParseResult {

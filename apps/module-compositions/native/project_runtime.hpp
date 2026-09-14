@@ -3,6 +3,7 @@
 #include "modules/lockfile.hpp"
 #include "modules/manifest_parser.hpp"
 #include "plugins/plugin_activation_set.hpp"
+#include <mobagen/version.h>
 
 #include <cstdint>
 #include <filesystem>
@@ -19,7 +20,7 @@ namespace mobagen::compositions {
 
   struct NativeProjectLockOptions {
     NativeProjectLockPolicy policy{NativeProjectLockPolicy::Ignore};
-    modules::SemanticVersion sdk_version{0, 0, 1};
+    modules::SemanticVersion sdk_version{MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH};
   };
 
   enum class NativeProjectIssueCode : std::uint8_t {
@@ -81,7 +82,9 @@ namespace mobagen::compositions {
     [[nodiscard]] const modules::ProductDescriptor& product() const noexcept { return product_; }
     [[nodiscard]] const modules::CapabilityRegistry& registry() const noexcept { return catalog_->registry(); }
     [[nodiscard]] const modules::ModuleResolution& resolution() const noexcept { return *resolution_; }
-    [[nodiscard]] modules::LockfileSerializeResult lockfile(modules::SemanticVersion sdk_version) const;
+    [[nodiscard]] modules::LockfileSerializeResult lockfile(modules::SemanticVersion sdk_version
+                                                            = {MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR,
+                                                               MOBAGEN_SDK_VERSION_PATCH}) const;
     [[nodiscard]] plugins::PluginHost& host() noexcept { return host_; }
     [[nodiscard]] const plugins::PluginHost& host() const noexcept { return host_; }
     [[nodiscard]] plugins::ResolvedNativePluginActionResult stop();
@@ -102,7 +105,11 @@ namespace mobagen::compositions {
   };
 
   [[nodiscard]] NativeProjectLockResult resolve_native_project_lock(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
-                                                                    modules::SemanticVersion sdk_version,
+                                                                    modules::SemanticVersion sdk_version = {
+                                                                        MOBAGEN_SDK_VERSION_MAJOR,
+                                                                        MOBAGEN_SDK_VERSION_MINOR,
+                                                                        MOBAGEN_SDK_VERSION_PATCH,
+                                                                    },
                                                                     std::span<const modules::ProviderDescriptor> builtin_providers = {});
 
   [[nodiscard]] NativeProjectResult load_native_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
