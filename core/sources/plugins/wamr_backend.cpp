@@ -4,6 +4,8 @@
 #define WASM_RUNTIME_API_EXTERN
 #include <wasm_export.h>
 
+#include <mobagen/plugin/wasm_abi.h>
+
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -21,6 +23,64 @@ namespace mobagen::plugins {
     constexpr std::uint32_t wamr_stack_size = 64U * 1024U;
     constexpr std::size_t export_count = static_cast<std::size_t>(WasmPluginExport::Process) + 1U;
     constexpr std::size_t max_argument_cells = 8U;
+
+    [[nodiscard]] std::span<std::byte> module_memory(wasm_module_inst_t module_instance) noexcept {
+      if (module_instance == nullptr) return {};
+      const auto memory = wasm_runtime_get_default_memory(module_instance);
+      if (memory == nullptr) return {};
+
+      const auto pages = wasm_memory_get_cur_page_count(memory);
+      const auto bytes_per_page = wasm_memory_get_bytes_per_page(memory);
+      if (bytes_per_page == 0U || pages > std::numeric_limits<std::uint64_t>::max() / bytes_per_page) return {};
+      const auto byte_count = pages * bytes_per_page;
+      if (byte_count > std::numeric_limits<std::size_t>::max()) return {};
+      auto* base = static_cast<std::byte*>(wasm_memory_get_base_address(memory));
+      if (base == nullptr && byte_count != 0U) return {};
+      return {base, static_cast<std::size_t>(byte_count)};
+    }
+
+    [[nodiscard]] WasmHostImports* module_host_imports(wasm_module_inst_t module_instance) noexcept {
+      if (module_instance == nullptr) return nullptr;
+      return static_cast<WasmHostImports*>(wasm_runtime_get_custom_data(module_instance));
+    }
+
+    std::uint32_t host_log(wasm_exec_env_t execution_environment, std::uint32_t level, std::uint32_t message_offset,
+                           std::uint32_t message_size) noexcept {
+      if (execution_environment == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
+      const auto module_instance = wasm_runtime_get_module_inst(execution_environment);
+      auto* imports = module_host_imports(module_instance);
+      if (module_instance == nullptr || imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
+      return imports->log(module_memory(module_instance), level, message_offset, message_size);
+    }
+
+    std::uint32_t host_find_capability(wasm_exec_env_t execution_environment, std::uint32_t capability_offset,
+                                      std::uint32_t capability_size, std::uint32_t capability_version,
+                                      std::uint32_t output_handle_offset) noexcept {
+      if (execution_environment == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
+      const auto module_instance = wasm_runtime_get_module_inst(execution_environment);
+      auto* imports = module_host_imports(module_instance);
+      if (module_instance == nullptr || imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
+      return imports->find_capability(module_memory(module_instance), capability_offset, capability_size, capability_version,
+                                      output_handle_offset);
+    }
+
+    std::uint32_t host_submit_commands(wasm_exec_env_t execution_environment, std::uint32_t input_batch_offset,
+                                       std::uint32_t result_offset) noexcept {
+      if (execution_environment == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
+      const auto module_instance = wasm_runtime_get_module_inst(execution_environment);
+      auto* imports = module_host_imports(module_instance);
+      if (module_instance == nullptr || imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
+      return imports->submit_commands(module_memory(module_instance), input_batch_offset, result_offset);
+    }
+
+    std::array<NativeSymbol, 3>& host_symbols() {
+      static std::array<NativeSymbol, 3> symbols{{
+          {MOBAGEN_WASM_IMPORT_LOG_V1, reinterpret_cast<void*>(host_log), "(iii)i", nullptr},
+          {MOBAGEN_WASM_IMPORT_FIND_CAPABILITY_V1, reinterpret_cast<void*>(host_find_capability), "(iiii)i", nullptr},
+          {MOBAGEN_WASM_IMPORT_SUBMIT_COMMANDS_V1, reinterpret_cast<void*>(host_submit_commands), "(ii)i", nullptr},
+      }};
+      return symbols;
+    }
 
     struct RuntimeLease;
 
@@ -50,6 +110,10 @@ namespace mobagen::plugins {
       RuntimeInitArgs arguments{};
       arguments.mem_alloc_type = Alloc_With_System_Allocator;
       arguments.running_mode = Mode_Interp;
+      auto& symbols = host_symbols();
+      arguments.native_module_name = MOBAGEN_WASM_IMPORT_MODULE_V1;
+      arguments.native_symbols = symbols.data();
+      arguments.n_native_symbols = static_cast<std::uint32_t>(symbols.size());
       if (!wasm_runtime_full_init(&arguments)) {
         error = "WAMR runtime initialization failed";
         return {};
@@ -78,6 +142,7 @@ namespace mobagen::plugins {
             execution_environment_(execution_environment),
             runtime_(std::move(runtime)),
             owner_thread_(std::this_thread::get_id()) {
+        wasm_runtime_set_custom_data(module_instance_, this->host_imports());
         for (std::size_t index = 0; index < exports_.size(); ++index) {
           const auto function = static_cast<WasmPluginExport>(index);
           const auto name = wasm_plugin_export_name(function);
@@ -86,6 +151,7 @@ namespace mobagen::plugins {
       }
 
       ~WamrInstance() override {
+        if (module_instance_ != nullptr) wasm_runtime_set_custom_data(module_instance_, nullptr);
         if (execution_environment_ != nullptr) wasm_runtime_destroy_exec_env(execution_environment_);
         if (module_instance_ != nullptr) wasm_runtime_deinstantiate(module_instance_);
         if (module_ != nullptr) wasm_runtime_unload(module_);
@@ -125,18 +191,7 @@ namespace mobagen::plugins {
 
     private:
       [[nodiscard]] std::span<std::byte> mutable_memory() const noexcept {
-        if (module_instance_ == nullptr) return {};
-        const auto memory = wasm_runtime_get_default_memory(module_instance_);
-        if (memory == nullptr) return {};
-
-        const auto pages = wasm_memory_get_cur_page_count(memory);
-        const auto bytes_per_page = wasm_memory_get_bytes_per_page(memory);
-        if (bytes_per_page == 0U || pages > std::numeric_limits<std::uint64_t>::max() / bytes_per_page) return {};
-        const auto byte_count = pages * bytes_per_page;
-        if (byte_count > std::numeric_limits<std::size_t>::max()) return {};
-        auto* base = static_cast<std::byte*>(wasm_memory_get_base_address(memory));
-        if (base == nullptr && byte_count != 0U) return {};
-        return {base, static_cast<std::size_t>(byte_count)};
+        return module_memory(module_instance_);
       }
 
       std::vector<std::uint8_t> binary_;
@@ -167,7 +222,9 @@ namespace mobagen::plugins {
   PortableWasmInstantiationResult WamrBackend::instantiate(std::span<const std::byte> binary, std::shared_ptr<WasmHostImports> host_imports) {
     if (!available()) return PortableWasmInstantiationResult::failure(impl_ != nullptr ? impl_->error : "WAMR backend is unavailable");
     if (binary.empty()) return PortableWasmInstantiationResult::failure("WAMR cannot instantiate an empty module");
-    if (binary.size() > std::numeric_limits<std::uint32_t>::max()) return PortableWasmInstantiationResult::failure("WAMR module exceeds the 32-bit binary size limit");
+    if (binary.size() > std::numeric_limits<std::uint32_t>::max()) {
+      return PortableWasmInstantiationResult::failure("WAMR module exceeds the 32-bit binary size limit");
+    }
 
     std::vector<std::uint8_t> owned_binary;
     try {
