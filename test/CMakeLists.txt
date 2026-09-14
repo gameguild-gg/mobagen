@@ -30,6 +30,9 @@ set(FOUNDATION_TEST_SOURCES
     volume_file_tests.cpp
 )
 
+if(TARGET mobagen::asset_cli)
+  list(APPEND FOUNDATION_TEST_SOURCES asset_cli_tests.cpp)
+endif()
 if(TARGET mobagen::module_manifest)
   list(APPEND FOUNDATION_TEST_SOURCES module_composition_tests.cpp module_manifest_tests.cpp)
 endif()
@@ -60,6 +63,9 @@ target_link_libraries(
           mobagen::core_assets
           mobagen::volume
 )
+if(TARGET mobagen::asset_cli)
+  target_link_libraries(FoundationTests PRIVATE mobagen::asset_cli)
+endif()
 if(TARGET mobagen::module_manifest)
   target_include_directories(
     FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../apps/module-compositions
@@ -73,6 +79,9 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
 endif()
 
 set(FOUNDATION_COMPILED_TARGETS mobagen_core_assets mobagen_core_jobs mobagen_core_modules)
+if(TARGET mobagen_asset_cli)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_asset_cli)
+endif()
 if(TARGET mobagen_headless_composition)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_headless_composition)
 endif()
