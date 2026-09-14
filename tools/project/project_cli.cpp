@@ -1,8 +1,12 @@
 #include "project_cli.hpp"
 
 #include "native/project_runtime.hpp"
+#include "modules/module_sync_plan.hpp"
 #include "portable/project_runtime.hpp"
 #include "project_support.hpp"
+#if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
+#include "http/curl_client.hpp"
+#endif
 #if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)
 #include "plugins/wamr_backend.hpp"
 #endif
@@ -26,7 +30,7 @@ namespace mobagen::compositions::cli {
 
     constexpr std::size_t max_project_cli_arguments = 4096;
 
-    enum class ProjectCommand : std::uint8_t { Resolve, Verify, Explain };
+    enum class ProjectCommand : std::uint8_t { Sync, Resolve, Verify, Explain };
 
     struct NameBinding {
       std::string left;
@@ -46,6 +50,7 @@ namespace mobagen::compositions::cli {
     };
 
     struct ProjectRouteResult {
+      std::optional<modules::ProductDescriptor> product;
       std::optional<modules::LinkageMode> linkage;
       std::string error;
       std::vector<modules::ManifestError> manifest_errors;
@@ -53,6 +58,8 @@ namespace mobagen::compositions::cli {
 
     void print_usage(std::ostream& stream) {
       stream << "usage:\n"
+                "  MobagenProject sync <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
+                "      [--alias <alias=capability> ...] [--default <capability=provider> ...]\n"
                 "  MobagenProject resolve <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--sdk <major.minor.patch>]\n"
                 "  MobagenProject verify <mobagen.yaml> --profile <name> --alias <alias=capability>\n"
@@ -131,15 +138,19 @@ namespace mobagen::compositions::cli {
         result.error = "argument count exceeds limit";
         return result;
       }
-      if (arguments.size() < 2 || (arguments[0] != "resolve" && arguments[0] != "verify" && arguments[0] != "explain") || arguments[1].empty()) {
-        result.error = "expected resolve, verify, or explain and a mobagen.yaml path";
+      if (arguments.size() < 2
+          || (arguments[0] != "sync" && arguments[0] != "resolve" && arguments[0] != "verify"
+              && arguments[0] != "explain")
+          || arguments[1].empty()) {
+        result.error = "expected sync, resolve, verify, or explain and a mobagen.yaml path";
         return result;
       }
 
       ParsedCommand parsed{
-          .command = arguments[0] == "resolve"  ? ProjectCommand::Resolve
-                     : arguments[0] == "verify" ? ProjectCommand::Verify
-                                                : ProjectCommand::Explain,
+          .command = arguments[0] == "sync"      ? ProjectCommand::Sync
+                     : arguments[0] == "resolve" ? ProjectCommand::Resolve
+                     : arguments[0] == "verify"  ? ProjectCommand::Verify
+                                                  : ProjectCommand::Explain,
           .manifest = std::filesystem::path{arguments[1]},
           .resolver = {.target = native_target()},
       };
@@ -223,6 +234,7 @@ namespace mobagen::compositions::cli {
         return result;
       }
       result.linkage = profile->linkage;
+      result.product = std::move(parsed.descriptor);
       return result;
     }
 
@@ -373,12 +385,52 @@ namespace mobagen::compositions::cli {
           return verify(command, std::move(generated), output, error);
         case ProjectCommand::Explain:
           return explain(command, std::move(generated), output, error);
+        case ProjectCommand::Sync:
+          break;
       }
       return 3;
     }
 
-    int run_with_services(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error, ProjectCliServices services,
-                          bool use_bundled_portable_backend) {
+    int sync(const ParsedCommand& command, const modules::ProductDescriptor& product, http::Client& client,
+             std::ostream& output, std::ostream& error) {
+      auto planned = modules::plan_module_sync(product, client, command.resolver);
+      if (!planned.ok()) {
+        error << "sync failed";
+        if (!planned.fetch_issues.empty()) {
+          error << ": " << planned.fetch_issues.front().message;
+          if (!planned.fetch_issues.front().catalog_errors.empty()) {
+            error << ": " << planned.fetch_issues.front().catalog_errors.front().message;
+          } else if (!planned.fetch_issues.front().transport_error.message.empty()) {
+            error << ": " << planned.fetch_issues.front().transport_error.message;
+          }
+        } else if (!planned.catalog_issues.empty()) {
+          error << ": " << planned.catalog_issues.front().message;
+        } else if (!planned.resolution_issues.empty()) {
+          error << ": " << planned.resolution_issues.front().message;
+        }
+        error << '\n';
+        return 3;
+      }
+
+      output << "catalogs-synced\t" << product.name << '\t' << command.resolver.profile << '\n';
+      const auto& registry = planned.catalog->registry();
+      for (const auto provider_index : planned.resolution->lifecycle_order()) {
+        const auto* provider = registry.provider(provider_index);
+        const auto* artifact = planned.catalog->artifact_for(provider_index);
+        if (provider == nullptr || artifact == nullptr) {
+          error << "sync failed: selected provider has no catalog artifact\n";
+          return 3;
+        }
+        output << "artifact\t" << provider->id << '\t' << version_string(provider->version) << '\t'
+               << linkage_name(artifact->linkage) << '\t' << artifact->size << '\t' << artifact->hash << '\t'
+               << artifact->url << '\n';
+      }
+      output << "selected\t" << planned.resolution->lifecycle_order().size() << '\n';
+      return 0;
+    }
+
+    int run_with_services(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error,
+                          ProjectCliServices services, bool use_bundled_backends) {
       try {
         if (arguments.size() == 1 && (arguments[0] == "help" || arguments[0] == "--help")) {
           print_usage(output);
@@ -395,15 +447,34 @@ namespace mobagen::compositions::cli {
           print_route_failure(arguments.front(), route, error);
           return 3;
         }
+        if (parsed.command->command == ProjectCommand::Sync) {
+          if (!route.product.has_value()) {
+            error << "sync failed: parsed project descriptor is unavailable\n";
+            return 3;
+          }
+          if (services.http_client != nullptr) {
+            return sync(*parsed.command, *route.product, *services.http_client, output, error);
+          }
+#if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
+          if (use_bundled_backends) {
+            http::CurlClient client;
+            return sync(*parsed.command, *route.product, client, output, error);
+          }
+#else
+          static_cast<void>(use_bundled_backends);
+#endif
+          error << "sync failed: HTTPS client is unavailable in this build\n";
+          return 3;
+        }
         if (*route.linkage == modules::LinkageMode::Wasm) {
 #if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)
           std::optional<plugins::WamrBackend> bundled_backend;
-          if (services.portable_backend == nullptr && use_bundled_portable_backend) {
+          if (services.portable_backend == nullptr && use_bundled_backends) {
             bundled_backend.emplace();
             services.portable_backend = &*bundled_backend;
           }
 #else
-          static_cast<void>(use_bundled_portable_backend);
+          static_cast<void>(use_bundled_backends);
 #endif
           if (services.portable_backend == nullptr) {
             error << arguments.front() << " failed: portable WASM backend is unavailable in this build\n";

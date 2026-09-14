@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "http/client.hpp"
 #include "plugins/plugin_loader.hpp"
 #include "project_cli.hpp"
 #include "support/wasm_plugin_test_support.hpp"
@@ -67,7 +68,107 @@ profiles:
     return {command, manifest, "--profile", "release", "--alias", "runtime=runtime.tick.v1", "--default", "runtime.tick.v1=mobagen.reference"};
   }
 
+  class ProjectCatalogHttpClient final : public mobagen::http::Client {
+  public:
+    mobagen::http::GetResult get(const mobagen::http::GetRequest& request) override {
+      requests.push_back(request);
+      constexpr std::string_view catalog = R"yaml(schema: 1
+providers:
+  mobagen.runtime.remote:
+    version: 2.1.0
+    provides: [runtime.tick.v1]
+    reload: restart
+    artifacts:
+      - target: windows
+        linkage: dynamic
+        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/windows.plugin
+        size: 8192
+        hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      - target: linux
+        linkage: dynamic
+        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/linux.plugin
+        size: 8192
+        hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      - target: macos
+        linkage: dynamic
+        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/macos.plugin
+        size: 8192
+        hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+)yaml";
+      std::vector<std::byte> body(catalog.size());
+      for (std::size_t index = 0; index < catalog.size(); ++index) body[index] = static_cast<std::byte>(catalog[index]);
+      return {.response = mobagen::http::Response{200, std::move(body)}};
+    }
+
+    std::vector<mobagen::http::GetRequest> requests;
+  };
+
 }  // namespace
+
+TEST_CASE("Project CLI: sync resolves remote metadata without requiring a local plugin package") {
+  TemporaryProjectCliRoot project;
+  std::ofstream manifest_file(project.path() / "mobagen.yaml", std::ios::binary | std::ios::trunc);
+  REQUIRE(manifest_file.is_open());
+  manifest_file << R"yaml(schema: 1
+name: remote-project-cli-test
+sources:
+  official:
+    url: https://plugins.mobagen.dev/v1/catalog.yaml
+modules:
+  runtime:
+    use: default
+plugins:
+  - ./plugins/missing.plugin
+profiles:
+  release:
+    linkage: dynamic
+    editor: false
+)yaml";
+  REQUIRE(manifest_file.good());
+  manifest_file.close();
+  const auto manifest = (project.path() / "mobagen.yaml").string();
+  const std::vector<std::string_view> arguments{
+      "sync", manifest, "--profile", "release", "--alias", "runtime=runtime.tick.v1", "--default",
+      "runtime.tick.v1=mobagen.runtime.remote",
+  };
+  ProjectCatalogHttpClient client;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  const auto result = mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client});
+
+  REQUIRE(result == 0);
+  CHECK(error.str().empty());
+  REQUIRE(client.requests.size() == 1);
+  CHECK(client.requests.front().url == "https://plugins.mobagen.dev/v1/catalog.yaml");
+  CHECK(output.str().contains("catalogs-synced\tremote-project-cli-test\trelease\n"));
+#ifdef _WIN32
+  constexpr std::string_view native_artifact = "windows.plugin";
+#elif defined(__APPLE__)
+  constexpr std::string_view native_artifact = "macos.plugin";
+#else
+  constexpr std::string_view native_artifact = "linux.plugin";
+#endif
+  const std::string expected_artifact
+      = "artifact\tmobagen.runtime.remote\t2.1.0\tdynamic\t8192\t"
+        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\t"
+        "https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
+        + std::string{native_artifact} + '\n';
+  CHECK(output.str().contains(expected_artifact));
+  CHECK(output.str().ends_with("selected\t1\n"));
+}
+
+TEST_CASE("Project CLI: sync reports a missing injected HTTPS service without network access") {
+  TemporaryProjectCliRoot project;
+  const auto manifest = (project.path() / "mobagen.yaml").string();
+  const auto arguments = project_arguments("sync", manifest);
+  std::ostringstream output;
+  std::ostringstream error;
+
+  CHECK(mobagen::compositions::cli::run(arguments, output, error, {}) == 3);
+  CHECK(output.str().empty());
+  CHECK(error.str().contains("HTTPS client is unavailable"));
+}
 
 TEST_CASE("Project CLI: resolve writes a canonical lock and verify accepts it") {
   TemporaryProjectCliRoot project;

@@ -10,6 +10,10 @@ target_link_libraries(
 if(MOBAGEN_WASM_BACKEND_WAMR)
   target_compile_definitions(mobagen_project_cli PRIVATE MOBAGEN_PROJECT_CLI_HAS_WAMR=1)
 endif()
+if(TARGET mobagen::http_curl)
+  target_compile_definitions(mobagen_project_cli PRIVATE MOBAGEN_PROJECT_CLI_HAS_CURL=1)
+  target_link_libraries(mobagen_project_cli PRIVATE mobagen::http_curl)
+endif()
 
 add_executable(MobagenProject main.cpp)
 target_compile_features(MobagenProject PRIVATE cxx_std_20)
