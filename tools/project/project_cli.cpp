@@ -1,6 +1,7 @@
 #include "project_cli.hpp"
 
 #include "modules/artifact_fetcher.hpp"
+#include "modules/artifact_installer.hpp"
 #include "native/project_runtime.hpp"
 #include "modules/module_sync_plan.hpp"
 #include "portable/project_runtime.hpp"
@@ -451,6 +452,19 @@ namespace mobagen::compositions::cli {
         return 3;
       }
 
+      const auto install_root = manifest_path.parent_path() / ".mobagen" / "plugins";
+      auto installed = modules::materialize_module_plugins(fetched.artifacts, install_root);
+      if (!installed.ok()) {
+        error << "sync failed";
+        if (!installed.issues.empty()) {
+          const auto& issue = installed.issues.front();
+          error << ": " << issue.message;
+          if (issue.system_error) error << ": " << issue.system_error.message();
+        }
+        error << '\n';
+        return 3;
+      }
+
       output << "catalogs-synced\t" << product.name << '\t' << command.resolver.profile << '\n';
       const auto& registry = planned.catalog->registry();
       for (const auto provider_index : planned.resolution->lifecycle_order()) {
@@ -468,6 +482,11 @@ namespace mobagen::compositions::cli {
         output << "cache\t" << artifact.provider_id << '\t'
                << (artifact.downloaded ? "downloaded" : "present") << '\t'
                << artifact.cache_path.generic_string() << '\n';
+      }
+      for (const auto& artifact : installed.artifacts) {
+        output << "plugin\t" << artifact.provider_id << '\t'
+               << (artifact.installed ? "installed" : "present") << '\t'
+               << artifact.package_path.generic_string() << '\n';
       }
       output << "selected\t" << planned.resolution->lifecycle_order().size() << '\n';
       return 0;
