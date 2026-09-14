@@ -39,6 +39,13 @@ namespace {
     return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
   }
 
+  std::string text_hash(std::string_view contents) {
+    const auto bytes = std::as_bytes(std::span{contents.data(), contents.size()});
+    const auto hash = mobagen::assets::sha256(bytes);
+    REQUIRE(hash.has_value());
+    return mobagen::assets::to_string(*hash);
+  }
+
 }  // namespace
 
 TEST_CASE("Portable WASM plugin loader: a bounded module is instantiated and queried") {
@@ -522,7 +529,7 @@ TEST_CASE("Portable project: mobagen yaml resolves and activates a dot-plugin en
   const auto package = directory.path() / "plugins/reference.plugin";
   REQUIRE(std::filesystem::create_directory(package));
   write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
-  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+  constexpr std::string_view manifest = R"yaml(schema: 1
 name: portable-project-test
 modules:
   runtime:
@@ -533,7 +540,8 @@ profiles:
   release:
     linkage: wasm
     editor: false
-)yaml");
+)yaml";
+  write_text(directory.path() / "mobagen.yaml", manifest);
   FakeWasmBackend backend;
   std::string host_log;
   const plugins::WasmHostServices host_services{.state = &host_log, .log = capture_import_log};
@@ -569,6 +577,9 @@ profiles:
                + portable_target_name()
                + "\n"
                  "profile: release\n"
+                 "manifest: "
+               + text_hash(manifest)
+               + "\n"
                  "permissions: []\n"
                  "configurations: {}\n"
                  "resolved:\n"

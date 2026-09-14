@@ -83,6 +83,13 @@ namespace mobagen::compositions {
       }
 
       auto runtime = std::unique_ptr<NativeProjectRuntime>(new NativeProjectRuntime(std::move(*parsed.descriptor)));
+      const auto manifest_hash = detail::hash_project_manifest(*source.contents);
+      if (!manifest_hash.has_value()) {
+        add_issue(result, {.code = NativeProjectIssueCode::LockMetadata,
+                           .message = "mobagen.yaml could not be fingerprinted for lock metadata"});
+        return result;
+      }
+      runtime->lockfile_metadata_.manifest_hash = *manifest_hash;
       auto catalog
           = plugins::discover_native_plugin_catalog(runtime->product_, source.absolute_path.parent_path(), runtime->host_, builtin_providers);
       if (!catalog.ok()) {

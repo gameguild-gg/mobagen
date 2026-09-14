@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace mobagen::compositions::detail {
 
@@ -25,6 +26,7 @@ namespace mobagen::compositions::detail {
   };
 
   [[nodiscard]] ProjectManifestReadResult read_project_manifest_bounded(const std::filesystem::path& path);
+  [[nodiscard]] std::optional<std::string> hash_project_manifest(std::string_view contents);
   [[nodiscard]] ProjectPluginHashResult hash_project_plugin_binary(const std::filesystem::path& path,
                                                                    std::uintmax_t max_bytes = max_project_plugin_binary_bytes);
 

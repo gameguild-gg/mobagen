@@ -82,6 +82,13 @@ namespace mobagen::compositions {
       }
 
       auto runtime = std::unique_ptr<PortableProjectRuntime>(new PortableProjectRuntime(std::move(*parsed.descriptor)));
+      const auto manifest_hash = detail::hash_project_manifest(*source.contents);
+      if (!manifest_hash.has_value()) {
+        add_issue(result, {.code = PortableProjectIssueCode::LockMetadata,
+                           .message = "mobagen.yaml could not be fingerprinted for lock metadata"});
+        return result;
+      }
+      runtime->lockfile_metadata_.manifest_hash = *manifest_hash;
       auto catalog = plugins::discover_portable_wasm_plugin_catalog(runtime->product_, source.absolute_path.parent_path(), backend,
                                                                     builtin_providers, host_services);
       if (!catalog.ok()) {

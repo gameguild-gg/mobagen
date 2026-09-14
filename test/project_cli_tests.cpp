@@ -199,6 +199,7 @@ profiles:
   CHECK(lockfile.contains("  mobagen.runtime.remote:\n"));
   CHECK(lockfile.contains("    version: 2.1.0\n"));
   CHECK(lockfile.contains("    abi: 1\n"));
+  CHECK(lockfile.contains("manifest: sha256:"));
   CHECK(lockfile.contains("    package: \".mobagen/plugins/mobagen.runtime.remote.plugin\"\n"));
   CHECK(lockfile.contains("    hash: " + client.artifact_hash + '\n'));
 

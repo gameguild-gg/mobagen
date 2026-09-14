@@ -13,6 +13,13 @@
 
 namespace mobagen::compositions::detail {
 
+  std::optional<std::string> hash_project_manifest(std::string_view contents) {
+    const auto bytes = std::as_bytes(std::span{contents.data(), contents.size()});
+    const auto digest = assets::sha256(bytes);
+    if (!digest.has_value()) return std::nullopt;
+    return assets::to_string(*digest);
+  }
+
   ProjectManifestReadResult read_project_manifest_bounded(const std::filesystem::path& path) {
     ProjectManifestReadResult result;
     std::error_code error;
