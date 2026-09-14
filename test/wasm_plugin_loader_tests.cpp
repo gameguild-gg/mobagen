@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "portable/project_runtime.hpp"
 #include "plugins/wasm_plugin_activation_set.hpp"
 
 namespace {
@@ -49,6 +50,27 @@ namespace {
     REQUIRE(output.is_open());
     output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     REQUIRE(output.good());
+  }
+
+  void write_text(const std::filesystem::path& path, std::string_view contents) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(output.is_open());
+    output.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+    REQUIRE(output.good());
+  }
+
+  mobagen::modules::TargetPlatform portable_target() {
+#if defined(__EMSCRIPTEN__)
+    return mobagen::modules::TargetPlatform::Web;
+#elif defined(_WIN32)
+    return mobagen::modules::TargetPlatform::Windows;
+#elif defined(__ANDROID__)
+    return mobagen::modules::TargetPlatform::Android;
+#elif defined(__APPLE__)
+    return mobagen::modules::TargetPlatform::MacOS;
+#else
+    return mobagen::modules::TargetPlatform::Linux;
+#endif
   }
 
   void write_u32(std::vector<std::byte>& memory, std::size_t offset, std::uint32_t value) {
@@ -575,4 +597,100 @@ TEST_CASE("Resolved portable WASM plugin activation: foreign resolutions are rej
   CHECK(activated.issues.front().code == plugins::ResolvedPortableWasmPluginIssueCode::InvalidResolution);
   CHECK(catalog.catalog->plugin_count() == 1);
   CHECK(invocation_count(backend, plugins::WasmPluginExport::Configure) == 0);
+}
+
+TEST_CASE("Portable project: mobagen yaml resolves and activates a dot-plugin end to end") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+name: portable-project-test
+modules:
+  runtime:
+    use: mobagen.wasm-package
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml");
+  FakeWasmBackend backend;
+  const modules::ResolverOptions options{
+      .target = portable_target(),
+      .profile = "release",
+      .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}},
+  };
+
+  auto loaded = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend);
+
+  REQUIRE(loaded.ok());
+  CHECK(loaded.runtime->product().name == "portable-project-test");
+  CHECK(loaded.runtime->registry().provider_count() == 1);
+  CHECK(loaded.runtime->resolution().lifecycle_order().size() == 1);
+  REQUIRE(loaded.runtime->plugin(0) != nullptr);
+  CHECK(loaded.runtime->plugin(0)->provider().id == "mobagen.wasm-package");
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Query) == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Start) == 1);
+  CHECK(loaded.runtime->stop().ok());
+}
+
+TEST_CASE("Portable project: input and activation failures never publish a partial runtime") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+  const modules::ResolverOptions options{
+      .target = portable_target(),
+      .profile = "release",
+      .aliases = {{.alias = "runtime", .capability = "runtime.package.v1"}},
+  };
+
+  const auto missing = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend);
+  CHECK_FALSE(missing.ok());
+  REQUIRE_FALSE(missing.issues.empty());
+  CHECK(missing.issues.front().code == compositions::PortableProjectIssueCode::ReadManifest);
+  CHECK(backend.calls == 0);
+
+  write_text(directory.path() / "mobagen.yaml", "schema: [1\n");
+  const auto malformed = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend);
+  CHECK_FALSE(malformed.ok());
+  REQUIRE_FALSE(malformed.issues.empty());
+  CHECK(malformed.issues.front().code == compositions::PortableProjectIssueCode::ParseManifest);
+  CHECK(backend.calls == 0);
+
+  write_text(directory.path() / "mobagen.yaml", std::string(modules::max_product_manifest_bytes + 1, 'x'));
+  const auto oversized = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend);
+  CHECK_FALSE(oversized.ok());
+  REQUIRE_FALSE(oversized.issues.empty());
+  CHECK(oversized.issues.front().code == compositions::PortableProjectIssueCode::ReadManifest);
+  CHECK(backend.calls == 0);
+
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+name: rejected-portable-project
+modules:
+  runtime:
+    use: mobagen.wasm-package
+plugins:
+  - ./plugins/reference.plugin
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml");
+  backend.start_statuses = {MOBAGEN_WASM_STATUS_FAILED};
+
+  const auto rejected = compositions::load_portable_project(directory.path() / "mobagen.yaml", options, backend);
+
+  CHECK_FALSE(rejected.ok());
+  REQUIRE_FALSE(rejected.issues.empty());
+  CHECK(rejected.issues.front().code == compositions::PortableProjectIssueCode::Activation);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Quiesce) == 1);
+  CHECK(invocation_count(backend, plugins::WasmPluginExport::Stop) == 1);
 }
