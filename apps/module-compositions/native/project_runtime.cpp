@@ -179,7 +179,7 @@ namespace mobagen::compositions {
   }
 
   NativeProjectResult load_native_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
-                                          std::span<const modules::ProviderDescriptor> builtin_providers) {
+                                          std::span<const modules::ProviderDescriptor> builtin_providers, NativeProjectLockOptions lock_options) {
     NativeProjectResult result;
     auto source = read_manifest(manifest_path);
     if (!source.contents.has_value()) {
@@ -222,12 +222,27 @@ namespace mobagen::compositions {
     if (!capture_lock_metadata(*runtime->catalog_, *runtime->resolution_, project_root, options, runtime->lockfile_metadata_, result)) {
       return result;
     }
-    auto lockfile = runtime->lockfile({});
+    auto lockfile = runtime->lockfile(lock_options.sdk_version);
     if (!lockfile.ok()) {
       add_issue(result, {.code = NativeProjectIssueCode::LockMetadata,
                          .message = "selected native plugins could not be represented in mobagen.lock",
                          .lockfile_issues = std::move(lockfile.issues)});
       return result;
+    }
+    const auto lockfile_path = project_root / "mobagen.lock";
+    if (lock_options.policy == NativeProjectLockPolicy::Frozen) {
+      auto existing = modules::read_lockfile_bounded(lockfile_path);
+      if (!existing.ok()) {
+        add_issue(result, {.code = NativeProjectIssueCode::LockRead,
+                           .message = "frozen native project requires a readable mobagen.lock",
+                           .lockfile_read_issue = std::move(existing.issue)});
+        return result;
+      }
+      if (*existing.contents != *lockfile.contents) {
+        add_issue(result,
+                  {.code = NativeProjectIssueCode::LockMismatch, .message = "mobagen.lock does not exactly match the resolved native project"});
+        return result;
+      }
     }
 
     auto activation = plugins::activate_resolved_native_plugins(*runtime->catalog_, *runtime->resolution_, runtime->host_);
@@ -238,6 +253,15 @@ namespace mobagen::compositions {
       return result;
     }
     runtime->activation_ = std::move(activation.activation);
+    if (lock_options.policy == NativeProjectLockPolicy::Update) {
+      auto written = modules::write_lockfile_atomic(lockfile_path, *lockfile.contents);
+      if (!written.ok()) {
+        add_issue(result, {.code = NativeProjectIssueCode::LockWrite,
+                           .message = "mobagen.lock could not be updated after native plugin activation",
+                           .lockfile_write_issue = std::move(written.issue)});
+        return result;
+      }
+    }
     runtime->catalog_->discard_plugins();
     result.runtime = std::move(runtime);
     return result;

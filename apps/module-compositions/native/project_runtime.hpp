@@ -15,12 +15,22 @@
 
 namespace mobagen::compositions {
 
+  enum class NativeProjectLockPolicy : std::uint8_t { Ignore, Update, Frozen };
+
+  struct NativeProjectLockOptions {
+    NativeProjectLockPolicy policy{NativeProjectLockPolicy::Ignore};
+    modules::SemanticVersion sdk_version{0, 0, 1};
+  };
+
   enum class NativeProjectIssueCode : std::uint8_t {
     ReadManifest,
     ParseManifest,
     Catalog,
     Resolution,
     LockMetadata,
+    LockRead,
+    LockMismatch,
+    LockWrite,
     Activation,
   };
 
@@ -31,6 +41,8 @@ namespace mobagen::compositions {
     std::vector<plugins::NativePluginCatalogIssue> catalog_issues;
     std::vector<modules::ResolutionIssue> resolution_issues;
     std::vector<modules::LockfileIssue> lockfile_issues;
+    std::optional<modules::LockfileReadIssue> lockfile_read_issue;
+    std::optional<modules::LockfileWriteIssue> lockfile_write_issue;
     std::vector<plugins::ResolvedNativePluginIssue> activation_issues;
   };
 
@@ -61,7 +73,7 @@ namespace mobagen::compositions {
 
   private:
     friend NativeProjectResult load_native_project(const std::filesystem::path&, modules::ResolverOptions,
-                                                   std::span<const modules::ProviderDescriptor>);
+                                                   std::span<const modules::ProviderDescriptor>, NativeProjectLockOptions);
 
     explicit NativeProjectRuntime(modules::ProductDescriptor product) : product_(std::move(product)) {}
 
@@ -74,6 +86,7 @@ namespace mobagen::compositions {
   };
 
   [[nodiscard]] NativeProjectResult load_native_project(const std::filesystem::path& manifest_path, modules::ResolverOptions options,
-                                                        std::span<const modules::ProviderDescriptor> builtin_providers = {});
+                                                        std::span<const modules::ProviderDescriptor> builtin_providers = {},
+                                                        NativeProjectLockOptions lock_options = {});
 
 }  // namespace mobagen::compositions

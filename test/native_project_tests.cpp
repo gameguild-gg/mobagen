@@ -45,6 +45,19 @@ namespace {
       REQUIRE(stream.good());
     }
 
+    void write_lockfile(std::string_view contents) const {
+      std::ofstream stream(path_ / "mobagen.lock", std::ios::binary | std::ios::trunc);
+      REQUIRE(stream.is_open());
+      stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+      REQUIRE(stream.good());
+    }
+
+    [[nodiscard]] std::string read_lockfile() const {
+      std::ifstream stream(path_ / "mobagen.lock", std::ios::binary);
+      REQUIRE(stream.is_open());
+      return {std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+    }
+
   private:
     std::filesystem::path path_;
   };
@@ -88,11 +101,7 @@ namespace {
 #endif
   }
 
-}  // namespace
-
-TEST_CASE("Native project: mobagen yaml default selects and activates a real dot-plugin end to end") {
-  TemporaryNativeProject project;
-  project.write(R"yaml(schema: 1
+  constexpr std::string_view valid_native_project_manifest = R"yaml(schema: 1
 name: native-project-test
 modules:
   runtime:
@@ -104,7 +113,13 @@ profiles:
   release:
     linkage: dynamic
     editor: false
-)yaml");
+)yaml";
+
+}  // namespace
+
+TEST_CASE("Native project: mobagen yaml default selects and activates a real dot-plugin end to end") {
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
 
   auto loaded = mobagen::compositions::load_native_project(project.path() / "mobagen.yaml", runtime_options());
 
@@ -140,6 +155,78 @@ profiles:
                + reference_plugin_hash() + "\n");
   CHECK(loaded.runtime->stop().ok());
   CHECK(loaded.runtime->host().size() == 0);
+}
+
+TEST_CASE("Native project: update writes a canonical lock that frozen mode accepts") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
+  const NativeProjectLockOptions update_lock{
+      .policy = NativeProjectLockPolicy::Update,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+
+  auto updated = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, update_lock);
+
+  REQUIRE(updated.ok());
+  const auto generated = updated.runtime->lockfile({0, 0, 1});
+  REQUIRE(generated.ok());
+  CHECK(project.read_lockfile() == *generated.contents);
+  CHECK(updated.runtime->stop().ok());
+  updated.runtime.reset();
+
+  const NativeProjectLockOptions frozen_lock{
+      .policy = NativeProjectLockPolicy::Frozen,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+  auto frozen = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, frozen_lock);
+  REQUIRE(frozen.ok());
+  CHECK(frozen.runtime->host().size() == 1);
+  CHECK(frozen.runtime->stop().ok());
+}
+
+TEST_CASE("Native project: frozen mode rejects missing and changed lockfiles") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
+  const NativeProjectLockOptions frozen_lock{
+      .policy = NativeProjectLockPolicy::Frozen,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+
+  const auto missing = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, frozen_lock);
+  CHECK_FALSE(missing.ok());
+  REQUIRE(missing.issues.size() == 1);
+  CHECK(missing.issues.front().code == NativeProjectIssueCode::LockRead);
+  REQUIRE(missing.issues.front().lockfile_read_issue.has_value());
+  CHECK(missing.issues.front().lockfile_read_issue->code == mobagen::modules::LockfileReadIssueCode::NotFound);
+
+  project.write_lockfile("schema: 1\n# changed\n");
+  const auto changed = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, frozen_lock);
+  CHECK_FALSE(changed.ok());
+  REQUIRE(changed.issues.size() == 1);
+  CHECK(changed.issues.front().code == NativeProjectIssueCode::LockMismatch);
+}
+
+TEST_CASE("Native project: failed lock update rolls back and unloads activated plugins") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
+  REQUIRE(std::filesystem::create_directory(project.path() / "mobagen.lock"));
+  const NativeProjectLockOptions update_lock{
+      .policy = NativeProjectLockPolicy::Update,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+
+  const auto failed = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, update_lock);
+
+  CHECK_FALSE(failed.ok());
+  REQUIRE(failed.issues.size() == 1);
+  CHECK(failed.issues.front().code == NativeProjectIssueCode::LockWrite);
+  REQUIRE(failed.issues.front().lockfile_write_issue.has_value());
+  std::error_code removal_error;
+  CHECK(std::filesystem::remove(project.path() / "plugins" / "reference.plugin" / mobagen::plugins::native_plugin_binary_filename(), removal_error));
+  CHECK_FALSE(removal_error);
 }
 
 TEST_CASE("Native project: missing oversized and malformed manifests fail before runtime publication") {
