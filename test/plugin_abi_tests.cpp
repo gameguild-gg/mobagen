@@ -6,8 +6,10 @@
 #include <type_traits>
 
 #include "plugins/plugin_abi.h"
+#include <mobagen/plugin/wasm_abi.h>
 
 extern "C" int mobagen_plugin_abi_c_compile_test(void);
+extern "C" int mobagen_wasm_abi_c_compile_test(void);
 
 namespace {
 
@@ -49,6 +51,29 @@ TEST_CASE("Plugin ABI: public contract compiles as C and C++") {
   CHECK(MOBAGEN_PLUGIN_DESCRIPTOR_V1_BASE_SIZE < MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE);
   CHECK(MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE == sizeof(MobagenPluginDescriptorV1));
   CHECK(mobagen_plugin_abi_c_compile_test() == 0);
+}
+
+TEST_CASE("Plugin ABI: portable WASM contract is fixed-width and batch-oriented") {
+  static_assert(std::is_standard_layout_v<MobagenWasmSpan32>);
+  static_assert(std::is_trivially_copyable_v<MobagenWasmSpan32>);
+  static_assert(std::is_standard_layout_v<MobagenWasmPluginDescriptorV1>);
+  static_assert(std::is_trivially_copyable_v<MobagenWasmPluginDescriptorV1>);
+  static_assert(std::is_standard_layout_v<MobagenWasmCommandBatchV1>);
+  static_assert(std::is_trivially_copyable_v<MobagenWasmCommandBatchV1>);
+
+  CHECK(MOBAGEN_WASM_PLUGIN_ABI_VERSION == 1U);
+  CHECK(MOBAGEN_WASM_LINEAR_MEMORY_PAGE_BYTES == 65'536U);
+  CHECK(MOBAGEN_WASM_COMMAND_ALIGNMENT == 8U);
+  CHECK(MOBAGEN_WASM_STATUS_OK == 0U);
+  CHECK(MOBAGEN_WASM_STATUS_FAILED == 6U);
+  CHECK(MOBAGEN_WASM_RELOAD_SAFE_POINT == 2U);
+  CHECK(MOBAGEN_WASM_SPAN32_SIZE == 8U);
+  CHECK(MOBAGEN_WASM_HANDLE32_SIZE == 8U);
+  CHECK(MOBAGEN_WASM_COMMAND_HEADER_V1_SIZE == 8U);
+  CHECK(MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE == 24U);
+  CHECK(MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE == 80U);
+  CHECK(offsetof(MobagenWasmPluginDescriptorV1, configuration_schema) == 64U);
+  CHECK(mobagen_wasm_abi_c_compile_test() == 0);
 }
 
 TEST_CASE("Plugin ABI: extensible structures begin with size and version") {

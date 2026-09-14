@@ -1,5 +1,6 @@
 #include "plugins/plugin_abi.h"
 #include "plugins/runtime_tick_v1.h"
+#include <mobagen/plugin/wasm_abi.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -40,4 +41,14 @@ int mobagen_plugin_abi_c_compile_test(void) {
   tick.header.abi_version = 1;
   return descriptor.lifecycle.configure(NULL, &host, (MobagenByteView){NULL, 0}) == MOBAGEN_STATUS_OK && tick.header.struct_size == sizeof(tick) ? 0
                                                                                                                                                  : 1;
+}
+
+int mobagen_wasm_abi_c_compile_test(void) {
+  MobagenWasmPluginDescriptorV1 descriptor = {0};
+  MobagenWasmCommandBatchV1 batch = {0};
+  descriptor.struct_size = MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE;
+  descriptor.abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION;
+  batch.struct_size = MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE;
+  batch.abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION;
+  return descriptor.struct_size == sizeof(descriptor) && batch.struct_size == sizeof(batch) ? 0 : 1;
 }
