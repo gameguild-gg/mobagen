@@ -253,3 +253,38 @@ TEST_CASE("Module lockfile: failed atomic commit preserves the destination and r
   CHECK(read_text(marker) == "preserve me");
   CHECK_FALSE(has_lockfile_temporary_file(directory.path()));
 }
+
+TEST_CASE("Module lockfile: bounded read returns exact canonical bytes") {
+  using namespace mobagen::modules;
+
+  TemporaryLockDirectory directory;
+  const auto source = directory.path() / "mobagen.lock";
+  write_text(source, "schema: 1\nprofile: release\n");
+
+  const auto result = read_lockfile_bounded(source);
+
+  REQUIRE(result.ok());
+  CHECK(*result.contents == "schema: 1\nprofile: release\n");
+}
+
+TEST_CASE("Module lockfile: bounded read rejects missing directories and oversized inputs") {
+  using namespace mobagen::modules;
+
+  TemporaryLockDirectory directory;
+  const auto missing = read_lockfile_bounded(directory.path() / "missing.lock");
+  CHECK_FALSE(missing.ok());
+  REQUIRE(missing.issue.has_value());
+  CHECK(missing.issue->code == LockfileReadIssueCode::NotFound);
+
+  const auto invalid = read_lockfile_bounded(directory.path());
+  CHECK_FALSE(invalid.ok());
+  REQUIRE(invalid.issue.has_value());
+  CHECK(invalid.issue->code == LockfileReadIssueCode::InvalidPath);
+
+  const auto oversized_path = directory.path() / "oversized.lock";
+  write_text(oversized_path, std::string(max_lockfile_bytes + 1, 'x'));
+  const auto oversized = read_lockfile_bounded(oversized_path);
+  CHECK_FALSE(oversized.ok());
+  REQUIRE(oversized.issue.has_value());
+  CHECK(oversized.issue->code == LockfileReadIssueCode::TooLarge);
+}

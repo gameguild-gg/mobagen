@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstdint>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <string>
@@ -46,6 +47,14 @@ namespace mobagen::modules {
         message += error.message();
       }
       return {.issue = LockfileWriteIssue{code, path, error, std::move(message)}};
+    }
+
+    LockfileReadResult read_failure(LockfileReadIssueCode code, const std::filesystem::path& path, std::error_code error, std::string message) {
+      if (error) {
+        message += ": ";
+        message += error.message();
+      }
+      return {.issue = LockfileReadIssue{code, path, error, std::move(message)}};
     }
 
     std::filesystem::path temporary_path_for(const std::filesystem::path& destination, std::uint64_t nonce, std::size_t attempt) {
@@ -195,6 +204,64 @@ namespace mobagen::modules {
     }
 
   }  // namespace
+
+  LockfileReadResult read_lockfile_bounded(const std::filesystem::path& source) {
+    const auto filename = source.filename();
+    if (source.empty() || filename.empty() || filename == "." || filename == "..") {
+      return read_failure(LockfileReadIssueCode::InvalidPath, source, {}, "lockfile source must name a file");
+    }
+
+    std::error_code error;
+    const auto status = std::filesystem::symlink_status(source, error);
+    if (status.type() == std::filesystem::file_type::not_found) {
+      return read_failure(LockfileReadIssueCode::NotFound, source, {}, "lockfile does not exist");
+    }
+    if (error) {
+      return read_failure(LockfileReadIssueCode::ReadFailed, source, error, "lockfile could not be inspected");
+    }
+    if (!std::filesystem::is_regular_file(status) || std::filesystem::is_symlink(status)) {
+      return read_failure(LockfileReadIssueCode::InvalidPath, source, {}, "lockfile must be a real regular file, not a directory or symbolic link");
+    }
+
+    const auto expected_size = std::filesystem::file_size(source, error);
+    if (error) {
+      return read_failure(LockfileReadIssueCode::ReadFailed, source, error, "lockfile size could not be read");
+    }
+    if (expected_size > max_lockfile_bytes) {
+      return read_failure(LockfileReadIssueCode::TooLarge, source, {}, "lockfile exceeds the 1 MiB size limit");
+    }
+    const auto expected_write_time = std::filesystem::last_write_time(source, error);
+    if (error) {
+      return read_failure(LockfileReadIssueCode::ReadFailed, source, error, "lockfile modification time could not be read");
+    }
+
+    std::ifstream stream(source, std::ios::binary);
+    if (!stream.is_open()) {
+      return read_failure(LockfileReadIssueCode::ReadFailed, source, std::make_error_code(std::errc::io_error), "lockfile could not be opened");
+    }
+    std::string contents(static_cast<std::size_t>(expected_size), '\0');
+    if (!contents.empty()) {
+      stream.read(contents.data(), static_cast<std::streamsize>(contents.size()));
+      if (stream.gcount() != static_cast<std::streamsize>(contents.size())) {
+        return read_failure(LockfileReadIssueCode::Changed, source, {}, "lockfile changed or became unreadable while loading");
+      }
+    }
+    char trailing = 0;
+    stream.read(&trailing, 1);
+    if (stream.gcount() != 0 || stream.bad()) {
+      return read_failure(LockfileReadIssueCode::Changed, source, {}, "lockfile changed or became unreadable while loading");
+    }
+
+    const auto actual_size = std::filesystem::file_size(source, error);
+    if (error) {
+      return read_failure(LockfileReadIssueCode::Changed, source, error, "lockfile changed while loading");
+    }
+    const auto actual_write_time = std::filesystem::last_write_time(source, error);
+    if (error || actual_size != expected_size || actual_write_time != expected_write_time) {
+      return read_failure(LockfileReadIssueCode::Changed, source, error, "lockfile changed while loading");
+    }
+    return {.contents = std::move(contents)};
+  }
 
   LockfileWriteResult write_lockfile_atomic(const std::filesystem::path& destination, std::string_view contents) {
     const auto filename = destination.filename();
