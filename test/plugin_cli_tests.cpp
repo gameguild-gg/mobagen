@@ -10,6 +10,8 @@
 
 #include "plugin_cli.hpp"
 #include "plugins/plugin_loader.hpp"
+#include "plugins/wasm_plugin_loader.hpp"
+#include "support/wasm_plugin_test_support.hpp"
 
 namespace {
 
@@ -35,6 +37,13 @@ namespace {
     }
 
     [[nodiscard]] std::filesystem::path store() const { return path_ / "installed"; }
+
+    [[nodiscard]] std::filesystem::path portable_package() const {
+      const auto package = path_ / "portable-source.plugin";
+      REQUIRE(std::filesystem::create_directory(package));
+      mobagen::test::write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), mobagen::test::valid_wasm_header);
+      return package;
+    }
 
   private:
     std::filesystem::path path_;
@@ -96,4 +105,58 @@ TEST_CASE("Plugin CLI: malformed commands and invalid packages fail explicitly")
   const std::array<std::string_view, 2> invalid{"verify", "missing.plugin"};
   CHECK(mobagen::plugins::cli::run(invalid, output, error) == 3);
   CHECK(error.str().contains("verify failed"));
+}
+
+TEST_CASE("Plugin CLI: native and portable packages share one managed store") {
+  using namespace mobagen;
+  TemporaryPluginCliRoot root;
+  test::FakeWasmBackend backend;
+  const auto native_package = root.package().string();
+  const auto portable_package = root.portable_package().string();
+  const auto store = root.store().string();
+  const plugins::cli::PluginCliServices services{.portable_backend = &backend};
+
+  std::ostringstream output;
+  std::ostringstream error;
+  const std::array<std::string_view, 2> verify_arguments{"verify", portable_package};
+  REQUIRE(plugins::cli::run(verify_arguments, output, error, services) == 0);
+  CHECK(output.str() == "verified\tmobagen.wasm-package\t1.0.0\n");
+  CHECK(error.str().empty());
+
+  output.str({});
+  const std::array<std::string_view, 3> install_native{"install", store, native_package};
+  REQUIRE(plugins::cli::run(install_native, output, error, services) == 0);
+  output.str({});
+  const std::array<std::string_view, 3> install_portable{"install", store, portable_package};
+  REQUIRE(plugins::cli::run(install_portable, output, error, services) == 0);
+  CHECK(std::filesystem::is_directory(root.store() / "mobagen.reference.plugin"));
+  CHECK(std::filesystem::is_directory(root.store() / "mobagen.wasm-package.plugin"));
+
+  output.str({});
+  const std::array<std::string_view, 2> list_arguments{"list", store};
+  REQUIRE(plugins::cli::run(list_arguments, output, error, services) == 0);
+  CHECK(error.str().empty());
+  CHECK(output.str().contains("plugin\tmobagen.reference\t1.0.0\tnative\t"));
+  CHECK(output.str().contains("plugin\tmobagen.wasm-package\t1.0.0\twasm\t"));
+  CHECK(output.str().ends_with("plugins\t2\n"));
+  CHECK(backend.calls == 4);
+
+  output.str({});
+  const std::array<std::string_view, 3> remove_portable{"remove", store, "mobagen.wasm-package"};
+  REQUIRE(plugins::cli::run(remove_portable, output, error, services) == 0);
+  CHECK_FALSE(std::filesystem::exists(root.store() / "mobagen.wasm-package.plugin"));
+  CHECK(std::filesystem::is_directory(root.store() / "mobagen.reference.plugin"));
+}
+
+TEST_CASE("Plugin CLI: portable commands fail clearly without a WASM backend") {
+  using namespace mobagen;
+  TemporaryPluginCliRoot root;
+  const auto package = root.portable_package().string();
+  const std::array<std::string_view, 2> arguments{"verify", package};
+  std::ostringstream output;
+  std::ostringstream error;
+
+  CHECK(plugins::cli::run(arguments, output, error, {}) == 3);
+  CHECK(output.str().empty());
+  CHECK(error.str().contains("portable WASM backend is unavailable"));
 }
