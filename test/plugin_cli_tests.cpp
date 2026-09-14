@@ -67,6 +67,14 @@ TEST_CASE("Plugin CLI: install and remove round-trip through the managed store")
   CHECK(install_output.str().starts_with("installed\tmobagen.reference\t1.0.0\t"));
   CHECK(std::filesystem::is_directory(root.store() / "mobagen.reference.plugin"));
 
+  const std::array<std::string_view, 2> list_arguments{"list", store};
+  std::ostringstream list_output;
+  std::ostringstream list_error;
+  CHECK(mobagen::plugins::cli::run(list_arguments, list_output, list_error) == 0);
+  CHECK(list_error.str().empty());
+  CHECK(list_output.str().starts_with("plugin\tmobagen.reference\t1.0.0\t"));
+  CHECK(list_output.str().ends_with("mobagen.reference.plugin\nplugins\t1\n"));
+
   const std::array<std::string_view, 3> remove_arguments{"remove", store, "mobagen.reference"};
   std::ostringstream remove_output;
   std::ostringstream remove_error;

@@ -150,3 +150,41 @@ TEST_CASE("Plugin store: files cannot impersonate the store root or an installed
   CHECK(has_issue(invalid_destination, NativePluginStoreIssueCode::CommitFailed));
   CHECK(std::filesystem::is_regular_file(destination_file));
 }
+
+TEST_CASE("Plugin store: inventory validates and deterministically reports installed packages") {
+  using namespace mobagen::plugins;
+  TemporaryPluginStoreRoot root;
+  const auto source = root.package("reference");
+  PluginHost host;
+  NativePluginStore store{root.store()};
+  REQUIRE(store.install(source, host).ok());
+  const auto lifecycle_package = root.store() / "mobagen.lifecycle-failure.plugin";
+  REQUIRE(std::filesystem::create_directory(lifecycle_package));
+  REQUIRE(std::filesystem::copy_file(MOBAGEN_CONFIGURE_FAILURE_PLUGIN_PATH, lifecycle_package / native_plugin_binary_filename()));
+
+  const auto inventory = store.list(host);
+
+  REQUIRE(inventory.ok());
+  REQUIRE(inventory.entries.size() == 2);
+  CHECK(inventory.entries[0].provider_id == "mobagen.lifecycle-failure");
+  CHECK(inventory.entries[0].package == std::filesystem::absolute(lifecycle_package));
+  CHECK(inventory.entries[1].provider_id == "mobagen.reference");
+  CHECK(inventory.entries[1].version == mobagen::modules::SemanticVersion{1, 0, 0});
+  CHECK(inventory.entries[1].package == std::filesystem::absolute(root.store() / "mobagen.reference.plugin"));
+}
+
+TEST_CASE("Plugin store: inventory reports a corrupt dot-plugin package") {
+  using namespace mobagen::plugins;
+  TemporaryPluginStoreRoot root;
+  REQUIRE(std::filesystem::create_directories(root.store() / "corrupt.plugin"));
+  std::ofstream(root.store() / "corrupt.plugin" / "unexpected.txt") << "not a plugin";
+  PluginHost host;
+
+  const auto inventory = NativePluginStore{root.store()}.list(host);
+
+  CHECK_FALSE(inventory.ok());
+  CHECK(inventory.entries.empty());
+  REQUIRE(inventory.issues.size() == 1);
+  CHECK(inventory.issues.front().code == NativePluginStoreIssueCode::InvalidSource);
+  CHECK(inventory.issues.front().path == std::filesystem::absolute(root.store() / "corrupt.plugin"));
+}

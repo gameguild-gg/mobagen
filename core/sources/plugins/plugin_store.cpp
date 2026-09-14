@@ -1,21 +1,24 @@
 #include "plugin_store.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace mobagen::plugins {
   namespace {
 
     enum class StoreRootMode : std::uint8_t { Create, Existing };
 
-    void add_issue(NativePluginStoreActionResult& result, NativePluginStoreIssueCode code, const std::filesystem::path& path, std::string message,
-                   std::error_code system_error = {}, std::vector<NativePluginLoadIssue> load_issues = {}) {
+    template <typename Result> void add_issue(Result& result, NativePluginStoreIssueCode code, const std::filesystem::path& path, std::string message,
+                                              std::error_code system_error = {}, std::vector<NativePluginLoadIssue> load_issues = {}) {
       result.issues.push_back({code, path, system_error, std::move(message), std::move(load_issues)});
     }
 
-    [[nodiscard]] bool resolve_store_root(const std::filesystem::path& configured, StoreRootMode mode, std::filesystem::path& root,
-                                          NativePluginStoreActionResult& result) {
+    template <typename Result>
+    [[nodiscard]] bool resolve_store_root(const std::filesystem::path& configured, StoreRootMode mode, std::filesystem::path& root, Result& result) {
       if (configured.empty()) {
         add_issue(result, NativePluginStoreIssueCode::InvalidRoot, configured, "plugin store root must name a directory");
         return false;
@@ -218,6 +221,55 @@ namespace mobagen::plugins {
     result.changed = true;
     result.committed = true;
     cleanup_directory(tombstone, result);
+    return result;
+  }
+
+  NativePluginStoreListResult NativePluginStore::list(PluginHost& host) const {
+    NativePluginStoreListResult result;
+    std::filesystem::path root;
+    if (!resolve_store_root(root_, StoreRootMode::Existing, root, result)) {
+      return result;
+    }
+
+    std::error_code error;
+    std::filesystem::directory_iterator iterator(root, error);
+    const std::filesystem::directory_iterator end;
+    if (error) {
+      add_issue(result, NativePluginStoreIssueCode::EnumerationFailed, root, "could not enumerate plugin store", error);
+      return result;
+    }
+
+    std::vector<std::filesystem::path> packages;
+    while (iterator != end) {
+      const auto filename = iterator->path().filename().string();
+      if (!filename.starts_with('.') && iterator->path().extension() == ".plugin") {
+        if (packages.size() == max_native_plugin_store_packages) {
+          add_issue(result, NativePluginStoreIssueCode::LimitExceeded, root, "installed plugin package count exceeds limit");
+          return result;
+        }
+        packages.push_back(iterator->path());
+      }
+      iterator.increment(error);
+      if (error) {
+        add_issue(result, NativePluginStoreIssueCode::EnumerationFailed, root, "could not continue enumerating plugin store", error);
+        return result;
+      }
+    }
+    std::ranges::sort(packages, [](const auto& left, const auto& right) { return left.generic_string() < right.generic_string(); });
+
+    for (const auto& package : packages) {
+      auto loaded = load_native_plugin_package(package, host.api());
+      if (!loaded.plugin.has_value()) {
+        add_issue(result, NativePluginStoreIssueCode::InvalidSource, package, "installed plugin package is invalid", {}, std::move(loaded.issues));
+        continue;
+      }
+      const auto& provider = loaded.plugin->contract().provider;
+      if (package.filename() != std::filesystem::path{provider.id + ".plugin"}) {
+        add_issue(result, NativePluginStoreIssueCode::InvalidProvider, package, "installed plugin package filename does not match its provider ID");
+        continue;
+      }
+      result.entries.push_back({provider.id, provider.version, package});
+    }
     return result;
   }
 
