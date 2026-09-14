@@ -55,6 +55,17 @@ namespace mobagen::compositions::cli {
       std::string error;
     };
 
+    struct InitCommand {
+      std::filesystem::path directory;
+      std::string name;
+      std::string source;
+    };
+
+    struct InitParseResult {
+      std::optional<InitCommand> command;
+      std::string error;
+    };
+
     struct ProjectRouteResult {
       std::optional<modules::ProductDescriptor> product;
       std::filesystem::path manifest_path;
@@ -66,6 +77,8 @@ namespace mobagen::compositions::cli {
 
     void print_usage(std::ostream& stream) {
       stream << "usage:\n"
+                "  MobagenProject init <directory> --name <slug> --source <https-catalog-url>\n"
+                "      [--template recommended]\n"
                 "  MobagenProject bootstrap <mobagen.yaml> --profile <name>\n"
                 "      [--alias <alias=capability> ...] [--default <capability=provider> ...] [--cache <directory>]\n"
                 "  MobagenProject sync <mobagen.yaml> --profile <name>\n"
@@ -135,11 +148,157 @@ namespace mobagen::compositions::cli {
       return "unknown";
     }
 
+    std::string yaml_quote(std::string_view value) {
+      std::string quoted;
+      quoted.reserve(value.size() + 2);
+      quoted.push_back('"');
+      for (const auto character : value) {
+        if (character == '"' || character == '\\') quoted.push_back('\\');
+        quoted.push_back(character);
+      }
+      quoted.push_back('"');
+      return quoted;
+    }
+
+    std::string recommended_manifest(const InitCommand& command) {
+      return "schema: 1\n"
+             "name: " + command.name + "\n"
+             "sources:\n"
+             "  official:\n"
+             "    url: " + yaml_quote(command.source) + "\n"
+             "modules:\n"
+             "  render:\n"
+             "    capability: render.backend.v1\n"
+             "    use: mobagen.render.webgpu\n"
+             "  window:\n"
+             "    capability: window.surface.v1\n"
+             "    use: mobagen.window.sdl3\n"
+             "plugins: []\n"
+             "profiles:\n"
+             "  development:\n"
+             "    linkage: dynamic\n"
+             "    editor: true\n"
+             "    permissions:\n"
+             "      - gpu\n"
+             "      - windowing\n"
+             "  release:\n"
+             "    linkage: dynamic\n"
+             "    editor: false\n"
+             "    permissions:\n"
+             "      - gpu\n"
+             "      - windowing\n";
+    }
+
     void write_sorted_relations(std::ostream& output, std::string_view relation, std::string_view provider_id,
                                 const std::vector<std::string>& values) {
       auto sorted = values;
       std::ranges::sort(sorted);
       for (const auto& value : sorted) output << relation << '\t' << provider_id << '\t' << value << '\n';
+    }
+
+    InitParseResult parse_init(std::span<const std::string_view> arguments) {
+      InitParseResult result;
+      if (arguments.size() > max_project_cli_arguments) {
+        result.error = "argument count exceeds limit";
+        return result;
+      }
+      if (arguments.size() < 2 || arguments[0] != "init" || arguments[1].empty()) {
+        result.error = "expected init and a new project directory";
+        return result;
+      }
+      InitCommand command{.directory = std::filesystem::path{arguments[1]}};
+      bool name_seen = false;
+      bool source_seen = false;
+      bool template_seen = false;
+      for (std::size_t index = 2; index < arguments.size(); ++index) {
+        const auto option = arguments[index];
+        if (option != "--name" && option != "--source" && option != "--template") {
+          result.error = "unknown init option: " + std::string{option};
+          return result;
+        }
+        if (++index == arguments.size()) {
+          result.error = std::string{option} + " requires a value";
+          return result;
+        }
+        const auto value = arguments[index];
+        if (option == "--name") {
+          if (name_seen || !modules::is_slug(value)) {
+            result.error = "--name must be one unique lowercase slug";
+            return result;
+          }
+          name_seen = true;
+          command.name = value;
+        } else if (option == "--source") {
+          if (source_seen || !modules::is_secure_https_url(value)) {
+            result.error = "--source must be one secure HTTPS catalog URL";
+            return result;
+          }
+          source_seen = true;
+          command.source = value;
+        } else {
+          if (template_seen || value != "recommended") {
+            result.error = "--template currently supports only recommended";
+            return result;
+          }
+          template_seen = true;
+        }
+      }
+      if (!name_seen || !source_seen) {
+        result.error = "init requires --name and --source";
+        return result;
+      }
+      result.command = std::move(command);
+      return result;
+    }
+
+    int initialize(const InitCommand& command, std::ostream& output, std::ostream& error) {
+      const auto contents = recommended_manifest(command);
+      const auto parsed = modules::parse_product_manifest(contents, "generated mobagen.yaml");
+      if (!parsed.ok()) {
+        error << "init failed: internal recommended template is invalid\n";
+        return 3;
+      }
+
+      std::error_code path_error;
+      const auto directory = std::filesystem::absolute(command.directory, path_error)
+                               .lexically_normal();
+      if (path_error || directory.filename().empty()) {
+        error << "init failed: project directory could not be resolved\n";
+        return 3;
+      }
+      const auto status = std::filesystem::symlink_status(directory, path_error);
+      if (path_error && status.type() != std::filesystem::file_type::not_found) {
+        error << "init failed: project directory could not be inspected: "
+              << path_error.message() << '\n';
+        return 3;
+      }
+      if (std::filesystem::exists(status)) {
+        error << "init failed: project directory already exists\n";
+        return 3;
+      }
+      path_error.clear();
+      if (!std::filesystem::create_directories(directory, path_error) || path_error) {
+        error << "init failed: project directory could not be created";
+        if (path_error) error << ": " << path_error.message();
+        error << '\n';
+        return 3;
+      }
+
+      const auto manifest_path = directory / "mobagen.yaml";
+      const auto written = modules::write_lockfile_atomic(manifest_path, contents);
+      if (!written.ok()) {
+        std::error_code ignored;
+        std::filesystem::remove(directory, ignored);
+        error << "init failed: mobagen.yaml could not be written";
+        if (written.issue.has_value()) error << ": " << written.issue->message;
+        error << '\n';
+        return 3;
+      }
+      output << "initialized\t" << manifest_path.generic_string() << '\n'
+             << "template\trecommended\n"
+             << "next\tMobagenProject bootstrap\t" << manifest_path.generic_string()
+             << "\t--profile\tdevelopment\n";
+      return 0;
     }
 
     ParseResult parse(std::span<const std::string_view> arguments) {
@@ -651,6 +810,17 @@ namespace mobagen::compositions::cli {
         if (arguments.size() == 1 && (arguments[0] == "help" || arguments[0] == "--help")) {
           print_usage(output);
           return 0;
+        }
+        if (!arguments.empty() && arguments[0] == "init") {
+          auto initialized = parse_init(arguments);
+          if (!initialized.command.has_value()) {
+            if (!initialized.error.empty()) {
+              error << "invalid init command: " << initialized.error << '\n';
+            }
+            print_usage(error);
+            return 2;
+          }
+          return initialize(*initialized.command, output, error);
         }
         auto parsed = parse(arguments);
         if (!parsed.command.has_value()) {
