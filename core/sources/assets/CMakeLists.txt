@@ -1,4 +1,7 @@
-add_library(mobagen_core_assets STATIC asset_id.cpp asset_id.hpp asset_registry.hpp)
+add_library(
+  mobagen_core_assets STATIC asset_dependency_graph.cpp asset_dependency_graph.hpp asset_id.cpp
+                             asset_id.hpp asset_registry.hpp
+)
 add_library(mobagen::core_assets ALIAS mobagen_core_assets)
 
 target_compile_features(mobagen_core_assets PUBLIC cxx_std_20)
