@@ -1,9 +1,13 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <array>
+#include <span>
 #include <string_view>
 
+#include "modules/catalog_index.hpp"
 #include "modules/catalog_parser.hpp"
+#include "modules/resolver.hpp"
 
 namespace {
 
@@ -126,4 +130,92 @@ providers:
   CHECK(has_error(result, CatalogErrorCode::UnsupportedTag, "providers.mobagen.runtime.tick.artifacts[0].url"));
   CHECK(has_error(result, CatalogErrorCode::UnknownField, "providers.mobagen.runtime.tick.script"));
   CHECK(has_error(result, CatalogErrorCode::DuplicateKey, "providers.mobagen.runtime.tick"));
+}
+
+TEST_CASE("Module catalog: capability resolution selects metadata before the artifact is loaded") {
+  using namespace mobagen::modules;
+
+  ProviderDescriptor provider{
+      .id = "mobagen.render.webgpu",
+      .version = {1, 4, 2},
+      .provides = {"render.backend.v1"},
+      .targets = {TargetPlatform::Windows, TargetPlatform::Web},
+      .linkages = {LinkageMode::Dynamic, LinkageMode::Wasm},
+  };
+  ModuleCatalogDescriptor catalog{
+      .providers = {{
+          .provider = provider,
+          .artifacts = {
+              {.target = TargetPlatform::Windows,
+               .linkage = LinkageMode::Dynamic,
+               .url = "https://plugins.mobagen.dev/render/windows.plugin",
+               .size = 128,
+               .hash = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+              {.target = TargetPlatform::Web,
+               .linkage = LinkageMode::Wasm,
+               .url = "https://plugins.mobagen.dev/render/web.plugin",
+               .size = 64,
+               .hash = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+          },
+      }},
+  };
+
+  auto indexed = build_module_catalog_index(std::span(&catalog, 1), TargetPlatform::Windows, LinkageMode::Dynamic);
+  REQUIRE(indexed.ok());
+  const auto provider_index = indexed.index->registry().find_provider("mobagen.render.webgpu");
+  REQUIRE(provider_index.has_value());
+  const auto* artifact = indexed.index->artifact_for(*provider_index);
+  REQUIRE(artifact != nullptr);
+  CHECK(artifact->url == "https://plugins.mobagen.dev/render/windows.plugin");
+
+  ProductDescriptor product{
+      .name = "catalog-resolution",
+      .modules = {{.alias = "render", .provider = "default"}},
+      .profiles = {{.name = "editor", .linkage = LinkageMode::Dynamic, .editor = true}},
+  };
+  ResolverOptions options{
+      .target = TargetPlatform::Windows,
+      .profile = "editor",
+      .aliases = {{.alias = "render", .capability = "render.backend.v1"}},
+      .defaults = {{TargetPlatform::Windows, "editor", "render.backend.v1", "mobagen.render.webgpu"}},
+  };
+  const auto resolved = resolve_modules(product, indexed.index->registry(), options);
+  REQUIRE(resolved.ok());
+  REQUIRE(resolved.resolution->lifecycle_order().size() == 1);
+  CHECK(resolved.resolution->lifecycle_order().front() == *provider_index);
+
+  const auto unsupported = build_module_catalog_index(std::span(&catalog, 1), TargetPlatform::Web, LinkageMode::Dynamic);
+  REQUIRE(unsupported.ok());
+  CHECK(unsupported.index->registry().provider_count() == 0);
+}
+
+TEST_CASE("Module catalog: duplicate providers across sources fail deterministically") {
+  using namespace mobagen::modules;
+
+  const PublishedProviderDescriptor published{
+      .provider = {
+          .id = "mobagen.runtime.tick",
+          .version = {1, 0, 0},
+          .provides = {"runtime.tick.v1"},
+          .targets = {TargetPlatform::Windows},
+          .linkages = {LinkageMode::Dynamic},
+      },
+      .artifacts = {{
+          .target = TargetPlatform::Windows,
+          .linkage = LinkageMode::Dynamic,
+          .url = "https://plugins.mobagen.dev/runtime.plugin",
+          .size = 1,
+          .hash = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }},
+  };
+  const std::array catalogs{ModuleCatalogDescriptor{.providers = {published}}, ModuleCatalogDescriptor{.providers = {published}}};
+
+  const auto result = build_module_catalog_index(catalogs, TargetPlatform::Windows, LinkageMode::Dynamic);
+
+  CHECK_FALSE(result.ok());
+  CHECK(std::ranges::any_of(result.issues, [](const CatalogIndexIssue& issue) {
+    return issue.code == CatalogIndexIssueCode::RegistryFailed
+           && std::ranges::any_of(issue.registry_issues,
+                                  [](const RegistryIssue& registry) { return registry.code == RegistryIssueCode::DuplicateProvider; });
+  }));
 }
