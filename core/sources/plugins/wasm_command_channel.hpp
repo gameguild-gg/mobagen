@@ -25,6 +25,7 @@ namespace mobagen::plugins {
     InvalidOutputBatch,
     DeallocationFailed,
     WrongThread,
+    InvalidState,
     Closed,
     OutOfMemory,
   };
@@ -90,6 +91,14 @@ namespace mobagen::plugins {
 
   struct WasmCommandChannelCreateResult {
     std::unique_ptr<WasmCommandChannel> channel;
+    FixedIssueList<WasmCommandChannelIssue, 2> issues;
+
+    [[nodiscard]] bool ok() const noexcept { return channel != nullptr && issues.empty(); }
+  };
+
+  struct WasmCommandChannelOpenResult {
+    /* Borrowed from the activation and valid only until it is quiesced or destroyed. */
+    WasmCommandChannel* channel{};
     FixedIssueList<WasmCommandChannelIssue, 2> issues;
 
     [[nodiscard]] bool ok() const noexcept { return channel != nullptr && issues.empty(); }

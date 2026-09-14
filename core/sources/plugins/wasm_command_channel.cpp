@@ -95,6 +95,38 @@ namespace mobagen::plugins {
     return result;
   }
 
+  WasmCommandChannelOpenResult PortableWasmPluginActivation::open_command_channel(std::uint32_t input_capacity, std::uint32_t output_capacity) {
+    WasmCommandChannelOpenResult result;
+    if (std::this_thread::get_id() != owner_thread_) {
+      add_issue(result, WasmCommandChannelIssueCode::WrongThread, WasmPluginExport::Allocate,
+                "WASM command channels must be opened on the activation owner thread");
+      return result;
+    }
+    if (state_ != PortableWasmPluginState::Active) {
+      add_issue(result, WasmCommandChannelIssueCode::InvalidState, WasmPluginExport::Allocate,
+                "WASM command channels can only be opened for an active plugin");
+      return result;
+    }
+
+    auto created = create_wasm_command_channel(*instance_, input_capacity, output_capacity);
+    if (!created.ok()) {
+      result.issues = std::move(created.issues);
+      return result;
+    }
+
+    auto* borrowed = created.channel.get();
+    try {
+      command_channels_.push_back(std::move(created.channel));
+      result.channel = borrowed;
+    } catch (const std::bad_alloc&) {
+      add_issue(result, WasmCommandChannelIssueCode::OutOfMemory, WasmPluginExport::Allocate, "WASM activation could not retain the command channel",
+                MOBAGEN_WASM_STATUS_OUT_OF_MEMORY);
+      const auto closed = created.channel->close();
+      if (!closed.ok()) result.issues.push_back(closed.issues[0]);
+    }
+    return result;
+  }
+
   WasmCommandProcessResult WasmCommandChannel::process(std::span<const std::byte> input, std::uint32_t command_count) {
     WasmCommandProcessResult result;
     if (closed_) {
