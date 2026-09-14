@@ -6,8 +6,10 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "plugins/plugin_store.hpp"
+#include <mobagen/plugin/runtime_tick_v1.h>
 
 namespace {
 
@@ -166,10 +168,12 @@ TEST_CASE("Plugin store: inventory validates and deterministically reports insta
 
   REQUIRE(inventory.ok());
   REQUIRE(inventory.entries.size() == 2);
-  CHECK(inventory.entries[0].provider_id == "mobagen.lifecycle-failure");
+  CHECK(inventory.entries[0].provider.id == "mobagen.lifecycle-failure");
   CHECK(inventory.entries[0].package == std::filesystem::absolute(lifecycle_package));
-  CHECK(inventory.entries[1].provider_id == "mobagen.reference");
-  CHECK(inventory.entries[1].version == mobagen::modules::SemanticVersion{1, 0, 0});
+  CHECK(inventory.entries[1].provider.id == "mobagen.reference");
+  CHECK(inventory.entries[1].provider.version == mobagen::modules::SemanticVersion{1, 0, 0});
+  CHECK(inventory.entries[1].provider.provides == std::vector<std::string>{MOBAGEN_RUNTIME_TICK_V1_ID});
+  CHECK(inventory.entries[1].provider.reload == mobagen::modules::ReloadPolicy::Restart);
   CHECK(inventory.entries[1].package == std::filesystem::absolute(root.store() / "mobagen.reference.plugin"));
 }
 
