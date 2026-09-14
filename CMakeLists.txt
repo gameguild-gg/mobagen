@@ -174,8 +174,20 @@ option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"
        ${BUILD_EXAMPLES}
 )
-if(BUILD_TESTING OR MOBAGEN_BUILD_MODULE_COMPOSITIONS)
+option(MOBAGEN_BUILD_PROJECT_TOOLS "Build the native mobagen.yaml project command-line tools"
+       ${MOBAGEN_BUILD_MANIFEST_TOOLS}
+)
+if(BUILD_TESTING
+   OR MOBAGEN_BUILD_MODULE_COMPOSITIONS
+   OR MOBAGEN_BUILD_PROJECT_TOOLS
+)
   add_subdirectory(apps/module-compositions)
+endif()
+if(MOBAGEN_BUILD_PROJECT_TOOLS
+   AND MOBAGEN_BUILD_MANIFEST_TOOLS
+   AND NOT EMSCRIPTEN
+)
+  add_subdirectory(tools/project)
 endif()
 
 option(ENABLE_TEST_COVERAGE "Instrument supported test targets for coverage" ON)
