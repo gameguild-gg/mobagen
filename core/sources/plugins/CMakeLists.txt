@@ -21,6 +21,8 @@ add_library(
   wasm_memory.hpp
   wasm_plugin_loader.cpp
   wasm_plugin_loader.hpp
+  wasm_plugin_catalog.cpp
+  wasm_plugin_catalog.hpp
   wasm_command_channel.cpp
   wasm_command_channel.hpp
   wasm_plugin_contract.cpp

@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/wasm_plugin_loader.hpp"
+#include "plugins/wasm_plugin_catalog.hpp"
 
 namespace {
 
@@ -63,8 +63,9 @@ namespace {
 
   class DescriptorInstance final : public mobagen::plugins::PortableWasmInstance {
   public:
-    explicit DescriptorInstance(std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations)
-        : invocations_(std::move(invocations)) {}
+    explicit DescriptorInstance(std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations,
+                                std::string provider_id = "mobagen.wasm-package")
+        : invocations_(std::move(invocations)), provider_id_(std::move(provider_id)) {}
 
     mobagen::plugins::WasmInvocationResult invoke(mobagen::plugins::WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
       invocations_->push_back(function);
@@ -95,16 +96,15 @@ namespace {
       constexpr std::uint32_t id_offset = 96;
       constexpr std::uint32_t capability_offset = 128;
       constexpr std::uint32_t provides_offset = 152;
-      constexpr std::string_view id = "mobagen.wasm-package";
       constexpr std::string_view capability = "runtime.package.v1";
-      write_string(linear_memory, id_offset, id);
+      write_string(linear_memory, id_offset, provider_id_);
       write_string(linear_memory, capability_offset, capability);
       write_u32(linear_memory, provides_offset, capability_offset);
       write_u32(linear_memory, provides_offset + 4, static_cast<std::uint32_t>(capability.size()));
       write_u32(linear_memory, descriptor_offset, malformed ? 0 : MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
       write_u32(linear_memory, descriptor_offset + 4, MOBAGEN_WASM_PLUGIN_ABI_VERSION);
       write_u32(linear_memory, descriptor_offset + 8, id_offset);
-      write_u32(linear_memory, descriptor_offset + 12, static_cast<std::uint32_t>(id.size()));
+      write_u32(linear_memory, descriptor_offset + 12, static_cast<std::uint32_t>(provider_id_.size()));
       write_u32(linear_memory, descriptor_offset + 16, 1);
       write_u32(linear_memory, descriptor_offset + 20, 0);
       write_u32(linear_memory, descriptor_offset + 24, 0);
@@ -117,6 +117,7 @@ namespace {
     }
 
     std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations_;
+    std::string provider_id_;
     std::vector<std::byte> linear_memory = std::vector<std::byte>(256);
   };
 
@@ -127,7 +128,8 @@ namespace {
       observed.assign(binary.begin(), binary.end());
       if (throws) throw std::runtime_error{"backend trapped"};
       if (fails) return mobagen::plugins::PortableWasmInstantiationResult::failure("backend rejected module");
-      auto instance = std::make_unique<DescriptorInstance>(invocations);
+      const auto provider_id = provider_ids.empty() ? std::string{"mobagen.wasm-package"} : provider_ids.at(calls - 1);
+      auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id);
       instance->malformed = malformed_descriptor;
       return mobagen::plugins::PortableWasmInstantiationResult::success(std::move(instance));
     }
@@ -136,12 +138,17 @@ namespace {
     std::shared_ptr<std::vector<mobagen::plugins::WasmPluginExport>> invocations
         = std::make_shared<std::vector<mobagen::plugins::WasmPluginExport>>();
     std::size_t calls{};
+    std::vector<std::string> provider_ids;
     bool fails{};
     bool throws{};
     bool malformed_descriptor{};
   };
 
   bool has_issue(const mobagen::plugins::PortableWasmPluginLoadResult& result, mobagen::plugins::PortableWasmPluginLoadIssueCode code) {
+    return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
+  }
+
+  bool has_issue(const mobagen::plugins::PortableWasmPluginCatalogResult& result, mobagen::plugins::PortableWasmPluginCatalogIssueCode code) {
     return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
   }
 
@@ -265,4 +272,121 @@ TEST_CASE("Portable WASM plugin loader: dot-plugin package shape is strict") {
   REQUIRE(std::filesystem::create_directory(missing_package));
   const auto missing = mobagen::plugins::load_portable_wasm_plugin_package(missing_package, backend);
   CHECK(has_issue(missing, mobagen::plugins::PortableWasmPluginLoadIssueCode::MissingPackageBinary));
+}
+
+TEST_CASE("Portable WASM plugin catalog: manifest packages join builtins in one registry") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  const auto plugin_directory = directory.path() / "plugins";
+  REQUIRE(std::filesystem::create_directory(plugin_directory));
+  const auto package = plugin_directory / "reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  modules::ProductDescriptor product{.name = "wasm-catalog", .plugins = {"plugins/reference.plugin"}};
+  const modules::ProviderDescriptor builtin{
+      .id = "mobagen.runtime.builtin",
+      .version = {1, 0, 0},
+      .provides = {"runtime.builtin.v1"},
+      .targets = {
+          modules::TargetPlatform::Windows,
+          modules::TargetPlatform::Linux,
+          modules::TargetPlatform::MacOS,
+          modules::TargetPlatform::Web,
+          modules::TargetPlatform::Android,
+          modules::TargetPlatform::IOS,
+      },
+      .linkages = {modules::LinkageMode::Static},
+  };
+  FakeWasmBackend backend;
+
+  auto result = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend, std::span(&builtin, 1));
+
+  REQUIRE(result.ok());
+  CHECK(result.catalog->plugin_count() == 1);
+  REQUIRE(result.catalog->plugin(0) != nullptr);
+  CHECK(result.catalog->plugin(0)->provider().id == "mobagen.wasm-package");
+  CHECK(result.catalog->registry().provider_count() == 2);
+  CHECK(result.catalog->registry().find_provider("mobagen.wasm-package").has_value());
+  auto taken = result.catalog->take_plugin("mobagen.wasm-package");
+  REQUIRE(taken.has_value());
+  CHECK(taken->loaded());
+  CHECK(result.catalog->plugin_count() == 0);
+}
+
+TEST_CASE("Portable WASM plugin catalog: paths cannot escape or name one package twice") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  const auto project = directory.path() / "project";
+  REQUIRE(std::filesystem::create_directories(project / "plugins"));
+  const auto package = project / "plugins/reference.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  const auto outside = directory.path() / "outside.plugin";
+  REQUIRE(std::filesystem::create_directory(outside));
+  write_binary(outside / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  FakeWasmBackend backend;
+
+  const modules::ProductDescriptor escaped{.name = "wasm-catalog", .plugins = {"../outside.plugin"}};
+  const auto escaped_result = plugins::discover_portable_wasm_plugin_catalog(escaped, project, backend);
+  CHECK(has_issue(escaped_result, plugins::PortableWasmPluginCatalogIssueCode::PathOutsideProject));
+
+  const modules::ProductDescriptor duplicate{
+      .name = "wasm-catalog",
+      .plugins = {"plugins/reference.plugin", "./plugins/../plugins/reference.plugin"},
+  };
+  const auto duplicate_result = plugins::discover_portable_wasm_plugin_catalog(duplicate, project, backend);
+  CHECK(has_issue(duplicate_result, plugins::PortableWasmPluginCatalogIssueCode::DuplicatePackage));
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable WASM plugin catalog: packages load in canonical path order") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  const auto plugin_directory = directory.path() / "plugins";
+  REQUIRE(std::filesystem::create_directory(plugin_directory));
+  for (const std::string_view name : {"z-last", "a-first"}) {
+    const auto package = plugin_directory / (std::string{name} + ".plugin");
+    REQUIRE(std::filesystem::create_directory(package));
+    write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  }
+  const modules::ProductDescriptor product{
+      .name = "wasm-catalog",
+      .plugins = {"plugins/z-last.plugin", "plugins/a-first.plugin"},
+  };
+  FakeWasmBackend backend;
+  backend.provider_ids = {"mobagen.a-first", "mobagen.z-last"};
+
+  const auto result = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend);
+
+  REQUIRE(result.ok());
+  REQUIRE(result.catalog->plugin_count() == 2);
+  REQUIRE(result.catalog->plugin(0) != nullptr);
+  REQUIRE(result.catalog->plugin(1) != nullptr);
+  CHECK(result.catalog->plugin(0)->path().parent_path().filename() == "a-first.plugin");
+  CHECK(result.catalog->plugin(0)->provider().id == "mobagen.a-first");
+  CHECK(result.catalog->plugin(1)->path().parent_path().filename() == "z-last.plugin");
+  CHECK(result.catalog->plugin(1)->provider().id == "mobagen.z-last");
+}
+
+TEST_CASE("Portable WASM plugin catalog: duplicate provider metadata rejects the staged registry") {
+  using namespace mobagen;
+  TemporaryWasmDirectory directory;
+  const auto plugin_directory = directory.path() / "plugins";
+  REQUIRE(std::filesystem::create_directory(plugin_directory));
+  for (const std::string_view name : {"first", "second"}) {
+    const auto package = plugin_directory / (std::string{name} + ".plugin");
+    REQUIRE(std::filesystem::create_directory(package));
+    write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  }
+  const modules::ProductDescriptor product{
+      .name = "wasm-catalog",
+      .plugins = {"plugins/first.plugin", "plugins/second.plugin"},
+  };
+  FakeWasmBackend backend;
+
+  const auto result = plugins::discover_portable_wasm_plugin_catalog(product, directory.path(), backend);
+
+  CHECK_FALSE(result.ok());
+  CHECK(has_issue(result, plugins::PortableWasmPluginCatalogIssueCode::RegistryFailed));
+  CHECK(backend.calls == 2);
 }
