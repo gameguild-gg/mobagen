@@ -86,6 +86,15 @@ namespace mobagen::modules {
       }
     }
 
+    bool is_https_source_url(std::string_view value) noexcept {
+      constexpr std::string_view scheme = "https://";
+      if (!value.starts_with(scheme) || value.size() > max_module_source_url_bytes || value.contains('#') || value.contains('@')) return false;
+
+      const auto authority = value.substr(scheme.size()).substr(0, value.substr(scheme.size()).find_first_of("/?"));
+      if (authority.empty()) return false;
+      return std::ranges::all_of(value, [](unsigned char character) { return character > 0x20U && character < 0x7fU; });
+    }
+
   }  // namespace
 
   bool is_slug(std::string_view value) noexcept {
@@ -115,6 +124,21 @@ namespace mobagen::modules {
     }
     if (!is_slug(descriptor.name)) {
       add_issue(issues, DescriptorIssueCode::InvalidIdentifier, "name", "expected a lowercase product slug");
+    }
+
+    std::set<std::string> source_names;
+    for (const auto& source : descriptor.sources) {
+      const std::string field = "sources." + source.name;
+      if (!is_slug(source.name)) {
+        add_issue(issues, DescriptorIssueCode::InvalidIdentifier, field, "expected a lowercase source slug");
+      }
+      if (!is_https_source_url(source.url)) {
+        add_issue(issues, DescriptorIssueCode::InvalidSourceUrl, field + ".url",
+                  "source URL must be an HTTPS URL without credentials, fragments, whitespace, or control characters");
+      }
+      if (!source_names.insert(source.name).second) {
+        add_issue(issues, DescriptorIssueCode::DuplicateEntry, field, "source names must be unique");
+      }
     }
 
     std::set<std::string> module_aliases;
