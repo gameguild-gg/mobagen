@@ -38,7 +38,9 @@ namespace {
 
     auto renderer = lockfile_provider("mobagen.render.webgpu", {1, 4, 2}, {"render.backend.v1"});
     renderer.required = {"window.surface.v1"};
+    renderer.permissions = {"gpu", "filesystem-read"};
     auto window = lockfile_provider("mobagen.window.sdl3", {3, 1, 0}, {"window.surface.v1"});
+    window.permissions = {"windowing"};
 
     CapabilityRegistryBuilder registry_builder;
     registry_builder.add(std::move(renderer));
@@ -51,7 +53,7 @@ namespace {
         .schema = project_schema_version,
         .name = "lockfile-test",
         .modules = {{.alias = "render", .provider = "default"}},
-        .profiles = {{.name = "release", .linkage = LinkageMode::Static, .editor = false}},
+        .profiles = {{.name = "release", .linkage = LinkageMode::Static, .editor = false, .permissions = {"windowing", "gpu", "filesystem-read"}}},
     };
     ResolverOptions options{
         .target = TargetPlatform::Windows,
@@ -146,6 +148,10 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
         "sdk: 1.2.3\n"
         "target: windows\n"
         "profile: release\n"
+        "permissions:\n"
+        "  - filesystem-read\n"
+        "  - gpu\n"
+        "  - windowing\n"
         "resolved:\n"
         "  render.backend.v1:\n"
         "    provider: mobagen.render.webgpu\n"
