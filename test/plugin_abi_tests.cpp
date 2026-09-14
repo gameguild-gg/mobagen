@@ -64,6 +64,8 @@ TEST_CASE("Plugin ABI: portable WASM contract is fixed-width and batch-oriented"
   CHECK(MOBAGEN_WASM_PLUGIN_ABI_VERSION == 1U);
   CHECK(MOBAGEN_WASM_LINEAR_MEMORY_PAGE_BYTES == 65'536U);
   CHECK(MOBAGEN_WASM_COMMAND_ALIGNMENT == 8U);
+  CHECK(MOBAGEN_WASM_NULL_OFFSET == 0U);
+  CHECK(MOBAGEN_WASM_EXCHANGE_ALIGNMENT == 8U);
   CHECK(MOBAGEN_WASM_STATUS_OK == 0U);
   CHECK(MOBAGEN_WASM_STATUS_FAILED == 6U);
   CHECK(MOBAGEN_WASM_RELOAD_SAFE_POINT == 2U);
@@ -73,6 +75,10 @@ TEST_CASE("Plugin ABI: portable WASM contract is fixed-width and batch-oriented"
   CHECK(MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE == 24U);
   CHECK(MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE == 80U);
   CHECK(offsetof(MobagenWasmPluginDescriptorV1, configuration_schema) == 64U);
+  CHECK(std::string{MOBAGEN_WASM_EXPORT_ALLOCATE_V1} == "mobagen_wasm_plugin_allocate_v1");
+  CHECK(std::string{MOBAGEN_WASM_EXPORT_DEALLOCATE_V1} == "mobagen_wasm_plugin_deallocate_v1");
+  static_assert(std::is_same_v<MobagenWasmPluginAllocateV1Fn, std::uint32_t (*)(std::uint32_t, std::uint32_t)>);
+  static_assert(std::is_same_v<MobagenWasmPluginDeallocateV1Fn, std::uint32_t (*)(std::uint32_t, std::uint32_t, std::uint32_t)>);
   CHECK(mobagen_wasm_abi_c_compile_test() == 0);
 }
 

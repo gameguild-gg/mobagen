@@ -17,7 +17,9 @@ extern "C" {
  */
 
 #define MOBAGEN_WASM_PLUGIN_ABI_VERSION 1U
+#define MOBAGEN_WASM_NULL_OFFSET 0U
 #define MOBAGEN_WASM_LINEAR_MEMORY_PAGE_BYTES 65536U
+#define MOBAGEN_WASM_EXCHANGE_ALIGNMENT 8U
 #define MOBAGEN_WASM_COMMAND_ALIGNMENT 8U
 #define MOBAGEN_WASM_MAX_STRING_BYTES 4096U
 #define MOBAGEN_WASM_MAX_DESCRIPTOR_ENTRIES 1024U
@@ -44,6 +46,8 @@ extern "C" {
 #define MOBAGEN_WASM_IMPORT_SUBMIT_COMMANDS_V1 "submit_commands"
 
 /* Canonical function exports required from a portable guest. */
+#define MOBAGEN_WASM_EXPORT_ALLOCATE_V1 "mobagen_wasm_plugin_allocate_v1"
+#define MOBAGEN_WASM_EXPORT_DEALLOCATE_V1 "mobagen_wasm_plugin_deallocate_v1"
 #define MOBAGEN_WASM_EXPORT_QUERY_V1 "mobagen_wasm_plugin_query_v1"
 #define MOBAGEN_WASM_EXPORT_CONFIGURE_V1 "mobagen_wasm_plugin_configure_v1"
 #define MOBAGEN_WASM_EXPORT_START_V1 "mobagen_wasm_plugin_start_v1"
@@ -119,7 +123,14 @@ typedef struct MobagenWasmCommandResultV1 {
 /*
  * Scalar WebAssembly signatures used by the canonical exports. Structures are
  * exchanged through validated linear-memory offsets, never passed by value.
+ *
+ * The host must reserve every exchange buffer through the guest allocator and
+ * release it with the matching size and alignment. A non-empty allocation
+ * returns MOBAGEN_WASM_NULL_OFFSET on failure; the host must never invent a
+ * scratch offset inside guest memory.
  */
+typedef uint32_t (*MobagenWasmPluginAllocateV1Fn)(uint32_t size, uint32_t alignment);
+typedef uint32_t (*MobagenWasmPluginDeallocateV1Fn)(uint32_t offset, uint32_t size, uint32_t alignment);
 typedef uint32_t (*MobagenWasmPluginQueryV1Fn)(uint32_t descriptor_offset, uint32_t descriptor_capacity);
 typedef uint32_t (*MobagenWasmPluginConfigureV1Fn)(uint32_t configuration_offset, uint32_t configuration_size);
 typedef uint32_t (*MobagenWasmPluginLifecycleV1Fn)(void);
