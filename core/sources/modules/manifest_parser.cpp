@@ -303,10 +303,15 @@ namespace mobagen::modules {
             add_error(ManifestErrorCode::DuplicateKey, pair.first.Mark(), field, "module aliases must be unique");
           }
 
-          const auto module_entries = read_map(pair.second, field, {"use", "config"});
+          const auto module_entries = read_map(pair.second, field,
+                                               {"capability", "use", "config"});
           const auto* use = require_entry(module_entries, "use", field, pair.second.Mark());
           std::string provider;
           if (use && read_string(*use, field + ".use", provider)) {
+            std::string capability;
+            if (const auto* capability_node = find_entry(module_entries, "capability")) {
+              read_string(*capability_node, field + ".capability", capability);
+            }
             std::optional<ModuleConfiguration> configuration;
             if (const auto* config = find_entry(module_entries, "config")) {
               const auto config_field = field + ".config";
@@ -319,7 +324,12 @@ namespace mobagen::modules {
                 configuration = std::move(parsed);
               }
             }
-            descriptor_.modules.push_back({alias, std::move(provider), std::move(configuration)});
+            descriptor_.modules.push_back({
+                .alias = alias,
+                .provider = std::move(provider),
+                .configuration = std::move(configuration),
+                .capability = std::move(capability),
+            });
           }
         }
       }

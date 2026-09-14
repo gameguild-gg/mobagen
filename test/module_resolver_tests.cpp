@@ -141,6 +141,41 @@ TEST_CASE("Module resolver: an explicit provider overrides the profile default")
   CHECK(selection->reason == "explicit provider for module 'render'");
 }
 
+TEST_CASE("Module resolver: manifest capability removes the need for an injected alias") {
+  using namespace mobagen::modules;
+
+  const auto registry = make_resolver_registry(false);
+  auto product = resolver_product("mobagen.render.webgpu");
+  product.modules.front().capability = "render.backend.v1";
+  auto options = resolver_options();
+  options.aliases.clear();
+
+  const auto result = resolve_modules(product, registry, options);
+
+  REQUIRE(result.ok());
+  const auto capability = registry.find_capability("render.backend.v1");
+  REQUIRE(capability.has_value());
+  const auto* selection = result.resolution->selection_for(*capability);
+  REQUIRE(selection != nullptr);
+  REQUIRE(registry.provider(selection->provider) != nullptr);
+  CHECK(registry.provider(selection->provider)->id == "mobagen.render.webgpu");
+}
+
+TEST_CASE("Module resolver: injected aliases cannot contradict manifest capabilities") {
+  using namespace mobagen::modules;
+
+  const auto registry = make_resolver_registry(false);
+  auto product = resolver_product("mobagen.render.webgpu");
+  product.modules.front().capability = "render.backend.v1";
+  auto options = resolver_options();
+  options.aliases.front().capability = "render.post.v1";
+
+  const auto result = resolve_modules(product, registry, options);
+
+  CHECK_FALSE(result.ok());
+  CHECK(has_resolution_issue(result, ResolutionIssueCode::AliasMismatch));
+}
+
 TEST_CASE("Module resolver: required capabilities produce a stable dependency order") {
   using namespace mobagen::modules;
 

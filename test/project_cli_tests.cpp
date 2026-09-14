@@ -38,6 +38,7 @@ namespace {
 name: project-cli-test
 modules:
   runtime:
+    capability: runtime.tick.v1
     use: default
     config:
       schema: mobagen.reference.config.v1
@@ -148,6 +149,7 @@ sources:
     url: https://plugins.mobagen.dev/v1/catalog.yaml
 modules:
   runtime:
+    capability: runtime.tick.v1
     use: default
 plugins:
   - ./plugins/missing.plugin
@@ -163,8 +165,8 @@ profiles:
       std::string_view command, const std::string& manifest
   ) {
     return {
-        command, manifest, "--profile", "release", "--alias", "runtime=runtime.tick.v1",
-        "--default", "runtime.tick.v1=mobagen.runtime.remote",
+        command, manifest, "--profile", "release", "--default",
+        "runtime.tick.v1=mobagen.runtime.remote",
     };
   }
 
@@ -181,6 +183,7 @@ TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a 
 
   const auto result = mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client});
 
+  INFO(error.str());
   REQUIRE(result == 0);
   CHECK(error.str().empty());
   REQUIRE(client.catalog_requests.size() == 1);
@@ -215,7 +218,11 @@ TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a 
 
   output.str({});
   error.str({});
-  REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
+  const auto repeated_result = mobagen::compositions::cli::run(
+      arguments, output, error, {.http_client = &client}
+  );
+  INFO(error.str());
+  REQUIRE(repeated_result == 0);
   CHECK(error.str().empty());
   CHECK(client.catalog_requests.size() == 2);
   CHECK(client.artifact_requests.size() == 1);

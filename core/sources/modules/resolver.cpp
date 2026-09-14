@@ -361,14 +361,27 @@ namespace mobagen::modules {
     std::ranges::sort(requests, {}, &ModuleRequest::alias);
     for (const auto& request : requests) {
       const auto* alias = find_alias(aliases, request.alias);
-      if (alias == nullptr) {
+      if (!request.capability.empty() && alias != nullptr
+          && alias->capability != request.capability) {
+        add_issue(result, ResolutionIssueCode::AliasMismatch, request.alias,
+                  request.capability, {},
+                  "injected module alias contradicts the manifest capability");
+        continue;
+      }
+      const std::string_view capability_id = request.capability.empty()
+                                               ? alias == nullptr
+                                                   ? std::string_view{}
+                                                   : std::string_view{alias->capability}
+                                               : std::string_view{request.capability};
+      if (capability_id.empty()) {
         add_issue(result, ResolutionIssueCode::UnknownAlias, request.alias, {}, {}, "module alias has no capability binding");
         continue;
       }
 
-      const auto capability = registry.find_capability(alias->capability);
+      const auto capability = registry.find_capability(capability_id);
       if (!capability.has_value()) {
-        add_issue(result, ResolutionIssueCode::MissingCapability, request.alias, alias->capability, {},
+        add_issue(result, ResolutionIssueCode::MissingCapability, request.alias,
+                  std::string{capability_id}, {},
                   "no provider exposes the requested capability");
         continue;
       }
@@ -376,9 +389,11 @@ namespace mobagen::modules {
       std::string provider_id = request.provider;
       std::string reason = "explicit provider for module '" + request.alias + "'";
       if (request.provider == "default") {
-        const auto* default_provider = find_default(defaults, options.target, options.profile, alias->capability);
+        const auto* default_provider = find_default(defaults, options.target,
+                                                    options.profile, capability_id);
         if (default_provider == nullptr) {
-          add_issue(result, ResolutionIssueCode::MissingDefault, request.alias, alias->capability, {},
+          add_issue(result, ResolutionIssueCode::MissingDefault, request.alias,
+                    std::string{capability_id}, {},
                     "no default provider is declared for the active target and profile");
           continue;
         }
