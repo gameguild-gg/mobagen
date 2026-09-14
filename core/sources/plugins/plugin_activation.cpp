@@ -54,8 +54,8 @@ namespace mobagen::plugins {
 
   }  // namespace
 
-  NativePluginActivation::NativePluginActivation(PluginHost& host, NativePlugin plugin)
-      : host_(host), provider_id_(plugin.contract().provider.id), plugin_(std::move(plugin)) {}
+  NativePluginActivation::NativePluginActivation(PluginHost& host, std::string provider_id, NativePlugin plugin) noexcept
+      : host_(host), provider_id_(std::move(provider_id)), plugin_(std::move(plugin)) {}
 
   NativePluginActivation::~NativePluginActivation() { shutdown_noexcept(); }
 
@@ -172,18 +172,16 @@ namespace mobagen::plugins {
     state_ = NativePluginActivationState::Stopped;
   }
 
-  NativePluginActivationResult activate_native_plugin_package(const std::filesystem::path& package, PluginHost& host,
-                                                              std::span<const std::byte> configuration) {
+  NativePluginActivationResult activate_loaded_native_plugin(NativePlugin plugin, PluginHost& host, std::span<const std::byte> configuration) {
     NativePluginActivationResult result;
-    auto loaded = load_native_plugin_package(package, host.api());
-    if (!loaded.plugin.has_value()) {
-      add_issue(result.issues, NativePluginActivationIssueCode::LoadFailed, NativePluginLifecyclePhase::Load, "plugin package could not be loaded",
-                MOBAGEN_STATUS_FAILED, std::move(loaded.issues));
+    if (!plugin.loaded()) {
+      add_issue(result.issues, NativePluginActivationIssueCode::LoadFailed, NativePluginLifecyclePhase::Load, "native plugin is not loaded",
+                MOBAGEN_STATUS_INVALID_ARGUMENT);
       return result;
     }
 
-    auto plugin = std::move(*loaded.plugin);
     const auto& contract = plugin.contract();
+    std::string provider_id = contract.provider.id;
     try {
       if (!host.begin_registration(contract.provider.id)) {
         add_issue(result.issues, NativePluginActivationIssueCode::RegistrationFailed, NativePluginLifecyclePhase::Register,
@@ -218,9 +216,9 @@ namespace mobagen::plugins {
     }
 
     try {
-      result.activation = std::unique_ptr<NativePluginActivation>(new NativePluginActivation(host, std::move(plugin)));
+      result.activation = std::unique_ptr<NativePluginActivation>(new NativePluginActivation(host, std::move(provider_id), std::move(plugin)));
     } catch (const std::bad_alloc&) {
-      (void)host.remove_provider(contract.provider.id);
+      (void)host.remove_provider(provider_id);
       add_issue(result.issues, NativePluginActivationIssueCode::OutOfMemory, NativePluginLifecyclePhase::Register,
                 "plugin activation ran out of memory", MOBAGEN_STATUS_OUT_OF_MEMORY);
       return result;
@@ -231,6 +229,18 @@ namespace mobagen::plugins {
       result.activation.reset();
     }
     return result;
+  }
+
+  NativePluginActivationResult activate_native_plugin_package(const std::filesystem::path& package, PluginHost& host,
+                                                              std::span<const std::byte> configuration) {
+    NativePluginActivationResult result;
+    auto loaded = load_native_plugin_package(package, host.api());
+    if (!loaded.plugin.has_value()) {
+      add_issue(result.issues, NativePluginActivationIssueCode::LoadFailed, NativePluginLifecyclePhase::Load, "plugin package could not be loaded",
+                MOBAGEN_STATUS_FAILED, std::move(loaded.issues));
+      return result;
+    }
+    return activate_loaded_native_plugin(std::move(*loaded.plugin), host, configuration);
   }
 
 }  // namespace mobagen::plugins

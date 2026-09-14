@@ -8,8 +8,10 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mobagen::plugins {
@@ -50,6 +52,7 @@ namespace mobagen::plugins {
 
     [[nodiscard]] std::size_t plugin_count() const noexcept { return plugins_.size(); }
     [[nodiscard]] const NativePlugin* plugin(std::size_t index) const noexcept;
+    [[nodiscard]] std::optional<NativePlugin> take_plugin(std::string_view provider_id);
     [[nodiscard]] const modules::CapabilityRegistry& registry() const noexcept { return registry_; }
 
   private:
