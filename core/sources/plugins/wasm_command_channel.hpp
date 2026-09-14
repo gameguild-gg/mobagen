@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fixed_issue_list.hpp"
 #include "wasm_memory.hpp"
 #include "wasm_runtime.hpp"
 
@@ -10,7 +11,6 @@
 #include <span>
 #include <string>
 #include <thread>
-#include <vector>
 
 namespace mobagen::plugins {
 
@@ -34,11 +34,11 @@ namespace mobagen::plugins {
     WasmPluginExport phase{};
     std::uint32_t status{MOBAGEN_WASM_STATUS_OK};
     std::string message;
-    std::vector<WasmMemoryIssue> memory_issues;
+    FixedIssueList<WasmMemoryIssue, 1> memory_issues;
   };
 
   struct WasmCommandChannelActionResult {
-    std::vector<WasmCommandChannelIssue> issues;
+    FixedIssueList<WasmCommandChannelIssue, 1> issues;
 
     [[nodiscard]] bool ok() const noexcept { return issues.empty(); }
   };
@@ -46,7 +46,7 @@ namespace mobagen::plugins {
   struct WasmCommandProcessResult {
     /* The output view remains valid only until the next instance invocation. */
     std::optional<WasmCommandBatchView> output;
-    std::vector<WasmCommandChannelIssue> issues;
+    FixedIssueList<WasmCommandChannelIssue, 1> issues;
 
     [[nodiscard]] bool ok() const noexcept { return output.has_value() && issues.empty(); }
   };
@@ -90,7 +90,7 @@ namespace mobagen::plugins {
 
   struct WasmCommandChannelCreateResult {
     std::unique_ptr<WasmCommandChannel> channel;
-    std::vector<WasmCommandChannelIssue> issues;
+    FixedIssueList<WasmCommandChannelIssue, 2> issues;
 
     [[nodiscard]] bool ok() const noexcept { return channel != nullptr && issues.empty(); }
   };

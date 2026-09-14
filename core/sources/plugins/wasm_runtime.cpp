@@ -29,7 +29,7 @@ namespace mobagen::plugins {
       auto released = invoke_portable_wasm(instance, WasmPluginExport::Deallocate, arguments);
       if (!released.ok()) {
         add_issue(result, WasmPluginQueryIssueCode::DeallocationFailed, WasmPluginExport::Deallocate,
-                  released.error.empty() ? "WASM guest deallocation failed" : std::move(released.error), MOBAGEN_WASM_STATUS_FAILED);
+                  released.error.has_value() ? std::move(*released.error) : "WASM guest deallocation failed", MOBAGEN_WASM_STATUS_FAILED);
         return;
       }
       if (*released.value != MOBAGEN_WASM_STATUS_OK) {
@@ -49,7 +49,7 @@ namespace mobagen::plugins {
       auto released = invoke_portable_wasm(instance, WasmPluginExport::Deallocate, arguments);
       if (!released.ok()) {
         add_activation_issue(result, PortableWasmPluginIssueCode::DeallocationFailed, WasmPluginExport::Deallocate,
-                             released.error.empty() ? "WASM guest deallocation failed" : std::move(released.error), MOBAGEN_WASM_STATUS_FAILED);
+                             released.error.has_value() ? std::move(*released.error) : "WASM guest deallocation failed", MOBAGEN_WASM_STATUS_FAILED);
       } else if (*released.value != MOBAGEN_WASM_STATUS_OK) {
         add_activation_issue(result, PortableWasmPluginIssueCode::DeallocationFailed, WasmPluginExport::Deallocate,
                              "WASM guest deallocation callback reported failure", *released.value);
@@ -60,7 +60,7 @@ namespace mobagen::plugins {
       auto invoked = invoke_portable_wasm(instance, phase, {});
       if (!invoked.ok()) {
         add_activation_issue(result, PortableWasmPluginIssueCode::BackendFailure, phase,
-                             invoked.error.empty() ? "WASM plugin lifecycle invocation failed" : std::move(invoked.error),
+                             invoked.error.has_value() ? std::move(*invoked.error) : "WASM plugin lifecycle invocation failed",
                              MOBAGEN_WASM_STATUS_FAILED);
       } else if (*invoked.value != MOBAGEN_WASM_STATUS_OK) {
         add_activation_issue(result, PortableWasmPluginIssueCode::CallbackFailed, phase, "WASM plugin lifecycle callback reported failure",
@@ -83,7 +83,7 @@ namespace mobagen::plugins {
         auto allocated = invoke_portable_wasm(instance, WasmPluginExport::Allocate, allocate_arguments);
         if (!allocated.ok()) {
           add_activation_issue(result, PortableWasmPluginIssueCode::BackendFailure, WasmPluginExport::Allocate,
-                               allocated.error.empty() ? "WASM guest configuration allocation failed" : std::move(allocated.error),
+                               allocated.error.has_value() ? std::move(*allocated.error) : "WASM guest configuration allocation failed",
                                MOBAGEN_WASM_STATUS_FAILED);
           return result;
         }
@@ -109,7 +109,7 @@ namespace mobagen::plugins {
       auto configured = invoke_portable_wasm(instance, WasmPluginExport::Configure, configure_arguments);
       if (!configured.ok()) {
         add_activation_issue(result, PortableWasmPluginIssueCode::BackendFailure, WasmPluginExport::Configure,
-                             configured.error.empty() ? "WASM plugin configure invocation failed" : std::move(configured.error),
+                             configured.error.has_value() ? std::move(*configured.error) : "WASM plugin configure invocation failed",
                              MOBAGEN_WASM_STATUS_FAILED);
       } else if (*configured.value != MOBAGEN_WASM_STATUS_OK) {
         add_activation_issue(result, PortableWasmPluginIssueCode::CallbackFailed, WasmPluginExport::Configure,
@@ -143,7 +143,7 @@ namespace mobagen::plugins {
     return {};
   }
 
-  WasmInvocationResult WasmInvocationResult::success(std::uint32_t value) { return {value, {}}; }
+  WasmInvocationResult WasmInvocationResult::success(std::uint32_t value) { return {value, std::nullopt}; }
 
   WasmInvocationResult WasmInvocationResult::failure(std::string error) { return {std::nullopt, std::move(error)}; }
 
@@ -164,7 +164,7 @@ namespace mobagen::plugins {
     auto allocated = invoke_portable_wasm(instance, WasmPluginExport::Allocate, allocate_arguments);
     if (!allocated.ok()) {
       add_issue(result, WasmPluginQueryIssueCode::BackendFailure, WasmPluginExport::Allocate,
-                allocated.error.empty() ? "WASM guest allocation failed" : std::move(allocated.error), MOBAGEN_WASM_STATUS_FAILED);
+                allocated.error.has_value() ? std::move(*allocated.error) : "WASM guest allocation failed", MOBAGEN_WASM_STATUS_FAILED);
       return result;
     }
 
@@ -188,7 +188,7 @@ namespace mobagen::plugins {
     auto queried = invoke_portable_wasm(instance, WasmPluginExport::Query, query_arguments);
     if (!queried.ok()) {
       add_issue(result, WasmPluginQueryIssueCode::BackendFailure, WasmPluginExport::Query,
-                queried.error.empty() ? "WASM plugin query failed" : std::move(queried.error), MOBAGEN_WASM_STATUS_FAILED);
+                queried.error.has_value() ? std::move(*queried.error) : "WASM plugin query failed", MOBAGEN_WASM_STATUS_FAILED);
       release_exchange(instance, descriptor_offset, descriptor_size, result);
       return result;
     }

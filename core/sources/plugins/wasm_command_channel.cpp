@@ -15,7 +15,7 @@ namespace mobagen::plugins {
   namespace {
 
     template <typename Result> void add_issue(Result& result, WasmCommandChannelIssueCode code, WasmPluginExport phase, std::string message,
-                                              std::uint32_t status = MOBAGEN_WASM_STATUS_OK, std::vector<WasmMemoryIssue> memory_issues = {}) {
+                                              std::uint32_t status = MOBAGEN_WASM_STATUS_OK, FixedIssueList<WasmMemoryIssue, 1> memory_issues = {}) {
       result.issues.push_back({code, phase, status, std::move(message), std::move(memory_issues)});
     }
 
@@ -48,7 +48,7 @@ namespace mobagen::plugins {
       auto released = invoke_portable_wasm(instance, WasmPluginExport::Deallocate, arguments);
       if (!released.ok()) {
         add_issue(result, WasmCommandChannelIssueCode::DeallocationFailed, WasmPluginExport::Deallocate,
-                  released.error.empty() ? "WASM command exchange deallocation failed" : std::move(released.error), MOBAGEN_WASM_STATUS_FAILED);
+                  released.error.has_value() ? std::move(*released.error) : "WASM command exchange deallocation failed", MOBAGEN_WASM_STATUS_FAILED);
       } else if (*released.value != MOBAGEN_WASM_STATUS_OK) {
         add_issue(result, WasmCommandChannelIssueCode::DeallocationFailed, WasmPluginExport::Deallocate,
                   "WASM command exchange deallocation callback reported failure", *released.value);
@@ -151,7 +151,7 @@ namespace mobagen::plugins {
     auto invoked = invoke_portable_wasm(instance_, WasmPluginExport::Process, arguments);
     if (!invoked.ok()) {
       add_issue(result, WasmCommandChannelIssueCode::BackendFailure, WasmPluginExport::Process,
-                invoked.error.empty() ? "WASM command processing failed" : std::move(invoked.error), MOBAGEN_WASM_STATUS_FAILED);
+                invoked.error.has_value() ? std::move(*invoked.error) : "WASM command processing failed", MOBAGEN_WASM_STATUS_FAILED);
       return result;
     }
     if (*invoked.value != MOBAGEN_WASM_STATUS_OK) {
@@ -238,7 +238,7 @@ namespace mobagen::plugins {
     auto allocated = invoke_portable_wasm(instance, WasmPluginExport::Allocate, allocate_arguments);
     if (!allocated.ok()) {
       add_issue(result, WasmCommandChannelIssueCode::BackendFailure, WasmPluginExport::Allocate,
-                allocated.error.empty() ? "WASM command exchange allocation failed" : std::move(allocated.error), MOBAGEN_WASM_STATUS_FAILED);
+                allocated.error.has_value() ? std::move(*allocated.error) : "WASM command exchange allocation failed", MOBAGEN_WASM_STATUS_FAILED);
       return result;
     }
     const auto base_offset = *allocated.value;

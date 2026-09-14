@@ -30,9 +30,9 @@ namespace mobagen::plugins {
 
   struct WasmInvocationResult {
     std::optional<std::uint32_t> value;
-    std::string error;
+    std::optional<std::string> error;
 
-    [[nodiscard]] bool ok() const noexcept { return value.has_value() && error.empty(); }
+    [[nodiscard]] bool ok() const noexcept { return value.has_value() && !error.has_value(); }
     [[nodiscard]] static WasmInvocationResult success(std::uint32_t value);
     [[nodiscard]] static WasmInvocationResult failure(std::string error);
   };

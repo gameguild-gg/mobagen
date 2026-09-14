@@ -2,12 +2,13 @@
 
 #include <mobagen/plugin/wasm_abi.h>
 
+#include "fixed_issue_list.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
-#include <vector>
 
 namespace mobagen::plugins {
 
@@ -34,7 +35,7 @@ namespace mobagen::plugins {
 
   struct WasmCommandBatchValidationResult {
     std::optional<WasmCommandBatchView> batch;
-    std::vector<WasmMemoryIssue> issues;
+    FixedIssueList<WasmMemoryIssue, 1> issues;
 
     [[nodiscard]] bool ok() const noexcept { return batch.has_value() && issues.empty(); }
   };
