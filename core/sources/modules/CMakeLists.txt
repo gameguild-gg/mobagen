@@ -30,6 +30,7 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   target_link_libraries(
     mobagen_module_distribution
     PUBLIC mobagen::core_assets mobagen::core_http mobagen::module_manifest
+    PRIVATE mobagen::plugin_sdk
   )
 
   add_library(mobagen_module_lockfile STATIC lockfile.cpp lockfile_io.cpp)

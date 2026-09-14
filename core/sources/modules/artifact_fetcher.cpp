@@ -1,5 +1,8 @@
 #include "artifact_fetcher.hpp"
 
+#include <mobagen/plugin/plugin_abi.h>
+#include <mobagen/plugin/wasm_abi.h>
+
 #include <exception>
 #include <limits>
 #include <span>
@@ -47,6 +50,19 @@ namespace mobagen::modules {
 
   }  // namespace
 
+  std::uint32_t runtime_plugin_abi_version(LinkageMode linkage) noexcept {
+    switch (linkage) {
+      case LinkageMode::Dynamic:
+        return MOBAGEN_PLUGIN_ABI_VERSION;
+      case LinkageMode::Wasm:
+        return MOBAGEN_WASM_PLUGIN_ABI_VERSION;
+      case LinkageMode::Static:
+      case LinkageMode::Process:
+        return 0;
+    }
+    return 0;
+  }
+
   ArtifactFetchResult fetch_module_artifacts(const ModuleCatalogIndex& catalog,
                                              const ModuleResolution& resolution, http::Client& client,
                                              const assets::AssetCache& cache, ArtifactFetchOptions options) {
@@ -81,6 +97,14 @@ namespace mobagen::modules {
             .code = ArtifactFetchIssueCode::InvalidArtifact,
             .provider_id = provider->id,
             .message = "selected artifact hash or size is invalid",
+        });
+      }
+      const auto supported_abi = runtime_plugin_abi_version(artifact->linkage);
+      if (supported_abi == 0 || artifact->abi_version != supported_abi) {
+        return failure({
+            .code = ArtifactFetchIssueCode::UnsupportedAbi,
+            .provider_id = provider->id,
+            .message = "selected plugin artifact ABI is not supported by this runtime",
         });
       }
 

@@ -137,3 +137,18 @@ TEST_CASE("Module artifact installer: static artifacts are not runtime plugin pa
   CHECK(rejected.issues.front().code == modules::ArtifactInstallIssueCode::UnsupportedLinkage);
   CHECK_FALSE(std::filesystem::exists(root.path() / "plugins"));
 }
+
+TEST_CASE("Module artifact installer: incompatible ABI never changes an active package") {
+  using namespace mobagen;
+  TemporaryModuleInstallRoot root;
+  assets::AssetCache cache(root.path() / "cache", 1024);
+  auto cached = cache_artifact(cache, "mobagen.runtime.future", "future-plugin");
+  cached.abi_version = 2;
+
+  const auto rejected = modules::materialize_module_plugins(std::span{&cached, 1}, root.path() / "plugins");
+
+  CHECK_FALSE(rejected.ok());
+  REQUIRE(rejected.issues.size() == 1);
+  CHECK(rejected.issues.front().code == modules::ArtifactInstallIssueCode::UnsupportedAbi);
+  CHECK_FALSE(std::filesystem::exists(root.path() / "plugins"));
+}

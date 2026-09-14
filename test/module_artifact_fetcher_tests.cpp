@@ -78,7 +78,7 @@ namespace {
     mobagen::modules::ModuleResolution resolution;
   };
 
-  TestArtifactPlan make_plan(std::string hash, std::uint64_t size) {
+  TestArtifactPlan make_plan(std::string hash, std::uint64_t size, std::uint32_t abi_version = 1) {
     using namespace mobagen::modules;
     ModuleCatalogDescriptor catalog{
         .providers = {{
@@ -93,7 +93,7 @@ namespace {
             .artifacts = {{
                 .target = TargetPlatform::Windows,
                 .linkage = LinkageMode::Dynamic,
-                .abi_version = 1,
+                .abi_version = abi_version,
                 .url = "https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/windows.plugin",
                 .size = size,
                 .hash = std::move(hash),
@@ -204,4 +204,25 @@ TEST_CASE("Module artifact fetcher: hash and HTTP failures never publish an arti
   REQUIRE(transport.issues.size() == 1);
   CHECK(transport.issues.front().code == modules::ArtifactFetchIssueCode::Transport);
   CHECK(cache.load(*expected).status == assets::AssetCacheStatus::not_found);
+}
+
+TEST_CASE("Module artifact fetcher: incompatible plugin ABI fails before artifact HTTP") {
+  using namespace mobagen;
+  TemporaryArtifactCache directory;
+  assets::AssetCache cache(directory.path(), 1024);
+  StreamingArtifactClient client;
+  client.body = artifact_bytes("future-plugin-abi");
+  const auto id = assets::sha256(client.body);
+  REQUIRE(id.has_value());
+  auto plan = make_plan(assets::to_string(*id), client.body.size(), 2);
+
+  const auto rejected = modules::fetch_module_artifacts(*plan.catalog, plan.resolution, client, cache);
+
+  CHECK_FALSE(rejected.ok());
+  REQUIRE(rejected.issues.size() == 1);
+  CHECK(rejected.issues.front().code == modules::ArtifactFetchIssueCode::UnsupportedAbi);
+  CHECK(client.stream_calls == 0);
+  CHECK(modules::runtime_plugin_abi_version(modules::LinkageMode::Dynamic) == 1);
+  CHECK(modules::runtime_plugin_abi_version(modules::LinkageMode::Wasm) == 1);
+  CHECK(modules::runtime_plugin_abi_version(modules::LinkageMode::Static) == 0);
 }
