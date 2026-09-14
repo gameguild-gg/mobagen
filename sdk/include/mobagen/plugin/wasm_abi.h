@@ -94,7 +94,12 @@ typedef struct MobagenWasmCommandHeaderV1 {
   uint32_t opcode;
 } MobagenWasmCommandHeaderV1;
 
-/* One boundary call carries many aligned commands to amortize call overhead. */
+/*
+ * One boundary call carries many aligned commands to amortize call overhead.
+ * For process output, the host initializes bytes as the reserved capacity. The
+ * guest preserves bytes.offset, replaces bytes.size with the bytes written,
+ * and sets command_count. Both values must match MobagenWasmCommandResultV1.
+ */
 typedef struct MobagenWasmCommandBatchV1 {
   uint32_t struct_size;
   uint32_t abi_version;
