@@ -9,10 +9,12 @@
 #include <mobagen/plugin/render_backend_v1.h>
 #include "plugins/plugin_abi.h"
 #include <mobagen/plugin/wasm_abi.h>
+#include <mobagen/plugin/wasm_asset_store_v1.h>
 #include <mobagen/plugin/window_surface_v1.h>
 
 extern "C" int mobagen_plugin_abi_c_compile_test(void);
 extern "C" int mobagen_wasm_abi_c_compile_test(void);
+extern "C" int mobagen_wasm_asset_store_abi_c_compile_test(void);
 extern "C" int mobagen_asset_store_abi_c_compile_test(void);
 extern "C" int mobagen_runtime_adapter_abi_c_compile_test(void);
 
@@ -85,6 +87,15 @@ TEST_CASE("Plugin ABI: portable WASM contract is fixed-width and batch-oriented"
   static_assert(std::is_same_v<MobagenWasmPluginAllocateV1Fn, std::uint32_t (*)(std::uint32_t, std::uint32_t)>);
   static_assert(std::is_same_v<MobagenWasmPluginDeallocateV1Fn, std::uint32_t (*)(std::uint32_t, std::uint32_t, std::uint32_t)>);
   CHECK(mobagen_wasm_abi_c_compile_test() == 0);
+}
+
+TEST_CASE("Plugin ABI: portable asset-store commands have fixed C layouts") {
+  CHECK(mobagen_wasm_asset_store_abi_c_compile_test() == 0);
+  CHECK(MOBAGEN_WASM_ASSET_ACQUIRE_COMMAND_V1_SIZE == 48);
+  CHECK(MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE == 24);
+  CHECK(MOBAGEN_WASM_ASSET_ACQUIRE_RESULT_V1_SIZE == 24);
+  CHECK(MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE == 32);
+  CHECK(MOBAGEN_WASM_ASSET_RELEASE_RESULT_V1_SIZE == 16);
 }
 
 TEST_CASE("Plugin ABI: extensible structures begin with size and version") {

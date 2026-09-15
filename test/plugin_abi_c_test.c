@@ -3,6 +3,7 @@
 #include <mobagen/plugin/asset_store_v1.h>
 #include <mobagen/plugin/render_backend_v1.h>
 #include <mobagen/plugin/wasm_abi.h>
+#include <mobagen/plugin/wasm_asset_store_v1.h>
 #include <mobagen/plugin/window_surface_v1.h>
 
 #include <stddef.h>
@@ -82,6 +83,25 @@ int mobagen_wasm_abi_c_compile_test(void) {
   batch.abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION;
   return descriptor.struct_size == sizeof(descriptor) && batch.struct_size == sizeof(batch) && allocate(8, MOBAGEN_WASM_EXCHANGE_ALIGNMENT) == 8
                  && deallocate(8, 8, MOBAGEN_WASM_EXCHANGE_ALIGNMENT) == MOBAGEN_WASM_STATUS_OK
+             ? 0
+             : 1;
+}
+
+int mobagen_wasm_asset_store_abi_c_compile_test(void) {
+  MobagenWasmAssetAcquireCommandV1 acquire = {0};
+  MobagenWasmAssetHandleCommandV1 view = {0};
+  MobagenWasmAssetViewResultV1 result = {0};
+  acquire.header.byte_size = MOBAGEN_WASM_ASSET_ACQUIRE_COMMAND_V1_SIZE;
+  acquire.header.opcode = MOBAGEN_WASM_ASSET_COMMAND_ACQUIRE;
+  view.header.byte_size = MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE;
+  view.header.opcode = MOBAGEN_WASM_ASSET_COMMAND_VIEW;
+  result.header.byte_size = MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE;
+  result.header.opcode = MOBAGEN_WASM_ASSET_RESULT_VIEW;
+  return acquire.header.byte_size == sizeof(acquire)
+                 && view.header.byte_size == sizeof(view)
+                 && result.header.byte_size == sizeof(result)
+                 && sizeof(MobagenWasmAssetConfigurationV1) == 16
+                 && sizeof(MobagenWasmAssetConfigurationEntryV1) == 40
              ? 0
              : 1;
 }
