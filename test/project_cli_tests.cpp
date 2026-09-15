@@ -16,6 +16,7 @@
 #include "plugins/plugin_loader.hpp"
 #include "project_bootstrap.hpp"
 #include "project_cli.hpp"
+#include "project_startup.hpp"
 #include "support/wasm_plugin_test_support.hpp"
 #include <mobagen/version.h>
 
@@ -393,6 +394,55 @@ TEST_CASE("Project bootstrap: first run prepares modules and later lazy probes s
   CHECK(offline.plugin_count == 1);
   CHECK(client.catalog_requests.size() == 1);
   CHECK(client.artifact_requests.size() == 1);
+}
+
+TEST_CASE("Project startup: first run downloads then opens a cold module manager") {
+  using namespace mobagen;
+  TemporaryProjectCliRoot project;
+  write_remote_project_manifest(project.path() / "mobagen.yaml");
+  ProjectCatalogHttpClient client;
+  compositions::ProjectBootstrapOptions options{
+      .resolver = {
+          .target = project_target(),
+          .profile = "release",
+          .defaults = {{
+              .target = project_target(),
+              .profile = "release",
+              .capability = "runtime.tick.v1",
+              .provider = "mobagen.runtime.remote",
+          }},
+      },
+      .sdk_version = {
+          MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR,
+          MOBAGEN_SDK_VERSION_PATCH,
+      },
+  };
+
+  auto started = compositions::prepare_and_open_project(
+      project.path() / "mobagen.yaml", options, {.http_client = &client}
+  );
+
+  REQUIRE(started.ok());
+  CHECK(started.bootstrap.state
+        == compositions::ProjectBootstrapState::Synchronized);
+  CHECK(started.project.manager->kind()
+        == compositions::ProjectModuleRuntimeKind::Native);
+  CHECK(started.project.manager->active_count() == 0);
+  CHECK(client.catalog_requests.size() == 1);
+  CHECK(client.artifact_requests.size() == 1);
+  CHECK(started.project.manager->stop().ok());
+  started.project.manager.reset();
+
+  auto reopened = compositions::prepare_and_open_project(
+      project.path() / "mobagen.yaml", std::move(options)
+  );
+
+  REQUIRE(reopened.ok());
+  CHECK(reopened.bootstrap.state == compositions::ProjectBootstrapState::Ready);
+  CHECK(reopened.project.manager->active_count() == 0);
+  CHECK(client.catalog_requests.size() == 1);
+  CHECK(client.artifact_requests.size() == 1);
+  CHECK(reopened.project.manager->stop().ok());
 }
 
 TEST_CASE("Project CLI: sync reports a missing injected HTTPS service without network access") {

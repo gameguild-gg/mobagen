@@ -160,6 +160,7 @@ if(TARGET mobagen::module_manifest)
     FoundationTests PRIVATE mobagen::headless_composition mobagen::module_manifest
                             mobagen::native_project mobagen::portable_project
                             mobagen::project_bootstrap mobagen::project_module_manager
+                            mobagen::project_startup
   )
 endif()
 if(TARGET mobagen::module_distribution)
@@ -198,6 +199,9 @@ if(TARGET mobagen_project_module_manager)
 endif()
 if(TARGET mobagen_project_bootstrap)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_project_bootstrap)
+endif()
+if(TARGET mobagen_project_startup)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_project_startup)
 endif()
 if(TARGET mobagen_module_manifest)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)

@@ -54,6 +54,19 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
       mobagen_project_module_manager PUBLIC mobagen::native_project
     )
   endif()
+
+  add_library(
+    mobagen_project_startup STATIC project_startup.cpp project_startup.hpp
+  )
+  add_library(mobagen::project_startup ALIAS mobagen_project_startup)
+  target_include_directories(
+    mobagen_project_startup PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  target_compile_features(mobagen_project_startup PUBLIC cxx_std_20)
+  target_link_libraries(
+    mobagen_project_startup
+    PUBLIC mobagen::project_bootstrap mobagen::project_module_manager
+  )
 endif()
 
 if(MOBAGEN_BUILD_RUNTIME)
