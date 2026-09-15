@@ -5,11 +5,13 @@
 #include <string>
 #include <type_traits>
 
+#include <mobagen/plugin/asset_store_v1.h>
 #include "plugins/plugin_abi.h"
 #include <mobagen/plugin/wasm_abi.h>
 
 extern "C" int mobagen_plugin_abi_c_compile_test(void);
 extern "C" int mobagen_wasm_abi_c_compile_test(void);
+extern "C" int mobagen_asset_store_abi_c_compile_test(void);
 
 namespace {
 
@@ -88,6 +90,23 @@ TEST_CASE("Plugin ABI: extensible structures begin with size and version") {
   CHECK(offsetof(MobagenPluginDescriptorV1, struct_size) == 0);
   CHECK(offsetof(MobagenPluginDescriptorV1, abi_version) == sizeof(std::uint32_t));
   CHECK(offsetof(MobagenPluginLifecycleV1, struct_size) == 0);
+}
+
+TEST_CASE("Plugin ABI: native asset store uses fixed content IDs and generational handles") {
+  static_assert(std::is_standard_layout_v<MobagenAssetIdV1>);
+  static_assert(std::is_trivially_copyable_v<MobagenAssetIdV1>);
+  static_assert(std::is_standard_layout_v<MobagenAssetHandleV1>);
+  static_assert(std::is_trivially_copyable_v<MobagenAssetHandleV1>);
+  static_assert(std::is_standard_layout_v<MobagenAssetStoreV1>);
+  static_assert(std::is_trivially_copyable_v<MobagenAssetStoreV1>);
+
+  CHECK(std::string{MOBAGEN_ASSET_STORE_V1_ID} == "assets.store.v1");
+  CHECK(MOBAGEN_ASSET_STORE_V1_ABI_VERSION == 1U);
+  CHECK(MOBAGEN_ASSET_ID_V1_SIZE == 32U);
+  CHECK(MOBAGEN_ASSET_HANDLE_V1_SIZE == 8U);
+  CHECK(MOBAGEN_ASSET_STORE_V1_SIZE == sizeof(MobagenAssetStoreV1));
+  CHECK(offsetof(MobagenAssetStoreV1, header) == 0U);
+  CHECK(mobagen_asset_store_abi_c_compile_test() == 0);
 }
 
 TEST_CASE("Plugin ABI: exported entry point has one canonical symbol") {
