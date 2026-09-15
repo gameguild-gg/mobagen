@@ -190,7 +190,14 @@ TEST_CASE("Project module manager: manifest profile routes to lazy portable modu
   CHECK(opened.manager->active_count() == 0);
   CHECK(backend.calls == 0);
 
-  REQUIRE(opened.manager->activate("runtime.package.v1").ok());
+  const auto acquired = opened.manager->acquire("runtime.package.v1");
+  REQUIRE(acquired.ok());
+  REQUIRE(acquired.endpoint.has_value());
+  CHECK(acquired.endpoint->kind
+        == compositions::ProjectModuleRuntimeKind::Portable);
+  CHECK_FALSE(acquired.endpoint->native.has_value());
+  REQUIRE(acquired.endpoint->portable != nullptr);
+  CHECK(acquired.endpoint->portable->provider().id == "mobagen.wasm-package");
   CHECK(opened.manager->active_count() == 1);
   CHECK(backend.calls == 1);
   CHECK(opened.manager->stop().ok());

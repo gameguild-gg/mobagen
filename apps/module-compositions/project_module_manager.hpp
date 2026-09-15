@@ -2,6 +2,7 @@
 
 #include "modules/descriptor.hpp"
 #include "modules/manifest_parser.hpp"
+#include "plugins/plugin_host.hpp"
 #include "plugins/wasm_host_imports.hpp"
 
 #include <mobagen/version.h>
@@ -18,6 +19,7 @@
 
 namespace mobagen::plugins {
   class PortableWasmBackend;
+  class PortableWasmPluginActivation;
 }
 
 namespace mobagen::compositions {
@@ -68,6 +70,21 @@ namespace mobagen::compositions {
     [[nodiscard]] bool ok() const noexcept { return issues.empty(); }
   };
 
+  struct ProjectModuleCapabilityEndpoint {
+    ProjectModuleRuntimeKind kind{};
+    std::optional<plugins::NativeCapabilityBindingView> native;
+    plugins::PortableWasmPluginActivation* portable{};
+  };
+
+  struct ProjectModuleCapabilityResult {
+    std::optional<ProjectModuleCapabilityEndpoint> endpoint;
+    std::vector<ProjectModuleManagerIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept {
+      return endpoint.has_value() && issues.empty();
+    }
+  };
+
   struct LockedProjectResult;
 
   class ProjectModuleManager {
@@ -81,6 +98,12 @@ namespace mobagen::compositions {
     [[nodiscard]] ProjectModuleRuntimeKind kind() const noexcept;
     [[nodiscard]] ProjectModuleManagerActionResult activate(
         std::string_view capability
+    );
+    /* Acquires the backend endpoint while preserving lazy activation. Native
+       function tables and portable activation pointers remain valid until
+       stop() or manager destruction. Hot paths should retain this endpoint. */
+    [[nodiscard]] ProjectModuleCapabilityResult acquire(
+        std::string_view capability, std::uint32_t minimum_native_abi_version = 1
     );
     [[nodiscard]] ProjectModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept;

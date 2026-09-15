@@ -30,13 +30,18 @@ namespace mobagen::compositions {
     }
 
     template <typename Issues>
-    ProjectModuleManagerActionResult simplify_action(Issues&& issues) {
-      ProjectModuleManagerActionResult result;
-      result.issues.reserve(issues.size());
+    std::vector<ProjectModuleManagerIssue> simplify_issues(Issues&& issues) {
+      std::vector<ProjectModuleManagerIssue> result;
+      result.reserve(issues.size());
       for (auto& issue : issues) {
-        result.issues.push_back(simplify_issue(std::move(issue)));
+        result.push_back(simplify_issue(std::move(issue)));
       }
       return result;
+    }
+
+    template <typename Issues>
+    ProjectModuleManagerActionResult simplify_action(Issues&& issues) {
+      return {.issues = simplify_issues(std::forward<Issues>(issues))};
     }
 
     template <typename ProjectIssue>
@@ -78,6 +83,38 @@ namespace mobagen::compositions {
 #endif
     auto activated = storage_->portable->activate(capability);
     return simplify_action(std::move(activated.issues));
+  }
+
+  ProjectModuleCapabilityResult ProjectModuleManager::acquire(
+      std::string_view capability, std::uint32_t minimum_native_abi_version
+  ) {
+    ProjectModuleCapabilityResult result;
+#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
+    if (storage_->native != nullptr) {
+      auto acquired = storage_->native->acquire(
+          capability, minimum_native_abi_version
+      );
+      result.issues = simplify_issues(std::move(acquired.issues));
+      if (acquired.binding.has_value()) {
+        result.endpoint = ProjectModuleCapabilityEndpoint{
+            .kind = ProjectModuleRuntimeKind::Native,
+            .native = *acquired.binding,
+        };
+      }
+      return result;
+    }
+#else
+    static_cast<void>(minimum_native_abi_version);
+#endif
+    auto acquired = storage_->portable->acquire(capability);
+    result.issues = simplify_issues(std::move(acquired.issues));
+    if (acquired.plugin != nullptr) {
+      result.endpoint = ProjectModuleCapabilityEndpoint{
+          .kind = ProjectModuleRuntimeKind::Portable,
+          .portable = acquired.plugin,
+      };
+    }
+    return result;
   }
 
   ProjectModuleManagerActionResult ProjectModuleManager::stop() {

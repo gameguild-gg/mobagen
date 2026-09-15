@@ -349,7 +349,16 @@ TEST_CASE("Project module manager: manifest profile routes to lazy native module
   CHECK(opened.manager->active_count() == 0);
   CHECK(opened.manager->native()->host().size() == 0);
 
-  REQUIRE(opened.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID).ok());
+  const auto acquired = opened.manager->acquire(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
+  REQUIRE(acquired.ok());
+  REQUIRE(acquired.endpoint.has_value());
+  CHECK(acquired.endpoint->kind == ProjectModuleRuntimeKind::Native);
+  REQUIRE(acquired.endpoint->native.has_value());
+  CHECK(acquired.endpoint->portable == nullptr);
+  const auto* api = static_cast<const MobagenRuntimeTickV1*>(
+      acquired.endpoint->native->function_table
+  );
+  CHECK(api->tick(api->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK(opened.manager->active_count() == 1);
   CHECK(opened.manager->native()->host().size() == 1);
   CHECK(opened.manager->stop().ok());
