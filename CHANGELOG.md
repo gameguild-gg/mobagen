@@ -1,3 +1,25 @@
+## [1.24.1](https://github.com/InfiniBrains/mobagen/compare/v1.24.0...v1.24.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* missing includes ([1fdaabc](https://github.com/InfiniBrains/mobagen/commit/1fdaabcf7bb7821b8a07dc332a1133771e33196f))
+
+# [1.24.0](https://github.com/InfiniBrains/mobagen/compare/v1.23.2...v1.24.0) (2026-09-14)
+
+
+### Bug Fixes
+
+* random number generation boilerplate ([370c049](https://github.com/InfiniBrains/mobagen/commit/370c049ff6c26bfbef18642009f807a16b06b54e))
+* **webgpu:** wasm build should run now ([1d33232](https://github.com/InfiniBrains/mobagen/commit/1d33232f8c77cb1b492099987ef333df29c47f89))
+
+
+### Features
+
+* **maze:** add maze tests ([54bb96a](https://github.com/InfiniBrains/mobagen/commit/54bb96a6d13e6494d1317576fef101c75f604c56))
+* **maze:** rectangular world grid with formal-coordinate translation ([958ceb0](https://github.com/InfiniBrains/mobagen/commit/958ceb06738a903a01525ef24fccc4222ce5d416))
+* **maze:** recursive backtracker generator on the world grid ([d5ab58c](https://github.com/InfiniBrains/mobagen/commit/d5ab58c7b661f9d7164a504d21cd185cf850d40b))
+
 ## [1.23.2](https://github.com/InfiniBrains/mobagen/compare/v1.23.1...v1.23.2) (2026-09-08)
 
 
