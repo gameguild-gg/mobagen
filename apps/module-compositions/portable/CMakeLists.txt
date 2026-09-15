@@ -1,6 +1,6 @@
 add_library(
-  mobagen_portable_project STATIC module_manager.cpp module_manager.hpp project_runtime.cpp
-                                  project_runtime.hpp
+  mobagen_portable_project STATIC locked_project.cpp locked_project.hpp module_manager.cpp
+                                  module_manager.hpp project_runtime.cpp project_runtime.hpp
 )
 add_library(mobagen::portable_project ALIAS mobagen_portable_project)
 target_include_directories(mobagen_portable_project PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
