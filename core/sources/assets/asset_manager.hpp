@@ -5,6 +5,7 @@
 #include "asset_registry.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <span>
 #include <type_traits>
@@ -69,8 +70,9 @@ namespace mobagen::assets {
 
   /* Lazily materializes content-addressed cache blobs into typed, generational
      runtime handles. The cache and decoder context must outlive the manager.
-     Callers provide synchronization around acquire/release; get(handle) is the
-     allocation-free hot path after acquisition. */
+     Every successful acquire owns one lease that must be released. Callers
+     provide synchronization; resident acquire/release and get(handle) are
+     allocation-free after warm-up. */
   template <class T> class AssetManager {
     static_assert(std::is_default_constructible_v<T>);
 
@@ -80,6 +82,9 @@ namespace mobagen::assets {
 
     [[nodiscard]] AssetManagerAcquireResult acquire(const AssetId& id) {
       if (const auto resident = registry_.find(id); resident.has_value()) {
+        if (!retain(*resident)) {
+          return {.status = AssetManagerStatus::registry_error};
+        }
         return {
             .status = AssetManagerStatus::resident,
             .handle = *resident,
@@ -119,9 +124,37 @@ namespace mobagen::assets {
 
       try {
         const auto inserted = registry_.emplace(id, std::move(*decoded));
+        if (!inserted.inserted) {
+          if (!retain(inserted.handle)) {
+            return {.status = AssetManagerStatus::registry_error};
+          }
+          return {
+              .status = AssetManagerStatus::resident,
+              .handle = inserted.handle,
+              .cache_status = cached.status,
+          };
+        }
+
+        try {
+          if (inserted.handle.index >= reference_counts_.size()) {
+            reference_counts_.resize(
+                static_cast<std::size_t>(inserted.handle.index) + 1
+            );
+          }
+          if (reference_counts_[inserted.handle.index] != 0) {
+            (void)registry_.release(inserted.handle);
+            return {
+                .status = AssetManagerStatus::registry_error,
+                .cache_status = cached.status,
+            };
+          }
+          reference_counts_[inserted.handle.index] = 1;
+        } catch (...) {
+          (void)registry_.release(inserted.handle);
+          throw;
+        }
         return {
-            .status = inserted.inserted ? AssetManagerStatus::loaded
-                                        : AssetManagerStatus::resident,
+            .status = AssetManagerStatus::loaded,
             .handle = inserted.handle,
             .cache_status = cached.status,
         };
@@ -145,16 +178,16 @@ namespace mobagen::assets {
       }
 
       std::vector<AssetManagerResolvedAsset> resolved;
-      std::vector<resource::Handle> newly_loaded;
+      std::vector<resource::Handle> acquired_handles;
       resolved.reserve(order.assets.size());
-      newly_loaded.reserve(order.assets.size());
+      acquired_handles.reserve(order.assets.size());
 
       for (const auto& id : order.assets) {
         const auto acquired = acquire(id);
         if (!acquired.ok()) {
-          for (auto handle = newly_loaded.rbegin();
-               handle != newly_loaded.rend(); ++handle) {
-            (void)registry_.release(*handle);
+          for (auto handle = acquired_handles.rbegin();
+               handle != acquired_handles.rend(); ++handle) {
+            (void)release(*handle);
           }
           return {
               .status = AssetManagerBatchStatus::asset_error,
@@ -163,9 +196,7 @@ namespace mobagen::assets {
               .failure = acquired,
           };
         }
-        if (acquired.status == AssetManagerStatus::loaded) {
-          newly_loaded.push_back(acquired.handle);
-        }
+        acquired_handles.push_back(acquired.handle);
         resolved.push_back({id, acquired.handle});
       }
 
@@ -189,16 +220,47 @@ namespace mobagen::assets {
       return registry_.get(handle);
     }
     bool release(resource::Handle handle) {
-      return registry_.release(handle);
+      if (!registry_.valid(handle)
+          || handle.index >= reference_counts_.size()) {
+        return false;
+      }
+      auto& references = reference_counts_[handle.index];
+      if (references == 0) {
+        return false;
+      }
+      if (references > 1) {
+        --references;
+        return true;
+      }
+      if (!registry_.release(handle)) {
+        return false;
+      }
+      references = 0;
+      return true;
     }
     [[nodiscard]] std::size_t size() const noexcept {
       return registry_.size();
     }
 
   private:
+    [[nodiscard]] bool retain(resource::Handle handle) noexcept {
+      if (!registry_.valid(handle)
+          || handle.index >= reference_counts_.size()) {
+        return false;
+      }
+      auto& references = reference_counts_[handle.index];
+      if (references == 0
+          || references == std::numeric_limits<std::uint32_t>::max()) {
+        return false;
+      }
+      ++references;
+      return true;
+    }
+
     const AssetCache* cache_{};
     AssetDecoder<T> decoder_;
     AssetRegistry<T> registry_;
+    std::vector<std::uint32_t> reference_counts_;
   };
 
 }  // namespace mobagen::assets
