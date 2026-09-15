@@ -8,11 +8,17 @@
 #include "plugins/wasm_plugin_loader.hpp"
 #include "support/wasm_plugin_test_support.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <filesystem>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+namespace module_allocation_probe {
+  extern std::atomic_bool enabled;
+  extern std::atomic_size_t count;
+}  // namespace module_allocation_probe
 
 namespace {
 
@@ -200,7 +206,20 @@ TEST_CASE("Project module manager: manifest profile routes to lazy portable modu
   CHECK(acquired.endpoint->portable->provider().id == "mobagen.wasm-package");
   CHECK(opened.manager->active_count() == 1);
   CHECK(backend.calls == 1);
+
+  bool endpoint_reused = true;
+  module_allocation_probe::count.store(0, std::memory_order_relaxed);
+  module_allocation_probe::enabled.store(true, std::memory_order_release);
+  for (std::size_t index = 0; index < 1'024; ++index) {
+    const auto* hot = opened.manager->find_active("runtime.package.v1");
+    endpoint_reused = endpoint_reused && hot != nullptr
+                      && hot->portable == acquired.endpoint->portable;
+  }
+  module_allocation_probe::enabled.store(false, std::memory_order_release);
+  CHECK(endpoint_reused);
+  CHECK(module_allocation_probe::count.load(std::memory_order_relaxed) == 0);
   CHECK(opened.manager->stop().ok());
+  CHECK(opened.manager->find_active("runtime.package.v1") == nullptr);
 }
 
 TEST_CASE("Project startup: first run downloads portable modules without instantiating them") {

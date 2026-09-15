@@ -105,6 +105,10 @@ namespace mobagen::compositions {
     [[nodiscard]] ProjectModuleCapabilityResult acquire(
         std::string_view capability, std::uint32_t minimum_native_abi_version = 1
     );
+    /* Allocation-free lookup for endpoints previously returned by acquire(). */
+    [[nodiscard]] const ProjectModuleCapabilityEndpoint* find_active(
+        std::string_view capability, std::uint32_t minimum_native_abi_version = 1
+    ) const noexcept;
     [[nodiscard]] ProjectModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept;
     [[nodiscard]] NativeModuleManager* native() noexcept;
