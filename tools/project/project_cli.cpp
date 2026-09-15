@@ -1,12 +1,9 @@
 #include "project_cli.hpp"
 
-#include "modules/artifact_fetcher.hpp"
-#include "modules/artifact_installer.hpp"
 #include "modules/lockfile.hpp"
-#include "modules/lockfile_verifier.hpp"
 #include "native/project_runtime.hpp"
-#include "modules/module_sync_plan.hpp"
 #include "portable/project_runtime.hpp"
+#include "project_bootstrap.hpp"
 #include "project_support.hpp"
 #if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
 #include "http/curl_client.hpp"
@@ -24,7 +21,6 @@
 #include <filesystem>
 #include <optional>
 #include <ostream>
-#include <set>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -67,9 +63,6 @@ namespace mobagen::compositions::cli {
     };
 
     struct ProjectRouteResult {
-      std::optional<modules::ProductDescriptor> product;
-      std::filesystem::path manifest_path;
-      std::string manifest_hash;
       std::optional<modules::LinkageMode> linkage;
       std::string error;
       std::vector<modules::ManifestError> manifest_errors;
@@ -410,20 +403,12 @@ namespace mobagen::compositions::cli {
         result.manifest_errors = std::move(parsed.errors);
         return result;
       }
-      const auto manifest_hash = detail::hash_project_manifest(*source.contents);
-      if (!manifest_hash.has_value()) {
-        result.error = "mobagen.yaml could not be fingerprinted";
-        return result;
-      }
       const auto profile = std::ranges::find(parsed.descriptor->profiles, command.resolver.profile, &modules::ProfileDescriptor::name);
       if (profile == parsed.descriptor->profiles.end()) {
         result.error = "selected profile '" + command.resolver.profile + "' is not declared by mobagen.yaml";
         return result;
       }
       result.linkage = profile->linkage;
-      result.manifest_path = std::move(source.absolute_path);
-      result.manifest_hash = *manifest_hash;
-      result.product = std::move(parsed.descriptor);
       return result;
     }
 
@@ -581,226 +566,47 @@ namespace mobagen::compositions::cli {
       return 3;
     }
 
-    struct BootstrapProbe {
-      bool ready{};
-      std::size_t plugin_count{};
-      std::string reason;
-    };
-
-    bool lock_matches_request(const ParsedCommand& command,
-                              const modules::ProductDescriptor& product,
-                              modules::LinkageMode profile_linkage,
-                              const modules::LockfileDocument& document) {
-      std::set<std::string, std::less<>> aliases;
-      for (const auto& alias : command.resolver.aliases) {
-        if (!aliases.insert(alias.alias).second) return false;
-      }
-      std::set<std::string, std::less<>> default_capabilities;
-      for (const auto& binding : command.resolver.defaults) {
-        if (!default_capabilities.insert(binding.capability).second) return false;
-        const auto selection = std::ranges::find(
-            document.resolved, binding.capability,
-            &modules::LockedProviderSelection::capability
-        );
-        if (selection == document.resolved.end() || selection->provider != binding.provider) {
-          return false;
-        }
-      }
-      for (const auto& request : product.modules) {
-        const auto alias = std::ranges::find(
-            command.resolver.aliases, request.alias, &modules::ModuleAliasBinding::alias
-        );
-        if (!request.capability.empty() && alias != command.resolver.aliases.end()
-            && alias->capability != request.capability) {
-          return false;
-        }
-        const std::string_view capability = request.capability.empty()
-                                              ? alias == command.resolver.aliases.end()
-                                                  ? std::string_view{}
-                                                  : std::string_view{alias->capability}
-                                              : std::string_view{request.capability};
-        if (capability.empty()) return false;
-        const auto selection = std::ranges::find(
-            document.resolved, capability,
-            &modules::LockedProviderSelection::capability
-        );
-        if (selection == document.resolved.end()
-            || (request.provider != "default" && selection->provider != request.provider)) {
-          return false;
-        }
-      }
-
-      std::set<std::string, std::less<>> plugin_providers;
-      for (const auto& plugin : document.metadata.plugins) {
-        plugin_providers.insert(plugin.provider);
-      }
-      std::set<std::string, std::less<>> selected_providers;
-      for (const auto& selection : document.resolved) {
-        if (selection.linkage != profile_linkage) return false;
-        selected_providers.insert(selection.provider);
-      }
-      return !selected_providers.empty() && selected_providers == plugin_providers;
-    }
-
-    BootstrapProbe probe_bootstrap(const ParsedCommand& command,
-                                   const modules::ProductDescriptor& product,
-                                   modules::LinkageMode profile_linkage,
-                                   const std::filesystem::path& manifest_path,
-                                   std::string_view manifest_hash) {
-      const auto lockfile_path = manifest_path.parent_path() / "mobagen.lock";
-      const auto source = modules::read_lockfile_bounded(lockfile_path);
-      if (!source.ok()) {
-        return {.reason = "mobagen.lock is missing or unreadable"};
-      }
-      const auto parsed = modules::parse_lockfile(*source.contents,
-                                                  lockfile_path.generic_string());
-      if (!parsed.ok()) {
-        return {.reason = "mobagen.lock is invalid"};
-      }
-      const auto verified = modules::verify_locked_project(
-          *parsed.document, manifest_path.parent_path(),
-          {
-              .sdk = command.sdk_version,
-              .target = command.resolver.target,
-              .profile = command.resolver.profile,
-              .manifest_hash = std::string{manifest_hash},
-          }
-      );
-      if (!verified.ok()) {
-        return {
-            .reason = verified.issues.empty()
-                        ? "locked plugin packages are invalid"
-                        : verified.issues.front().message,
-        };
-      }
-      if (!lock_matches_request(command, product, profile_linkage, *parsed.document)) {
-        return {.reason = "mobagen.lock does not match the requested module selection"};
-      }
-      return {.ready = true, .plugin_count = verified.plugins.size()};
-    }
-
-    int sync(std::string_view operation, const ParsedCommand& command,
-             const modules::ProductDescriptor& product,
-             const std::filesystem::path& manifest_path, std::string_view manifest_hash,
-             http::Client& client, std::ostream& output, std::ostream& error) {
-      auto planned = modules::plan_module_sync(product, client, command.resolver);
-      if (!planned.ok()) {
+    int print_bootstrap(
+        std::string_view operation, const ProjectBootstrapResult& bootstrapped,
+        std::ostream& output, std::ostream& error
+    ) {
+      if (!bootstrapped.ok()) {
         error << operation << " failed";
-        if (!planned.fetch_issues.empty()) {
-          error << ": " << planned.fetch_issues.front().message;
-          if (!planned.fetch_issues.front().catalog_errors.empty()) {
-            error << ": " << planned.fetch_issues.front().catalog_errors.front().message;
-          } else if (!planned.fetch_issues.front().transport_error.message.empty()) {
-            error << ": " << planned.fetch_issues.front().transport_error.message;
-          }
-        } else if (!planned.catalog_issues.empty()) {
-          error << ": " << planned.catalog_issues.front().message;
-        } else if (!planned.resolution_issues.empty()) {
-          error << ": " << planned.resolution_issues.front().message;
+        if (!bootstrapped.issues.empty()) {
+          error << ": " << bootstrapped.issues.front().message;
         }
         error << '\n';
         return 3;
       }
-
-      auto configured_cache = command.cache_root.value_or(std::filesystem::path{".mobagen"} / "cache");
-      if (configured_cache.is_relative()) configured_cache = manifest_path.parent_path() / configured_cache;
-      std::error_code cache_path_error;
-      auto cache_root = std::filesystem::absolute(configured_cache, cache_path_error).lexically_normal();
-      if (cache_path_error) {
-        error << operation << " failed: module cache path could not be resolved\n";
-        return 3;
-      }
-      assets::AssetCache cache{cache_root, static_cast<std::size_t>(modules::max_module_artifact_bytes)};
-      auto fetched = modules::fetch_module_artifacts(*planned.catalog, *planned.resolution, client, cache);
-      if (!fetched.ok()) {
-        error << operation << " failed";
-        if (!fetched.issues.empty()) {
-          const auto& issue = fetched.issues.front();
-          error << ": " << issue.message;
-          if (issue.http_status.has_value()) {
-            error << ": HTTP " << *issue.http_status;
-          } else if (issue.transport_error.has_value()) {
-            error << ": " << issue.transport_error->message;
-          }
-        }
-        error << '\n';
-        return 3;
+      if (bootstrapped.state == ProjectBootstrapState::Ready) {
+        output << "ready\t" << bootstrapped.product_name << '\t'
+               << bootstrapped.profile << '\n'
+               << "plugins\t" << bootstrapped.plugin_count << '\n';
+        return 0;
       }
 
-      const auto install_root = manifest_path.parent_path() / ".mobagen" / "plugins";
-      auto installed = modules::materialize_module_plugins(fetched.artifacts, install_root);
-      if (!installed.ok()) {
-        error << operation << " failed";
-        if (!installed.issues.empty()) {
-          const auto& issue = installed.issues.front();
-          error << ": " << issue.message;
-          if (issue.system_error) error << ": " << issue.system_error.message();
-        }
-        error << '\n';
-        return 3;
+      output << "catalogs-synced\t" << bootstrapped.product_name << '\t'
+             << bootstrapped.profile << '\n';
+      for (const auto& selection : bootstrapped.selections) {
+        output << "artifact\t" << selection.provider_id << '\t'
+               << version_string(selection.version) << '\t'
+               << linkage_name(selection.artifact.linkage) << '\t'
+               << selection.artifact.abi_version << '\t'
+               << selection.artifact.size << '\t' << selection.artifact.hash
+               << '\t' << selection.artifact.url << '\n';
       }
-
-      modules::LockfileMetadata lock_metadata{
-          .sdk = command.sdk_version,
-          .target = command.resolver.target,
-          .profile = command.resolver.profile,
-          .manifest_hash = std::string{manifest_hash},
-      };
-      lock_metadata.plugins.reserve(installed.artifacts.size());
-      for (const auto& artifact : installed.artifacts) {
-        const auto package = artifact.package_path.lexically_relative(manifest_path.parent_path())
-                                 .lexically_normal()
-                                 .generic_string();
-        lock_metadata.plugins.push_back({
-            .provider = artifact.provider_id,
-            .version = artifact.version,
-            .abi_version = artifact.abi_version,
-            .package = package,
-            .hash = assets::to_string(artifact.id),
-        });
-      }
-      auto lockfile = modules::serialize_lockfile(planned.catalog->registry(), *planned.resolution,
-                                                 lock_metadata);
-      if (!lockfile.ok()) {
-        error << operation << " failed: selected remote modules could not be represented in mobagen.lock";
-        if (!lockfile.issues.empty()) error << ": " << lockfile.issues.front().message;
-        error << '\n';
-        return 3;
-      }
-      const auto lockfile_path = manifest_path.parent_path() / "mobagen.lock";
-      auto lock_written = modules::write_lockfile_atomic(lockfile_path, *lockfile.contents);
-      if (!lock_written.ok()) {
-        error << operation << " failed: mobagen.lock could not be updated";
-        if (lock_written.issue.has_value()) error << ": " << lock_written.issue->message;
-        error << '\n';
-        return 3;
-      }
-
-      output << "catalogs-synced\t" << product.name << '\t' << command.resolver.profile << '\n';
-      const auto& registry = planned.catalog->registry();
-      for (const auto provider_index : planned.resolution->lifecycle_order()) {
-        const auto* provider = registry.provider(provider_index);
-        const auto* artifact = planned.catalog->artifact_for(provider_index);
-        if (provider == nullptr || artifact == nullptr) {
-          error << operation << " failed: selected provider has no catalog artifact\n";
-          return 3;
-        }
-        output << "artifact\t" << provider->id << '\t' << version_string(provider->version) << '\t'
-               << linkage_name(artifact->linkage) << '\t' << artifact->abi_version << '\t'
-               << artifact->size << '\t' << artifact->hash << '\t' << artifact->url << '\n';
-      }
-      for (const auto& artifact : fetched.artifacts) {
+      for (const auto& artifact : bootstrapped.cached_artifacts) {
         output << "cache\t" << artifact.provider_id << '\t'
                << (artifact.downloaded ? "downloaded" : "present") << '\t'
                << artifact.cache_path.generic_string() << '\n';
       }
-      for (const auto& artifact : installed.artifacts) {
+      for (const auto& artifact : bootstrapped.installed_artifacts) {
         output << "plugin\t" << artifact.provider_id << '\t'
                << (artifact.installed ? "installed" : "present") << '\t'
                << artifact.package_path.generic_string() << '\n';
       }
-      output << "lock\t" << lockfile_path.generic_string() << '\n';
-      output << "selected\t" << planned.resolution->lifecycle_order().size() << '\n';
+      output << "lock\t" << bootstrapped.lockfile_path.generic_string() << '\n'
+             << "selected\t" << bootstrapped.selected_count << '\n';
       return 0;
     }
 
@@ -835,43 +641,42 @@ namespace mobagen::compositions::cli {
         }
         if (parsed.command->command == ProjectCommand::Bootstrap
             || parsed.command->command == ProjectCommand::Sync) {
-          if (!route.product.has_value()) {
-            error << arguments.front() << " failed: parsed project descriptor is unavailable\n";
-            return 3;
-          }
-          BootstrapProbe bootstrap;
-          if (parsed.command->command == ProjectCommand::Bootstrap) {
-            bootstrap = probe_bootstrap(
-                *parsed.command, *route.product, *route.linkage, route.manifest_path,
-                route.manifest_hash
-            );
-            if (bootstrap.ready) {
-              output << "ready\t" << route.product->name << '\t'
-                     << parsed.command->resolver.profile << '\n'
-                     << "plugins\t" << bootstrap.plugin_count << '\n';
-              return 0;
-            }
-          }
+          ProjectBootstrapOptions options{
+              .resolver = parsed.command->resolver,
+              .sdk_version = parsed.command->sdk_version,
+              .cache_root = parsed.command->cache_root,
+              .mode = parsed.command->command == ProjectCommand::Bootstrap
+                          ? ProjectBootstrapMode::Ensure
+                          : ProjectBootstrapMode::Refresh,
+              .validation = ProjectBootstrapValidation::Full,
+          };
           if (services.http_client != nullptr) {
-            return sync(arguments.front(), *parsed.command, *route.product,
-                        route.manifest_path, route.manifest_hash,
-                        *services.http_client,
-                        output, error);
+            const auto bootstrapped = bootstrap_project(
+                parsed.command->manifest, options, services.http_client
+            );
+            return print_bootstrap(
+                arguments.front(), bootstrapped, output, error
+            );
           }
 #if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
           if (use_bundled_backends) {
             http::CurlClient client;
-            return sync(arguments.front(), *parsed.command, *route.product,
-                        route.manifest_path, route.manifest_hash,
-                        client, output, error);
+            const auto bootstrapped = bootstrap_project(
+                parsed.command->manifest, std::move(options), &client
+            );
+            return print_bootstrap(
+                arguments.front(), bootstrapped, output, error
+            );
           }
 #else
           static_cast<void>(use_bundled_backends);
 #endif
-          error << arguments.front() << " failed";
-          if (!bootstrap.reason.empty()) error << ": " << bootstrap.reason;
-          error << ": HTTPS client is unavailable in this build\n";
-          return 3;
+          const auto bootstrapped = bootstrap_project(
+              parsed.command->manifest, std::move(options)
+          );
+          return print_bootstrap(
+              arguments.front(), bootstrapped, output, error
+          );
         }
         if (*route.linkage == modules::LinkageMode::Wasm) {
 #if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)

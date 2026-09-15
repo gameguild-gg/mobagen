@@ -6,7 +6,7 @@ target_link_libraries(
   mobagen_project_cli
   PUBLIC mobagen::native_project
   PRIVATE mobagen::module_distribution mobagen::module_lockfile mobagen::portable_project
-          mobagen::project_support
+          mobagen::project_bootstrap mobagen::project_support
 )
 if(MOBAGEN_WASM_BACKEND_WAMR)
   target_compile_definitions(mobagen_project_cli PRIVATE MOBAGEN_PROJECT_CLI_HAS_WAMR=1)
