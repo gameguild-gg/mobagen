@@ -10,6 +10,8 @@
 #include <vector>
 
 using mobagen::benchmark::measure;
+using mobagen::benchmark::measure_paired;
+using mobagen::benchmark::overhead_percent;
 using mobagen::benchmark::Options;
 using mobagen::benchmark::parse_options;
 using mobagen::benchmark::percentile;
@@ -27,12 +29,18 @@ TEST_CASE("Benchmark percentile uses the nearest-rank value") {
 }
 
 TEST_CASE("Benchmark options accept positive warmup and sample counts") {
-  constexpr std::array args{std::string_view{"--warmup"}, std::string_view{"7"}, std::string_view{"--samples"}, std::string_view{"11"}};
+  constexpr std::array args{
+      std::string_view{"--warmup"}, std::string_view{"7"},
+      std::string_view{"--samples"}, std::string_view{"11"},
+      std::string_view{"--max-overhead-percent"}, std::string_view{"1.25"},
+  };
 
   const Options options = parse_options(args);
 
   CHECK(options.warmup == 7);
   CHECK(options.samples == 11);
+  REQUIRE(options.max_overhead_percent.has_value());
+  CHECK(*options.max_overhead_percent == doctest::Approx(1.25));
 }
 
 TEST_CASE("Benchmark options reject unknown, missing, and zero values") {
@@ -58,6 +66,29 @@ TEST_CASE("Benchmark measurement separates warmup from retained samples") {
   CHECK(result.p95_ns >= result.median_ns);
 }
 
+TEST_CASE("Benchmark paired measurement alternates and reports comparable medians") {
+  const Options options{.warmup = 2, .samples = 4};
+  std::size_t baseline_calls = 0;
+  std::size_t candidate_calls = 0;
+
+  const auto result = measure_paired(
+      "baseline", "candidate", options, [&] { ++baseline_calls; },
+      [&] { ++candidate_calls; }
+  );
+
+  CHECK(baseline_calls == 6);
+  CHECK(candidate_calls == 6);
+  CHECK(result.baseline.samples_ns.size() == 4);
+  CHECK(result.candidate.samples_ns.size() == 4);
+  CHECK(result.baseline.median_ns >= 0.0);
+  CHECK(result.candidate.median_ns >= 0.0);
+  CHECK(overhead_percent(
+            Result{"baseline", {100.0}, 100.0, 100.0},
+            Result{"candidate", {101.0}, 101.0, 101.0}
+        )
+        == doctest::Approx(1.0));
+}
+
 TEST_CASE("Benchmark JSON includes schema, options, statistics, and raw samples") {
   const Options options{.warmup = 2, .samples = 3};
   const std::array results{
@@ -71,6 +102,7 @@ TEST_CASE("Benchmark JSON includes schema, options, statistics, and raw samples"
   CHECK(json.find("\"schema\":\"mobagen.foundation-benchmark.v1\"") != std::string::npos);
   CHECK(json.find("\"warmup\":2") != std::string::npos);
   CHECK(json.find("\"samples\":3") != std::string::npos);
+  CHECK(json.find("\"max_overhead_percent\":null") != std::string::npos);
   CHECK(json.find("\"name\":\"operation\"") != std::string::npos);
   CHECK(json.find("\"median_ns\":20") != std::string::npos);
   CHECK(json.find("\"p95_ns\":30") != std::string::npos);
