@@ -14,24 +14,16 @@
 namespace mobagen::compositions {
   namespace {
 
-    bool descriptor_matches(
-        const modules::LockedPluginActivationEntry& expected,
-        const modules::ProviderDescriptor& actual
-    ) {
+    bool descriptor_matches(const modules::LockedPluginActivationEntry& expected, const modules::ProviderDescriptor& actual) {
       if (actual.id != expected.provider_id || actual.version != expected.version
-          || (!expected.configuration_schema.empty()
-              && actual.configuration_schema != expected.configuration_schema)) {
+          || (!expected.configuration_schema.empty() && actual.configuration_schema != expected.configuration_schema)) {
         return false;
       }
-      return std::ranges::all_of(expected.capabilities, [&](const auto& capability) {
-        return std::ranges::find(actual.provides, capability) != actual.provides.end();
-      });
+      return std::ranges::all_of(expected.capabilities,
+                                 [&](const auto& capability) { return std::ranges::find(actual.provides, capability) != actual.provides.end(); });
     }
 
-    void append_shutdown_issues(
-        NativeModuleManagerActionResult& result, std::string_view provider_id,
-        plugins::NativePluginActionResult action
-    ) {
+    void append_shutdown_issues(NativeModuleManagerActionResult& result, std::string_view provider_id, plugins::NativePluginActionResult action) {
       if (action.ok()) return;
       result.issues.push_back({
           .code = NativeModuleManagerIssueCode::ShutdownFailed,
@@ -43,14 +35,9 @@ namespace mobagen::compositions {
 
   }  // namespace
 
-  NativeModuleManager::NativeModuleManager(
-      std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-      std::vector<std::vector<std::byte>> configurations,
-      plugins::PluginLogSink log_sink, void* log_context
-  )
-      : host_(log_sink, log_context),
-        plan_(std::move(plan)),
-        configurations_(std::move(configurations)) {
+  NativeModuleManager::NativeModuleManager(std::unique_ptr<modules::LockedPluginActivationPlan> plan,
+                                           std::vector<std::vector<std::byte>> configurations, plugins::PluginLogSink log_sink, void* log_context)
+      : host_(log_sink, log_context), plan_(std::move(plan)), configurations_(std::move(configurations)) {
     const auto entries = plan_->entries();
     dependencies_.resize(entries.size());
     activations_.resize(entries.size());
@@ -68,16 +55,12 @@ namespace mobagen::compositions {
   }
 
   NativeModuleManager::~NativeModuleManager() {
-    for (auto activation = activation_order_.rbegin(); activation != activation_order_.rend();
-         ++activation) {
+    for (auto activation = activation_order_.rbegin(); activation != activation_order_.rend(); ++activation) {
       activations_[*activation].reset();
     }
   }
 
-  bool NativeModuleManager::activate_provider(
-      std::size_t index, std::vector<std::size_t>& activated,
-      NativeModuleManagerActionResult& result
-  ) {
+  bool NativeModuleManager::activate_provider(std::size_t index, std::vector<std::size_t>& activated, NativeModuleManagerActionResult& result) {
     if (activations_[index] != nullptr) return true;
     for (const auto dependency : dependencies_[index]) {
       if (!activate_provider(dependency, activated, result)) return false;
@@ -93,16 +76,13 @@ namespace mobagen::compositions {
       return false;
     }
     if (!entry.binary_hash.empty()) {
-      const auto hash = detail::hash_project_plugin_binary(
-          entry.binary_path, modules::max_module_artifact_bytes
-      );
+      const auto hash = detail::hash_project_plugin_binary(entry.binary_path, modules::max_module_artifact_bytes);
       if (!hash.ok() || *hash.hash != entry.binary_hash) {
         result.issues.push_back({
             .code = NativeModuleManagerIssueCode::ArtifactVerificationFailed,
             .provider_id = entry.provider_id,
-            .message = hash.ok()
-                         ? "selected native plugin no longer matches mobagen.lock"
-                         : "selected native plugin could not be verified: " + hash.error,
+            .message
+            = hash.ok() ? "selected native plugin no longer matches mobagen.lock" : "selected native plugin could not be verified: " + hash.error,
         });
         return false;
       }
@@ -126,9 +106,7 @@ namespace mobagen::compositions {
       return false;
     }
 
-    auto activation = plugins::activate_loaded_native_plugin(
-        std::move(*loaded.plugin), host_, configurations_[index]
-    );
+    auto activation = plugins::activate_loaded_native_plugin(std::move(*loaded.plugin), host_, configurations_[index]);
     if (!activation.ok()) {
       result.issues.push_back({
           .code = NativeModuleManagerIssueCode::ActivationFailed,
@@ -145,24 +123,19 @@ namespace mobagen::compositions {
     return true;
   }
 
-  void NativeModuleManager::rollback(
-      std::vector<std::size_t>& activated, NativeModuleManagerActionResult& result
-  ) {
+  void NativeModuleManager::rollback(std::vector<std::size_t>& activated, NativeModuleManagerActionResult& result) {
     for (auto index = activated.rbegin(); index != activated.rend(); ++index) {
       auto& activation = activations_[*index];
-      if (activation != nullptr
-          && activation->state() == plugins::NativePluginActivationState::Active) {
+      if (activation != nullptr && activation->state() == plugins::NativePluginActivationState::Active) {
         append_shutdown_issues(result, activation->provider_id(), activation->quiesce());
       }
     }
     for (auto index = activated.rbegin(); index != activated.rend(); ++index) {
       auto& activation = activations_[*index];
-      if (activation != nullptr
-          && activation->state() == plugins::NativePluginActivationState::Quiesced) {
+      if (activation != nullptr && activation->state() == plugins::NativePluginActivationState::Quiesced) {
         append_shutdown_issues(result, activation->provider_id(), activation->stop());
       }
-      if (activation != nullptr
-          && activation->state() == plugins::NativePluginActivationState::Stopped) {
+      if (activation != nullptr && activation->state() == plugins::NativePluginActivationState::Stopped) {
         activation.reset();
         --active_count_;
         const auto found = std::ranges::find(activation_order_, *index);
@@ -193,9 +166,7 @@ namespace mobagen::compositions {
     return result;
   }
 
-  NativeModuleCapabilityResult NativeModuleManager::acquire(
-      std::string_view capability, std::uint32_t minimum_abi_version
-  ) {
+  NativeModuleCapabilityResult NativeModuleManager::acquire(std::string_view capability, std::uint32_t minimum_abi_version) {
     NativeModuleCapabilityResult result;
     auto activated = activate(capability);
     if (!activated.ok()) {
@@ -207,9 +178,7 @@ namespace mobagen::compositions {
       const auto selected = capabilities_.find(capability);
       result.issues.push_back({
           .code = NativeModuleManagerIssueCode::UnsupportedCapabilityAbi,
-          .provider_id = selected == capabilities_.end()
-                             ? std::string{}
-                             : plan_->entries()[selected->second].provider_id,
+          .provider_id = selected == capabilities_.end() ? std::string{} : plan_->entries()[selected->second].provider_id,
           .message = "native capability does not support the requested ABI version",
       });
     }
@@ -247,11 +216,9 @@ namespace mobagen::compositions {
     return result;
   }
 
-  NativeModuleManagerCreateResult create_native_module_manager(
-      std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-      std::span<const NativeModuleConfiguration> configurations,
-      plugins::PluginLogSink log_sink, void* log_context
-  ) {
+  NativeModuleManagerCreateResult create_native_module_manager(std::unique_ptr<modules::LockedPluginActivationPlan> plan,
+                                                               std::span<const NativeModuleConfiguration> configurations,
+                                                               plugins::PluginLogSink log_sink, void* log_context) {
     NativeModuleManagerCreateResult result;
     if (plan == nullptr) {
       result.issues.push_back({
@@ -262,9 +229,7 @@ namespace mobagen::compositions {
     }
     std::map<std::string, std::span<const std::byte>, std::less<>> supplied;
     for (const auto& configuration : configurations) {
-      if (!supplied.emplace(
-              configuration.provider_id, std::span<const std::byte>{configuration.data}
-          ).second) {
+      if (!supplied.emplace(configuration.provider_id, std::span<const std::byte>{configuration.data}).second) {
         result.issues.push_back({
             .code = NativeModuleManagerIssueCode::InvalidConfiguration,
             .provider_id = configuration.provider_id,
@@ -306,9 +271,7 @@ namespace mobagen::compositions {
         });
         return result;
       }
-      owned_configurations.emplace_back(
-          configuration->second.begin(), configuration->second.end()
-      );
+      owned_configurations.emplace_back(configuration->second.begin(), configuration->second.end());
       supplied.erase(configuration);
     }
     if (!supplied.empty()) {
@@ -319,11 +282,8 @@ namespace mobagen::compositions {
       });
       return result;
     }
-    result.manager = std::unique_ptr<NativeModuleManager>(
-        new NativeModuleManager(
-            std::move(plan), std::move(owned_configurations), log_sink, log_context
-        )
-    );
+    result.manager
+        = std::unique_ptr<NativeModuleManager>(new NativeModuleManager(std::move(plan), std::move(owned_configurations), log_sink, log_context));
     return result;
   }
 

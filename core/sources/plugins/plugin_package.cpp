@@ -30,8 +30,7 @@ namespace mobagen::plugins {
       return failure(PluginPackageInspectionIssueCode::InspectionFailure, absolute, "plugin package could not be inspected", error);
     }
     if (!std::filesystem::is_directory(package_status) || std::filesystem::is_symlink(package_status)) {
-      return failure(PluginPackageInspectionIssueCode::InvalidPath, absolute,
-                     "plugin package must be a real directory, not a file or symbolic link");
+      return failure(PluginPackageInspectionIssueCode::InvalidPath, absolute, "plugin package must be a real directory, not a file or symbolic link");
     }
 
     std::filesystem::directory_iterator iterator{absolute, error};
@@ -48,8 +47,7 @@ namespace mobagen::plugins {
       return failure(PluginPackageInspectionIssueCode::InspectionFailure, absolute, "plugin package enumeration failed", error);
     }
     if (iterator != end) {
-      return failure(PluginPackageInspectionIssueCode::InvalidContents, absolute,
-                     "plugin package must contain exactly one canonical plugin binary");
+      return failure(PluginPackageInspectionIssueCode::InvalidContents, absolute, "plugin package must contain exactly one canonical plugin binary");
     }
 
     const auto binary_status = std::filesystem::symlink_status(binary, error);

@@ -42,10 +42,7 @@ static const char provider_id[] = "mobagen.assets.default";
 static const char capability_id[] = MOBAGEN_WASM_ASSET_STORE_V1_ID;
 static const char configuration_schema[] = "mobagen.assets.portable.config.v1";
 
-static uint32_t align_command(uint32_t value) {
-  return (value + MOBAGEN_WASM_COMMAND_ALIGNMENT - 1U)
-         & ~(MOBAGEN_WASM_COMMAND_ALIGNMENT - 1U);
-}
+static uint32_t align_command(uint32_t value) { return (value + MOBAGEN_WASM_COMMAND_ALIGNMENT - 1U) & ~(MOBAGEN_WASM_COMMAND_ALIGNMENT - 1U); }
 
 static void copy_bytes(uint8_t* destination, const uint8_t* source, uint32_t size) {
   uint32_t index;
@@ -80,8 +77,7 @@ static uint8_t* guest_pointer(uint32_t offset, uint32_t size) {
 }
 
 static uint32_t read_u32(const uint8_t* bytes) {
-  return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8U)
-         | ((uint32_t)bytes[2] << 16U) | ((uint32_t)bytes[3] << 24U);
+  return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8U) | ((uint32_t)bytes[2] << 16U) | ((uint32_t)bytes[3] << 24U);
 }
 
 static void write_u32(uint8_t* bytes, uint32_t value) {
@@ -107,20 +103,11 @@ static void ensure_metadata(void) {
   const uint32_t schema_offset = 80;
   if (metadata_ready) return;
   zero_bytes(linear_memory, METADATA_BYTES);
-  copy_bytes(
-      linear_memory + provider_offset, (const uint8_t*)provider_id,
-      (uint32_t)(sizeof(provider_id) - 1U)
-  );
-  copy_bytes(
-      linear_memory + capability_offset, (const uint8_t*)capability_id,
-      (uint32_t)(sizeof(capability_id) - 1U)
-  );
+  copy_bytes(linear_memory + provider_offset, (const uint8_t*)provider_id, (uint32_t)(sizeof(provider_id) - 1U));
+  copy_bytes(linear_memory + capability_offset, (const uint8_t*)capability_id, (uint32_t)(sizeof(capability_id) - 1U));
   write_u32(linear_memory + provides_offset, guest_offset(linear_memory + capability_offset));
   write_u32(linear_memory + provides_offset + 4, (uint32_t)(sizeof(capability_id) - 1U));
-  copy_bytes(
-      linear_memory + schema_offset, (const uint8_t*)configuration_schema,
-      (uint32_t)(sizeof(configuration_schema) - 1U)
-  );
+  copy_bytes(linear_memory + schema_offset, (const uint8_t*)configuration_schema, (uint32_t)(sizeof(configuration_schema) - 1U));
   metadata_ready = 1;
 }
 
@@ -130,27 +117,23 @@ static uint32_t local_offset(uint32_t offset, uint32_t size) {
 }
 
 static int overlaps(uint32_t offset, uint32_t size, const Allocation* allocation) {
-  return allocation->active && offset < allocation->offset + allocation->size
-         && allocation->offset < offset + size;
+  return allocation->active && offset < allocation->offset + allocation->size && allocation->offset < offset + size;
 }
 
-MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_allocate_v1(
-    uint32_t size, uint32_t alignment
-) {
+MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_allocate_v1(uint32_t size, uint32_t alignment) {
   uint32_t slot;
   uint32_t candidate;
   uint32_t occupied;
   if (size == 0) return MOBAGEN_WASM_NULL_OFFSET;
-  if (alignment == 0 || alignment > MOBAGEN_WASM_EXCHANGE_ALIGNMENT
-      || (alignment & (alignment - 1U)) != 0
+  if (alignment == 0 || alignment > MOBAGEN_WASM_EXCHANGE_ALIGNMENT || (alignment & (alignment - 1U)) != 0
       || size > LINEAR_MEMORY_BYTES - METADATA_BYTES) {
     return MOBAGEN_WASM_NULL_OFFSET;
   }
   ensure_metadata();
-  for (slot = 0; slot < MAX_ALLOCATIONS && allocations[slot].active; ++slot) {}
+  for (slot = 0; slot < MAX_ALLOCATIONS && allocations[slot].active; ++slot) {
+  }
   if (slot == MAX_ALLOCATIONS) return MOBAGEN_WASM_NULL_OFFSET;
-  for (candidate = METADATA_BYTES; candidate <= LINEAR_MEMORY_BYTES - size;
-       candidate += MOBAGEN_WASM_EXCHANGE_ALIGNMENT) {
+  for (candidate = METADATA_BYTES; candidate <= LINEAR_MEMORY_BYTES - size; candidate += MOBAGEN_WASM_EXCHANGE_ALIGNMENT) {
     uint32_t index;
     occupied = 0;
     for (index = 0; index < MAX_ALLOCATIONS; ++index) {
@@ -169,20 +152,16 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_allocate_v1(
   return MOBAGEN_WASM_NULL_OFFSET;
 }
 
-MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_deallocate_v1(
-    uint32_t offset, uint32_t size, uint32_t alignment
-) {
+MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_deallocate_v1(uint32_t offset, uint32_t size, uint32_t alignment) {
   uint32_t index;
   uint32_t local;
-  if (alignment == 0 || alignment > MOBAGEN_WASM_EXCHANGE_ALIGNMENT
-      || (alignment & (alignment - 1U)) != 0) {
+  if (alignment == 0 || alignment > MOBAGEN_WASM_EXCHANGE_ALIGNMENT || (alignment & (alignment - 1U)) != 0) {
     return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
   }
   local = local_offset(offset, size);
   if (local == UINT32_MAX) return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
   for (index = 0; index < MAX_ALLOCATIONS; ++index) {
-    if (allocations[index].active && allocations[index].offset == local
-        && allocations[index].size == size) {
+    if (allocations[index].active && allocations[index].offset == local && allocations[index].size == size) {
       allocations[index].active = 0;
       return MOBAGEN_WASM_STATUS_OK;
     }
@@ -190,9 +169,7 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_deallocate_v1(
   return MOBAGEN_WASM_STATUS_NOT_FOUND;
 }
 
-MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_query_v1(
-    uint32_t descriptor_offset, uint32_t descriptor_capacity
-) {
+MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_query_v1(uint32_t descriptor_offset, uint32_t descriptor_capacity) {
   uint8_t* descriptor;
   ensure_metadata();
   if (descriptor_capacity < MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE) {
@@ -219,9 +196,7 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_query_v1(
 static void reset_assets(void) {
   uint32_t index;
   for (index = 0; index < MOBAGEN_WASM_ASSET_MAX_CONFIGURED_ASSETS; ++index) {
-    assets[index].generation = assets[index].generation == UINT32_MAX
-                                   ? 1
-                                   : assets[index].generation + 1U;
+    assets[index].generation = assets[index].generation == UINT32_MAX ? 1 : assets[index].generation + 1U;
     if (assets[index].generation == 0) assets[index].generation = 1;
     assets[index].payload_offset = 0;
     assets[index].payload_size = 0;
@@ -232,9 +207,7 @@ static void reset_assets(void) {
   payload_bytes = 0;
 }
 
-MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_configure_v1(
-    uint32_t configuration_offset, uint32_t configuration_size
-) {
+MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_configure_v1(uint32_t configuration_offset, uint32_t configuration_size) {
   uint8_t* configuration;
   uint32_t count;
   uint32_t cursor;
@@ -246,11 +219,9 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_configure_v1(
     return MOBAGEN_WASM_STATUS_OK;
   }
   configuration = guest_pointer(configuration_offset, configuration_size);
-  if (configuration == NULL
-      || configuration_size < MOBAGEN_WASM_ASSET_CONFIGURATION_V1_SIZE
+  if (configuration == NULL || configuration_size < MOBAGEN_WASM_ASSET_CONFIGURATION_V1_SIZE
       || read_u32(configuration) != MOBAGEN_WASM_ASSET_CONFIGURATION_V1_SIZE
-      || read_u32(configuration + 4) != MOBAGEN_WASM_ASSET_STORE_V1_PROTOCOL_VERSION
-      || read_u32(configuration + 12) != 0) {
+      || read_u32(configuration + 4) != MOBAGEN_WASM_ASSET_STORE_V1_PROTOCOL_VERSION || read_u32(configuration + 12) != 0) {
     return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
   }
   count = read_u32(configuration + 8);
@@ -262,8 +233,7 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_configure_v1(
     uint32_t payload_size;
     uint32_t record_size;
     uint32_t previous;
-    if (cursor > configuration_size
-        || MOBAGEN_WASM_ASSET_CONFIGURATION_ENTRY_V1_SIZE > configuration_size - cursor) {
+    if (cursor > configuration_size || MOBAGEN_WASM_ASSET_CONFIGURATION_ENTRY_V1_SIZE > configuration_size - cursor) {
       return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
     }
     payload_size = read_u32(configuration + cursor + MOBAGEN_WASM_ASSET_ID_V1_SIZE);
@@ -281,11 +251,7 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_configure_v1(
         return MOBAGEN_WASM_STATUS_CONFLICT;
       }
     }
-    copy_bytes(
-        asset_payloads + payload_bytes,
-        configuration + cursor + MOBAGEN_WASM_ASSET_CONFIGURATION_ENTRY_V1_SIZE,
-        payload_size
-    );
+    copy_bytes(asset_payloads + payload_bytes, configuration + cursor + MOBAGEN_WASM_ASSET_CONFIGURATION_ENTRY_V1_SIZE, payload_size);
     assets[index].payload_offset = payload_bytes;
     assets[index].payload_size = payload_size;
     assets[index].occupied = 1;
@@ -325,17 +291,13 @@ static AssetSlot* find_asset(const MobagenWasmAssetIdV1* id) {
 }
 
 static AssetSlot* find_handle(uint32_t index, uint32_t generation) {
-  if (index >= asset_count || !assets[index].occupied
-      || assets[index].generation != generation || assets[index].leases == 0) {
+  if (index >= asset_count || !assets[index].occupied || assets[index].generation != generation || assets[index].leases == 0) {
     return NULL;
   }
   return &assets[index];
 }
 
-static uint32_t write_acquire_result(
-    uint8_t* output, uint32_t capacity, uint32_t request_id,
-    const MobagenWasmAssetIdV1* id
-) {
+static uint32_t write_acquire_result(uint8_t* output, uint32_t capacity, uint32_t request_id, const MobagenWasmAssetIdV1* id) {
   AssetSlot* asset;
   uint32_t index;
   uint32_t status;
@@ -354,10 +316,7 @@ static uint32_t write_acquire_result(
   return MOBAGEN_WASM_ASSET_ACQUIRE_RESULT_V1_SIZE;
 }
 
-static uint32_t write_view_result(
-    uint8_t* output, uint32_t capacity, uint32_t request_id,
-    uint32_t index, uint32_t generation
-) {
+static uint32_t write_view_result(uint8_t* output, uint32_t capacity, uint32_t request_id, uint32_t index, uint32_t generation) {
   AssetSlot* asset = find_handle(index, generation);
   uint32_t payload_size = asset == NULL ? 0 : asset->payload_size;
   uint32_t result_size = align_command(MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE + payload_size);
@@ -371,18 +330,12 @@ static uint32_t write_view_result(
   write_u32(output + 20, generation);
   write_u32(output + 24, payload_size);
   if (asset != NULL) {
-    copy_bytes(
-        output + MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE,
-        asset_payloads + asset->payload_offset, payload_size
-    );
+    copy_bytes(output + MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE, asset_payloads + asset->payload_offset, payload_size);
   }
   return result_size;
 }
 
-static uint32_t write_release_result(
-    uint8_t* output, uint32_t capacity, uint32_t request_id,
-    uint32_t index, uint32_t generation
-) {
+static uint32_t write_release_result(uint8_t* output, uint32_t capacity, uint32_t request_id, uint32_t index, uint32_t generation) {
   AssetSlot* asset;
   if (capacity < MOBAGEN_WASM_ASSET_RELEASE_RESULT_V1_SIZE) return 0;
   asset = find_handle(index, generation);
@@ -394,9 +347,7 @@ static uint32_t write_release_result(
   return MOBAGEN_WASM_ASSET_RELEASE_RESULT_V1_SIZE;
 }
 
-static void write_process_result(
-    uint8_t* result, uint32_t status, uint32_t bytes, uint32_t commands
-) {
+static void write_process_result(uint8_t* result, uint32_t status, uint32_t bytes, uint32_t commands) {
   zero_bytes(result, MOBAGEN_WASM_COMMAND_RESULT_V1_SIZE);
   write_u32(result, MOBAGEN_WASM_COMMAND_RESULT_V1_SIZE);
   write_u32(result + 4, MOBAGEN_WASM_PLUGIN_ABI_VERSION);
@@ -405,9 +356,7 @@ static void write_process_result(
   write_u32(result + 16, commands);
 }
 
-MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_process_v1(
-    uint32_t input_batch_offset, uint32_t output_batch_offset, uint32_t result_offset
-) {
+MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_process_v1(uint32_t input_batch_offset, uint32_t output_batch_offset, uint32_t result_offset) {
   uint8_t* input_batch = guest_pointer(input_batch_offset, MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE);
   uint8_t* output_batch = guest_pointer(output_batch_offset, MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE);
   uint8_t* result = guest_pointer(result_offset, MOBAGEN_WASM_COMMAND_RESULT_V1_SIZE);
@@ -422,10 +371,8 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_process_v1(
   if (!started || input_batch == NULL || output_batch == NULL || result == NULL) {
     return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
   }
-  if (read_u32(input_batch) != MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE
-      || read_u32(input_batch + 4) != MOBAGEN_WASM_PLUGIN_ABI_VERSION
-      || read_u32(output_batch) != MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE
-      || read_u32(output_batch + 4) != MOBAGEN_WASM_PLUGIN_ABI_VERSION) {
+  if (read_u32(input_batch) != MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE || read_u32(input_batch + 4) != MOBAGEN_WASM_PLUGIN_ABI_VERSION
+      || read_u32(output_batch) != MOBAGEN_WASM_COMMAND_BATCH_V1_SIZE || read_u32(output_batch + 4) != MOBAGEN_WASM_PLUGIN_ABI_VERSION) {
     return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
   }
   input_bytes = read_u32(input_batch + 12);
@@ -447,37 +394,23 @@ MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_wasm_plugin_process_v1(
     }
     byte_size = read_u32(input + input_cursor);
     opcode = read_u32(input + input_cursor + 4);
-    if (byte_size < 8U || byte_size % MOBAGEN_WASM_COMMAND_ALIGNMENT != 0
-        || byte_size > input_bytes - input_cursor) {
+    if (byte_size < 8U || byte_size % MOBAGEN_WASM_COMMAND_ALIGNMENT != 0 || byte_size > input_bytes - input_cursor) {
       return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
     }
     if (byte_size < 16U) return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
     request_id = read_u32(input + input_cursor + 8);
-    if (opcode == MOBAGEN_WASM_ASSET_COMMAND_ACQUIRE
-        && byte_size == MOBAGEN_WASM_ASSET_ACQUIRE_COMMAND_V1_SIZE
+    if (opcode == MOBAGEN_WASM_ASSET_COMMAND_ACQUIRE && byte_size == MOBAGEN_WASM_ASSET_ACQUIRE_COMMAND_V1_SIZE
         && read_u32(input + input_cursor + 12) == 0) {
-      written = write_acquire_result(
-          output + output_cursor, output_capacity - output_cursor, request_id,
-          (const MobagenWasmAssetIdV1*)(input + input_cursor + 16)
-      );
-    } else if (
-        opcode == MOBAGEN_WASM_ASSET_COMMAND_VIEW
-        && byte_size == MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE
-        && read_u32(input + input_cursor + 12) == 0
-    ) {
-      written = write_view_result(
-          output + output_cursor, output_capacity - output_cursor, request_id,
-          read_u32(input + input_cursor + 16), read_u32(input + input_cursor + 20)
-      );
-    } else if (
-        opcode == MOBAGEN_WASM_ASSET_COMMAND_RELEASE
-        && byte_size == MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE
-        && read_u32(input + input_cursor + 12) == 0
-    ) {
-      written = write_release_result(
-          output + output_cursor, output_capacity - output_cursor, request_id,
-          read_u32(input + input_cursor + 16), read_u32(input + input_cursor + 20)
-      );
+      written = write_acquire_result(output + output_cursor, output_capacity - output_cursor, request_id,
+                                     (const MobagenWasmAssetIdV1*)(input + input_cursor + 16));
+    } else if (opcode == MOBAGEN_WASM_ASSET_COMMAND_VIEW && byte_size == MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE
+               && read_u32(input + input_cursor + 12) == 0) {
+      written = write_view_result(output + output_cursor, output_capacity - output_cursor, request_id, read_u32(input + input_cursor + 16),
+                                  read_u32(input + input_cursor + 20));
+    } else if (opcode == MOBAGEN_WASM_ASSET_COMMAND_RELEASE && byte_size == MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE
+               && read_u32(input + input_cursor + 12) == 0) {
+      written = write_release_result(output + output_cursor, output_capacity - output_cursor, request_id, read_u32(input + input_cursor + 16),
+                                     read_u32(input + input_cursor + 20));
     } else {
       return MOBAGEN_WASM_STATUS_UNSUPPORTED;
     }
@@ -503,9 +436,7 @@ uint8_t* mobagen_wasm_asset_store_test_memory_v1(void) {
   return linear_memory;
 }
 
-uint32_t mobagen_wasm_asset_store_test_memory_size_v1(void) {
-  return LINEAR_MEMORY_BYTES;
-}
+uint32_t mobagen_wasm_asset_store_test_memory_size_v1(void) { return LINEAR_MEMORY_BYTES; }
 
 void mobagen_wasm_asset_store_test_reset_v1(void) {
   zero_bytes(linear_memory, LINEAR_MEMORY_BYTES);

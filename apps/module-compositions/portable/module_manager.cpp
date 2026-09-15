@@ -15,35 +15,23 @@
 namespace mobagen::compositions {
   namespace {
 
-    bool descriptor_matches(
-        const modules::LockedPluginActivationEntry& expected,
-        const modules::ProviderDescriptor& actual
-    ) {
+    bool descriptor_matches(const modules::LockedPluginActivationEntry& expected, const modules::ProviderDescriptor& actual) {
       if (actual.id != expected.provider_id || actual.version != expected.version
-          || std::ranges::find(actual.linkages, modules::LinkageMode::Wasm)
-                 == actual.linkages.end()
-          || (!expected.configuration_schema.empty()
-              && actual.configuration_schema != expected.configuration_schema)) {
+          || std::ranges::find(actual.linkages, modules::LinkageMode::Wasm) == actual.linkages.end()
+          || (!expected.configuration_schema.empty() && actual.configuration_schema != expected.configuration_schema)) {
         return false;
       }
-      return std::ranges::all_of(expected.capabilities, [&](const auto& capability) {
-        return std::ranges::find(actual.provides, capability) != actual.provides.end();
-      });
+      return std::ranges::all_of(expected.capabilities,
+                                 [&](const auto& capability) { return std::ranges::find(actual.provides, capability) != actual.provides.end(); });
     }
 
-    bool permissions_are_granted(
-        const modules::ProviderDescriptor& provider,
-        std::span<const std::string> granted_permissions
-    ) {
-      return std::ranges::all_of(provider.permissions, [&](const auto& permission) {
-        return std::ranges::binary_search(granted_permissions, permission);
-      });
+    bool permissions_are_granted(const modules::ProviderDescriptor& provider, std::span<const std::string> granted_permissions) {
+      return std::ranges::all_of(provider.permissions,
+                                 [&](const auto& permission) { return std::ranges::binary_search(granted_permissions, permission); });
     }
 
-    void append_shutdown_issues(
-        PortableModuleManagerActionResult& result, std::string_view provider_id,
-        plugins::PortableWasmPluginActionResult action
-    ) {
+    void append_shutdown_issues(PortableModuleManagerActionResult& result, std::string_view provider_id,
+                                plugins::PortableWasmPluginActionResult action) {
       if (action.ok()) return;
       result.issues.push_back({
           .code = PortableModuleManagerIssueCode::ShutdownFailed,
@@ -55,13 +43,10 @@ namespace mobagen::compositions {
 
   }  // namespace
 
-  PortableModuleManager::PortableModuleManager(
-      std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-      plugins::PortableWasmBackend& backend,
-      std::vector<std::vector<std::byte>> configurations,
-      std::vector<modules::ProviderDescriptor> builtin_providers,
-      std::vector<std::string> granted_permissions, plugins::WasmHostServices host_services
-  )
+  PortableModuleManager::PortableModuleManager(std::unique_ptr<modules::LockedPluginActivationPlan> plan, plugins::PortableWasmBackend& backend,
+                                               std::vector<std::vector<std::byte>> configurations,
+                                               std::vector<modules::ProviderDescriptor> builtin_providers,
+                                               std::vector<std::string> granted_permissions, plugins::WasmHostServices host_services)
       : plan_(std::move(plan)),
         backend_(&backend),
         host_services_(host_services),
@@ -86,29 +71,22 @@ namespace mobagen::compositions {
   }
 
   PortableModuleManager::~PortableModuleManager() {
-    for (auto activation = activation_order_.rbegin(); activation != activation_order_.rend();
-         ++activation) {
+    for (auto activation = activation_order_.rbegin(); activation != activation_order_.rend(); ++activation) {
       activations_[*activation].reset();
     }
   }
 
-  plugins::PortableWasmPluginActivation* PortableModuleManager::plugin(
-      std::string_view provider_id
-  ) noexcept {
+  plugins::PortableWasmPluginActivation* PortableModuleManager::plugin(std::string_view provider_id) noexcept {
     const auto found = providers_.find(provider_id);
     return found == providers_.end() ? nullptr : activations_[found->second].get();
   }
 
-  const plugins::PortableWasmPluginActivation* PortableModuleManager::plugin(
-      std::string_view provider_id
-  ) const noexcept {
+  const plugins::PortableWasmPluginActivation* PortableModuleManager::plugin(std::string_view provider_id) const noexcept {
     const auto found = providers_.find(provider_id);
     return found == providers_.end() ? nullptr : activations_[found->second].get();
   }
 
-  void PortableModuleManager::collect_inactive_closure(
-      std::size_t index, std::vector<bool>& visited, std::vector<std::size_t>& closure
-  ) const {
+  void PortableModuleManager::collect_inactive_closure(std::size_t index, std::vector<bool>& visited, std::vector<std::size_t>& closure) const {
     if (visited[index] || activations_[index] != nullptr) return;
     visited[index] = true;
     for (const auto dependency : dependencies_[index]) {
@@ -117,24 +95,19 @@ namespace mobagen::compositions {
     closure.push_back(index);
   }
 
-  void PortableModuleManager::rollback(
-      std::vector<std::size_t>& activated, PortableModuleManagerActionResult& result
-  ) {
+  void PortableModuleManager::rollback(std::vector<std::size_t>& activated, PortableModuleManagerActionResult& result) {
     for (auto index = activated.rbegin(); index != activated.rend(); ++index) {
       auto& activation = activations_[*index];
-      if (activation != nullptr
-          && activation->state() == plugins::PortableWasmPluginState::Active) {
+      if (activation != nullptr && activation->state() == plugins::PortableWasmPluginState::Active) {
         append_shutdown_issues(result, activation->provider().id, activation->quiesce());
       }
     }
     for (auto index = activated.rbegin(); index != activated.rend(); ++index) {
       auto& activation = activations_[*index];
-      if (activation != nullptr
-          && activation->state() == plugins::PortableWasmPluginState::Quiesced) {
+      if (activation != nullptr && activation->state() == plugins::PortableWasmPluginState::Quiesced) {
         append_shutdown_issues(result, activation->provider().id, activation->stop());
       }
-      if (activation != nullptr
-          && activation->state() == plugins::PortableWasmPluginState::Stopped) {
+      if (activation != nullptr && activation->state() == plugins::PortableWasmPluginState::Stopped) {
         activation.reset();
         --active_count_;
         const auto found = std::ranges::find(activation_order_, *index);
@@ -143,9 +116,7 @@ namespace mobagen::compositions {
     }
   }
 
-  PortableModuleManagerActionResult PortableModuleManager::activate(
-      std::string_view capability
-  ) {
+  PortableModuleManagerActionResult PortableModuleManager::activate(std::string_view capability) {
     PortableModuleManagerActionResult result;
     if (owner_thread_ != std::this_thread::get_id()) {
       result.issues.push_back({
@@ -169,9 +140,7 @@ namespace mobagen::compositions {
     collect_inactive_closure(selected->second, visited, closure);
     if (closure.empty()) return result;
 
-    std::vector<std::optional<plugins::LoadedPortableWasmPlugin>> loaded(
-        plan_->entries().size()
-    );
+    std::vector<std::optional<plugins::LoadedPortableWasmPlugin>> loaded(plan_->entries().size());
     for (const auto index : closure) {
       const auto& entry = plan_->entries()[index];
       if (entry.linkage != modules::LinkageMode::Wasm) {
@@ -183,23 +152,18 @@ namespace mobagen::compositions {
         return result;
       }
       if (!entry.binary_hash.empty()) {
-        const auto hash = detail::hash_project_plugin_binary(
-            entry.binary_path, plugins::max_portable_wasm_plugin_binary_bytes
-        );
+        const auto hash = detail::hash_project_plugin_binary(entry.binary_path, plugins::max_portable_wasm_plugin_binary_bytes);
         if (!hash.ok() || *hash.hash != entry.binary_hash) {
           result.issues.push_back({
               .code = PortableModuleManagerIssueCode::ArtifactVerificationFailed,
               .provider_id = entry.provider_id,
-              .message = hash.ok()
-                           ? "selected portable plugin no longer matches mobagen.lock"
-                           : "selected portable plugin could not be verified: " + hash.error,
+              .message = hash.ok() ? "selected portable plugin no longer matches mobagen.lock"
+                                   : "selected portable plugin could not be verified: " + hash.error,
           });
           return result;
         }
       }
-      auto candidate = plugins::load_portable_wasm_plugin_binary(
-          entry.binary_path, *backend_, host_services_
-      );
+      auto candidate = plugins::load_portable_wasm_plugin_binary(entry.binary_path, *backend_, host_services_);
       if (!candidate.plugin.has_value()) {
         result.issues.push_back({
             .code = PortableModuleManagerIssueCode::LoadFailed,
@@ -245,9 +209,7 @@ namespace mobagen::compositions {
     }
     std::shared_ptr<const modules::CapabilityRegistry> registry;
     try {
-      registry = std::make_shared<const modules::CapabilityRegistry>(
-          std::move(*built.registry)
-      );
+      registry = std::make_shared<const modules::CapabilityRegistry>(std::move(*built.registry));
     } catch (const std::bad_alloc&) {
       result.issues.push_back({
           .code = PortableModuleManagerIssueCode::RegistryFailed,
@@ -259,9 +221,7 @@ namespace mobagen::compositions {
     std::vector<std::size_t> activated;
     for (const auto index : closure) {
       const auto& entry = plan_->entries()[index];
-      auto activation = plugins::activate_loaded_portable_wasm_plugin(
-          std::move(*loaded[index]), registry, configurations_[index]
-      );
+      auto activation = plugins::activate_loaded_portable_wasm_plugin(std::move(*loaded[index]), registry, configurations_[index]);
       if (!activation.ok()) {
         result.issues.push_back({
             .code = PortableModuleManagerIssueCode::ActivationFailed,
@@ -280,9 +240,7 @@ namespace mobagen::compositions {
     return result;
   }
 
-  PortableModuleCapabilityResult PortableModuleManager::acquire(
-      std::string_view capability
-  ) {
+  PortableModuleCapabilityResult PortableModuleManager::acquire(std::string_view capability) {
     PortableModuleCapabilityResult result;
     auto activated = activate(capability);
     if (!activated.ok()) {
@@ -333,14 +291,12 @@ namespace mobagen::compositions {
     return result;
   }
 
-  PortableModuleManagerCreateResult create_portable_module_manager(
-      std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-      plugins::PortableWasmBackend& backend,
-      std::span<const PortableModuleConfiguration> configurations,
-      std::span<const modules::ProviderDescriptor> builtin_providers,
-      std::span<const std::string> granted_permissions,
-      plugins::WasmHostServices host_services
-  ) {
+  PortableModuleManagerCreateResult create_portable_module_manager(std::unique_ptr<modules::LockedPluginActivationPlan> plan,
+                                                                   plugins::PortableWasmBackend& backend,
+                                                                   std::span<const PortableModuleConfiguration> configurations,
+                                                                   std::span<const modules::ProviderDescriptor> builtin_providers,
+                                                                   std::span<const std::string> granted_permissions,
+                                                                   plugins::WasmHostServices host_services) {
     PortableModuleManagerCreateResult result;
     if (plan == nullptr) {
       result.issues.push_back({
@@ -352,9 +308,7 @@ namespace mobagen::compositions {
 
     std::map<std::string, std::span<const std::byte>, std::less<>> supplied;
     for (const auto& configuration : configurations) {
-      if (!supplied.emplace(
-              configuration.provider_id, std::span<const std::byte>{configuration.data}
-          ).second) {
+      if (!supplied.emplace(configuration.provider_id, std::span<const std::byte>{configuration.data}).second) {
         result.issues.push_back({
             .code = PortableModuleManagerIssueCode::InvalidConfiguration,
             .provider_id = configuration.provider_id,
@@ -396,9 +350,7 @@ namespace mobagen::compositions {
         });
         return result;
       }
-      owned_configurations.emplace_back(
-          configuration->second.begin(), configuration->second.end()
-      );
+      owned_configurations.emplace_back(configuration->second.begin(), configuration->second.end());
       supplied.erase(configuration);
     }
     if (!supplied.empty()) {
@@ -410,9 +362,7 @@ namespace mobagen::compositions {
       return result;
     }
 
-    std::vector<std::string> owned_permissions{
-        granted_permissions.begin(), granted_permissions.end()
-    };
+    std::vector<std::string> owned_permissions{granted_permissions.begin(), granted_permissions.end()};
     std::ranges::sort(owned_permissions);
     if (std::ranges::adjacent_find(owned_permissions) != owned_permissions.end()) {
       result.issues.push_back({
@@ -422,9 +372,7 @@ namespace mobagen::compositions {
       return result;
     }
 
-    std::vector<modules::ProviderDescriptor> owned_builtins{
-        builtin_providers.begin(), builtin_providers.end()
-    };
+    std::vector<modules::ProviderDescriptor> owned_builtins{builtin_providers.begin(), builtin_providers.end()};
     modules::CapabilityRegistryBuilder builtin_registry;
     for (const auto& provider : owned_builtins) builtin_registry.add(provider);
     auto built = builtin_registry.build();
@@ -448,9 +396,7 @@ namespace mobagen::compositions {
     }
 
     result.manager = std::unique_ptr<PortableModuleManager>(new PortableModuleManager(
-        std::move(plan), backend, std::move(owned_configurations),
-        std::move(owned_builtins), std::move(owned_permissions), host_services
-    ));
+        std::move(plan), backend, std::move(owned_configurations), std::move(owned_builtins), std::move(owned_permissions), host_services));
     return result;
   }
 

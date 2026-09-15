@@ -18,14 +18,12 @@ namespace mobagen::modules {
     std::vector<ResolutionIssue> resolution_issues;
 
     [[nodiscard]] bool ok() const noexcept {
-      return catalog != nullptr && resolution.has_value() && fetch_issues.empty() && catalog_issues.empty()
-             && resolution_issues.empty();
+      return catalog != nullptr && resolution.has_value() && fetch_issues.empty() && catalog_issues.empty() && resolution_issues.empty();
     }
   };
 
   // Fetches catalog metadata and resolves providers. Selected artifact URLs are
   // retained in the plan but are never requested by this operation.
-  [[nodiscard]] ModuleSyncPlanResult plan_module_sync(const ProductDescriptor& product, http::Client& client,
-                                                      const ResolverOptions& options);
+  [[nodiscard]] ModuleSyncPlanResult plan_module_sync(const ProductDescriptor& product, http::Client& client, const ResolverOptions& options);
 
 }  // namespace mobagen::modules

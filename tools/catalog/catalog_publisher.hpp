@@ -41,13 +41,9 @@ namespace mobagen::tools {
     std::vector<modules::PublishedProviderDescriptor> providers;
     std::vector<NativeCatalogPublishIssue> issues;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return catalog_path.has_value() && issues.empty();
-    }
+    [[nodiscard]] bool ok() const noexcept { return catalog_path.has_value() && issues.empty(); }
   };
 
-  [[nodiscard]] NativeCatalogPublishResult publish_native_module_catalog(
-      const NativeCatalogPublishOptions& options
-  );
+  [[nodiscard]] NativeCatalogPublishResult publish_native_module_catalog(const NativeCatalogPublishOptions& options);
 
 }  // namespace mobagen::tools

@@ -442,8 +442,7 @@ namespace mobagen::assets {
     return store_failure(existing.status, hashed.id, destination, existing.system_error);
   }
 
-  AssetCacheStoreResult AssetCache::store_stream(const AssetId& expected_id, std::size_t expected_size,
-                                                 AssetCacheSource source) const {
+  AssetCacheStoreResult AssetCache::store_stream(const AssetId& expected_id, std::size_t expected_size, AssetCacheSource source) const {
     if (root_.empty()) {
       return store_failure(AssetCacheStatus::invalid_root, std::nullopt, {});
     }
@@ -504,12 +503,11 @@ namespace mobagen::assets {
       return store_failure(AssetCacheStatus::io_error, expected_id, destination, error);
     }
     const auto existing = hash_file(destination, max_blob_bytes_);
-    if (existing.status == AssetCacheStatus::loaded && existing.id == expected_id
-        && existing.size == expected_size) {
+    if (existing.status == AssetCacheStatus::loaded && existing.id == expected_id && existing.size == expected_size) {
       return {AssetCacheStatus::already_present, expected_id, destination, {}};
     }
-    return store_failure(existing.status == AssetCacheStatus::loaded ? AssetCacheStatus::integrity_error : existing.status,
-                         expected_id, destination, existing.system_error);
+    return store_failure(existing.status == AssetCacheStatus::loaded ? AssetCacheStatus::integrity_error : existing.status, expected_id, destination,
+                         existing.system_error);
   }
 
   AssetCacheLoadResult AssetCache::load(const AssetId& id) const {

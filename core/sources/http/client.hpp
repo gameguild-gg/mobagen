@@ -49,7 +49,7 @@ namespace mobagen::http {
 
   struct BodySink {
     void* context{};
-    bool (*write)(void* context, std::span<const std::byte> bytes) noexcept{};
+    bool (*write)(void* context, std::span<const std::byte> bytes) noexcept {};
   };
 
   struct StreamResponse {

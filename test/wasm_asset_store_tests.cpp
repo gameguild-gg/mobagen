@@ -20,21 +20,17 @@ namespace module_allocation_probe {
 }  // namespace module_allocation_probe
 
 extern "C" {
-  std::uint32_t mobagen_wasm_plugin_allocate_v1(std::uint32_t, std::uint32_t);
-  std::uint32_t mobagen_wasm_plugin_deallocate_v1(
-      std::uint32_t, std::uint32_t, std::uint32_t
-  );
-  std::uint32_t mobagen_wasm_plugin_query_v1(std::uint32_t, std::uint32_t);
-  std::uint32_t mobagen_wasm_plugin_configure_v1(std::uint32_t, std::uint32_t);
-  std::uint32_t mobagen_wasm_plugin_start_v1(void);
-  std::uint32_t mobagen_wasm_plugin_quiesce_v1(void);
-  std::uint32_t mobagen_wasm_plugin_stop_v1(void);
-  std::uint32_t mobagen_wasm_plugin_process_v1(
-      std::uint32_t, std::uint32_t, std::uint32_t
-  );
-  std::uint8_t* mobagen_wasm_asset_store_test_memory_v1(void);
-  std::uint32_t mobagen_wasm_asset_store_test_memory_size_v1(void);
-  void mobagen_wasm_asset_store_test_reset_v1(void);
+std::uint32_t mobagen_wasm_plugin_allocate_v1(std::uint32_t, std::uint32_t);
+std::uint32_t mobagen_wasm_plugin_deallocate_v1(std::uint32_t, std::uint32_t, std::uint32_t);
+std::uint32_t mobagen_wasm_plugin_query_v1(std::uint32_t, std::uint32_t);
+std::uint32_t mobagen_wasm_plugin_configure_v1(std::uint32_t, std::uint32_t);
+std::uint32_t mobagen_wasm_plugin_start_v1(void);
+std::uint32_t mobagen_wasm_plugin_quiesce_v1(void);
+std::uint32_t mobagen_wasm_plugin_stop_v1(void);
+std::uint32_t mobagen_wasm_plugin_process_v1(std::uint32_t, std::uint32_t, std::uint32_t);
+std::uint8_t* mobagen_wasm_asset_store_test_memory_v1(void);
+std::uint32_t mobagen_wasm_asset_store_test_memory_size_v1(void);
+void mobagen_wasm_asset_store_test_reset_v1(void);
 }
 
 namespace {
@@ -45,33 +41,19 @@ namespace {
 
   class PortableAssetStoreInstance final : public mobagen::plugins::PortableWasmInstance {
   public:
-    explicit PortableAssetStoreInstance(std::shared_ptr<ProviderCalls> calls)
-        : calls_(std::move(calls)) {
-      mobagen_wasm_asset_store_test_reset_v1();
-    }
+    explicit PortableAssetStoreInstance(std::shared_ptr<ProviderCalls> calls) : calls_(std::move(calls)) { mobagen_wasm_asset_store_test_reset_v1(); }
 
-    mobagen::plugins::WasmInvocationResult invoke(
-        mobagen::plugins::WasmPluginExport function,
-        std::span<const std::uint32_t> arguments
-    ) override {
+    mobagen::plugins::WasmInvocationResult invoke(mobagen::plugins::WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
       using mobagen::plugins::WasmInvocationResult;
       switch (function) {
         case mobagen::plugins::WasmPluginExport::Allocate:
-          return WasmInvocationResult::success(
-              mobagen_wasm_plugin_allocate_v1(arguments[0], arguments[1])
-          );
+          return WasmInvocationResult::success(mobagen_wasm_plugin_allocate_v1(arguments[0], arguments[1]));
         case mobagen::plugins::WasmPluginExport::Deallocate:
-          return WasmInvocationResult::success(mobagen_wasm_plugin_deallocate_v1(
-              arguments[0], arguments[1], arguments[2]
-          ));
+          return WasmInvocationResult::success(mobagen_wasm_plugin_deallocate_v1(arguments[0], arguments[1], arguments[2]));
         case mobagen::plugins::WasmPluginExport::Query:
-          return WasmInvocationResult::success(
-              mobagen_wasm_plugin_query_v1(arguments[0], arguments[1])
-          );
+          return WasmInvocationResult::success(mobagen_wasm_plugin_query_v1(arguments[0], arguments[1]));
         case mobagen::plugins::WasmPluginExport::Configure:
-          return WasmInvocationResult::success(
-              mobagen_wasm_plugin_configure_v1(arguments[0], arguments[1])
-          );
+          return WasmInvocationResult::success(mobagen_wasm_plugin_configure_v1(arguments[0], arguments[1]));
         case mobagen::plugins::WasmPluginExport::Start:
           return WasmInvocationResult::success(mobagen_wasm_plugin_start_v1());
         case mobagen::plugins::WasmPluginExport::Quiesce:
@@ -80,9 +62,7 @@ namespace {
           return WasmInvocationResult::success(mobagen_wasm_plugin_stop_v1());
         case mobagen::plugins::WasmPluginExport::Process:
           ++calls_->process;
-          return WasmInvocationResult::success(mobagen_wasm_plugin_process_v1(
-              arguments[0], arguments[1], arguments[2]
-          ));
+          return WasmInvocationResult::success(mobagen_wasm_plugin_process_v1(arguments[0], arguments[1], arguments[2]));
       }
       return WasmInvocationResult::failure("unknown portable asset-store export");
     }
@@ -129,16 +109,11 @@ TEST_CASE("WASM asset store: portable provider processes acquired assets in batc
   REQUIRE(configuration.ok());
   auto calls = std::make_shared<ProviderCalls>();
 
-  auto activated = activate_portable_wasm_plugin(
-      std::make_unique<PortableAssetStoreInstance>(calls), configuration.bytes
-  );
+  auto activated = activate_portable_wasm_plugin(std::make_unique<PortableAssetStoreInstance>(calls), configuration.bytes);
 
   REQUIRE(activated.ok());
   CHECK(activated.activation->provider().id == "mobagen.assets.default");
-  CHECK(
-      activated.activation->provider().provides
-      == std::vector<std::string>{MOBAGEN_WASM_ASSET_STORE_V1_ID}
-  );
+  CHECK(activated.activation->provider().provides == std::vector<std::string>{MOBAGEN_WASM_ASSET_STORE_V1_ID});
   auto opened = activated.activation->open_command_channel(256, 512);
   REQUIRE(opened.ok());
   WasmAssetCommandBuffer commands{8, 256};
@@ -203,9 +178,7 @@ TEST_CASE("WASM asset store: warmed batched dispatch allocates nothing on the ho
   auto configuration = build_wasm_asset_configuration(seeds);
   REQUIRE(configuration.ok());
   auto calls = std::make_shared<ProviderCalls>();
-  auto activated = activate_portable_wasm_plugin(
-      std::make_unique<PortableAssetStoreInstance>(calls), configuration.bytes
-  );
+  auto activated = activate_portable_wasm_plugin(std::make_unique<PortableAssetStoreInstance>(calls), configuration.bytes);
   REQUIRE(activated.ok());
   auto opened = activated.activation->open_command_channel(128, 128);
   REQUIRE(opened.ok());
@@ -244,10 +217,8 @@ TEST_CASE("WASM asset store: configuration and output limits fail closed") {
     };
     auto configuration = build_wasm_asset_configuration(seeds);
     REQUIRE(configuration.ok());
-    auto activated = activate_portable_wasm_plugin(
-        std::make_unique<PortableAssetStoreInstance>(std::make_shared<ProviderCalls>()),
-        configuration.bytes
-    );
+    auto activated
+        = activate_portable_wasm_plugin(std::make_unique<PortableAssetStoreInstance>(std::make_shared<ProviderCalls>()), configuration.bytes);
     CHECK_FALSE(activated.ok());
     REQUIRE(activated.issues.size() == 1);
     CHECK(activated.issues.front().phase == WasmPluginExport::Configure);
@@ -259,10 +230,8 @@ TEST_CASE("WASM asset store: configuration and output limits fail closed") {
     const std::array seeds{WasmAssetSeed{id, large_payload}};
     auto configuration = build_wasm_asset_configuration(seeds);
     REQUIRE(configuration.ok());
-    auto activated = activate_portable_wasm_plugin(
-        std::make_unique<PortableAssetStoreInstance>(std::make_shared<ProviderCalls>()),
-        configuration.bytes
-    );
+    auto activated
+        = activate_portable_wasm_plugin(std::make_unique<PortableAssetStoreInstance>(std::make_shared<ProviderCalls>()), configuration.bytes);
     REQUIRE(activated.ok());
     auto opened = activated.activation->open_command_channel(64, 64);
     REQUIRE(opened.ok());

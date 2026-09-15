@@ -81,20 +81,13 @@ typedef struct MobagenWasmAssetReleaseResultV1 {
 } MobagenWasmAssetReleaseResultV1;
 
 #define MOBAGEN_WASM_ASSET_ID_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetIdV1))
-#define MOBAGEN_WASM_ASSET_CONFIGURATION_V1_SIZE \
-  ((uint32_t)sizeof(MobagenWasmAssetConfigurationV1))
-#define MOBAGEN_WASM_ASSET_CONFIGURATION_ENTRY_V1_SIZE \
-  ((uint32_t)sizeof(MobagenWasmAssetConfigurationEntryV1))
-#define MOBAGEN_WASM_ASSET_ACQUIRE_COMMAND_V1_SIZE \
-  ((uint32_t)sizeof(MobagenWasmAssetAcquireCommandV1))
-#define MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE \
-  ((uint32_t)sizeof(MobagenWasmAssetHandleCommandV1))
-#define MOBAGEN_WASM_ASSET_ACQUIRE_RESULT_V1_SIZE \
-  ((uint32_t)sizeof(MobagenWasmAssetAcquireResultV1))
-#define MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE \
-  ((uint32_t)sizeof(MobagenWasmAssetViewResultV1))
-#define MOBAGEN_WASM_ASSET_RELEASE_RESULT_V1_SIZE \
-  ((uint32_t)sizeof(MobagenWasmAssetReleaseResultV1))
+#define MOBAGEN_WASM_ASSET_CONFIGURATION_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetConfigurationV1))
+#define MOBAGEN_WASM_ASSET_CONFIGURATION_ENTRY_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetConfigurationEntryV1))
+#define MOBAGEN_WASM_ASSET_ACQUIRE_COMMAND_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetAcquireCommandV1))
+#define MOBAGEN_WASM_ASSET_HANDLE_COMMAND_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetHandleCommandV1))
+#define MOBAGEN_WASM_ASSET_ACQUIRE_RESULT_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetAcquireResultV1))
+#define MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetViewResultV1))
+#define MOBAGEN_WASM_ASSET_RELEASE_RESULT_V1_SIZE ((uint32_t)sizeof(MobagenWasmAssetReleaseResultV1))
 
 #ifdef __cplusplus
 } /* extern "C" */

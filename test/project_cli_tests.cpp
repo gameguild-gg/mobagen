@@ -100,8 +100,7 @@ profiles:
         catalog << "      - target: " << platform << '\n'
                 << "        linkage: dynamic\n"
                 << "        abi: 1\n"
-                << "        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
-                << platform << ".plugin\n"
+                << "        url: https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/" << platform << ".plugin\n"
                 << "        size: " << artifact_body.size() << '\n'
                 << "        hash: " << artifact_hash << '\n';
       }
@@ -113,13 +112,10 @@ profiles:
       return {.response = mobagen::http::Response{200, std::move(body)}};
     }
 
-    mobagen::http::StreamGetResult get_stream(const mobagen::http::GetRequest& request,
-                                              mobagen::http::BodySink sink) override {
+    mobagen::http::StreamGetResult get_stream(const mobagen::http::GetRequest& request, mobagen::http::BodySink sink) override {
       artifact_requests.push_back(request);
       if (!sink.write(sink.context, artifact_body)) {
-        return {.error = mobagen::http::Error{
-                    mobagen::http::ErrorCode::SinkRejected, "artifact cache rejected test bytes"
-                }};
+        return {.error = mobagen::http::Error{mobagen::http::ErrorCode::SinkRejected, "artifact cache rejected test bytes"}};
       }
       return {.response = mobagen::http::StreamResponse{200, artifact_body.size()}};
     }
@@ -150,8 +146,7 @@ profiles:
 #endif
   }
 
-  void write_remote_project_manifest(const std::filesystem::path& path,
-                                     std::string_view trailing = {}) {
+  void write_remote_project_manifest(const std::filesystem::path& path, std::string_view trailing = {}) {
     std::ofstream manifest_file(path, std::ios::binary | std::ios::trunc);
     REQUIRE(manifest_file.is_open());
     manifest_file << R"yaml(schema: 1
@@ -173,12 +168,9 @@ profiles:
     REQUIRE(manifest_file.good());
   }
 
-  std::vector<std::string_view> remote_project_arguments(
-      std::string_view command, const std::string& manifest
-  ) {
+  std::vector<std::string_view> remote_project_arguments(std::string_view command, const std::string& manifest) {
     return {
-        command, manifest, "--profile", "release", "--default",
-        "runtime.tick.v1=mobagen.runtime.remote",
+        command, manifest, "--profile", "release", "--default", "runtime.tick.v1=mobagen.runtime.remote",
     };
   }
 
@@ -189,8 +181,7 @@ TEST_CASE("Project CLI: init writes a self-contained recommended module template
   const auto project_path = temporary.path() / "recommended-project";
   const auto project = project_path.string();
   const std::vector<std::string_view> arguments{
-      "init", project, "--name", "sample-game", "--source",
-      "https://registry.example/mobagen/catalog.yaml",
+      "init", project, "--name", "sample-game", "--source", "https://registry.example/mobagen/catalog.yaml",
   };
   std::ostringstream output;
   std::ostringstream error;
@@ -260,10 +251,8 @@ TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a 
   CHECK(client.catalog_requests.front().url == "https://plugins.mobagen.dev/v1/catalog.yaml");
   REQUIRE(client.artifact_requests.size() == 1);
   CHECK(output.str().contains("catalogs-synced\tremote-project-cli-test\trelease\n"));
-  const std::string expected_artifact = "artifact\tmobagen.runtime.remote\t2.1.0\tdynamic\t1\t"
-                                        + std::to_string(client.artifact_body.size()) + '\t'
-                                        + client.artifact_hash
-                                        + "\thttps://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
+  const std::string expected_artifact = "artifact\tmobagen.runtime.remote\t2.1.0\tdynamic\t1\t" + std::to_string(client.artifact_body.size()) + '\t'
+                                        + client.artifact_hash + "\thttps://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/"
                                         + std::string{native_artifact_filename()} + '\n';
   CHECK(output.str().contains(expected_artifact));
   CHECK(output.str().contains("cache\tmobagen.runtime.remote\tdownloaded\t"));
@@ -275,9 +264,7 @@ TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a 
   mobagen::assets::AssetCache cache(project.path() / ".mobagen" / "cache");
   CHECK(std::filesystem::is_regular_file(cache.path_for(*id)));
   const auto package = project.path() / ".mobagen" / "plugins" / "mobagen.runtime.remote.plugin";
-  CHECK(std::filesystem::is_regular_file(
-      package / mobagen::modules::module_plugin_binary_filename(mobagen::modules::LinkageMode::Dynamic)
-  ));
+  CHECK(std::filesystem::is_regular_file(package / mobagen::modules::module_plugin_binary_filename(mobagen::modules::LinkageMode::Dynamic)));
   const auto lockfile = mobagen::test::read_text(project.path() / "mobagen.lock");
   CHECK(lockfile.contains("  mobagen.runtime.remote:\n"));
   CHECK(lockfile.contains("    version: 2.1.0\n"));
@@ -288,9 +275,7 @@ TEST_CASE("Project CLI: sync downloads a selected plugin once without loading a 
 
   output.str({});
   error.str({});
-  const auto repeated_result = mobagen::compositions::cli::run(
-      arguments, output, error, {.http_client = &client}
-  );
+  const auto repeated_result = mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client});
   INFO(error.str());
   REQUIRE(repeated_result == 0);
   CHECK(error.str().empty());
@@ -328,12 +313,8 @@ TEST_CASE("Project CLI: bootstrap downloads once then validates the locked proje
   CHECK(output.str().contains("ready\tremote-project-cli-test\trelease\n"));
   CHECK(error.str().empty());
 
-  const auto package = project.path() / ".mobagen" / "plugins"
-                       / "mobagen.runtime.remote.plugin";
-  const auto binary = package
-                      / mobagen::modules::module_plugin_binary_filename(
-                          mobagen::modules::LinkageMode::Dynamic
-                      );
+  const auto package = project.path() / ".mobagen" / "plugins" / "mobagen.runtime.remote.plugin";
+  const auto binary = package / mobagen::modules::module_plugin_binary_filename(mobagen::modules::LinkageMode::Dynamic);
   std::ofstream(binary, std::ios::binary | std::ios::app) << "tampered";
   output.str({});
   REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
@@ -372,9 +353,7 @@ TEST_CASE("Project bootstrap: first run prepares modules and later lazy probes s
       },
   };
 
-  const auto prepared = compositions::bootstrap_project(
-      project.path() / "mobagen.yaml", options, &client
-  );
+  const auto prepared = compositions::bootstrap_project(project.path() / "mobagen.yaml", options, &client);
 
   REQUIRE(prepared.ok());
   CHECK(prepared.state == compositions::ProjectBootstrapState::Synchronized);
@@ -383,16 +362,11 @@ TEST_CASE("Project bootstrap: first run prepares modules and later lazy probes s
   CHECK(client.catalog_requests.size() == 1);
   CHECK(client.artifact_requests.size() == 1);
 
-  const auto binary = project.path() / ".mobagen" / "plugins"
-                      / "mobagen.runtime.remote.plugin"
-                      / modules::module_plugin_binary_filename(
-                          modules::LinkageMode::Dynamic
-                      );
+  const auto binary = project.path() / ".mobagen" / "plugins" / "mobagen.runtime.remote.plugin"
+                      / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
   std::ofstream(binary, std::ios::binary | std::ios::app) << "tampered";
 
-  const auto offline = compositions::bootstrap_project(
-      project.path() / "mobagen.yaml", options
-  );
+  const auto offline = compositions::bootstrap_project(project.path() / "mobagen.yaml", options);
 
   REQUIRE(offline.ok());
   CHECK(offline.state == compositions::ProjectBootstrapState::Ready);
@@ -423,24 +397,18 @@ TEST_CASE("Project startup: first run downloads then opens a cold module manager
       },
   };
 
-  auto started = compositions::prepare_and_open_project(
-      project.path() / "mobagen.yaml", options, {.http_client = &client}
-  );
+  auto started = compositions::prepare_and_open_project(project.path() / "mobagen.yaml", options, {.http_client = &client});
 
   REQUIRE(started.ok());
-  CHECK(started.bootstrap.state
-        == compositions::ProjectBootstrapState::Synchronized);
-  CHECK(started.project.manager->kind()
-        == compositions::ProjectModuleRuntimeKind::Native);
+  CHECK(started.bootstrap.state == compositions::ProjectBootstrapState::Synchronized);
+  CHECK(started.project.manager->kind() == compositions::ProjectModuleRuntimeKind::Native);
   CHECK(started.project.manager->active_count() == 0);
   CHECK(client.catalog_requests.size() == 1);
   CHECK(client.artifact_requests.size() == 1);
   CHECK(started.project.manager->stop().ok());
   started.project.manager.reset();
 
-  auto reopened = compositions::prepare_and_open_project(
-      project.path() / "mobagen.yaml", std::move(options)
-  );
+  auto reopened = compositions::prepare_and_open_project(project.path() / "mobagen.yaml", std::move(options));
 
   REQUIRE(reopened.ok());
   CHECK(reopened.bootstrap.state == compositions::ProjectBootstrapState::Ready);
@@ -551,8 +519,8 @@ profiles:
 )yaml");
   FakeWasmBackend backend;
   const auto manifest = (project.path() / "mobagen.yaml").string();
-  const std::vector<std::string_view> arguments{"resolve", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1",
-                                                "--default", "runtime.package.v1=mobagen.wasm-package"};
+  const std::vector<std::string_view> arguments{
+      "resolve", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1", "--default", "runtime.package.v1=mobagen.wasm-package"};
   std::ostringstream output;
   std::ostringstream error;
 
@@ -563,16 +531,16 @@ profiles:
   CHECK(read_text(project.path() / "mobagen.lock").contains("linkage: wasm\n"));
 
   output.str({});
-  const std::vector<std::string_view> verify_arguments{"verify", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1",
-                                                       "--default", "runtime.package.v1=mobagen.wasm-package"};
+  const std::vector<std::string_view> verify_arguments{
+      "verify", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1", "--default", "runtime.package.v1=mobagen.wasm-package"};
   REQUIRE(compositions::cli::run(verify_arguments, output, error, {.portable_backend = &backend}) == 0);
   CHECK(error.str().empty());
   CHECK(output.str().starts_with("verified\t"));
   CHECK(backend.calls == 2);
 
   output.str({});
-  const std::vector<std::string_view> explain_arguments{"explain", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1",
-                                                        "--default", "runtime.package.v1=mobagen.wasm-package"};
+  const std::vector<std::string_view> explain_arguments{
+      "explain", manifest, "--profile", "release", "--alias", "runtime=runtime.package.v1", "--default", "runtime.package.v1=mobagen.wasm-package"};
   REQUIRE(compositions::cli::run(explain_arguments, output, error, {.portable_backend = &backend}) == 0);
   CHECK(error.str().empty());
   CHECK(output.str().contains("selection\truntime.package.v1\tmobagen.wasm-package\twasm\t"));

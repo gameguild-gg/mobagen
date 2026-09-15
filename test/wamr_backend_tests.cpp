@@ -54,11 +54,10 @@ namespace {
     module.insert(module.end(), contents.begin(), contents.end());
   }
 
-  std::vector<std::byte> make_module(std::string_view function_name, bool traps = false, std::uint32_t memory_pages = 1,
-                                     bool grows_memory = false, std::string_view memory_export = MOBAGEN_WASM_MEMORY_EXPORT_V1) {
+  std::vector<std::byte> make_module(std::string_view function_name, bool traps = false, std::uint32_t memory_pages = 1, bool grows_memory = false,
+                                     std::string_view memory_export = MOBAGEN_WASM_MEMORY_EXPORT_V1) {
     std::vector<std::byte> module{
-        std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d},
-        std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
     };
 
     const std::array type_section{
@@ -114,8 +113,7 @@ namespace {
 
   std::vector<std::byte> make_host_import_module(std::uint32_t message_size, std::uint32_t capability_size) {
     std::vector<std::byte> module{
-        std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d},
-        std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
     };
 
     std::vector<std::byte> types;
@@ -226,8 +224,7 @@ namespace {
     return MOBAGEN_WASM_STATUS_OK;
   }
 
-  std::uint32_t capture_commands(void* state, mobagen::plugins::WasmCommandBatchView batch,
-                                 std::span<const std::string> permissions) noexcept {
+  std::uint32_t capture_commands(void* state, mobagen::plugins::WasmCommandBatchView batch, std::span<const std::string> permissions) noexcept {
     auto& capture = *static_cast<HostCapture*>(state);
     capture.command_count = batch.command_count;
     capture.permissions.assign(permissions.begin(), permissions.end());
@@ -251,8 +248,7 @@ namespace {
 
   std::vector<std::byte> make_reference_plugin_module() {
     std::vector<std::byte> module{
-        std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d},
-        std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
     };
 
     std::vector<std::byte> types;
@@ -273,8 +269,7 @@ namespace {
     append_section(module, 2, imports);
 
     const std::array function_section{
-        std::byte{0x08},
-        std::byte{0x00}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x08}, std::byte{0x00}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00},
         std::byte{0x02}, std::byte{0x02}, std::byte{0x02}, std::byte{0x01},
     };
     append_section(module, 3, function_section);
@@ -464,8 +459,7 @@ TEST_CASE("WAMR backend: canonical host imports route through the injected insta
   constexpr std::string_view capability = "render.backend.v1";
   HostCapture capture;
   auto registry = make_registry();
-  auto imports = std::make_shared<WasmHostImports>(
-      WasmHostServices{.state = &capture, .log = capture_log, .submit_commands = capture_commands});
+  auto imports = std::make_shared<WasmHostImports>(WasmHostServices{.state = &capture, .log = capture_log, .submit_commands = capture_commands});
   const std::vector<std::string> permissions{"gpu"};
   REQUIRE(imports->bind(registry, permissions));
 

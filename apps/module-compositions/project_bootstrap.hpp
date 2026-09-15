@@ -26,10 +26,7 @@ namespace mobagen::compositions {
 
   struct ProjectBootstrapOptions {
     modules::ResolverOptions resolver;
-    modules::SemanticVersion sdk_version{
-        MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR,
-        MOBAGEN_SDK_VERSION_PATCH
-    };
+    modules::SemanticVersion sdk_version{MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH};
     std::optional<std::filesystem::path> cache_root;
     ProjectBootstrapMode mode{ProjectBootstrapMode::Ensure};
     ProjectBootstrapValidation validation{ProjectBootstrapValidation::Lazy};
@@ -71,18 +68,14 @@ namespace mobagen::compositions {
     std::vector<modules::InstalledModuleArtifact> installed_artifacts;
     std::vector<ProjectBootstrapIssue> issues;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return state.has_value() && issues.empty();
-    }
+    [[nodiscard]] bool ok() const noexcept { return state.has_value() && issues.empty(); }
   };
 
   /* Ensures that a project has a deterministic local lock and installed
      .plugin packages. Network access is injected and used only when local
      state is missing, stale, or Refresh is requested. Lazy validation never
      reads plugin bodies; activation verifies the requested dependency closure. */
-  [[nodiscard]] ProjectBootstrapResult bootstrap_project(
-      const std::filesystem::path& manifest_path, ProjectBootstrapOptions options,
-      http::Client* http_client = nullptr
-  );
+  [[nodiscard]] ProjectBootstrapResult bootstrap_project(const std::filesystem::path& manifest_path, ProjectBootstrapOptions options,
+                                                         http::Client* http_client = nullptr);
 
 }  // namespace mobagen::compositions

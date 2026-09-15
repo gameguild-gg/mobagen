@@ -28,12 +28,8 @@ namespace mobagen::tools::catalog_cli {
 
   }  // namespace
 
-  int run(
-      std::span<const std::string_view> arguments, std::ostream& output,
-      std::ostream& error
-  ) {
-    if (arguments.size() < 8 || arguments[0] != "publish"
-        || arguments[1].empty()) {
+  int run(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error) {
+    if (arguments.size() < 8 || arguments[0] != "publish" || arguments[1].empty()) {
       usage(error);
       return 2;
     }
@@ -78,15 +74,13 @@ namespace mobagen::tools::catalog_cli {
     const auto published = publish_native_module_catalog(options);
     if (!published.ok()) {
       for (const auto& issue : published.issues) {
-        error << "publish failed\t" << issue.path.generic_string() << '\t'
-              << issue.message << '\n';
+        error << "publish failed\t" << issue.path.generic_string() << '\t' << issue.message << '\n';
       }
       return 3;
     }
     output << "catalog\t" << published.catalog_path->generic_string() << '\n';
     for (const auto& provider : published.providers) {
-      output << "provider\t" << provider.provider.id << '\t'
-             << provider.artifacts.front().hash << '\n';
+      output << "provider\t" << provider.provider.id << '\t' << provider.artifacts.front().hash << '\n';
     }
     return 0;
   }

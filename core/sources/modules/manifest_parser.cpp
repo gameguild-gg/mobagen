@@ -303,8 +303,7 @@ namespace mobagen::modules {
             add_error(ManifestErrorCode::DuplicateKey, pair.first.Mark(), field, "module aliases must be unique");
           }
 
-          const auto module_entries = read_map(pair.second, field,
-                                               {"capability", "use", "config"});
+          const auto module_entries = read_map(pair.second, field, {"capability", "use", "config"});
           const auto* use = require_entry(module_entries, "use", field, pair.second.Mark());
           std::string provider;
           if (use && read_string(*use, field + ".use", provider)) {

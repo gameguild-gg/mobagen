@@ -52,8 +52,7 @@ namespace mobagen::modules {
   [[nodiscard]] std::filesystem::path module_plugin_binary_filename(LinkageMode linkage);
 
   /* Materializes verified cache blobs as strict .plugin packages without loading executable code. */
-  [[nodiscard]] ArtifactInstallResult materialize_module_plugins(
-      std::span<const CachedModuleArtifact> artifacts, const std::filesystem::path& install_root
-  );
+  [[nodiscard]] ArtifactInstallResult materialize_module_plugins(std::span<const CachedModuleArtifact> artifacts,
+                                                                 const std::filesystem::path& install_root);
 
 }  // namespace mobagen::modules

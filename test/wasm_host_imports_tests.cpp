@@ -46,8 +46,7 @@ namespace {
     return MOBAGEN_WASM_STATUS_OK;
   }
 
-  std::uint32_t capture_commands(void* state, mobagen::plugins::WasmCommandBatchView batch,
-                                 std::span<const std::string> permissions) noexcept {
+  std::uint32_t capture_commands(void* state, mobagen::plugins::WasmCommandBatchView batch, std::span<const std::string> permissions) noexcept {
     auto& capture = *static_cast<HostCapture*>(state);
     capture.command_count = batch.command_count;
     capture.permissions.assign(permissions.begin(), permissions.end());
@@ -60,8 +59,7 @@ namespace {
     return MOBAGEN_WASM_STATUS_OK;
   }
 
-  std::uint32_t count_commands(void* state, mobagen::plugins::WasmCommandBatchView,
-                               std::span<const std::string>) noexcept {
+  std::uint32_t count_commands(void* state, mobagen::plugins::WasmCommandBatchView, std::span<const std::string>) noexcept {
     ++*static_cast<std::size_t*>(state);
     return MOBAGEN_WASM_STATUS_OK;
   }
@@ -124,8 +122,7 @@ TEST_CASE("WASM host imports: capability lookup returns a bounded generational h
   CHECK(read_u32(memory, 128) == 0);
   CHECK(read_u32(memory, 132) == 0);
   CHECK(imports.find_capability(memory, 250, 16, 1, 128) == MOBAGEN_WASM_STATUS_INVALID_ARGUMENT);
-  CHECK(imports.find_capability(memory, 32, static_cast<std::uint32_t>(capability.size()), 1, 253)
-        == MOBAGEN_WASM_STATUS_INVALID_ARGUMENT);
+  CHECK(imports.find_capability(memory, 32, static_cast<std::uint32_t>(capability.size()), 1, 253) == MOBAGEN_WASM_STATUS_INVALID_ARGUMENT);
 }
 
 TEST_CASE("WASM host imports: command submission validates the whole batch before dispatch") {
@@ -182,9 +179,8 @@ TEST_CASE("WASM host imports: unbound and cross-thread control-plane calls are d
   CHECK(imports.bound());
   CHECK(imports.permissions().empty());
   std::atomic_uint32_t status{MOBAGEN_WASM_STATUS_OK};
-  std::thread other([&] {
-    status.store(imports.find_capability(memory, 16, static_cast<std::uint32_t>(capability.size()), 1, 64), std::memory_order_relaxed);
-  });
+  std::thread other(
+      [&] { status.store(imports.find_capability(memory, 16, static_cast<std::uint32_t>(capability.size()), 1, 64), std::memory_order_relaxed); });
   other.join();
   CHECK(status.load(std::memory_order_relaxed) == MOBAGEN_WASM_STATUS_FAILED);
 }

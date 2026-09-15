@@ -180,9 +180,7 @@ namespace app {
     WGPUSurfaceSourceWaylandSurface wayland_desc = {};
     WGPUSurfaceSourceXlibWindow xlib_desc = {};
     const auto* native = context.native_surface;
-    const bool wayland = native != nullptr
-                             ? native->kind == NativeSurfaceKind::Wayland
-                             : SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0;
+    const bool wayland = native != nullptr ? native->kind == NativeSurfaceKind::Wayland : SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0;
     if (wayland) {
       // Wayland sessions: an X11-only chain crashes with "Unsupported sType".
       wayland_desc.chain.sType = WGPUSType_SurfaceSourceWaylandSurface;
@@ -231,8 +229,7 @@ namespace app {
       return false;
     }
     if (desc.want_surface && desc.native_surface != nullptr
-        && (desc.native_surface->kind == NativeSurfaceKind::None
-            || desc.native_surface->width <= 0 || desc.native_surface->height <= 0)) {
+        && (desc.native_surface->kind == NativeSurfaceKind::None || desc.native_surface->width <= 0 || desc.native_surface->height <= 0)) {
       SDL_Log("WebGPUContext::init: native surface is invalid");
       return false;
     }

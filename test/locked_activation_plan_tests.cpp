@@ -10,32 +10,18 @@
 
 namespace {
 
-  mobagen::modules::SemanticVersion version(std::uint32_t major = 1) {
-    return {major, 0, 0};
-  }
+  mobagen::modules::SemanticVersion version(std::uint32_t major = 1) { return {major, 0, 0}; }
 
   mobagen::modules::LockfileDocument locked_project() {
     using namespace mobagen::modules;
     LockfileDocument document;
     document.metadata.plugins = {
-        {.provider = "mobagen.render",
-         .version = version(),
-         .abi_version = 1,
-         .package = ".mobagen/plugins/render.plugin"},
-        {.provider = "mobagen.platform",
-         .version = version(),
-         .abi_version = 1,
-         .package = ".mobagen/plugins/platform.plugin"},
+        {.provider = "mobagen.render", .version = version(), .abi_version = 1, .package = ".mobagen/plugins/render.plugin"},
+        {.provider = "mobagen.platform", .version = version(), .abi_version = 1, .package = ".mobagen/plugins/platform.plugin"},
     };
     document.resolved = {
-        {.capability = "render.backend.v1",
-         .provider = "mobagen.render",
-         .version = version(),
-         .linkage = LinkageMode::Dynamic},
-        {.capability = "window.surface.v1",
-         .provider = "mobagen.platform",
-         .version = version(),
-         .linkage = LinkageMode::Dynamic},
+        {.capability = "render.backend.v1", .provider = "mobagen.render", .version = version(), .linkage = LinkageMode::Dynamic},
+        {.capability = "window.surface.v1", .provider = "mobagen.platform", .version = version(), .linkage = LinkageMode::Dynamic},
     };
     document.dependencies = {
         {.capability = "window.surface.v1", .provider = "mobagen.platform", .required_by = "mobagen.render"},
@@ -43,9 +29,7 @@ namespace {
     return document;
   }
 
-  mobagen::modules::VerifiedLockedPlugin verified(
-      std::string provider, std::string package, std::string binary
-  ) {
+  mobagen::modules::VerifiedLockedPlugin verified(std::string provider, std::string package, std::string binary) {
     using namespace mobagen::modules;
     return {
         .provider_id = std::move(provider),
@@ -101,9 +85,7 @@ TEST_CASE("Locked activation plan: verified packages must exactly cover selected
 TEST_CASE("Locked activation plan: cyclic locked dependencies are rejected") {
   using namespace mobagen::modules;
   auto document = locked_project();
-  document.dependencies.push_back(
-      {.capability = "render.backend.v1", .provider = "mobagen.render", .required_by = "mobagen.platform"}
-  );
+  document.dependencies.push_back({.capability = "render.backend.v1", .provider = "mobagen.render", .required_by = "mobagen.platform"});
   const std::vector plugins{
       verified("mobagen.render", "missing/render.plugin", "missing/render.plugin/plugin.dll"),
       verified("mobagen.platform", "missing/platform.plugin", "missing/platform.plugin/plugin.dll"),

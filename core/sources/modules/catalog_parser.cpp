@@ -108,8 +108,7 @@ namespace mobagen::modules {
         }
       }
 
-      std::vector<MapEntry> read_map(const YAML::Node& node, const std::string& field,
-                                     std::initializer_list<std::string_view> allowed_fields) {
+      std::vector<MapEntry> read_map(const YAML::Node& node, const std::string& field, std::initializer_list<std::string_view> allowed_fields) {
         if (!node.IsMap()) {
           add_error(CatalogErrorCode::WrongType, node.Mark(), field, "expected a mapping");
           return {};
@@ -234,8 +233,8 @@ namespace mobagen::modules {
         std::string value;
         if (!read_string(node, field, value)) return false;
         static const std::map<std::string, TargetPlatform, std::less<>> targets{
-            {"android", TargetPlatform::Android}, {"ios", TargetPlatform::IOS},       {"linux", TargetPlatform::Linux},
-            {"macos", TargetPlatform::MacOS},     {"web", TargetPlatform::Web},     {"windows", TargetPlatform::Windows},
+            {"android", TargetPlatform::Android}, {"ios", TargetPlatform::IOS}, {"linux", TargetPlatform::Linux},
+            {"macos", TargetPlatform::MacOS},     {"web", TargetPlatform::Web}, {"windows", TargetPlatform::Windows},
         };
         const auto target = targets.find(value);
         if (target == targets.end()) {
@@ -250,7 +249,10 @@ namespace mobagen::modules {
         std::string value;
         if (!read_string(node, field, value)) return false;
         static const std::map<std::string, LinkageMode, std::less<>> linkages{
-            {"dynamic", LinkageMode::Dynamic}, {"process", LinkageMode::Process}, {"static", LinkageMode::Static}, {"wasm", LinkageMode::Wasm},
+            {"dynamic", LinkageMode::Dynamic},
+            {"process", LinkageMode::Process},
+            {"static", LinkageMode::Static},
+            {"wasm", LinkageMode::Wasm},
         };
         const auto linkage = linkages.find(value);
         if (linkage == linkages.end()) {
@@ -276,9 +278,9 @@ namespace mobagen::modules {
 
       static bool is_sha256(std::string_view value) {
         constexpr std::string_view prefix = "sha256:";
-        return value.starts_with(prefix) && value.size() == prefix.size() + 64
-               && std::ranges::all_of(value.substr(prefix.size()),
-                                      [](char digit) { return (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f'); });
+        return value.starts_with(prefix) && value.size() == prefix.size() + 64 && std::ranges::all_of(value.substr(prefix.size()), [](char digit) {
+                 return (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f');
+               });
       }
 
       void parse_root(const YAML::Node& root) {
@@ -314,9 +316,8 @@ namespace mobagen::modules {
       }
 
       void parse_provider(const YAML::Node& node, const std::string& field, const std::string& id) {
-        const auto entries = read_map(node, field,
-                                      {"version", "provides", "requires", "optional", "conflicts", "reload", "configuration-schema",
-                                       "permissions", "artifacts"});
+        const auto entries = read_map(
+            node, field, {"version", "provides", "requires", "optional", "conflicts", "reload", "configuration-schema", "permissions", "artifacts"});
         const auto* version = require_entry(entries, "version", field, node.Mark());
         const auto* provides = require_entry(entries, "provides", field, node.Mark());
         const auto* artifacts = require_entry(entries, "artifacts", field, node.Mark());
@@ -365,8 +366,7 @@ namespace mobagen::modules {
         std::set<LinkageMode> linkages;
         for (std::size_t index = 0; index < node.size(); ++index) {
           const std::string artifact_field = field + '[' + std::to_string(index) + ']';
-          const auto entries = read_map(node[index], artifact_field,
-                                        {"target", "linkage", "abi", "url", "size", "hash"});
+          const auto entries = read_map(node[index], artifact_field, {"target", "linkage", "abi", "url", "size", "hash"});
           const auto* target = require_entry(entries, "target", artifact_field, node[index].Mark());
           const auto* linkage = require_entry(entries, "linkage", artifact_field, node[index].Mark());
           const auto* abi = require_entry(entries, "abi", artifact_field, node[index].Mark());
@@ -380,14 +380,12 @@ namespace mobagen::modules {
           std::uint64_t abi_version = 0;
           if (abi && read_unsigned(*abi, artifact_field + ".abi", abi_version)) {
             if (abi_version == 0 || abi_version > UINT32_MAX) {
-              add_error(CatalogErrorCode::InvalidValue, abi->Mark(), artifact_field + ".abi",
-                        "plugin ABI version must be between 1 and 4294967295");
+              add_error(CatalogErrorCode::InvalidValue, abi->Mark(), artifact_field + ".abi", "plugin ABI version must be between 1 and 4294967295");
             } else {
               artifact.abi_version = static_cast<std::uint32_t>(abi_version);
             }
           }
-          if (url && read_string(*url, artifact_field + ".url", artifact.url)
-              && !is_secure_plugin_artifact_url(artifact.url)) {
+          if (url && read_string(*url, artifact_field + ".url", artifact.url) && !is_secure_plugin_artifact_url(artifact.url)) {
             add_error(CatalogErrorCode::InvalidValue, url->Mark(), artifact_field + ".url",
                       "artifact URL must satisfy the secure HTTPS policy and name a .plugin package");
           }
@@ -396,7 +394,8 @@ namespace mobagen::modules {
             add_error(CatalogErrorCode::InvalidValue, size->Mark(), artifact_field + ".size", "artifact size must be between 1 byte and 512 MiB");
           }
           if (hash && read_string(*hash, artifact_field + ".hash", artifact.hash) && !is_sha256(artifact.hash)) {
-            add_error(CatalogErrorCode::InvalidValue, hash->Mark(), artifact_field + ".hash", "expected sha256 followed by 64 lowercase hexadecimal digits");
+            add_error(CatalogErrorCode::InvalidValue, hash->Mark(), artifact_field + ".hash",
+                      "expected sha256 followed by 64 lowercase hexadecimal digits");
           }
           if (target_ok && linkage_ok) {
             if (!seen.emplace(artifact.target, artifact.linkage).second) {

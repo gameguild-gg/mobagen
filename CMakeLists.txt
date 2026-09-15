@@ -37,9 +37,8 @@ include(external/compilerchecks.cmake)
 # first-party sanitizer policy and target helper
 include(cmake/sanitizers.cmake)
 
-# Robust license aggregation for CPM packages. Some projects expose a LICENSES
-# directory alongside a regular COPYING file, which the upstream helper treats
-# as a readable license file.
+# Robust license aggregation for CPM packages. Some projects expose a LICENSES directory alongside a
+# regular COPYING file, which the upstream helper treats as a readable license file.
 include(cmake/licenses.cmake)
 
 # developer tooling (sanitizers / ccache / static analyzers) — no-op for normal builds
@@ -144,28 +143,24 @@ option(BUILD_TESTING "Build Mobagen tests" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 
 if(MOBAGEN_BUILD_RUNTIME AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
-  message(
-    FATAL_ERROR
-      "MOBAGEN_BUILD_RUNTIME currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
-  )
+  message(FATAL_ERROR "MOBAGEN_BUILD_RUNTIME currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS")
 endif()
 if(MOBAGEN_BUILD_BUNDLED_MODULES AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
   message(
-    FATAL_ERROR
-      "MOBAGEN_BUILD_BUNDLED_MODULES currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
+    FATAL_ERROR "MOBAGEN_BUILD_BUNDLED_MODULES currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
   )
 endif()
 if(BUILD_TESTING AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
-  message(
-    FATAL_ERROR "BUILD_TESTING currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
-  )
+  message(FATAL_ERROR "BUILD_TESTING currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS")
 endif()
 if(EMSCRIPTEN)
   set(_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT OFF)
 else()
   set(_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT ON)
 endif()
-option(MOBAGEN_HTTP_BACKEND_CURL "Build the native HTTPS client with libcurl" ${_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT})
+option(MOBAGEN_HTTP_BACKEND_CURL "Build the native HTTPS client with libcurl"
+       ${_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT}
+)
 
 if(MOBAGEN_BUILD_RUNTIME)
   include(external/external.cmake)

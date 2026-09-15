@@ -17,8 +17,7 @@ namespace mobagen::plugins {
 
     [[nodiscard]] bool valid_status(std::uint32_t status) noexcept { return status <= MOBAGEN_WASM_STATUS_FAILED; }
 
-    [[nodiscard]] std::optional<std::string_view> guest_text(std::span<const std::byte> memory, std::uint32_t offset,
-                                                             std::uint32_t size) noexcept {
+    [[nodiscard]] std::optional<std::string_view> guest_text(std::span<const std::byte> memory, std::uint32_t offset, std::uint32_t size) noexcept {
       if (size == 0) return std::string_view{};
       if (offset == MOBAGEN_WASM_NULL_OFFSET || size > MOBAGEN_WASM_MAX_STRING_BYTES || static_cast<std::size_t>(offset) > memory.size()
           || static_cast<std::size_t>(size) > memory.size() - static_cast<std::size_t>(offset)) {
@@ -37,14 +36,12 @@ namespace mobagen::plugins {
       return parsed.ec == std::errc{} && parsed.ptr == version.data() + version.size() && actual == expected;
     }
 
-    [[nodiscard]] bool writable_region(std::span<std::byte> memory, std::uint32_t offset, std::uint32_t size,
-                                       std::uint32_t alignment) noexcept {
+    [[nodiscard]] bool writable_region(std::span<std::byte> memory, std::uint32_t offset, std::uint32_t size, std::uint32_t alignment) noexcept {
       return offset != MOBAGEN_WASM_NULL_OFFSET && offset % alignment == 0 && static_cast<std::size_t>(offset) <= memory.size()
              && static_cast<std::size_t>(size) <= memory.size() - static_cast<std::size_t>(offset);
     }
 
-    [[nodiscard]] bool regions_overlap(std::size_t left_offset, std::size_t left_size, std::size_t right_offset,
-                                       std::size_t right_size) noexcept {
+    [[nodiscard]] bool regions_overlap(std::size_t left_offset, std::size_t left_size, std::size_t right_offset, std::size_t right_size) noexcept {
       return left_offset < right_offset + right_size && right_offset < left_offset + left_size;
     }
 
@@ -105,9 +102,8 @@ namespace mobagen::plugins {
     }
   }
 
-  std::uint32_t WasmHostImports::find_capability(std::span<std::byte> memory, std::uint32_t capability_offset,
-                                                 std::uint32_t capability_size, std::uint32_t capability_version,
-                                                 std::uint32_t output_handle_offset) const noexcept {
+  std::uint32_t WasmHostImports::find_capability(std::span<std::byte> memory, std::uint32_t capability_offset, std::uint32_t capability_size,
+                                                 std::uint32_t capability_version, std::uint32_t output_handle_offset) const noexcept {
     if (!writable_region(memory, output_handle_offset, MOBAGEN_WASM_HANDLE32_SIZE, alignof(std::uint32_t))) {
       return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
     }

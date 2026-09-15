@@ -29,8 +29,7 @@ namespace {
     mobagen::test::TemporaryWasmDirectory directory_;
   };
 
-  bool has_issue(const mobagen::plugins::PortableWasmPluginStoreActionResult& result,
-                 mobagen::plugins::PortableWasmPluginStoreIssueCode code) {
+  bool has_issue(const mobagen::plugins::PortableWasmPluginStoreActionResult& result, mobagen::plugins::PortableWasmPluginStoreIssueCode code) {
     return std::ranges::any_of(result.issues, [code](const auto& issue) { return issue.code == code; });
   }
 

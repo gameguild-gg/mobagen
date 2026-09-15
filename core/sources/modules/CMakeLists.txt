@@ -1,6 +1,6 @@
 add_library(
-  mobagen_core_modules STATIC capability_registry.cpp catalog_index.cpp descriptor.cpp execution_graph.cpp
-                              lifecycle.cpp resolver.cpp
+  mobagen_core_modules STATIC capability_registry.cpp catalog_index.cpp descriptor.cpp
+                              execution_graph.cpp lifecycle.cpp resolver.cpp
 )
 add_library(mobagen::core_modules ALIAS mobagen_core_modules)
 target_include_directories(mobagen_core_modules PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -21,10 +21,15 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   )
 
   add_library(
-    mobagen_module_distribution STATIC artifact_fetcher.cpp artifact_fetcher.hpp
-                                       artifact_installer.cpp artifact_installer.hpp
-                                       locked_activation_plan.cpp locked_activation_plan.hpp
-                                       lockfile_verifier.cpp lockfile_verifier.hpp
+    mobagen_module_distribution STATIC
+    artifact_fetcher.cpp
+    artifact_fetcher.hpp
+    artifact_installer.cpp
+    artifact_installer.hpp
+    locked_activation_plan.cpp
+    locked_activation_plan.hpp
+    lockfile_verifier.cpp
+    lockfile_verifier.hpp
   )
   add_library(mobagen::module_distribution ALIAS mobagen_module_distribution)
   target_include_directories(mobagen_module_distribution PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

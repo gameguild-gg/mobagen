@@ -27,19 +27,10 @@ namespace mobagen::assets {
   private:
     using Blob = std::vector<std::byte>;
 
-    static bool decode(
-        void* context, const AssetDecodeRequest& request, Blob& output
-    );
-    static MobagenStatus MOBAGEN_PLUGIN_CALL acquire(
-        void* store_state, const MobagenAssetIdV1* id,
-        MobagenAssetHandleV1* handle
-    ) noexcept;
-    static MobagenStatus MOBAGEN_PLUGIN_CALL view(
-        void* store_state, MobagenAssetHandleV1 handle, MobagenByteView* bytes
-    ) noexcept;
-    static MobagenStatus MOBAGEN_PLUGIN_CALL release(
-        void* store_state, MobagenAssetHandleV1 handle
-    ) noexcept;
+    static bool decode(void* context, const AssetDecodeRequest& request, Blob& output);
+    static MobagenStatus MOBAGEN_PLUGIN_CALL acquire(void* store_state, const MobagenAssetIdV1* id, MobagenAssetHandleV1* handle) noexcept;
+    static MobagenStatus MOBAGEN_PLUGIN_CALL view(void* store_state, MobagenAssetHandleV1 handle, MobagenByteView* bytes) noexcept;
+    static MobagenStatus MOBAGEN_PLUGIN_CALL release(void* store_state, MobagenAssetHandleV1 handle) noexcept;
 
     std::mutex mutex_;
     AssetManager<Blob> manager_;

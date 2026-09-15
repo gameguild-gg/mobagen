@@ -74,15 +74,11 @@ namespace mobagen::modules {
   };
 
   /* Inspects locked package metadata and shape without reading plugin binary bodies. */
-  [[nodiscard]] LockfileInspectionResult inspect_locked_project(
-      const LockfileDocument& document, const std::filesystem::path& project_root,
-      const LockfileVerificationContext& context
-  );
+  [[nodiscard]] LockfileInspectionResult inspect_locked_project(const LockfileDocument& document, const std::filesystem::path& project_root,
+                                                                const LockfileVerificationContext& context);
 
   /* Verifies a parsed lock and its package bytes without loading native or WASM code. */
-  [[nodiscard]] LockfileVerificationResult verify_locked_project(
-      const LockfileDocument& document, const std::filesystem::path& project_root,
-      const LockfileVerificationContext& context
-  );
+  [[nodiscard]] LockfileVerificationResult verify_locked_project(const LockfileDocument& document, const std::filesystem::path& project_root,
+                                                                 const LockfileVerificationContext& context);
 
 }  // namespace mobagen::modules

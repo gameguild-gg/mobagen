@@ -34,12 +34,9 @@ namespace {
   public:
     TemporaryRecommendedProject() {
       static std::atomic_uint64_t sequence = 0;
-      const auto ticks = std::chrono::high_resolution_clock::now()
-                             .time_since_epoch()
-                             .count();
+      const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
       path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-recommended-e2e-" + std::to_string(ticks) + '-'
-                 + std::to_string(sequence.fetch_add(1)));
+              / ("mobagen-recommended-e2e-" + std::to_string(ticks) + '-' + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directory(path_));
     }
 
@@ -48,9 +45,7 @@ namespace {
       std::filesystem::remove_all(path_, error);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept {
-      return path_;
-    }
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 
   private:
     std::filesystem::path path_;
@@ -58,9 +53,7 @@ namespace {
 
   std::vector<std::byte> read_bytes(const std::filesystem::path& path) {
     std::ifstream stream(path, std::ios::binary);
-    const std::string contents{
-        std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}
-    };
+    const std::string contents{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
     const auto characters = std::as_bytes(std::span{contents});
     return {characters.begin(), characters.end()};
   }
@@ -88,14 +81,9 @@ namespace {
 
   class PublishedCatalogClient final : public mobagen::http::Client {
   public:
-    PublishedCatalogClient(
-        std::filesystem::path root, std::string base_url
-    )
-        : root_(std::move(root)), base_url_(std::move(base_url)) {}
+    PublishedCatalogClient(std::filesystem::path root, std::string base_url) : root_(std::move(root)), base_url_(std::move(base_url)) {}
 
-    mobagen::http::GetResult get(
-        const mobagen::http::GetRequest& request
-    ) override {
+    mobagen::http::GetResult get(const mobagen::http::GetRequest& request) override {
       ++catalog_requests;
       if (request.url != base_url_ + "/catalog.yaml") {
         return {.response = mobagen::http::Response{404, {}}};
@@ -110,9 +98,7 @@ namespace {
       return {.response = mobagen::http::Response{200, std::move(body)}};
     }
 
-    mobagen::http::StreamGetResult get_stream(
-        const mobagen::http::GetRequest& request, mobagen::http::BodySink sink
-    ) override {
+    mobagen::http::StreamGetResult get_stream(const mobagen::http::GetRequest& request, mobagen::http::BodySink sink) override {
       ++artifact_requests;
       const auto prefix = base_url_ + '/';
       if (!request.url.starts_with(prefix) || sink.write == nullptr) {
@@ -122,9 +108,7 @@ namespace {
                 }};
       }
       const auto relative = std::filesystem::path{request.url.substr(prefix.size())};
-      if (relative.is_absolute()
-          || std::ranges::find(relative, std::filesystem::path{".."})
-                 != relative.end()) {
+      if (relative.is_absolute() || std::ranges::find(relative, std::filesystem::path{".."}) != relative.end()) {
         return {.error = mobagen::http::Error{
                     mobagen::http::ErrorCode::InvalidRequest,
                     "unsafe artifact request",
@@ -189,15 +173,12 @@ TEST_CASE("Recommended project: first run installs cold plugins and second run i
   };
   PublishedCatalogClient online{registry, std::string{base_url}};
 
-  auto first = compositions::prepare_and_open_project(
-      manifest, options, {.http_client = &online}
-  );
+  auto first = compositions::prepare_and_open_project(manifest, options, {.http_client = &online});
 
   if (!first.bootstrap.issues.empty()) INFO(first.bootstrap.issues.front().message);
   if (!first.project.issues.empty()) INFO(first.project.issues.front().message);
   REQUIRE(first.ok());
-  CHECK(first.bootstrap.state
-        == compositions::ProjectBootstrapState::Synchronized);
+  CHECK(first.bootstrap.state == compositions::ProjectBootstrapState::Synchronized);
   CHECK(first.bootstrap.plugin_count == 3);
   CHECK(first.bootstrap.selected_count == 3);
   CHECK(online.catalog_requests == 1);
@@ -205,15 +186,10 @@ TEST_CASE("Recommended project: first run installs cold plugins and second run i
   REQUIRE(std::filesystem::is_regular_file(project_root / "mobagen.lock"));
 
   const auto plugin_root = project_root / ".mobagen" / "plugins";
-  const auto binary_name = modules::module_plugin_binary_filename(
-      modules::LinkageMode::Dynamic
-  );
-  const auto asset_binary = plugin_root / "mobagen.assets.default.plugin"
-                            / binary_name;
-  const auto window_binary = plugin_root / "mobagen.window.sdl3.plugin"
-                             / binary_name;
-  const auto render_binary = plugin_root / "mobagen.render.webgpu.plugin"
-                             / binary_name;
+  const auto binary_name = modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
+  const auto asset_binary = plugin_root / "mobagen.assets.default.plugin" / binary_name;
+  const auto window_binary = plugin_root / "mobagen.window.sdl3.plugin" / binary_name;
+  const auto render_binary = plugin_root / "mobagen.render.webgpu.plugin" / binary_name;
   REQUIRE(std::filesystem::is_regular_file(asset_binary));
   REQUIRE(std::filesystem::is_regular_file(window_binary));
   REQUIRE(std::filesystem::is_regular_file(render_binary));
@@ -222,21 +198,16 @@ TEST_CASE("Recommended project: first run installs cold plugins and second run i
   CHECK_FALSE(native_library_loaded(window_binary));
   CHECK_FALSE(native_library_loaded(render_binary));
 
-  auto assets = first.project.manager->acquire(
-      MOBAGEN_ASSET_STORE_V1_ID, MOBAGEN_ASSET_STORE_V1_ABI_VERSION
-  );
+  auto assets = first.project.manager->acquire(MOBAGEN_ASSET_STORE_V1_ID, MOBAGEN_ASSET_STORE_V1_ABI_VERSION);
   REQUIRE(assets.ok());
   REQUIRE(assets.endpoint->native.has_value());
   CHECK(first.project.manager->active_count() == 1);
   CHECK(native_library_loaded(asset_binary));
   CHECK_FALSE(native_library_loaded(window_binary));
   CHECK_FALSE(native_library_loaded(render_binary));
-  const auto* cached_endpoint = first.project.manager->find_active(
-      MOBAGEN_ASSET_STORE_V1_ID, MOBAGEN_ASSET_STORE_V1_ABI_VERSION
-  );
+  const auto* cached_endpoint = first.project.manager->find_active(MOBAGEN_ASSET_STORE_V1_ID, MOBAGEN_ASSET_STORE_V1_ABI_VERSION);
   REQUIRE(cached_endpoint != nullptr);
-  CHECK(cached_endpoint->native->function_table
-        == assets.endpoint->native->function_table);
+  CHECK(cached_endpoint->native->function_table == assets.endpoint->native->function_table);
   REQUIRE(first.project.manager->stop().ok());
   first.project.manager.reset();
   CHECK_FALSE(native_library_loaded(asset_binary));
@@ -251,12 +222,7 @@ TEST_CASE("Recommended project: first run installs cold plugins and second run i
   CHECK(second.project.manager->active_count() == 0);
   CHECK_FALSE(native_library_loaded(asset_binary));
   CHECK(read_bytes(project_root / "mobagen.lock") == lock_before);
-  REQUIRE(second.project.manager
-              ->acquire(
-                  MOBAGEN_ASSET_STORE_V1_ID,
-                  MOBAGEN_ASSET_STORE_V1_ABI_VERSION
-              )
-              .ok());
+  REQUIRE(second.project.manager->acquire(MOBAGEN_ASSET_STORE_V1_ID, MOBAGEN_ASSET_STORE_V1_ABI_VERSION).ok());
   CHECK(second.project.manager->active_count() == 1);
   REQUIRE(second.project.manager->stop().ok());
 }

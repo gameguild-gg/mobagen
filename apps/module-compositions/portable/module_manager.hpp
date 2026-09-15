@@ -51,9 +51,7 @@ namespace mobagen::compositions {
     plugins::PortableWasmPluginActivation* plugin{};
     std::vector<PortableModuleManagerIssue> issues;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return plugin != nullptr && issues.empty();
-    }
+    [[nodiscard]] bool ok() const noexcept { return plugin != nullptr && issues.empty(); }
   };
 
   struct PortableModuleConfiguration {
@@ -79,39 +77,24 @@ namespace mobagen::compositions {
     ~PortableModuleManager();
 
     [[nodiscard]] PortableModuleManagerActionResult activate(std::string_view capability);
-    [[nodiscard]] PortableModuleCapabilityResult acquire(
-        std::string_view capability
-    );
+    [[nodiscard]] PortableModuleCapabilityResult acquire(std::string_view capability);
     [[nodiscard]] PortableModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept { return active_count_; }
-    [[nodiscard]] plugins::PortableWasmPluginActivation* plugin(
-        std::string_view provider_id
-    ) noexcept;
-    [[nodiscard]] const plugins::PortableWasmPluginActivation* plugin(
-        std::string_view provider_id
-    ) const noexcept;
+    [[nodiscard]] plugins::PortableWasmPluginActivation* plugin(std::string_view provider_id) noexcept;
+    [[nodiscard]] const plugins::PortableWasmPluginActivation* plugin(std::string_view provider_id) const noexcept;
 
   private:
-    friend PortableModuleManagerCreateResult create_portable_module_manager(
-        std::unique_ptr<modules::LockedPluginActivationPlan>, plugins::PortableWasmBackend&,
-        std::span<const PortableModuleConfiguration>,
-        std::span<const modules::ProviderDescriptor>, std::span<const std::string>,
-        plugins::WasmHostServices
-    );
+    friend PortableModuleManagerCreateResult create_portable_module_manager(std::unique_ptr<modules::LockedPluginActivationPlan>,
+                                                                            plugins::PortableWasmBackend&,
+                                                                            std::span<const PortableModuleConfiguration>,
+                                                                            std::span<const modules::ProviderDescriptor>,
+                                                                            std::span<const std::string>, plugins::WasmHostServices);
 
-    PortableModuleManager(
-        std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-        plugins::PortableWasmBackend& backend,
-        std::vector<std::vector<std::byte>> configurations,
-        std::vector<modules::ProviderDescriptor> builtin_providers,
-        std::vector<std::string> granted_permissions, plugins::WasmHostServices host_services
-    );
-    void collect_inactive_closure(
-        std::size_t index, std::vector<bool>& visited, std::vector<std::size_t>& closure
-    ) const;
-    void rollback(
-        std::vector<std::size_t>& activated, PortableModuleManagerActionResult& result
-    );
+    PortableModuleManager(std::unique_ptr<modules::LockedPluginActivationPlan> plan, plugins::PortableWasmBackend& backend,
+                          std::vector<std::vector<std::byte>> configurations, std::vector<modules::ProviderDescriptor> builtin_providers,
+                          std::vector<std::string> granted_permissions, plugins::WasmHostServices host_services);
+    void collect_inactive_closure(std::size_t index, std::vector<bool>& visited, std::vector<std::size_t>& closure) const;
+    void rollback(std::vector<std::size_t>& activated, PortableModuleManagerActionResult& result);
 
     std::unique_ptr<modules::LockedPluginActivationPlan> plan_;
     plugins::PortableWasmBackend* backend_{};
@@ -132,13 +115,11 @@ namespace mobagen::compositions {
      queried, and activated only for the first requested capability closure.
      The backend, host_services.state, and manager lifecycle must remain on the
      construction thread for the manager lifetime. */
-  [[nodiscard]] PortableModuleManagerCreateResult create_portable_module_manager(
-      std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-      plugins::PortableWasmBackend& backend,
-      std::span<const PortableModuleConfiguration> configurations = {},
-      std::span<const modules::ProviderDescriptor> builtin_providers = {},
-      std::span<const std::string> granted_permissions = {},
-      plugins::WasmHostServices host_services = {}
-  );
+  [[nodiscard]] PortableModuleManagerCreateResult create_portable_module_manager(std::unique_ptr<modules::LockedPluginActivationPlan> plan,
+                                                                                 plugins::PortableWasmBackend& backend,
+                                                                                 std::span<const PortableModuleConfiguration> configurations = {},
+                                                                                 std::span<const modules::ProviderDescriptor> builtin_providers = {},
+                                                                                 std::span<const std::string> granted_permissions = {},
+                                                                                 plugins::WasmHostServices host_services = {});
 
 }  // namespace mobagen::compositions

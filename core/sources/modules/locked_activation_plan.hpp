@@ -52,24 +52,15 @@ namespace mobagen::modules {
 
   class LockedPluginActivationPlan {
   public:
-    [[nodiscard]] std::span<const LockedPluginActivationEntry> entries() const noexcept {
-      return entries_;
-    }
-    [[nodiscard]] const LockedPluginActivationEntry* find(
-        std::string_view provider_id
-    ) const noexcept;
+    [[nodiscard]] std::span<const LockedPluginActivationEntry> entries() const noexcept { return entries_; }
+    [[nodiscard]] const LockedPluginActivationEntry* find(std::string_view provider_id) const noexcept;
 
   private:
     friend struct LockedActivationPlanResult;
-    friend LockedActivationPlanResult build_locked_plugin_activation_plan(
-        const LockfileDocument&, std::span<const VerifiedLockedPlugin>
-    );
-    friend LockedActivationPlanResult build_locked_plugin_activation_plan(
-        const LockfileDocument&, std::span<const StagedLockedPlugin>
-    );
+    friend LockedActivationPlanResult build_locked_plugin_activation_plan(const LockfileDocument&, std::span<const VerifiedLockedPlugin>);
+    friend LockedActivationPlanResult build_locked_plugin_activation_plan(const LockfileDocument&, std::span<const StagedLockedPlugin>);
 
-    explicit LockedPluginActivationPlan(std::vector<LockedPluginActivationEntry> entries)
-        : entries_(std::move(entries)) {}
+    explicit LockedPluginActivationPlan(std::vector<LockedPluginActivationEntry> entries) : entries_(std::move(entries)) {}
 
     std::vector<LockedPluginActivationEntry> entries_;
   };
@@ -82,11 +73,9 @@ namespace mobagen::modules {
   };
 
   /* Builds a deterministic lifecycle plan from already-verified metadata only. */
-  [[nodiscard]] LockedActivationPlanResult build_locked_plugin_activation_plan(
-      const LockfileDocument& document, std::span<const VerifiedLockedPlugin> verified_plugins
-  );
-  [[nodiscard]] LockedActivationPlanResult build_locked_plugin_activation_plan(
-      const LockfileDocument& document, std::span<const StagedLockedPlugin> staged_plugins
-  );
+  [[nodiscard]] LockedActivationPlanResult build_locked_plugin_activation_plan(const LockfileDocument& document,
+                                                                               std::span<const VerifiedLockedPlugin> verified_plugins);
+  [[nodiscard]] LockedActivationPlanResult build_locked_plugin_activation_plan(const LockfileDocument& document,
+                                                                               std::span<const StagedLockedPlugin> staged_plugins);
 
 }  // namespace mobagen::modules

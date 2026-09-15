@@ -28,22 +28,15 @@ namespace {
     MobagenRenderBackendV1 api{};
   };
 
-  bool on_owner_thread(const RenderPluginState& state) noexcept {
-    return state.owner_thread == std::this_thread::get_id();
-  }
+  bool on_owner_thread(const RenderPluginState& state) noexcept { return state.owner_thread == std::this_thread::get_id(); }
 
-  RenderSlot* resolve(
-      RenderPluginState& state, MobagenRenderContextHandleV1 handle
-  ) noexcept {
+  RenderSlot* resolve(RenderPluginState& state, MobagenRenderContextHandleV1 handle) noexcept {
     if (handle.index >= state.contexts.size()) return nullptr;
     auto& slot = state.contexts[handle.index];
-    return slot.context != nullptr && slot.generation == handle.generation ? &slot
-                                                                           : nullptr;
+    return slot.context != nullptr && slot.generation == handle.generation ? &slot : nullptr;
   }
 
-  bool map_native_surface(
-      const MobagenNativeSurfaceV1& source, app::NativeSurfaceSource& destination
-  ) noexcept {
+  bool map_native_surface(const MobagenNativeSurfaceV1& source, app::NativeSurfaceSource& destination) noexcept {
     switch (source.kind) {
       case MOBAGEN_NATIVE_SURFACE_WIN32_V1:
         destination.kind = app::NativeSurfaceKind::Win32;
@@ -68,10 +61,8 @@ namespace {
     return true;
   }
 
-  bool map_context_descriptor(
-      RenderPluginState& state, const MobagenRenderContextDescV1& source,
-      app::ContextDesc& destination, app::NativeSurfaceSource& native
-  ) noexcept {
+  bool map_context_descriptor(RenderPluginState& state, const MobagenRenderContextDescV1& source, app::ContextDesc& destination,
+                              app::NativeSurfaceSource& native) noexcept {
     switch (source.power_preference) {
       case MOBAGEN_RENDER_POWER_DEFAULT_V1:
         destination.power_preference = WGPUPowerPreference_Undefined;
@@ -98,12 +89,9 @@ namespace {
     if (source.want_surface > 1) return false;
     destination.want_surface = source.want_surface != 0;
     if (!destination.want_surface) return true;
-    if (state.windows == nullptr || state.windows->native_surface == nullptr)
-      return false;
+    if (state.windows == nullptr || state.windows->native_surface == nullptr) return false;
     MobagenNativeSurfaceV1 surface{.struct_size = MOBAGEN_NATIVE_SURFACE_V1_SIZE};
-    if (state.windows->native_surface(
-            state.windows->window_state, source.window, &surface
-        ) != MOBAGEN_STATUS_OK
+    if (state.windows->native_surface(state.windows->window_state, source.window, &surface) != MOBAGEN_STATUS_OK
         || !map_native_surface(surface, native)) {
       return false;
     }
@@ -111,25 +99,18 @@ namespace {
     return true;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL create_context(
-      void* opaque, const MobagenRenderContextDescV1* descriptor,
-      MobagenRenderContextHandleV1* handle
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL create_context(void* opaque, const MobagenRenderContextDescV1* descriptor,
+                                                   MobagenRenderContextHandleV1* handle) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || descriptor == nullptr || handle == nullptr
-        || descriptor->struct_size < MOBAGEN_RENDER_CONTEXT_DESC_V1_SIZE
-        || descriptor->power_preference > MOBAGEN_RENDER_POWER_HIGH_V1
-        || descriptor->backend_type > MOBAGEN_RENDER_BACKEND_NULL_V1
-        || descriptor->want_surface > 1
-        || !on_owner_thread(*state)) {
+    if (state == nullptr || descriptor == nullptr || handle == nullptr || descriptor->struct_size < MOBAGEN_RENDER_CONTEXT_DESC_V1_SIZE
+        || descriptor->power_preference > MOBAGEN_RENDER_POWER_HIGH_V1 || descriptor->backend_type > MOBAGEN_RENDER_BACKEND_NULL_V1
+        || descriptor->want_surface > 1 || !on_owner_thread(*state)) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     try {
       app::ContextDesc context_descriptor{};
       app::NativeSurfaceSource native_surface{};
-      if (!map_context_descriptor(
-              *state, *descriptor, context_descriptor, native_surface
-          )) {
+      if (!map_context_descriptor(*state, *descriptor, context_descriptor, native_surface)) {
         return MOBAGEN_STATUS_NOT_FOUND;
       }
       auto context = std::make_unique<app::WebGPUContext>();
@@ -142,13 +123,9 @@ namespace {
           return MOBAGEN_STATUS_OK;
         }
       }
-      if (state->contexts.size() == max_contexts)
-        return MOBAGEN_STATUS_OUT_OF_MEMORY;
+      if (state->contexts.size() == max_contexts) return MOBAGEN_STATUS_OUT_OF_MEMORY;
       state->contexts.push_back({.context = std::move(context)});
-      *handle = {
-          static_cast<std::uint32_t>(state->contexts.size() - 1),
-          state->contexts.back().generation
-      };
+      *handle = {static_cast<std::uint32_t>(state->contexts.size() - 1), state->contexts.back().generation};
       return MOBAGEN_STATUS_OK;
     } catch (const std::bad_alloc&) {
       return MOBAGEN_STATUS_OUT_OF_MEMORY;
@@ -157,12 +134,9 @@ namespace {
     }
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL destroy_context(
-      void* opaque, MobagenRenderContextHandleV1 handle
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL destroy_context(void* opaque, MobagenRenderContextHandleV1 handle) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || !on_owner_thread(*state))
-      return MOBAGEN_STATUS_INVALID_ARGUMENT;
+    if (state == nullptr || !on_owner_thread(*state)) return MOBAGEN_STATUS_INVALID_ARGUMENT;
     auto* slot = resolve(*state, handle);
     if (slot == nullptr) return MOBAGEN_STATUS_NOT_FOUND;
     slot->context.reset();
@@ -171,13 +145,9 @@ namespace {
     return MOBAGEN_STATUS_OK;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL get_handles(
-      void* opaque, MobagenRenderContextHandleV1 handle,
-      MobagenRenderBackendHandlesV1* output
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL get_handles(void* opaque, MobagenRenderContextHandleV1 handle, MobagenRenderBackendHandlesV1* output) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || output == nullptr || !on_owner_thread(*state)
-        || output->struct_size < MOBAGEN_RENDER_BACKEND_HANDLES_V1_SIZE) {
+    if (state == nullptr || output == nullptr || !on_owner_thread(*state) || output->struct_size < MOBAGEN_RENDER_BACKEND_HANDLES_V1_SIZE) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     auto* slot = resolve(*state, handle);
@@ -187,28 +157,21 @@ namespace {
         .device = slot->context->device(),
         .queue = slot->context->queue(),
         .surface = slot->context->surface(),
-        .surface_format =
-            static_cast<std::uint32_t>(slot->context->surface_format()),
+        .surface_format = static_cast<std::uint32_t>(slot->context->surface_format()),
     };
     return MOBAGEN_STATUS_OK;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL configure_surface(
-      void* opaque, MobagenRenderContextHandleV1 handle, std::int32_t width,
-      std::int32_t height
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL configure_surface(void* opaque, MobagenRenderContextHandleV1 handle, std::int32_t width,
+                                                      std::int32_t height) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || !on_owner_thread(*state) || width <= 0 || height <= 0)
-      return MOBAGEN_STATUS_INVALID_ARGUMENT;
+    if (state == nullptr || !on_owner_thread(*state) || width <= 0 || height <= 0) return MOBAGEN_STATUS_INVALID_ARGUMENT;
     auto* slot = resolve(*state, handle);
     if (slot == nullptr) return MOBAGEN_STATUS_NOT_FOUND;
-    return slot->context->configure_surface(width, height) ? MOBAGEN_STATUS_OK
-                                                           : MOBAGEN_STATUS_FAILED;
+    return slot->context->configure_surface(width, height) ? MOBAGEN_STATUS_OK : MOBAGEN_STATUS_FAILED;
   }
 
-  MobagenRenderFrameStatusV1 frame_status(
-      WGPUSurfaceGetCurrentTextureStatus status
-  ) noexcept {
+  MobagenRenderFrameStatusV1 frame_status(WGPUSurfaceGetCurrentTextureStatus status) noexcept {
     switch (status) {
       case WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal:
         return MOBAGEN_RENDER_FRAME_OPTIMAL_V1;
@@ -225,14 +188,9 @@ namespace {
     }
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL acquire_frame(
-      void* opaque, MobagenRenderContextHandleV1 handle,
-      MobagenRenderFrameV1* output
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL acquire_frame(void* opaque, MobagenRenderContextHandleV1 handle, MobagenRenderFrameV1* output) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || output == nullptr
-        || output->struct_size < MOBAGEN_RENDER_FRAME_V1_SIZE
-        || !on_owner_thread(*state)) {
+    if (state == nullptr || output == nullptr || output->struct_size < MOBAGEN_RENDER_FRAME_V1_SIZE || !on_owner_thread(*state)) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     auto* slot = resolve(*state, handle);
@@ -246,64 +204,45 @@ namespace {
     return MOBAGEN_STATUS_OK;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL release_frame(
-      void* opaque, MobagenRenderFrameV1 frame
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL release_frame(void* opaque, MobagenRenderFrameV1 frame) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || !on_owner_thread(*state)
-        || frame.struct_size < MOBAGEN_RENDER_FRAME_V1_SIZE
-        || frame.texture == nullptr) {
+    if (state == nullptr || !on_owner_thread(*state) || frame.struct_size < MOBAGEN_RENDER_FRAME_V1_SIZE || frame.texture == nullptr) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     wgpuTextureRelease(static_cast<WGPUTexture>(frame.texture));
     return MOBAGEN_STATUS_OK;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL present(
-      void* opaque, MobagenRenderContextHandleV1 handle
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL present(void* opaque, MobagenRenderContextHandleV1 handle) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || !on_owner_thread(*state))
-      return MOBAGEN_STATUS_INVALID_ARGUMENT;
+    if (state == nullptr || !on_owner_thread(*state)) return MOBAGEN_STATUS_INVALID_ARGUMENT;
     auto* slot = resolve(*state, handle);
     if (slot == nullptr) return MOBAGEN_STATUS_NOT_FOUND;
     return slot->context->present() ? MOBAGEN_STATUS_OK : MOBAGEN_STATUS_FAILED;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL tick(
-      void* opaque, MobagenRenderContextHandleV1 handle
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL tick(void* opaque, MobagenRenderContextHandleV1 handle) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || !on_owner_thread(*state))
-      return MOBAGEN_STATUS_INVALID_ARGUMENT;
+    if (state == nullptr || !on_owner_thread(*state)) return MOBAGEN_STATUS_INVALID_ARGUMENT;
     auto* slot = resolve(*state, handle);
     if (slot == nullptr) return MOBAGEN_STATUS_NOT_FOUND;
     return slot->context->tick() ? MOBAGEN_STATUS_OK : MOBAGEN_STATUS_FAILED;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL configure(
-      void* opaque, const MobagenHostApiV1* host, MobagenByteView configuration
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL configure(void* opaque, const MobagenHostApiV1* host, MobagenByteView configuration) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
-    if (state == nullptr || host == nullptr || host->find_capability == nullptr
-        || host->publish_capability == nullptr || configuration.size != 0) {
+    if (state == nullptr || host == nullptr || host->find_capability == nullptr || host->publish_capability == nullptr || configuration.size != 0) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     const void* windows = nullptr;
     std::uint32_t windows_size = 0;
-    const auto found = host->find_capability(
-        host->host_context,
-        {MOBAGEN_WINDOW_SURFACE_V1_ID,
-         sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1},
-        MOBAGEN_WINDOW_SURFACE_V1_ABI_VERSION, &windows, &windows_size
-    );
-    if (found != MOBAGEN_STATUS_OK || windows == nullptr
-        || windows_size < MOBAGEN_WINDOW_SURFACE_V1_SIZE) {
+    const auto found = host->find_capability(host->host_context, {MOBAGEN_WINDOW_SURFACE_V1_ID, sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1},
+                                             MOBAGEN_WINDOW_SURFACE_V1_ABI_VERSION, &windows, &windows_size);
+    if (found != MOBAGEN_STATUS_OK || windows == nullptr || windows_size < MOBAGEN_WINDOW_SURFACE_V1_SIZE) {
       return found == MOBAGEN_STATUS_OK ? MOBAGEN_STATUS_UNSUPPORTED : found;
     }
     const auto* window_api = static_cast<const MobagenWindowSurfaceV1*>(windows);
-    if (window_api->header.struct_size < MOBAGEN_WINDOW_SURFACE_V1_SIZE
-        || window_api->header.abi_version != MOBAGEN_WINDOW_SURFACE_V1_ABI_VERSION
+    if (window_api->header.struct_size < MOBAGEN_WINDOW_SURFACE_V1_SIZE || window_api->header.abi_version != MOBAGEN_WINDOW_SURFACE_V1_ABI_VERSION
         || window_api->native_surface == nullptr) {
       return MOBAGEN_STATUS_UNSUPPORTED;
     }
@@ -323,22 +262,13 @@ namespace {
         .present = present,
         .tick = tick,
     };
-    return host->publish_capability(
-        host->host_context,
-        {MOBAGEN_RENDER_BACKEND_V1_ID,
-         sizeof(MOBAGEN_RENDER_BACKEND_V1_ID) - 1},
-        MOBAGEN_RENDER_BACKEND_V1_ABI_VERSION, &state->api,
-        MOBAGEN_RENDER_BACKEND_V1_SIZE
-    );
+    return host->publish_capability(host->host_context, {MOBAGEN_RENDER_BACKEND_V1_ID, sizeof(MOBAGEN_RENDER_BACKEND_V1_ID) - 1},
+                                    MOBAGEN_RENDER_BACKEND_V1_ABI_VERSION, &state->api, MOBAGEN_RENDER_BACKEND_V1_SIZE);
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL start(void* opaque) noexcept {
-    return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK;
-  }
+  MobagenStatus MOBAGEN_PLUGIN_CALL start(void* opaque) noexcept { return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK; }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL quiesce(void* opaque) noexcept {
-    return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK;
-  }
+  MobagenStatus MOBAGEN_PLUGIN_CALL quiesce(void* opaque) noexcept { return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK; }
 
   void MOBAGEN_PLUGIN_CALL stop(void* opaque) noexcept {
     auto* state = static_cast<RenderPluginState*>(opaque);
@@ -352,36 +282,21 @@ namespace {
     if (state == nullptr) return;
     const auto host = state->host;
     state->~RenderPluginState();
-    host.deallocate(
-        host.host_context, state, sizeof(RenderPluginState),
-        alignof(RenderPluginState)
-    );
+    host.deallocate(host.host_context, state, sizeof(RenderPluginState), alignof(RenderPluginState));
   }
 
 }  // namespace
 
-MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(
-    const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor
-) {
-  static const MobagenStringView provides[] = {
-      {MOBAGEN_RENDER_BACKEND_V1_ID,
-       sizeof(MOBAGEN_RENDER_BACKEND_V1_ID) - 1}
-  };
-  static const MobagenStringView required[] = {
-      {MOBAGEN_WINDOW_SURFACE_V1_ID,
-       sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1}
-  };
+MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor) {
+  static const MobagenStringView provides[] = {{MOBAGEN_RENDER_BACKEND_V1_ID, sizeof(MOBAGEN_RENDER_BACKEND_V1_ID) - 1}};
+  static const MobagenStringView required[] = {{MOBAGEN_WINDOW_SURFACE_V1_ID, sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1}};
   static const MobagenStringView permissions[] = {{"gpu", sizeof("gpu") - 1}};
-  if (host == nullptr || descriptor == nullptr
-      || host->abi_version != MOBAGEN_PLUGIN_ABI_VERSION
-      || host->struct_size < MOBAGEN_PLUGIN_HOST_API_V1_SIZE
-      || host->allocate == nullptr || host->deallocate == nullptr
+  if (host == nullptr || descriptor == nullptr || host->abi_version != MOBAGEN_PLUGIN_ABI_VERSION
+      || host->struct_size < MOBAGEN_PLUGIN_HOST_API_V1_SIZE || host->allocate == nullptr || host->deallocate == nullptr
       || descriptor->struct_size < MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE) {
     return MOBAGEN_STATUS_UNSUPPORTED;
   }
-  auto* memory = host->allocate(
-      host->host_context, sizeof(RenderPluginState), alignof(RenderPluginState)
-  );
+  auto* memory = host->allocate(host->host_context, sizeof(RenderPluginState), alignof(RenderPluginState));
   if (memory == nullptr) return MOBAGEN_STATUS_OUT_OF_MEMORY;
   auto* state = new (memory) RenderPluginState{
       .host = *host,

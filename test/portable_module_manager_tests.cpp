@@ -16,21 +16,14 @@
 
 namespace {
 
-  std::filesystem::path add_portable_plugin(
-      const mobagen::test::TemporaryWasmDirectory& directory, std::string_view name
-  ) {
+  std::filesystem::path add_portable_plugin(const mobagen::test::TemporaryWasmDirectory& directory, std::string_view name) {
     const auto package = directory.path() / name;
     REQUIRE(std::filesystem::create_directory(package));
-    mobagen::test::write_binary(
-        package / mobagen::plugins::portable_wasm_plugin_binary_filename(),
-        mobagen::test::valid_wasm_header
-    );
+    mobagen::test::write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), mobagen::test::valid_wasm_header);
     return package;
   }
 
-  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> portable_plan(
-      const std::filesystem::path& package, bool staged = false
-  ) {
+  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> portable_plan(const std::filesystem::path& package, bool staged = false) {
     using namespace mobagen::modules;
     LockfileDocument document;
     document.metadata.plugins = {{
@@ -74,30 +67,16 @@ namespace {
     return std::move(planned.plan);
   }
 
-  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> portable_and_unused_plan(
-      const std::filesystem::path& package
-  ) {
+  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> portable_and_unused_plan(const std::filesystem::path& package) {
     using namespace mobagen::modules;
     LockfileDocument document;
     document.metadata.plugins = {
-        {.provider = "mobagen.wasm-package",
-         .version = {1, 0, 0},
-         .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION,
-         .package = "reference.plugin"},
-        {.provider = "mobagen.wasm-unused",
-         .version = {1, 0, 0},
-         .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION,
-         .package = "unused.plugin"},
+        {.provider = "mobagen.wasm-package", .version = {1, 0, 0}, .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION, .package = "reference.plugin"},
+        {.provider = "mobagen.wasm-unused", .version = {1, 0, 0}, .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION, .package = "unused.plugin"},
     };
     document.resolved = {
-        {.capability = "runtime.package.v1",
-         .provider = "mobagen.wasm-package",
-         .version = {1, 0, 0},
-         .linkage = LinkageMode::Wasm},
-        {.capability = "runtime.unused.v1",
-         .provider = "mobagen.wasm-unused",
-         .version = {1, 0, 0},
-         .linkage = LinkageMode::Wasm},
+        {.capability = "runtime.package.v1", .provider = "mobagen.wasm-package", .version = {1, 0, 0}, .linkage = LinkageMode::Wasm},
+        {.capability = "runtime.unused.v1", .provider = "mobagen.wasm-unused", .version = {1, 0, 0}, .linkage = LinkageMode::Wasm},
     };
     const auto missing = std::filesystem::path{"missing/unused.plugin"};
     const std::vector plugins{
@@ -125,31 +104,17 @@ namespace {
     return std::move(planned.plan);
   }
 
-  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> portable_dependency_plan(
-      const std::filesystem::path& base_package,
-      const std::filesystem::path& app_package
-  ) {
+  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> portable_dependency_plan(const std::filesystem::path& base_package,
+                                                                                         const std::filesystem::path& app_package) {
     using namespace mobagen::modules;
     LockfileDocument document;
     document.metadata.plugins = {
-        {.provider = "mobagen.wasm-base",
-         .version = {1, 0, 0},
-         .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION,
-         .package = "base.plugin"},
-        {.provider = "mobagen.wasm-app",
-         .version = {1, 0, 0},
-         .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION,
-         .package = "app.plugin"},
+        {.provider = "mobagen.wasm-base", .version = {1, 0, 0}, .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION, .package = "base.plugin"},
+        {.provider = "mobagen.wasm-app", .version = {1, 0, 0}, .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION, .package = "app.plugin"},
     };
     document.resolved = {
-        {.capability = "runtime.base.v1",
-         .provider = "mobagen.wasm-base",
-         .version = {1, 0, 0},
-         .linkage = LinkageMode::Wasm},
-        {.capability = "runtime.app.v1",
-         .provider = "mobagen.wasm-app",
-         .version = {1, 0, 0},
-         .linkage = LinkageMode::Wasm},
+        {.capability = "runtime.base.v1", .provider = "mobagen.wasm-base", .version = {1, 0, 0}, .linkage = LinkageMode::Wasm},
+        {.capability = "runtime.app.v1", .provider = "mobagen.wasm-app", .version = {1, 0, 0}, .linkage = LinkageMode::Wasm},
     };
     document.dependencies = {{
         .capability = "runtime.base.v1",
@@ -164,8 +129,7 @@ namespace {
             .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION,
             .size = mobagen::test::valid_wasm_header.size(),
             .package_path = base_package,
-            .binary_path = base_package
-                           / mobagen::plugins::portable_wasm_plugin_binary_filename(),
+            .binary_path = base_package / mobagen::plugins::portable_wasm_plugin_binary_filename(),
         },
         VerifiedLockedPlugin{
             .provider_id = "mobagen.wasm-app",
@@ -174,8 +138,7 @@ namespace {
             .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION,
             .size = mobagen::test::valid_wasm_header.size(),
             .package_path = app_package,
-            .binary_path = app_package
-                           / mobagen::plugins::portable_wasm_plugin_binary_filename(),
+            .binary_path = app_package / mobagen::plugins::portable_wasm_plugin_binary_filename(),
         },
     };
     auto planned = build_locked_plugin_activation_plan(document, plugins);
@@ -190,9 +153,7 @@ TEST_CASE("Portable module manager: construction does not instantiate WASM") {
   test::FakeWasmBackend backend;
   const auto missing = std::filesystem::path{"missing/reference.plugin"};
 
-  auto created = compositions::create_portable_module_manager(
-      portable_plan(missing), backend
-  );
+  auto created = compositions::create_portable_module_manager(portable_plan(missing), backend);
 
   REQUIRE(created.ok());
   CHECK(created.manager->active_count() == 0);
@@ -202,8 +163,7 @@ TEST_CASE("Portable module manager: construction does not instantiate WASM") {
 
   CHECK_FALSE(activated.ok());
   REQUIRE(activated.issues.size() == 1);
-  CHECK(activated.issues.front().code
-        == compositions::PortableModuleManagerIssueCode::LoadFailed);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::LoadFailed);
   CHECK(backend.calls == 0);
 }
 
@@ -219,8 +179,7 @@ TEST_CASE("Portable module manager: first capability request instantiates and ac
   CHECK(created.manager->active_count() == 1);
   CHECK(backend.calls == 1);
   REQUIRE(created.manager->plugin("mobagen.wasm-package") != nullptr);
-  CHECK(created.manager->plugin("mobagen.wasm-package")->state()
-        == plugins::PortableWasmPluginState::Active);
+  CHECK(created.manager->plugin("mobagen.wasm-package")->state() == plugins::PortableWasmPluginState::Active);
 
   REQUIRE(created.manager->activate("runtime.package.v1").ok());
   CHECK(created.manager->active_count() == 1);
@@ -233,9 +192,7 @@ TEST_CASE("Portable module manager: capability acquisition returns its active WA
   test::TemporaryWasmDirectory directory;
   test::FakeWasmBackend backend;
   const auto package = add_portable_plugin(directory, "reference.plugin");
-  auto created = compositions::create_portable_module_manager(
-      portable_plan(package), backend
-  );
+  auto created = compositions::create_portable_module_manager(portable_plan(package), backend);
   REQUIRE(created.ok());
 
   const auto acquired = created.manager->acquire("runtime.package.v1");
@@ -260,9 +217,7 @@ TEST_CASE("Portable module manager: unrelated selected WASM remains uninstantiat
   test::TemporaryWasmDirectory directory;
   test::FakeWasmBackend backend;
   const auto package = add_portable_plugin(directory, "reference.plugin");
-  auto created = compositions::create_portable_module_manager(
-      portable_and_unused_plan(package), backend
-  );
+  auto created = compositions::create_portable_module_manager(portable_and_unused_plan(package), backend);
   REQUIRE(created.ok());
 
   REQUIRE(created.manager->activate("runtime.package.v1").ok());
@@ -281,9 +236,7 @@ TEST_CASE("Portable module manager: requested capability activates its dependenc
   const auto app = add_portable_plugin(directory, "app.plugin");
   backend.provider_ids = {"mobagen.wasm-base", "mobagen.wasm-app"};
   backend.capability_ids = {"runtime.base.v1", "runtime.app.v1"};
-  auto created = compositions::create_portable_module_manager(
-      portable_dependency_plan(base, app), backend
-  );
+  auto created = compositions::create_portable_module_manager(portable_dependency_plan(base, app), backend);
   REQUIRE(created.ok());
 
   REQUIRE(created.manager->activate("runtime.app.v1").ok());
@@ -311,8 +264,7 @@ TEST_CASE("Portable module manager: locked hash is checked before WASM instantia
 
   CHECK_FALSE(activated.ok());
   REQUIRE(activated.issues.size() == 1);
-  CHECK(activated.issues.front().code
-        == compositions::PortableModuleManagerIssueCode::ArtifactVerificationFailed);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::ArtifactVerificationFailed);
   CHECK(backend.calls == 0);
 }
 
@@ -329,8 +281,7 @@ TEST_CASE("Portable module manager: permissions absent from the lock fail before
 
   CHECK_FALSE(activated.ok());
   REQUIRE(activated.issues.size() == 1);
-  CHECK(activated.issues.front().code
-        == compositions::PortableModuleManagerIssueCode::PermissionDenied);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::PermissionDenied);
   CHECK(backend.calls == 1);
   CHECK(test::invocation_count(backend, plugins::WasmPluginExport::Configure) == 0);
   CHECK(test::invocation_count(backend, plugins::WasmPluginExport::Start) == 0);
@@ -350,8 +301,7 @@ TEST_CASE("Portable module manager: another thread cannot instantiate WASM") {
 
   CHECK_FALSE(activated.ok());
   REQUIRE(activated.issues.size() == 1);
-  CHECK(activated.issues.front().code
-        == compositions::PortableModuleManagerIssueCode::WrongThread);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::WrongThread);
   CHECK(created.manager->active_count() == 0);
   CHECK(backend.calls == 0);
 }

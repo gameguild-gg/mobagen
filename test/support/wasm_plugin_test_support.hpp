@@ -118,10 +118,9 @@ namespace mobagen::test {
 
   class DescriptorInstance final : public plugins::PortableWasmInstance {
   public:
-    explicit DescriptorInstance(std::shared_ptr<std::vector<plugins::WasmPluginExport>> invocations,
-                                 std::string provider_id = "mobagen.wasm-package", std::string capability_id = "runtime.package.v1",
-                                 std::string permission_id = {}, std::uint32_t start_status = MOBAGEN_WASM_STATUS_OK,
-                                 std::shared_ptr<plugins::WasmHostImports> host_imports = {})
+    explicit DescriptorInstance(std::shared_ptr<std::vector<plugins::WasmPluginExport>> invocations, std::string provider_id = "mobagen.wasm-package",
+                                std::string capability_id = "runtime.package.v1", std::string permission_id = {},
+                                std::uint32_t start_status = MOBAGEN_WASM_STATUS_OK, std::shared_ptr<plugins::WasmHostImports> host_imports = {})
         : PortableWasmInstance(std::move(host_imports)),
           invocations_(std::move(invocations)),
           provider_id_(std::move(provider_id)),
@@ -200,7 +199,7 @@ namespace mobagen::test {
   class FakeWasmBackend final : public plugins::PortableWasmBackend {
   public:
     plugins::PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary,
-                                                          std::shared_ptr<plugins::WasmHostImports> imports) override {
+                                                         std::shared_ptr<plugins::WasmHostImports> imports) override {
       ++calls;
       observed.assign(binary.begin(), binary.end());
       host_imports.push_back(imports.get());

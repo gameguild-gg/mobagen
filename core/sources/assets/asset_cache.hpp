@@ -46,12 +46,12 @@ namespace mobagen::assets {
 
   struct AssetCacheSink {
     void* context{};
-    bool (*write)(void* context, std::span<const std::byte> bytes) noexcept{};
+    bool (*write)(void* context, std::span<const std::byte> bytes) noexcept {};
   };
 
   struct AssetCacheSource {
     void* context{};
-    bool (*produce)(void* context, AssetCacheSink sink) noexcept{};
+    bool (*produce)(void* context, AssetCacheSink sink) noexcept {};
   };
 
   class AssetCache {
@@ -64,8 +64,7 @@ namespace mobagen::assets {
     [[nodiscard]] std::filesystem::path path_for(const AssetId& id) const;
     [[nodiscard]] AssetCacheStoreResult store(std::span<const std::byte> bytes) const;
     [[nodiscard]] AssetCacheStoreResult store_file(const std::filesystem::path& source) const;
-    [[nodiscard]] AssetCacheStoreResult store_stream(const AssetId& expected_id, std::size_t expected_size,
-                                                     AssetCacheSource source) const;
+    [[nodiscard]] AssetCacheStoreResult store_stream(const AssetId& expected_id, std::size_t expected_size, AssetCacheSource source) const;
     [[nodiscard]] AssetCacheLoadResult load(const AssetId& id) const;
 
   private:

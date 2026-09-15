@@ -124,8 +124,7 @@ TEST_CASE("Plugin package: canonical contents classify native and portable packa
   const auto portable_package = directory.path() / "portable.plugin";
   REQUIRE(std::filesystem::create_directory(portable_package));
   const std::array wasm_header{
-      std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d},
-      std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+      std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
   };
   std::ofstream wasm(portable_package / portable_wasm_plugin_binary_filename(), std::ios::binary);
   REQUIRE(wasm.is_open());

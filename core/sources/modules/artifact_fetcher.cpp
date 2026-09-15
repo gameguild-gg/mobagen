@@ -27,9 +27,7 @@ namespace mobagen::modules {
     bool produce_artifact(void* context, assets::AssetCacheSink sink) noexcept {
       auto& source = *static_cast<HttpArtifactSource*>(context);
       try {
-        source.result = source.client->get_stream(
-            source.request, {.context = &sink, .write = forward_chunk}
-        );
+        source.result = source.client->get_stream(source.request, {.context = &sink, .write = forward_chunk});
       } catch (const std::exception& exception) {
         source.result = http::StreamGetResult{
             .error = http::Error{http::ErrorCode::Transfer, exception.what()},
@@ -63,8 +61,7 @@ namespace mobagen::modules {
     return 0;
   }
 
-  ArtifactFetchResult fetch_module_artifacts(const ModuleCatalogIndex& catalog,
-                                             const ModuleResolution& resolution, http::Client& client,
+  ArtifactFetchResult fetch_module_artifacts(const ModuleCatalogIndex& catalog, const ModuleResolution& resolution, http::Client& client,
                                              const assets::AssetCache& cache, ArtifactFetchOptions options) {
     if (catalog.registry().generation() != resolution.registry_generation()) {
       return failure({
@@ -91,8 +88,7 @@ namespace mobagen::modules {
         });
       }
       const auto expected_id = assets::parse_asset_id(artifact->hash);
-      if (!expected_id.has_value() || artifact->size == 0
-          || artifact->size > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      if (!expected_id.has_value() || artifact->size == 0 || artifact->size > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
         return failure({
             .code = ArtifactFetchIssueCode::InvalidArtifact,
             .provider_id = provider->id,
@@ -118,13 +114,10 @@ namespace mobagen::modules {
               .max_redirects = 0,
           },
       };
-      const auto stored = cache.store_stream(
-          *expected_id, static_cast<std::size_t>(artifact->size),
-          {.context = &source, .produce = produce_artifact}
-      );
+      const auto stored
+          = cache.store_stream(*expected_id, static_cast<std::size_t>(artifact->size), {.context = &source, .produce = produce_artifact});
       if (!stored.ok()) {
-        if (source.result.has_value() && source.result->response.has_value()
-            && source.result->response->status != 200) {
+        if (source.result.has_value() && source.result->response.has_value() && source.result->response->status != 200) {
           return failure({
               .code = ArtifactFetchIssueCode::HttpStatus,
               .provider_id = provider->id,
@@ -134,8 +127,7 @@ namespace mobagen::modules {
           });
         }
         if (source.result.has_value() && source.result->error.has_value()) {
-          if (source.result->error->code == http::ErrorCode::SinkRejected
-              && stored.status == assets::AssetCacheStatus::io_error) {
+          if (source.result->error->code == http::ErrorCode::SinkRejected && stored.status == assets::AssetCacheStatus::io_error) {
             return failure({
                 .code = ArtifactFetchIssueCode::CacheFailure,
                 .provider_id = provider->id,
@@ -144,22 +136,20 @@ namespace mobagen::modules {
                 .cache_status = stored.status,
             });
           }
-          const auto code = source.result->error->code == http::ErrorCode::LimitExceeded
-                                || source.result->error->code == http::ErrorCode::SinkRejected
-                            ? ArtifactFetchIssueCode::SizeMismatch
-                            : ArtifactFetchIssueCode::Transport;
+          const auto code
+              = source.result->error->code == http::ErrorCode::LimitExceeded || source.result->error->code == http::ErrorCode::SinkRejected
+                    ? ArtifactFetchIssueCode::SizeMismatch
+                    : ArtifactFetchIssueCode::Transport;
           return failure({
               .code = code,
               .provider_id = provider->id,
-              .message = code == ArtifactFetchIssueCode::SizeMismatch
-                             ? "plugin artifact exceeded its declared size"
-                             : "plugin artifact HTTPS request failed",
+              .message
+              = code == ArtifactFetchIssueCode::SizeMismatch ? "plugin artifact exceeded its declared size" : "plugin artifact HTTPS request failed",
               .transport_error = std::move(source.result->error),
               .cache_status = stored.status,
           });
         }
-        if (source.result.has_value() && source.result->response.has_value()
-            && source.result->response->body_bytes != artifact->size) {
+        if (source.result.has_value() && source.result->response.has_value() && source.result->response->body_bytes != artifact->size) {
           return failure({
               .code = ArtifactFetchIssueCode::SizeMismatch,
               .provider_id = provider->id,

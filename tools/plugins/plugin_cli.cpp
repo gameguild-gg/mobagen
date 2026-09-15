@@ -7,7 +7,7 @@
 #include "plugins/wasm_plugin_loader.hpp"
 #include "plugins/wasm_plugin_store.hpp"
 #if defined(MOBAGEN_PLUGIN_CLI_HAS_WAMR)
-#include "plugins/wamr_backend.hpp"
+#  include "plugins/wamr_backend.hpp"
 #endif
 
 #include <algorithm>
@@ -35,8 +35,7 @@ namespace mobagen::plugins::cli {
       return std::to_string(version.major) + '.' + std::to_string(version.minor) + '.' + std::to_string(version.patch);
     }
 
-    template <typename PluginLoadResult>
-    void print_load_failure(std::string_view operation, const PluginLoadResult& result, std::ostream& error) {
+    template <typename PluginLoadResult> void print_load_failure(std::string_view operation, const PluginLoadResult& result, std::ostream& error) {
       error << operation << " failed";
       if (!result.issues.empty()) {
         error << ": " << result.issues.front().message;
@@ -47,8 +46,7 @@ namespace mobagen::plugins::cli {
       error << '\n';
     }
 
-    template <typename PluginStoreResult>
-    void print_store_failure(std::string_view operation, const PluginStoreResult& result, std::ostream& error) {
+    template <typename PluginStoreResult> void print_store_failure(std::string_view operation, const PluginStoreResult& result, std::ostream& error) {
       error << operation << " failed";
       if (!result.issues.empty()) {
         error << ": " << result.issues.front().message;
@@ -108,9 +106,8 @@ namespace mobagen::plugins::cli {
       return 0;
     }
 
-    template <typename BackendProvider>
-    int install(std::string_view store_text, std::string_view package_text, std::ostream& output, std::ostream& error,
-                BackendProvider&& backend_provider) {
+    template <typename BackendProvider> int install(std::string_view store_text, std::string_view package_text, std::ostream& output,
+                                                    std::ostream& error, BackendProvider&& backend_provider) {
       const auto package = std::filesystem::path{package_text};
       const auto inspection = inspect_plugin_package(package);
       if (!inspection.ok()) {
@@ -129,8 +126,8 @@ namespace mobagen::plugins::cli {
           print_store_failure("install", installed, error);
           return 3;
         }
-        output << "installed\t" << installed.provider_id << '\t' << version_string(installed.version) << '\t'
-               << installed.package.generic_string() << '\n';
+        output << "installed\t" << installed.provider_id << '\t' << version_string(installed.version) << '\t' << installed.package.generic_string()
+               << '\n';
         return 0;
       }
       PluginHost host;
@@ -162,9 +159,7 @@ namespace mobagen::plugins::cli {
       PluginPackageKind kind{};
     };
 
-    std::string_view package_kind_name(PluginPackageKind kind) noexcept {
-      return kind == PluginPackageKind::Native ? "native" : "wasm";
-    }
+    std::string_view package_kind_name(PluginPackageKind kind) noexcept { return kind == PluginPackageKind::Native ? "native" : "wasm"; }
 
     template <typename BackendProvider>
     int list(std::string_view store_text, std::ostream& output, std::ostream& error, BackendProvider&& backend_provider) {

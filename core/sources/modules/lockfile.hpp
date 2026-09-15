@@ -114,8 +114,7 @@ namespace mobagen::modules {
     [[nodiscard]] bool ok() const noexcept { return document.has_value() && issues.empty(); }
   };
 
-  [[nodiscard]] LockfileParseResult parse_lockfile(std::string_view source,
-                                                   std::string_view source_path = "mobagen.lock");
+  [[nodiscard]] LockfileParseResult parse_lockfile(std::string_view source, std::string_view source_path = "mobagen.lock");
 
   enum class LockfileReadIssueCode : std::uint8_t {
     InvalidPath,

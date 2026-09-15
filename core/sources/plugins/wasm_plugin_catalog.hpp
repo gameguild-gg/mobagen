@@ -69,11 +69,8 @@ namespace mobagen::plugins {
   };
 
   /* host_services.state must remain valid until the catalog and every activation created from it are destroyed. */
-  [[nodiscard]] PortableWasmPluginCatalogResult discover_portable_wasm_plugin_catalog(const modules::ProductDescriptor& product,
-                                                                                      const std::filesystem::path& project_root,
-                                                                                      PortableWasmBackend& backend,
-                                                                                      std::span<const modules::ProviderDescriptor> builtin_providers
-                                                                                      = {},
-                                                                                      WasmHostServices host_services = {});
+  [[nodiscard]] PortableWasmPluginCatalogResult discover_portable_wasm_plugin_catalog(
+      const modules::ProductDescriptor& product, const std::filesystem::path& project_root, PortableWasmBackend& backend,
+      std::span<const modules::ProviderDescriptor> builtin_providers = {}, WasmHostServices host_services = {});
 
 }  // namespace mobagen::plugins

@@ -87,9 +87,7 @@ TEST_CASE("Asset cache: verified streams commit incrementally and skip cached pr
   REQUIRE(id.has_value());
   ChunkedAssetSource source{.contents = contents, .split = 7};
 
-  const auto stored = cache.store_stream(
-      *id, contents.size(), {.context = &source, .produce = ChunkedAssetSource::produce}
-  );
+  const auto stored = cache.store_stream(*id, contents.size(), {.context = &source, .produce = ChunkedAssetSource::produce});
 
   REQUIRE(stored.status == AssetCacheStatus::stored);
   REQUIRE(stored.id == id);
@@ -100,9 +98,7 @@ TEST_CASE("Asset cache: verified streams commit incrementally and skip cached pr
   CHECK_FALSE(has_temporary_file(directory.path()));
 
   ChunkedAssetSource duplicate{.contents = contents, .split = 1};
-  const auto cached = cache.store_stream(
-      *id, contents.size(), {.context = &duplicate, .produce = ChunkedAssetSource::produce}
-  );
+  const auto cached = cache.store_stream(*id, contents.size(), {.context = &duplicate, .produce = ChunkedAssetSource::produce});
   CHECK(cached.status == AssetCacheStatus::already_present);
   CHECK(duplicate.calls == 0);
 }
@@ -115,17 +111,13 @@ TEST_CASE("Asset cache: failed or mismatched streams never publish partial blobs
   REQUIRE(expected.has_value());
 
   ChunkedAssetSource wrong_hash{.contents = bytes("untrust-stream"), .split = 4};
-  const auto mismatched = cache.store_stream(
-      *expected, wrong_hash.contents.size(), {.context = &wrong_hash, .produce = ChunkedAssetSource::produce}
-  );
+  const auto mismatched = cache.store_stream(*expected, wrong_hash.contents.size(), {.context = &wrong_hash, .produce = ChunkedAssetSource::produce});
   CHECK(mismatched.status == AssetCacheStatus::source_changed);
   CHECK(cache.load(*expected).status == AssetCacheStatus::not_found);
   CHECK_FALSE(has_temporary_file(directory.path()));
 
   ChunkedAssetSource failed{.contents = bytes("trusted-stream"), .fail = true};
-  const auto aborted = cache.store_stream(
-      *expected, failed.contents.size(), {.context = &failed, .produce = ChunkedAssetSource::produce}
-  );
+  const auto aborted = cache.store_stream(*expected, failed.contents.size(), {.context = &failed, .produce = ChunkedAssetSource::produce});
   CHECK(aborted.status == AssetCacheStatus::source_changed);
   CHECK(cache.load(*expected).status == AssetCacheStatus::not_found);
   CHECK_FALSE(has_temporary_file(directory.path()));

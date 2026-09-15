@@ -28,12 +28,14 @@ execute_process(
   ERROR_VARIABLE CONFIGURE_ERROR
 )
 if(NOT CONFIGURE_RESULT EQUAL 0)
-  message(FATAL_ERROR "CPM legacy consumer configure failed:\n${CONFIGURE_OUTPUT}\n${CONFIGURE_ERROR}")
+  message(
+    FATAL_ERROR "CPM legacy consumer configure failed:\n${CONFIGURE_OUTPUT}\n${CONFIGURE_ERROR}"
+  )
 endif()
 
 execute_process(
-  COMMAND "${CMAKE_COMMAND}" --build "${BINARY_DIR}" --config "${HOST_CONFIG}" --parallel 2
-          --target MobagenLegacyCoreConsumer
+  COMMAND "${CMAKE_COMMAND}" --build "${BINARY_DIR}" --config "${HOST_CONFIG}" --parallel 2 --target
+          MobagenLegacyCoreConsumer
   RESULT_VARIABLE BUILD_RESULT
   OUTPUT_VARIABLE BUILD_OUTPUT
   ERROR_VARIABLE BUILD_ERROR

@@ -39,10 +39,7 @@ namespace mobagen::assets {
     resource::Handle handle{resource::kNullHandle};
     std::optional<AssetCacheStatus> cache_status;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return status == AssetManagerStatus::resident
-             || status == AssetManagerStatus::loaded;
-    }
+    [[nodiscard]] bool ok() const noexcept { return status == AssetManagerStatus::resident || status == AssetManagerStatus::loaded; }
   };
 
   enum class AssetManagerBatchStatus : std::uint8_t {
@@ -63,9 +60,7 @@ namespace mobagen::assets {
     std::optional<AssetManagerAcquireResult> failure;
     std::vector<AssetManagerResolvedAsset> assets;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return status == AssetManagerBatchStatus::success;
-    }
+    [[nodiscard]] bool ok() const noexcept { return status == AssetManagerBatchStatus::success; }
   };
 
   /* Lazily materializes content-addressed cache blobs into typed, generational
@@ -77,8 +72,7 @@ namespace mobagen::assets {
     static_assert(std::is_default_constructible_v<T>);
 
   public:
-    AssetManager(const AssetCache& cache, AssetDecoder<T> decoder) noexcept
-        : cache_(&cache), decoder_(decoder) {}
+    AssetManager(const AssetCache& cache, AssetDecoder<T> decoder) noexcept : cache_(&cache), decoder_(decoder) {}
 
     [[nodiscard]] AssetManagerAcquireResult acquire(const AssetId& id) {
       if (const auto resident = registry_.find(id); resident.has_value()) {
@@ -97,9 +91,7 @@ namespace mobagen::assets {
       auto cached = cache_->load(id);
       if (!cached.ok()) {
         return {
-            .status = cached.status == AssetCacheStatus::not_found
-                        ? AssetManagerStatus::not_found
-                        : AssetManagerStatus::cache_error,
+            .status = cached.status == AssetCacheStatus::not_found ? AssetManagerStatus::not_found : AssetManagerStatus::cache_error,
             .cache_status = cached.status,
         };
       }
@@ -107,9 +99,7 @@ namespace mobagen::assets {
       std::optional<T> decoded;
       try {
         decoded.emplace();
-        if (!decoder_.decode(
-                decoder_.context, AssetDecodeRequest{id, cached.bytes}, *decoded
-            )) {
+        if (!decoder_.decode(decoder_.context, AssetDecodeRequest{id, cached.bytes}, *decoded)) {
           return {
               .status = AssetManagerStatus::decode_failed,
               .cache_status = cached.status,
@@ -137,9 +127,7 @@ namespace mobagen::assets {
 
         try {
           if (inserted.handle.index >= reference_counts_.size()) {
-            reference_counts_.resize(
-                static_cast<std::size_t>(inserted.handle.index) + 1
-            );
+            reference_counts_.resize(static_cast<std::size_t>(inserted.handle.index) + 1);
           }
           if (reference_counts_[inserted.handle.index] != 0) {
             (void)registry_.release(inserted.handle);
@@ -166,9 +154,7 @@ namespace mobagen::assets {
       }
     }
 
-    [[nodiscard]] AssetManagerBatchResult acquire_all(
-        const AssetDependencyGraph& graph, std::span<const AssetId> roots
-    ) {
+    [[nodiscard]] AssetManagerBatchResult acquire_all(const AssetDependencyGraph& graph, std::span<const AssetId> roots) {
       auto order = graph.build_order(roots);
       if (order.status != AssetDependencyStatus::success) {
         return {
@@ -185,8 +171,7 @@ namespace mobagen::assets {
       for (const auto& id : order.assets) {
         const auto acquired = acquire(id);
         if (!acquired.ok()) {
-          for (auto handle = acquired_handles.rbegin();
-               handle != acquired_handles.rend(); ++handle) {
+          for (auto handle = acquired_handles.rbegin(); handle != acquired_handles.rend(); ++handle) {
             (void)release(*handle);
           }
           return {
@@ -207,21 +192,12 @@ namespace mobagen::assets {
       };
     }
 
-    [[nodiscard]] std::optional<resource::Handle> find(const AssetId& id) const {
-      return registry_.find(id);
-    }
-    [[nodiscard]] bool valid(resource::Handle handle) const {
-      return registry_.valid(handle);
-    }
-    [[nodiscard]] T* get(resource::Handle handle) {
-      return registry_.get(handle);
-    }
-    [[nodiscard]] const T* get(resource::Handle handle) const {
-      return registry_.get(handle);
-    }
+    [[nodiscard]] std::optional<resource::Handle> find(const AssetId& id) const { return registry_.find(id); }
+    [[nodiscard]] bool valid(resource::Handle handle) const { return registry_.valid(handle); }
+    [[nodiscard]] T* get(resource::Handle handle) { return registry_.get(handle); }
+    [[nodiscard]] const T* get(resource::Handle handle) const { return registry_.get(handle); }
     bool release(resource::Handle handle) {
-      if (!registry_.valid(handle)
-          || handle.index >= reference_counts_.size()) {
+      if (!registry_.valid(handle) || handle.index >= reference_counts_.size()) {
         return false;
       }
       auto& references = reference_counts_[handle.index];
@@ -238,19 +214,15 @@ namespace mobagen::assets {
       references = 0;
       return true;
     }
-    [[nodiscard]] std::size_t size() const noexcept {
-      return registry_.size();
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return registry_.size(); }
 
   private:
     [[nodiscard]] bool retain(resource::Handle handle) noexcept {
-      if (!registry_.valid(handle)
-          || handle.index >= reference_counts_.size()) {
+      if (!registry_.valid(handle) || handle.index >= reference_counts_.size()) {
         return false;
       }
       auto& references = reference_counts_[handle.index];
-      if (references == 0
-          || references == std::numeric_limits<std::uint32_t>::max()) {
+      if (references == 0 || references == std::numeric_limits<std::uint32_t>::max()) {
         return false;
       }
       ++references;
