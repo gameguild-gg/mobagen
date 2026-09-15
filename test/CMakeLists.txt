@@ -67,8 +67,18 @@ set(FOUNDATION_TEST_SOURCES
     wasm_plugin_contract_tests.cpp
     wasm_runtime_tests.cpp
     wasm_command_channel_tests.cpp
+    wasm_asset_store_tests.cpp
     wasm_host_imports_tests.cpp
 )
+
+set(PORTABLE_ASSET_STORE_PROVIDER_SOURCE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../modules/asset_store/portable_asset_store_plugin.c
+)
+set_source_files_properties(
+  ${PORTABLE_ASSET_STORE_PROVIDER_SOURCE}
+  PROPERTIES COMPILE_DEFINITIONS MOBAGEN_WASM_ASSET_STORE_TESTING=1
+)
+list(APPEND FOUNDATION_TEST_SOURCES ${PORTABLE_ASSET_STORE_PROVIDER_SOURCE})
 
 if(TARGET mobagen::asset_cli)
   list(APPEND FOUNDATION_TEST_SOURCES asset_cli_tests.cpp)
