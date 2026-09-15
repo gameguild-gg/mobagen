@@ -280,6 +280,28 @@ namespace mobagen::compositions {
     return result;
   }
 
+  PortableModuleCapabilityResult PortableModuleManager::acquire(
+      std::string_view capability
+  ) {
+    PortableModuleCapabilityResult result;
+    auto activated = activate(capability);
+    if (!activated.ok()) {
+      result.issues = std::move(activated.issues);
+      return result;
+    }
+    const auto selected = capabilities_.find(capability);
+    if (selected != capabilities_.end()) {
+      result.plugin = activations_[selected->second].get();
+    }
+    if (result.plugin == nullptr) {
+      result.issues.push_back({
+          .code = PortableModuleManagerIssueCode::CapabilityUnavailable,
+          .message = "portable capability has no active WASM endpoint",
+      });
+    }
+    return result;
+  }
+
   PortableModuleManagerActionResult PortableModuleManager::stop() {
     PortableModuleManagerActionResult result;
     if (owner_thread_ != std::this_thread::get_id()) {
