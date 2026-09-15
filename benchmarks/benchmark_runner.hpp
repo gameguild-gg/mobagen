@@ -34,6 +34,7 @@ namespace mobagen::benchmark {
     std::size_t warmup = 5;
     std::size_t samples = 30;
     std::optional<double> max_overhead_percent;
+    std::optional<double> max_dispatch_overhead_ns;
   };
 
   struct Result {
@@ -65,7 +66,7 @@ namespace mobagen::benchmark {
     Options options;
     for (std::size_t index = 0; index < arguments.size(); ++index) {
       const std::string_view option = arguments[index];
-      if (option != "--warmup" && option != "--samples" && option != "--max-overhead-percent") {
+      if (option != "--warmup" && option != "--samples" && option != "--max-overhead-percent" && option != "--max-dispatch-overhead-ns") {
         throw std::invalid_argument("unknown benchmark option: " + std::string(option));
       }
       if (++index == arguments.size()) {
@@ -75,8 +76,10 @@ namespace mobagen::benchmark {
         options.warmup = parse_positive_count(arguments[index], option);
       } else if (option == "--samples") {
         options.samples = parse_positive_count(arguments[index], option);
-      } else {
+      } else if (option == "--max-overhead-percent") {
         options.max_overhead_percent = parse_non_negative_number(arguments[index], option);
+      } else {
+        options.max_dispatch_overhead_ns = parse_non_negative_number(arguments[index], option);
       }
     }
     return options;
@@ -213,6 +216,31 @@ namespace mobagen::benchmark {
     };
   }
 
+  struct PairedOperationOverhead {
+    double median_ns{};
+    double p05_ns{};
+  };
+
+  inline PairedOperationOverhead paired_operation_overhead(const PairedResult& result, std::size_t operations_per_sample) {
+    if (operations_per_sample == 0 || result.baseline.samples_ns.empty() || result.baseline.samples_ns.size() != result.candidate.samples_ns.size()) {
+      throw std::invalid_argument("paired operation overhead requires equally sized non-empty sample sets and a positive operation count");
+    }
+    std::vector<double> samples;
+    samples.reserve(result.baseline.samples_ns.size());
+    for (std::size_t index = 0; index < result.baseline.samples_ns.size(); ++index) {
+      const auto baseline = result.baseline.samples_ns[index];
+      const auto candidate = result.candidate.samples_ns[index];
+      if (!std::isfinite(baseline) || baseline < 0.0 || !std::isfinite(candidate) || candidate < 0.0) {
+        throw std::invalid_argument("paired operation overhead requires finite non-negative timings");
+      }
+      samples.push_back((candidate - baseline) / static_cast<double>(operations_per_sample));
+    }
+    return {
+        .median_ns = percentile(samples, 0.50),
+        .p05_ns = percentile(samples, 0.05),
+    };
+  }
+
   inline void write_json_string(std::ostream& output, std::string_view value) {
     output << '"';
     for (const unsigned char character : value) {
@@ -269,6 +297,12 @@ namespace mobagen::benchmark {
            << ",\"max_overhead_percent\":";
     if (options.max_overhead_percent.has_value()) {
       output << std::setprecision(17) << *options.max_overhead_percent;
+    } else {
+      output << "null";
+    }
+    output << ",\"max_dispatch_overhead_ns\":";
+    if (options.max_dispatch_overhead_ns.has_value()) {
+      output << std::setprecision(17) << *options.max_dispatch_overhead_ns;
     } else {
       output << "null";
     }

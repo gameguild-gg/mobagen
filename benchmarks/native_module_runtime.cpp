@@ -47,6 +47,7 @@ namespace {
 
   constexpr std::size_t dispatch_batch_size = 100'000;
   constexpr std::size_t dispatch_interleavings = 20;
+  constexpr std::size_t dispatch_operations_per_sample = dispatch_batch_size * dispatch_interleavings;
   constexpr std::size_t frames_per_sample = 240;
   constexpr std::uint32_t frame_item_count = 8'192;
   std::atomic_uint64_t observation{0};
@@ -230,6 +231,13 @@ namespace {
     return overhead.p05_percent <= limit;
   }
 
+  bool gate_dispatch_overhead(std::string_view label, const mobagen::benchmark::PairedResult& result, double limit) {
+    const auto overhead = mobagen::benchmark::paired_operation_overhead(result, dispatch_operations_per_sample);
+    std::cerr << label << " overhead: median " << overhead.median_ns << " ns/call, p05 " << overhead.p05_ns << " ns/call (limit " << limit
+              << " ns/call)\n";
+    return overhead.p05_ns <= limit;
+  }
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -264,12 +272,13 @@ int main(int argc, char** argv) {
       return 4;
     }
 
-    if (options.max_overhead_percent.has_value()) {
-      const auto limit = *options.max_overhead_percent;
-      const bool dispatch_ok = gate_overhead("warmed dispatch", dispatch, limit);
-      const bool frame_ok = gate_overhead("representative frame", frame, limit);
-      if (!dispatch_ok || !frame_ok) return 3;
-    }
+    const auto relative_dispatch = mobagen::benchmark::paired_overhead(dispatch);
+    std::cerr << "warmed dispatch relative overhead (diagnostic): median " << relative_dispatch.median_percent << "%, p05 "
+              << relative_dispatch.p05_percent << "%\n";
+    const bool dispatch_ok
+        = !options.max_dispatch_overhead_ns.has_value() || gate_dispatch_overhead("warmed dispatch", dispatch, *options.max_dispatch_overhead_ns);
+    const bool frame_ok = !options.max_overhead_percent.has_value() || gate_overhead("representative frame", frame, *options.max_overhead_percent);
+    if (!dispatch_ok || !frame_ok) return 3;
     return 0;
   } catch (const std::invalid_argument& error) {
     std::cerr << "invalid benchmark arguments: " << error.what() << '\n';

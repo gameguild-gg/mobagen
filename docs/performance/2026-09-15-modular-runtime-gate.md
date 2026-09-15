@@ -25,11 +25,18 @@ boundary, while the module implementation still executes from its loaded
 Dispatch and frame samples are measured as short A/B blocks with alternating
 order. Each outer sample is the median block cost scaled to the complete work
 count, which rejects scheduler interruptions without hiding persistent cost.
-The gate calculates paired overhead for every outer sample and fails with exit
-code 3 when the fifth percentile (`p05`) is above 1%. In other words, a change
-is blocked only when at least 95% of paired observations breach the budget, not
-because one side happened to be preempted. The median remains visible for
-diagnosis.
+
+Cached dispatch has an absolute budget of at most 1 additional nanosecond per
+call. Its relative percentage remains diagnostic because an empty tick takes
+only a few nanoseconds: a sub-nanosecond delta can otherwise appear as a large
+percentage without representing meaningful engine cost. Representative frames
+retain the 1% relative overhead budget.
+
+Both gates calculate paired overhead for every outer sample and fail with exit
+code 3 when the fifth percentile (`p05`) is above its limit. In other words, a
+change is blocked only when at least 95% of paired observations breach the
+budget, not because one side happened to be preempted. The median remains
+visible for diagnosis.
 
 After warm-up, the benchmark enables an allocation probe around a complete
 modular dispatch and frame sample. Any C++ allocation fails the run with exit
