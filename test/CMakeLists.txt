@@ -293,6 +293,19 @@ add_test(
 )
 set_tests_properties(foundation::plugin-sdk-installed-consumer PROPERTIES LABELS foundation)
 
+add_test(
+  NAME foundation::cpm-legacy-core-consumer
+  COMMAND
+    ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/cpm-legacy-consumer"
+    "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/cpm-legacy-consumer-build"
+    "-DMOBAGEN_SOURCE_DIR=${CMAKE_SOURCE_DIR}" "-DCPM_FILE=${CPM_DOWNLOAD_LOCATION}"
+    "-DHOST_CONFIG=$<CONFIG>" "-DHOST_GENERATOR=${CMAKE_GENERATOR}"
+    "-DHOST_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+    "-DHOST_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}" -P
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpm_legacy_consumer_test.cmake
+)
+set_tests_properties(foundation::cpm-legacy-core-consumer PROPERTIES LABELS foundation)
+
 # Preserve the historical build target while keeping dependency boundaries explicit.
 add_custom_target(CoreTests DEPENDS FoundationTests)
 
