@@ -124,11 +124,9 @@ namespace mobagen::http {
       return {.error = Error{ErrorCode::InvalidRequest, "HTTP client accepts credential-free HTTPS URLs only"}};
     }
     constexpr auto max_curl_file_size = static_cast<std::uintmax_t>(std::numeric_limits<curl_off_t>::max());
-    if (sink.write == nullptr || request.max_response_bytes == 0
-        || static_cast<std::uintmax_t>(request.max_response_bytes) > max_curl_file_size
-        || request.connect_timeout.count() <= 0 || request.transfer_timeout.count() <= 0
-        || request.connect_timeout.count() > LONG_MAX || request.transfer_timeout.count() > LONG_MAX
-        || request.max_redirects > max_supported_redirects) {
+    if (sink.write == nullptr || request.max_response_bytes == 0 || static_cast<std::uintmax_t>(request.max_response_bytes) > max_curl_file_size
+        || request.connect_timeout.count() <= 0 || request.transfer_timeout.count() <= 0 || request.connect_timeout.count() > LONG_MAX
+        || request.transfer_timeout.count() > LONG_MAX || request.max_redirects > max_supported_redirects) {
       return {.error = Error{ErrorCode::InvalidRequest, "HTTP stream sink, limits, or timeouts are invalid"}};
     }
 

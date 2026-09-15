@@ -17,9 +17,7 @@
 namespace mobagen::compositions {
 
   struct LockedNativeProjectOptions {
-    modules::SemanticVersion sdk_version{
-        MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH
-    };
+    modules::SemanticVersion sdk_version{MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH};
     modules::TargetPlatform target{};
     std::string profile;
   };
@@ -53,15 +51,11 @@ namespace mobagen::compositions {
     std::optional<modules::ProductDescriptor> product;
     std::vector<LockedNativeProjectIssue> issues;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return manager != nullptr && product.has_value() && issues.empty();
-    }
+    [[nodiscard]] bool ok() const noexcept { return manager != nullptr && product.has_value() && issues.empty(); }
   };
 
   /* Opens a bootstrapped project from local verified metadata without loading plugin code. */
-  [[nodiscard]] LockedNativeProjectResult open_locked_native_project(
-      const std::filesystem::path& manifest_path, LockedNativeProjectOptions options,
-      plugins::PluginLogSink log_sink = nullptr, void* log_context = nullptr
-  );
+  [[nodiscard]] LockedNativeProjectResult open_locked_native_project(const std::filesystem::path& manifest_path, LockedNativeProjectOptions options,
+                                                                     plugins::PluginLogSink log_sink = nullptr, void* log_context = nullptr);
 
 }  // namespace mobagen::compositions

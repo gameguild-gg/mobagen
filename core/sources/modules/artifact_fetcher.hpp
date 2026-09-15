@@ -60,9 +60,7 @@ namespace mobagen::modules {
   /* Returns the host ABI accepted for runtime-loadable plugin linkages, or zero when unsupported. */
   [[nodiscard]] std::uint32_t runtime_plugin_abi_version(LinkageMode linkage) noexcept;
 
-  [[nodiscard]] ArtifactFetchResult fetch_module_artifacts(
-      const ModuleCatalogIndex& catalog, const ModuleResolution& resolution, http::Client& client,
-      const assets::AssetCache& cache, ArtifactFetchOptions options = {}
-  );
+  [[nodiscard]] ArtifactFetchResult fetch_module_artifacts(const ModuleCatalogIndex& catalog, const ModuleResolution& resolution,
+                                                           http::Client& client, const assets::AssetCache& cache, ArtifactFetchOptions options = {});
 
 }  // namespace mobagen::modules

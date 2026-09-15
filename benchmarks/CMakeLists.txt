@@ -9,8 +9,8 @@ if(TARGET mobagen::core_ecs
     MobagenFoundationBenchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
   )
   target_link_libraries(
-    MobagenFoundationBenchmark
-    PRIVATE mobagen::core_ecs mobagen::core_jobs mobagen::core_scene mobagen::core_render
+    MobagenFoundationBenchmark PRIVATE mobagen::core_ecs mobagen::core_jobs mobagen::core_scene
+                                       mobagen::core_render
   )
 endif()
 
@@ -41,33 +41,25 @@ if(NOT EMSCRIPTEN)
 
   if(TARGET mobagen::native_project)
     add_executable(MobagenNativeModuleRuntimeBenchmark native_module_runtime.cpp)
-    add_dependencies(
-      MobagenNativeModuleRuntimeBenchmark MobagenAbiDispatchBenchmarkPlugin
-    )
+    add_dependencies(MobagenNativeModuleRuntimeBenchmark MobagenAbiDispatchBenchmarkPlugin)
     target_compile_features(MobagenNativeModuleRuntimeBenchmark PRIVATE cxx_std_20)
     target_compile_definitions(
       MobagenNativeModuleRuntimeBenchmark
       PRIVATE MOBAGEN_ABI_DISPATCH_PLUGIN_PATH="$<TARGET_FILE:MobagenAbiDispatchBenchmarkPlugin>"
     )
     target_include_directories(
-      MobagenNativeModuleRuntimeBenchmark
-      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
+      MobagenNativeModuleRuntimeBenchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
     )
-    target_link_libraries(
-      MobagenNativeModuleRuntimeBenchmark PRIVATE mobagen::native_project
-    )
+    target_link_libraries(MobagenNativeModuleRuntimeBenchmark PRIVATE mobagen::native_project)
 
     add_custom_target(
       MobagenPerformanceGate
-      COMMAND
-        $<TARGET_FILE:MobagenPluginAbiDispatchBenchmark> --warmup 5 --samples 31
-        --max-overhead-percent 1
-      COMMAND
-        $<TARGET_FILE:MobagenNativeModuleRuntimeBenchmark> --warmup 5 --samples 31
-        --max-overhead-percent 1
+      COMMAND $<TARGET_FILE:MobagenPluginAbiDispatchBenchmark> --warmup 5 --samples 31
+              --max-overhead-percent 1
+      COMMAND $<TARGET_FILE:MobagenNativeModuleRuntimeBenchmark> --warmup 5 --samples 31
+              --max-overhead-percent 1
       DEPENDS MobagenPluginAbiDispatchBenchmark MobagenNativeModuleRuntimeBenchmark
-      USES_TERMINAL
-      VERBATIM
+      USES_TERMINAL VERBATIM
     )
   endif()
 endif()
@@ -90,8 +82,8 @@ if(BUILD_TESTING)
     set_tests_properties(benchmark::plugin-abi-dispatch-smoke PROPERTIES LABELS benchmark)
   endif()
   if(TARGET MobagenNativeModuleRuntimeBenchmark)
-    add_test(NAME benchmark::native-module-runtime-smoke
-             COMMAND MobagenNativeModuleRuntimeBenchmark --warmup 1 --samples 2
+    add_test(NAME benchmark::native-module-runtime-smoke COMMAND MobagenNativeModuleRuntimeBenchmark
+                                                                 --warmup 1 --samples 2
     )
     set_tests_properties(benchmark::native-module-runtime-smoke PROPERTIES LABELS benchmark)
   endif()

@@ -76,11 +76,8 @@ namespace {
     return std::ranges::any_of(result.issues, [=](const auto& issue) { return issue.code == code && issue.field == field; });
   }
 
-  bool has_parse_issue(const mobagen::modules::LockfileParseResult& result,
-                       mobagen::modules::LockfileParseIssueCode code, std::string_view field) {
-    return std::ranges::any_of(result.issues, [=](const auto& issue) {
-      return issue.code == code && issue.field == field;
-    });
+  bool has_parse_issue(const mobagen::modules::LockfileParseResult& result, mobagen::modules::LockfileParseIssueCode code, std::string_view field) {
+    return std::ranges::any_of(result.issues, [=](const auto& issue) { return issue.code == code && issue.field == field; });
   }
 
   class TemporaryLockDirectory {
@@ -291,8 +288,7 @@ plugins:
   const auto parsed = parse_lockfile(source, "mobagen.lock");
 
   CHECK_FALSE(parsed.ok());
-  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue,
-                        "plugins.customer.color.package"));
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "plugins.customer.color.package"));
 }
 
 TEST_CASE("Module lockfile: atomic write replaces the complete destination") {

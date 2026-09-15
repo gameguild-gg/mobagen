@@ -11,18 +11,15 @@ function(mobagen_write_license_disclaimer FILE_NAME PACKAGES)
     file(
       GLOB licenses
       LIST_DIRECTORIES false
-      "${${package}_SOURCE_DIR}/LICENSE*"
-      "${${package}_SOURCE_DIR}/LICENCE*"
-      "${${package}_SOURCE_DIR}/COPYING*"
-      "${${package}_SOURCE_DIR}/NOTICE*"
+      "${${package}_SOURCE_DIR}/LICENSE*" "${${package}_SOURCE_DIR}/LICENCE*"
+      "${${package}_SOURCE_DIR}/COPYING*" "${${package}_SOURCE_DIR}/NOTICE*"
     )
     list(SORT licenses)
     list(LENGTH licenses LICENSE_COUNT)
 
     if(LICENSE_COUNT EQUAL 0)
       message(
-        WARNING
-          "no regular license file found for package '${package}' in ${${package}_SOURCE_DIR}"
+        WARNING "no regular license file found for package '${package}' in ${${package}_SOURCE_DIR}"
       )
       continue()
     endif()
@@ -33,11 +30,9 @@ function(mobagen_write_license_disclaimer FILE_NAME PACKAGES)
 
     list(GET licenses 0 license)
     file(READ "${license}" LICENSE_TEXT)
-    file(
-      APPEND "${FILE_NAME}"
-      "The following software may be included in this product: ${package}. "
-      "This software contains the following license and notice below:\n\n"
-      "${LICENSE_TEXT}\n"
+    file(APPEND "${FILE_NAME}"
+         "The following software may be included in this product: ${package}. "
+         "This software contains the following license and notice below:\n\n" "${LICENSE_TEXT}\n"
     )
     set(PRINT_DELIMITER ON)
 

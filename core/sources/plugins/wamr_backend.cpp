@@ -37,8 +37,7 @@ namespace mobagen::plugins {
       return false;
     }
 
-    [[nodiscard]] bool validate_binary_memory_budget(std::span<const std::byte> binary, std::uint32_t max_memory_pages,
-                                                     std::string& error) noexcept {
+    [[nodiscard]] bool validate_binary_memory_budget(std::span<const std::byte> binary, std::uint32_t max_memory_pages, std::string& error) noexcept {
       constexpr std::size_t wasm_header_size = 8U;
       constexpr std::uint8_t memory_section_id = 5U;
       if (binary.size() < wasm_header_size) return true;
@@ -124,15 +123,13 @@ namespace mobagen::plugins {
       return imports->log(module_memory(module_instance), level, message_offset, message_size);
     }
 
-    std::uint32_t host_find_capability(wasm_exec_env_t execution_environment, std::uint32_t capability_offset,
-                                      std::uint32_t capability_size, std::uint32_t capability_version,
-                                      std::uint32_t output_handle_offset) noexcept {
+    std::uint32_t host_find_capability(wasm_exec_env_t execution_environment, std::uint32_t capability_offset, std::uint32_t capability_size,
+                                       std::uint32_t capability_version, std::uint32_t output_handle_offset) noexcept {
       if (execution_environment == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
       const auto module_instance = wasm_runtime_get_module_inst(execution_environment);
       auto* imports = module_host_imports(module_instance);
       if (module_instance == nullptr || imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
-      return imports->find_capability(module_memory(module_instance), capability_offset, capability_size, capability_version,
-                                      output_handle_offset);
+      return imports->find_capability(module_memory(module_instance), capability_offset, capability_size, capability_version, output_handle_offset);
     }
 
     std::uint32_t host_submit_commands(wasm_exec_env_t execution_environment, std::uint32_t input_batch_offset,
@@ -153,8 +150,8 @@ namespace mobagen::plugins {
       return symbols;
     }
 
-    [[nodiscard]] bool validate_module_memory(wasm_module_t module, std::uint32_t max_memory_pages,
-                                              std::uint32_t& instantiation_memory_pages, std::string& error) {
+    [[nodiscard]] bool validate_module_memory(wasm_module_t module, std::uint32_t max_memory_pages, std::uint32_t& instantiation_memory_pages,
+                                              std::string& error) {
       const auto export_total = wasm_runtime_get_export_count(module);
       if (export_total < 0) {
         error = "WAMR module memory exports could not be inspected";
@@ -269,7 +266,8 @@ namespace mobagen::plugins {
         const auto index = static_cast<std::size_t>(function);
         if (index >= exports_.size()) return WasmInvocationResult::failure("unknown Mobagen WASM export");
         const auto exported = exports_[index];
-        if (exported == nullptr) return WasmInvocationResult::failure(std::string{wasm_plugin_export_name(function)} + " is not exported by WASM plugin");
+        if (exported == nullptr)
+          return WasmInvocationResult::failure(std::string{wasm_plugin_export_name(function)} + " is not exported by WASM plugin");
 
         std::array<std::uint32_t, max_argument_cells> cells{};
         std::ranges::copy(arguments, cells.begin());
@@ -295,9 +293,7 @@ namespace mobagen::plugins {
       [[nodiscard]] std::span<std::byte> writable_memory() noexcept override { return mutable_memory(); }
 
     private:
-      [[nodiscard]] std::span<std::byte> mutable_memory() const noexcept {
-        return module_memory(module_instance_);
-      }
+      [[nodiscard]] std::span<std::byte> mutable_memory() const noexcept { return module_memory(module_instance_); }
 
       std::vector<std::uint8_t> binary_;
       wasm_module_t module_{};
@@ -367,8 +363,7 @@ namespace mobagen::plugins {
     instantiation.default_stack_size = impl_->options.stack_size_bytes;
     instantiation.host_managed_heap_size = 0U;
     instantiation.max_memory_pages = instantiation_memory_pages;
-    auto module_instance
-        = wasm_runtime_instantiate_ex(module, &instantiation, error_buffer.data(), static_cast<std::uint32_t>(error_buffer.size()));
+    auto module_instance = wasm_runtime_instantiate_ex(module, &instantiation, error_buffer.data(), static_cast<std::uint32_t>(error_buffer.size()));
     if (module_instance == nullptr) {
       wasm_runtime_unload(module);
       return PortableWasmInstantiationResult::failure(std::string{"WAMR module instantiation failed: "} + error_buffer.data());
@@ -382,8 +377,8 @@ namespace mobagen::plugins {
     }
 
     try {
-      auto instance = std::make_unique<WamrInstance>(std::move(owned_binary), module, module_instance, execution_environment,
-                                                     impl_->runtime, std::move(host_imports));
+      auto instance = std::make_unique<WamrInstance>(std::move(owned_binary), module, module_instance, execution_environment, impl_->runtime,
+                                                     std::move(host_imports));
       return PortableWasmInstantiationResult::success(std::move(instance));
     } catch (const std::bad_alloc&) {
       wasm_runtime_destroy_exec_env(execution_environment);

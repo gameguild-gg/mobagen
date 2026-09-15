@@ -23,8 +23,7 @@ namespace {
       static std::atomic_uint64_t sequence = 0;
       const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
       path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-native-module-manager-" + std::to_string(ticks) + '-'
-                 + std::to_string(sequence.fetch_add(1)));
+              / ("mobagen-native-module-manager-" + std::to_string(ticks) + '-' + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directories(path_));
     }
 
@@ -36,10 +35,7 @@ namespace {
     [[nodiscard]] std::filesystem::path add_reference_plugin() const {
       const auto package = path_ / "reference.plugin";
       REQUIRE(std::filesystem::create_directory(package));
-      REQUIRE(std::filesystem::copy_file(
-          MOBAGEN_REFERENCE_PLUGIN_PATH,
-          package / mobagen::plugins::native_plugin_binary_filename()
-      ));
+      REQUIRE(std::filesystem::copy_file(MOBAGEN_REFERENCE_PLUGIN_PATH, package / mobagen::plugins::native_plugin_binary_filename()));
       return package;
     }
 
@@ -47,9 +43,8 @@ namespace {
     std::filesystem::path path_;
   };
 
-  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> reference_plan(
-      const std::filesystem::path& package, std::string_view configuration = {}
-  ) {
+  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> reference_plan(const std::filesystem::path& package,
+                                                                               std::string_view configuration = {}) {
     using namespace mobagen::modules;
     LockfileDocument document;
     document.metadata.plugins = {{
@@ -88,30 +83,16 @@ namespace {
     return std::move(planned.plan);
   }
 
-  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> reference_and_unused_plan(
-      const std::filesystem::path& reference_package
-  ) {
+  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> reference_and_unused_plan(const std::filesystem::path& reference_package) {
     using namespace mobagen::modules;
     LockfileDocument document;
     document.metadata.plugins = {
-        {.provider = "mobagen.reference",
-         .version = {1, 0, 0},
-         .abi_version = MOBAGEN_PLUGIN_ABI_VERSION,
-         .package = "reference.plugin"},
-        {.provider = "mobagen.unused",
-         .version = {1, 0, 0},
-         .abi_version = MOBAGEN_PLUGIN_ABI_VERSION,
-         .package = "unused.plugin"},
+        {.provider = "mobagen.reference", .version = {1, 0, 0}, .abi_version = MOBAGEN_PLUGIN_ABI_VERSION, .package = "reference.plugin"},
+        {.provider = "mobagen.unused", .version = {1, 0, 0}, .abi_version = MOBAGEN_PLUGIN_ABI_VERSION, .package = "unused.plugin"},
     };
     document.resolved = {
-        {.capability = MOBAGEN_RUNTIME_TICK_V1_ID,
-         .provider = "mobagen.reference",
-         .version = {1, 0, 0},
-         .linkage = LinkageMode::Dynamic},
-        {.capability = "unused.service.v1",
-         .provider = "mobagen.unused",
-         .version = {1, 0, 0},
-         .linkage = LinkageMode::Dynamic},
+        {.capability = MOBAGEN_RUNTIME_TICK_V1_ID, .provider = "mobagen.reference", .version = {1, 0, 0}, .linkage = LinkageMode::Dynamic},
+        {.capability = "unused.service.v1", .provider = "mobagen.unused", .version = {1, 0, 0}, .linkage = LinkageMode::Dynamic},
     };
     const auto missing_package = std::filesystem::path{"missing/unused.plugin"};
     const std::vector verified_plugins{
@@ -171,16 +152,12 @@ TEST_CASE("Native module manager: first capability request activates once and re
   using namespace mobagen;
   TemporaryNativeModuleProject project;
   const std::vector configurations{configuration("41")};
-  auto created = compositions::create_native_module_manager(
-      reference_plan(project.add_reference_plugin(), "41"), configurations
-  );
+  auto created = compositions::create_native_module_manager(reference_plan(project.add_reference_plugin(), "41"), configurations);
   REQUIRE(created.ok());
 
   REQUIRE(created.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID).ok());
   CHECK(created.manager->active_count() == 1);
-  const auto api = created.manager->host().find<MobagenRuntimeTickV1>(
-      MOBAGEN_RUNTIME_TICK_V1_ID, 1
-  );
+  const auto api = created.manager->host().find<MobagenRuntimeTickV1>(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
   REQUIRE(api.has_value());
   CHECK((*api)->tick((*api)->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK((*api)->tick_count((*api)->plugin_state) == 42);
@@ -195,9 +172,7 @@ TEST_CASE("Native module manager: first capability request activates once and re
 TEST_CASE("Native module manager: capability acquisition returns the direct ABI table") {
   using namespace mobagen;
   TemporaryNativeModuleProject project;
-  auto created = compositions::create_native_module_manager(
-      reference_plan(project.add_reference_plugin())
-  );
+  auto created = compositions::create_native_module_manager(reference_plan(project.add_reference_plugin()));
   REQUIRE(created.ok());
 
   const auto acquired = created.manager->acquire(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
@@ -208,9 +183,7 @@ TEST_CASE("Native module manager: capability acquisition returns the direct ABI 
   CHECK(acquired.binding->capability_id == MOBAGEN_RUNTIME_TICK_V1_ID);
   CHECK(acquired.binding->abi_version == 1);
   REQUIRE(acquired.binding->function_table_size >= sizeof(MobagenRuntimeTickV1));
-  const auto* api = static_cast<const MobagenRuntimeTickV1*>(
-      acquired.binding->function_table
-  );
+  const auto* api = static_cast<const MobagenRuntimeTickV1*>(acquired.binding->function_table);
   CHECK(api->tick(api->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK(created.manager->active_count() == 1);
 
@@ -224,9 +197,7 @@ TEST_CASE("Native module manager: capability acquisition returns the direct ABI 
 TEST_CASE("Native module manager: capability acquisition enforces the requested ABI") {
   using namespace mobagen;
   TemporaryNativeModuleProject project;
-  auto created = compositions::create_native_module_manager(
-      reference_plan(project.add_reference_plugin())
-  );
+  auto created = compositions::create_native_module_manager(reference_plan(project.add_reference_plugin()));
   REQUIRE(created.ok());
 
   const auto acquired = created.manager->acquire(MOBAGEN_RUNTIME_TICK_V1_ID, 2);
@@ -234,8 +205,7 @@ TEST_CASE("Native module manager: capability acquisition enforces the requested 
   CHECK_FALSE(acquired.ok());
   CHECK_FALSE(acquired.binding.has_value());
   REQUIRE(acquired.issues.size() == 1);
-  CHECK(acquired.issues.front().code
-        == compositions::NativeModuleManagerIssueCode::UnsupportedCapabilityAbi);
+  CHECK(acquired.issues.front().code == compositions::NativeModuleManagerIssueCode::UnsupportedCapabilityAbi);
   CHECK(created.manager->active_count() == 1);
   CHECK(created.manager->stop().ok());
 }
@@ -244,52 +214,41 @@ TEST_CASE("Native module manager: configuration must match the locked digest bef
   using namespace mobagen;
   const std::vector configurations{configuration("42")};
 
-  const auto created = compositions::create_native_module_manager(
-      reference_plan("missing/reference.plugin", "41"), configurations
-  );
+  const auto created = compositions::create_native_module_manager(reference_plan("missing/reference.plugin", "41"), configurations);
 
   CHECK_FALSE(created.ok());
   REQUIRE(created.issues.size() == 1);
-  CHECK(created.issues.front().code
-        == compositions::NativeModuleManagerIssueCode::InvalidConfiguration);
+  CHECK(created.issues.front().code == compositions::NativeModuleManagerIssueCode::InvalidConfiguration);
   CHECK(created.issues.front().provider_id == "mobagen.reference");
 }
 
 TEST_CASE("Native module manager: requesting one capability leaves unrelated selected code unloaded") {
   using namespace mobagen;
   TemporaryNativeModuleProject project;
-  auto created = compositions::create_native_module_manager(
-      reference_and_unused_plan(project.add_reference_plugin())
-  );
+  auto created = compositions::create_native_module_manager(reference_and_unused_plan(project.add_reference_plugin()));
   REQUIRE(created.ok());
 
   const auto activated = created.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID);
 
   REQUIRE(activated.ok());
   CHECK(created.manager->active_count() == 1);
-  CHECK(created.manager->host().find<MobagenRuntimeTickV1>(MOBAGEN_RUNTIME_TICK_V1_ID, 1)
-            .has_value());
+  CHECK(created.manager->host().find<MobagenRuntimeTickV1>(MOBAGEN_RUNTIME_TICK_V1_ID, 1).has_value());
   CHECK(created.manager->stop().ok());
 }
 
 TEST_CASE("Native module manager: another thread cannot trigger plugin code loading") {
   using namespace mobagen;
   TemporaryNativeModuleProject project;
-  auto created = compositions::create_native_module_manager(
-      reference_plan(project.add_reference_plugin())
-  );
+  auto created = compositions::create_native_module_manager(reference_plan(project.add_reference_plugin()));
   REQUIRE(created.ok());
   compositions::NativeModuleManagerActionResult activated;
 
-  std::thread worker{[&] {
-    activated = created.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID);
-  }};
+  std::thread worker{[&] { activated = created.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID); }};
   worker.join();
 
   CHECK_FALSE(activated.ok());
   REQUIRE(activated.issues.size() == 1);
-  CHECK(activated.issues.front().code
-        == compositions::NativeModuleManagerIssueCode::WrongThread);
+  CHECK(activated.issues.front().code == compositions::NativeModuleManagerIssueCode::WrongThread);
   CHECK(created.manager->active_count() == 0);
   CHECK(created.manager->host().size() == 0);
 }

@@ -6,8 +6,7 @@
 
 namespace mobagen::modules {
 
-  ModuleSyncPlanResult plan_module_sync(const ProductDescriptor& product, http::Client& client,
-                                        const ResolverOptions& options) {
+  ModuleSyncPlanResult plan_module_sync(const ProductDescriptor& product, http::Client& client, const ResolverOptions& options) {
     ModuleSyncPlanResult result;
 
     auto descriptor_issues = validate(product);

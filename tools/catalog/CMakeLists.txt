@@ -33,19 +33,13 @@ set(MOBAGEN_CATALOG_BASE_URL
 
 set(MOBAGEN_RECOMMENDED_NATIVE_PLUGINS "")
 if(TARGET MobagenDefaultAssetStorePlugin)
-  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS
-       "$<TARGET_FILE:MobagenDefaultAssetStorePlugin>"
-  )
+  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS "$<TARGET_FILE:MobagenDefaultAssetStorePlugin>")
 endif()
 if(TARGET MobagenWindowSdl3Plugin)
-  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS
-       "$<TARGET_FILE:MobagenWindowSdl3Plugin>"
-  )
+  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS "$<TARGET_FILE:MobagenWindowSdl3Plugin>")
 endif()
 if(TARGET MobagenRenderWebgpuPlugin)
-  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS
-       "$<TARGET_FILE:MobagenRenderWebgpuPlugin>"
-  )
+  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS "$<TARGET_FILE:MobagenRenderWebgpuPlugin>")
 endif()
 
 if(MOBAGEN_RECOMMENDED_NATIVE_PLUGINS)
@@ -54,8 +48,9 @@ if(MOBAGEN_RECOMMENDED_NATIVE_PLUGINS)
     list(APPEND MOBAGEN_RECOMMENDED_CATALOG_ARGS --plugin "${plugin}")
   endforeach()
   set(MOBAGEN_RECOMMENDED_CATALOG_DEPENDS MobagenCatalog)
-  foreach(plugin_target IN ITEMS MobagenDefaultAssetStorePlugin
-                                 MobagenWindowSdl3Plugin MobagenRenderWebgpuPlugin)
+  foreach(plugin_target IN ITEMS MobagenDefaultAssetStorePlugin MobagenWindowSdl3Plugin
+                                 MobagenRenderWebgpuPlugin
+  )
     if(TARGET ${plugin_target})
       list(APPEND MOBAGEN_RECOMMENDED_CATALOG_DEPENDS ${plugin_target})
     endif()
@@ -63,9 +58,8 @@ if(MOBAGEN_RECOMMENDED_NATIVE_PLUGINS)
   add_custom_target(
     MobagenRecommendedCatalog
     COMMAND
-      $<TARGET_FILE:MobagenCatalog> publish
-      "${CMAKE_BINARY_DIR}/module-catalog/$<CONFIG>" --base-url
-      "${MOBAGEN_CATALOG_BASE_URL}" --target "${MOBAGEN_CATALOG_TARGET}"
+      $<TARGET_FILE:MobagenCatalog> publish "${CMAKE_BINARY_DIR}/module-catalog/$<CONFIG>"
+      --base-url "${MOBAGEN_CATALOG_BASE_URL}" --target "${MOBAGEN_CATALOG_TARGET}"
       ${MOBAGEN_RECOMMENDED_CATALOG_ARGS}
     DEPENDS ${MOBAGEN_RECOMMENDED_CATALOG_DEPENDS}
     COMMAND_EXPAND_LISTS VERBATIM

@@ -231,8 +231,8 @@ TEST_CASE("Module catalog: duplicate providers across sources fail deterministic
 
   CHECK_FALSE(result.ok());
   CHECK(std::ranges::any_of(result.issues, [](const CatalogIndexIssue& issue) {
-    return issue.code == CatalogIndexIssueCode::RegistryFailed
-           && std::ranges::any_of(issue.registry_issues,
-                                  [](const RegistryIssue& registry) { return registry.code == RegistryIssueCode::DuplicateProvider; });
+    return issue.code == CatalogIndexIssueCode::RegistryFailed && std::ranges::any_of(issue.registry_issues, [](const RegistryIssue& registry) {
+             return registry.code == RegistryIssueCode::DuplicateProvider;
+           });
   }));
 }

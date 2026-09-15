@@ -16,24 +16,20 @@ namespace mobagen::modules {
 
     void add_issue(CatalogIndexResult& result, CatalogIndexIssueCode code, std::string provider_id, std::string field, std::string message,
                    std::vector<DescriptorIssue> descriptor_issues = {}, std::vector<RegistryIssue> registry_issues = {}) {
-      result.issues.push_back({code, std::move(provider_id), std::move(field), std::move(message), std::move(descriptor_issues),
-                               std::move(registry_issues)});
+      result.issues.push_back(
+          {code, std::move(provider_id), std::move(field), std::move(message), std::move(descriptor_issues), std::move(registry_issues)});
     }
 
     bool is_sha256(std::string_view value) {
       constexpr std::string_view prefix = "sha256:";
-      return value.starts_with(prefix) && value.size() == prefix.size() + 64
-             && std::ranges::all_of(value.substr(prefix.size()),
-                                    [](char digit) { return (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f'); });
+      return value.starts_with(prefix) && value.size() == prefix.size() + 64 && std::ranges::all_of(value.substr(prefix.size()), [](char digit) {
+               return (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f');
+             });
     }
 
-    bool contains(std::span<const TargetPlatform> values, TargetPlatform target) {
-      return std::ranges::find(values, target) != values.end();
-    }
+    bool contains(std::span<const TargetPlatform> values, TargetPlatform target) { return std::ranges::find(values, target) != values.end(); }
 
-    bool contains(std::span<const LinkageMode> values, LinkageMode linkage) {
-      return std::ranges::find(values, linkage) != values.end();
-    }
+    bool contains(std::span<const LinkageMode> values, LinkageMode linkage) { return std::ranges::find(values, linkage) != values.end(); }
 
     bool validate_artifacts(const PublishedProviderDescriptor& published, CatalogIndexResult& result) {
       const auto& provider = published.provider;
@@ -57,8 +53,7 @@ namespace mobagen::modules {
           valid = false;
         }
         if (artifact.abi_version == 0) {
-          add_issue(result, CatalogIndexIssueCode::InvalidArtifact, provider.id, field + ".abi",
-                    "plugin ABI version must be positive");
+          add_issue(result, CatalogIndexIssueCode::InvalidArtifact, provider.id, field + ".abi", "plugin ABI version must be positive");
           valid = false;
         }
         if (artifact.size == 0 || artifact.size > max_module_artifact_bytes) {

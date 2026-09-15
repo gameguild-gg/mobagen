@@ -64,20 +64,12 @@ typedef struct MobagenWindowEventV1 {
   int32_t data2;
 } MobagenWindowEventV1;
 
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowCreateFnV1)(
-    void* window_state, const MobagenWindowDescV1* descriptor,
-    MobagenWindowHandleV1* window
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowDestroyFnV1)(
-    void* window_state, MobagenWindowHandleV1 window
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowNativeSurfaceFnV1)(
-    void* window_state, MobagenWindowHandleV1 window,
-    MobagenNativeSurfaceV1* surface
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowPollEventFnV1)(
-    void* window_state, MobagenWindowEventV1* event
-);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowCreateFnV1)(void* window_state, const MobagenWindowDescV1* descriptor,
+                                                                    MobagenWindowHandleV1* window);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowDestroyFnV1)(void* window_state, MobagenWindowHandleV1 window);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowNativeSurfaceFnV1)(void* window_state, MobagenWindowHandleV1 window,
+                                                                           MobagenNativeSurfaceV1* surface);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenWindowPollEventFnV1)(void* window_state, MobagenWindowEventV1* event);
 
 typedef struct MobagenWindowSurfaceV1 {
   MobagenCapabilityHeaderV1 header;

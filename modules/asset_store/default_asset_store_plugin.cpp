@@ -19,40 +19,26 @@ namespace {
     std::unique_ptr<mobagen::assets::NativeAssetStoreService> service;
   };
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL configure(
-      void* opaque, const MobagenHostApiV1* host, MobagenByteView configuration
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL configure(void* opaque, const MobagenHostApiV1* host, MobagenByteView configuration) noexcept {
     auto* state = static_cast<DefaultAssetStorePluginState*>(opaque);
-    if (state == nullptr || host == nullptr || host->publish_capability == nullptr
-        || configuration.size > max_cache_root_bytes
+    if (state == nullptr || host == nullptr || host->publish_capability == nullptr || configuration.size > max_cache_root_bytes
         || (configuration.size != 0 && configuration.data == nullptr)) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
 
     try {
-      const auto* configuration_data = configuration.data == nullptr
-                                           ? ""
-                                           : reinterpret_cast<const char*>(
-                                                 configuration.data
-                                             );
-      const auto configured_root =
-          std::string_view{configuration_data, configuration.size};
+      const auto* configuration_data = configuration.data == nullptr ? "" : reinterpret_cast<const char*>(configuration.data);
+      const auto configured_root = std::string_view{configuration_data, configuration.size};
       if (configured_root.find('\0') != std::string_view::npos) {
         return MOBAGEN_STATUS_INVALID_ARGUMENT;
       }
-      const auto root = configured_root.empty()
-                            ? std::filesystem::path{".mobagen/cache"}
-                            : std::filesystem::path{configured_root};
+      const auto root = configured_root.empty() ? std::filesystem::path{".mobagen/cache"} : std::filesystem::path{configured_root};
       state->service.reset();
       state->cache = std::make_unique<mobagen::assets::AssetCache>(root);
-      state->service =
-          std::make_unique<mobagen::assets::NativeAssetStoreService>(*state->cache);
+      state->service = std::make_unique<mobagen::assets::NativeAssetStoreService>(*state->cache);
       const auto& api = state->service->api();
-      const auto published = host->publish_capability(
-          host->host_context,
-          {MOBAGEN_ASSET_STORE_V1_ID, sizeof(MOBAGEN_ASSET_STORE_V1_ID) - 1},
-          MOBAGEN_ASSET_STORE_V1_ABI_VERSION, &api, MOBAGEN_ASSET_STORE_V1_SIZE
-      );
+      const auto published = host->publish_capability(host->host_context, {MOBAGEN_ASSET_STORE_V1_ID, sizeof(MOBAGEN_ASSET_STORE_V1_ID) - 1},
+                                                      MOBAGEN_ASSET_STORE_V1_ABI_VERSION, &api, MOBAGEN_ASSET_STORE_V1_SIZE);
       if (published != MOBAGEN_STATUS_OK) {
         state->service.reset();
         state->cache.reset();
@@ -101,35 +87,21 @@ namespace {
     }
     const auto host = state->host;
     state->~DefaultAssetStorePluginState();
-    host.deallocate(
-        host.host_context, state, sizeof(DefaultAssetStorePluginState),
-        alignof(DefaultAssetStorePluginState)
-    );
+    host.deallocate(host.host_context, state, sizeof(DefaultAssetStorePluginState), alignof(DefaultAssetStorePluginState));
   }
 
 }  // namespace
 
-MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(
-    const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor
-) {
-  static const MobagenStringView provides[] = {
-      {MOBAGEN_ASSET_STORE_V1_ID, sizeof(MOBAGEN_ASSET_STORE_V1_ID) - 1}
-  };
-  static const MobagenStringView permissions[] = {
-      {"filesystem-read", sizeof("filesystem-read") - 1}
-  };
-  if (host == nullptr || descriptor == nullptr
-      || host->abi_version != MOBAGEN_PLUGIN_ABI_VERSION
-      || host->struct_size < MOBAGEN_PLUGIN_HOST_API_V1_SIZE
-      || host->allocate == nullptr || host->deallocate == nullptr
+MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor) {
+  static const MobagenStringView provides[] = {{MOBAGEN_ASSET_STORE_V1_ID, sizeof(MOBAGEN_ASSET_STORE_V1_ID) - 1}};
+  static const MobagenStringView permissions[] = {{"filesystem-read", sizeof("filesystem-read") - 1}};
+  if (host == nullptr || descriptor == nullptr || host->abi_version != MOBAGEN_PLUGIN_ABI_VERSION
+      || host->struct_size < MOBAGEN_PLUGIN_HOST_API_V1_SIZE || host->allocate == nullptr || host->deallocate == nullptr
       || descriptor->struct_size < MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE) {
     return MOBAGEN_STATUS_UNSUPPORTED;
   }
 
-  auto* memory = host->allocate(
-      host->host_context, sizeof(DefaultAssetStorePluginState),
-      alignof(DefaultAssetStorePluginState)
-  );
+  auto* memory = host->allocate(host->host_context, sizeof(DefaultAssetStorePluginState), alignof(DefaultAssetStorePluginState));
   if (memory == nullptr) {
     return MOBAGEN_STATUS_OUT_OF_MEMORY;
   }

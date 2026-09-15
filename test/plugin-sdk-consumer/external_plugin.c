@@ -20,10 +20,8 @@ MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(
   wasm_asset_acquire.header.byte_size = MOBAGEN_WASM_ASSET_ACQUIRE_COMMAND_V1_SIZE;
   (void)host;
   (void)descriptor;
-  return compile_contract.header.struct_size == sizeof(compile_contract)
-                 && asset_store.header.struct_size == sizeof(asset_store)
-                 && wasm_batch.struct_size == sizeof(wasm_batch)
-                 && wasm_asset_acquire.header.byte_size == sizeof(wasm_asset_acquire)
+  return compile_contract.header.struct_size == sizeof(compile_contract) && asset_store.header.struct_size == sizeof(asset_store)
+                 && wasm_batch.struct_size == sizeof(wasm_batch) && wasm_asset_acquire.header.byte_size == sizeof(wasm_asset_acquire)
                  && MOBAGEN_SDK_VERSION_STRING[0] != '\0'
              ? MOBAGEN_STATUS_UNSUPPORTED
              : MOBAGEN_STATUS_FAILED;

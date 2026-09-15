@@ -25,8 +25,7 @@ namespace {
       static std::atomic_uint64_t sequence = 0;
       const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
       path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-module-artifacts-" + std::to_string(ticks) + "-"
-                 + std::to_string(sequence.fetch_add(1)));
+              / ("mobagen-module-artifacts-" + std::to_string(ticks) + "-" + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directory(path_));
     }
 
@@ -48,8 +47,7 @@ namespace {
       return {.error = mobagen::http::Error{mobagen::http::ErrorCode::Transfer, "buffered GET is forbidden"}};
     }
 
-    mobagen::http::StreamGetResult get_stream(const mobagen::http::GetRequest& request,
-                                              mobagen::http::BodySink sink) override {
+    mobagen::http::StreamGetResult get_stream(const mobagen::http::GetRequest& request, mobagen::http::BodySink sink) override {
       ++stream_calls;
       requests.push_back(request);
       if (transport_error.has_value()) return {.error = transport_error};
@@ -100,8 +98,7 @@ namespace {
             }},
         }},
     };
-    auto indexed = build_module_catalog_index(std::span{&catalog, 1}, TargetPlatform::Windows,
-                                              LinkageMode::Dynamic);
+    auto indexed = build_module_catalog_index(std::span{&catalog, 1}, TargetPlatform::Windows, LinkageMode::Dynamic);
     REQUIRE(indexed.ok());
     ProductDescriptor product{
         .name = "artifact-fetch",
@@ -156,9 +153,7 @@ TEST_CASE("Module artifact fetcher: selected plugins stream once into the conten
   CHECK(client.stream_calls == 1);
 
   auto unrelated = make_plan(assets::to_string(*id), client.body.size());
-  const auto invalid = modules::fetch_module_artifacts(
-      *plan.catalog, unrelated.resolution, client, cache
-  );
+  const auto invalid = modules::fetch_module_artifacts(*plan.catalog, unrelated.resolution, client, cache);
   CHECK_FALSE(invalid.ok());
   REQUIRE(invalid.issues.size() == 1);
   CHECK(invalid.issues.front().code == modules::ArtifactFetchIssueCode::InvalidPlan);

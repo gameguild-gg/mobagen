@@ -6,10 +6,10 @@
 #include "project_bootstrap.hpp"
 #include "project_support.hpp"
 #if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
-#include "http/curl_client.hpp"
+#  include "http/curl_client.hpp"
 #endif
 #if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)
-#include "plugins/wamr_backend.hpp"
+#  include "plugins/wamr_backend.hpp"
 #endif
 #include <mobagen/version.h>
 
@@ -258,16 +258,14 @@ namespace mobagen::compositions::cli {
       }
 
       std::error_code path_error;
-      const auto directory = std::filesystem::absolute(command.directory, path_error)
-                               .lexically_normal();
+      const auto directory = std::filesystem::absolute(command.directory, path_error).lexically_normal();
       if (path_error || directory.filename().empty()) {
         error << "init failed: project directory could not be resolved\n";
         return 3;
       }
       const auto status = std::filesystem::symlink_status(directory, path_error);
       if (path_error && status.type() != std::filesystem::file_type::not_found) {
-        error << "init failed: project directory could not be inspected: "
-              << path_error.message() << '\n';
+        error << "init failed: project directory could not be inspected: " << path_error.message() << '\n';
         return 3;
       }
       if (std::filesystem::exists(status)) {
@@ -294,8 +292,7 @@ namespace mobagen::compositions::cli {
       }
       output << "initialized\t" << manifest_path.generic_string() << '\n'
              << "template\trecommended\n"
-             << "next\tMobagenProject bootstrap\t" << manifest_path.generic_string()
-             << "\t--profile\tdevelopment\n";
+             << "next\tMobagenProject bootstrap\t" << manifest_path.generic_string() << "\t--profile\tdevelopment\n";
       return 0;
     }
 
@@ -306,8 +303,7 @@ namespace mobagen::compositions::cli {
         return result;
       }
       if (arguments.size() < 2
-          || (arguments[0] != "bootstrap" && arguments[0] != "sync"
-              && arguments[0] != "resolve" && arguments[0] != "verify"
+          || (arguments[0] != "bootstrap" && arguments[0] != "sync" && arguments[0] != "resolve" && arguments[0] != "verify"
               && arguments[0] != "explain")
           || arguments[1].empty()) {
         result.error = "expected bootstrap, sync, resolve, verify, or explain and a mobagen.yaml path";
@@ -319,7 +315,7 @@ namespace mobagen::compositions::cli {
                      : arguments[0] == "sync"    ? ProjectCommand::Sync
                      : arguments[0] == "resolve" ? ProjectCommand::Resolve
                      : arguments[0] == "verify"  ? ProjectCommand::Verify
-                                                  : ProjectCommand::Explain,
+                                                 : ProjectCommand::Explain,
           .manifest = std::filesystem::path{arguments[1]},
           .resolver = {.target = native_target()},
       };
@@ -329,8 +325,7 @@ namespace mobagen::compositions::cli {
       bool sdk_seen = false;
       for (std::size_t index = 2; index < arguments.size(); ++index) {
         const auto option = arguments[index];
-        if (option != "--profile" && option != "--alias" && option != "--default" && option != "--sdk"
-            && option != "--cache") {
+        if (option != "--profile" && option != "--alias" && option != "--default" && option != "--sdk" && option != "--cache") {
           result.error = "unknown option: " + std::string{option};
           return result;
         }
@@ -340,9 +335,7 @@ namespace mobagen::compositions::cli {
         }
         const auto value = arguments[index];
         if (option == "--cache") {
-          if ((parsed.command != ProjectCommand::Sync
-               && parsed.command != ProjectCommand::Bootstrap)
-              || cache_seen || value.empty()) {
+          if ((parsed.command != ProjectCommand::Sync && parsed.command != ProjectCommand::Bootstrap) || cache_seen || value.empty()) {
             result.error = "--cache is valid exactly once for bootstrap or sync with a non-empty directory";
             return result;
           }
@@ -442,8 +435,7 @@ namespace mobagen::compositions::cli {
       error << '\n';
     }
 
-    template <typename ProjectLockResult>
-    int resolve(const ParsedCommand&, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
+    template <typename ProjectLockResult> int resolve(const ParsedCommand&, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
       if (!generated.ok()) {
         print_project_failure("resolve", generated, error);
         return 3;
@@ -459,8 +451,7 @@ namespace mobagen::compositions::cli {
       return 0;
     }
 
-    template <typename ProjectLockResult>
-    int verify(const ParsedCommand&, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
+    template <typename ProjectLockResult> int verify(const ParsedCommand&, ProjectLockResult generated, std::ostream& output, std::ostream& error) {
       if (!generated.ok()) {
         print_project_failure("verify", generated, error);
         return 3;
@@ -571,10 +562,7 @@ namespace mobagen::compositions::cli {
       return 3;
     }
 
-    int print_bootstrap(
-        std::string_view operation, const ProjectBootstrapResult& bootstrapped,
-        std::ostream& output, std::ostream& error
-    ) {
+    int print_bootstrap(std::string_view operation, const ProjectBootstrapResult& bootstrapped, std::ostream& output, std::ostream& error) {
       if (!bootstrapped.ok()) {
         error << operation << " failed";
         if (!bootstrapped.issues.empty()) {
@@ -584,39 +572,30 @@ namespace mobagen::compositions::cli {
         return 3;
       }
       if (bootstrapped.state == ProjectBootstrapState::Ready) {
-        output << "ready\t" << bootstrapped.product_name << '\t'
-               << bootstrapped.profile << '\n'
-               << "plugins\t" << bootstrapped.plugin_count << '\n';
+        output << "ready\t" << bootstrapped.product_name << '\t' << bootstrapped.profile << '\n' << "plugins\t" << bootstrapped.plugin_count << '\n';
         return 0;
       }
 
-      output << "catalogs-synced\t" << bootstrapped.product_name << '\t'
-             << bootstrapped.profile << '\n';
+      output << "catalogs-synced\t" << bootstrapped.product_name << '\t' << bootstrapped.profile << '\n';
       for (const auto& selection : bootstrapped.selections) {
-        output << "artifact\t" << selection.provider_id << '\t'
-               << version_string(selection.version) << '\t'
-               << linkage_name(selection.artifact.linkage) << '\t'
-               << selection.artifact.abi_version << '\t'
-               << selection.artifact.size << '\t' << selection.artifact.hash
-               << '\t' << selection.artifact.url << '\n';
+        output << "artifact\t" << selection.provider_id << '\t' << version_string(selection.version) << '\t'
+               << linkage_name(selection.artifact.linkage) << '\t' << selection.artifact.abi_version << '\t' << selection.artifact.size << '\t'
+               << selection.artifact.hash << '\t' << selection.artifact.url << '\n';
       }
       for (const auto& artifact : bootstrapped.cached_artifacts) {
-        output << "cache\t" << artifact.provider_id << '\t'
-               << (artifact.downloaded ? "downloaded" : "present") << '\t'
+        output << "cache\t" << artifact.provider_id << '\t' << (artifact.downloaded ? "downloaded" : "present") << '\t'
                << artifact.cache_path.generic_string() << '\n';
       }
       for (const auto& artifact : bootstrapped.installed_artifacts) {
-        output << "plugin\t" << artifact.provider_id << '\t'
-               << (artifact.installed ? "installed" : "present") << '\t'
+        output << "plugin\t" << artifact.provider_id << '\t' << (artifact.installed ? "installed" : "present") << '\t'
                << artifact.package_path.generic_string() << '\n';
       }
-      output << "lock\t" << bootstrapped.lockfile_path.generic_string() << '\n'
-             << "selected\t" << bootstrapped.selected_count << '\n';
+      output << "lock\t" << bootstrapped.lockfile_path.generic_string() << '\n' << "selected\t" << bootstrapped.selected_count << '\n';
       return 0;
     }
 
-    int run_with_services(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error,
-                          ProjectCliServices services, bool use_bundled_backends) {
+    int run_with_services(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error, ProjectCliServices services,
+                          bool use_bundled_backends) {
       try {
         if (arguments.size() == 1 && (arguments[0] == "help" || arguments[0] == "--help")) {
           print_usage(output);
@@ -644,44 +623,29 @@ namespace mobagen::compositions::cli {
           print_route_failure(arguments.front(), route, error);
           return 3;
         }
-        if (parsed.command->command == ProjectCommand::Bootstrap
-            || parsed.command->command == ProjectCommand::Sync) {
+        if (parsed.command->command == ProjectCommand::Bootstrap || parsed.command->command == ProjectCommand::Sync) {
           ProjectBootstrapOptions options{
               .resolver = parsed.command->resolver,
               .sdk_version = parsed.command->sdk_version,
               .cache_root = parsed.command->cache_root,
-              .mode = parsed.command->command == ProjectCommand::Bootstrap
-                          ? ProjectBootstrapMode::Ensure
-                          : ProjectBootstrapMode::Refresh,
+              .mode = parsed.command->command == ProjectCommand::Bootstrap ? ProjectBootstrapMode::Ensure : ProjectBootstrapMode::Refresh,
               .validation = ProjectBootstrapValidation::Full,
           };
           if (services.http_client != nullptr) {
-            const auto bootstrapped = bootstrap_project(
-                parsed.command->manifest, options, services.http_client
-            );
-            return print_bootstrap(
-                arguments.front(), bootstrapped, output, error
-            );
+            const auto bootstrapped = bootstrap_project(parsed.command->manifest, options, services.http_client);
+            return print_bootstrap(arguments.front(), bootstrapped, output, error);
           }
 #if defined(MOBAGEN_PROJECT_CLI_HAS_CURL)
           if (use_bundled_backends) {
             http::CurlClient client;
-            const auto bootstrapped = bootstrap_project(
-                parsed.command->manifest, std::move(options), &client
-            );
-            return print_bootstrap(
-                arguments.front(), bootstrapped, output, error
-            );
+            const auto bootstrapped = bootstrap_project(parsed.command->manifest, std::move(options), &client);
+            return print_bootstrap(arguments.front(), bootstrapped, output, error);
           }
 #else
           static_cast<void>(use_bundled_backends);
 #endif
-          const auto bootstrapped = bootstrap_project(
-              parsed.command->manifest, std::move(options)
-          );
-          return print_bootstrap(
-              arguments.front(), bootstrapped, output, error
-          );
+          const auto bootstrapped = bootstrap_project(parsed.command->manifest, std::move(options));
+          return print_bootstrap(arguments.front(), bootstrapped, output, error);
         }
         if (*route.linkage == modules::LinkageMode::Wasm) {
 #if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)

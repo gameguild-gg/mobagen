@@ -35,27 +35,18 @@ namespace {
     MobagenWindowSurfaceV1 api{};
   };
 
-  bool on_owner_thread(const WindowPluginState& state) noexcept {
-    return state.owner_thread == std::this_thread::get_id();
-  }
+  bool on_owner_thread(const WindowPluginState& state) noexcept { return state.owner_thread == std::this_thread::get_id(); }
 
-  WindowSlot* resolve(
-      WindowPluginState& state, MobagenWindowHandleV1 handle
-  ) noexcept {
+  WindowSlot* resolve(WindowPluginState& state, MobagenWindowHandleV1 handle) noexcept {
     if (handle.index >= state.windows.size()) return nullptr;
     auto& slot = state.windows[handle.index];
-    return slot.window != nullptr && slot.generation == handle.generation ? &slot
-                                                                          : nullptr;
+    return slot.window != nullptr && slot.generation == handle.generation ? &slot : nullptr;
   }
 
-  MobagenWindowHandleV1 handle_for(
-      const WindowPluginState& state, SDL_Window* window
-  ) noexcept {
+  MobagenWindowHandleV1 handle_for(const WindowPluginState& state, SDL_Window* window) noexcept {
     for (std::size_t index = 0; index < state.windows.size(); ++index) {
       if (state.windows[index].window == window) {
-        return {
-            static_cast<std::uint32_t>(index), state.windows[index].generation
-        };
+        return {static_cast<std::uint32_t>(index), state.windows[index].generation};
       }
     }
     return {std::numeric_limits<std::uint32_t>::max(), 0};
@@ -81,38 +72,24 @@ namespace {
     if (slot.generation == 0) slot.generation = 1;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL create_window(
-      void* opaque, const MobagenWindowDescV1* descriptor,
-      MobagenWindowHandleV1* handle
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL create_window(void* opaque, const MobagenWindowDescV1* descriptor, MobagenWindowHandleV1* handle) noexcept {
     auto* state = static_cast<WindowPluginState*>(opaque);
-    if (state == nullptr || descriptor == nullptr || handle == nullptr
-        || descriptor->struct_size < MOBAGEN_WINDOW_DESC_V1_SIZE
-        || descriptor->width <= 0 || descriptor->height <= 0
-        || descriptor->title.size > max_title_bytes
-        || (descriptor->title.size != 0 && descriptor->title.data == nullptr)
-        || !on_owner_thread(*state)) {
+    if (state == nullptr || descriptor == nullptr || handle == nullptr || descriptor->struct_size < MOBAGEN_WINDOW_DESC_V1_SIZE
+        || descriptor->width <= 0 || descriptor->height <= 0 || descriptor->title.size > max_title_bytes
+        || (descriptor->title.size != 0 && descriptor->title.data == nullptr) || !on_owner_thread(*state)) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     try {
-      const auto title = std::string_view{
-          descriptor->title.data == nullptr ? "" : descriptor->title.data,
-          descriptor->title.size
-      };
+      const auto title = std::string_view{descriptor->title.data == nullptr ? "" : descriptor->title.data, descriptor->title.size};
       if (title.find('\0') != std::string_view::npos || !ensure_video(*state)) {
         return MOBAGEN_STATUS_FAILED;
       }
       SDL_WindowFlags flags = 0;
-      if ((descriptor->flags & MOBAGEN_WINDOW_RESIZABLE_V1) != 0)
-        flags |= SDL_WINDOW_RESIZABLE;
-      if ((descriptor->flags & MOBAGEN_WINDOW_HIGH_PIXEL_DENSITY_V1) != 0)
-        flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
-      if ((descriptor->flags & MOBAGEN_WINDOW_HIDDEN_V1) != 0)
-        flags |= SDL_WINDOW_HIDDEN;
+      if ((descriptor->flags & MOBAGEN_WINDOW_RESIZABLE_V1) != 0) flags |= SDL_WINDOW_RESIZABLE;
+      if ((descriptor->flags & MOBAGEN_WINDOW_HIGH_PIXEL_DENSITY_V1) != 0) flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+      if ((descriptor->flags & MOBAGEN_WINDOW_HIDDEN_V1) != 0) flags |= SDL_WINDOW_HIDDEN;
       const auto owned_title = std::string{title};
-      auto* window = SDL_CreateWindow(
-          owned_title.c_str(), descriptor->width, descriptor->height, flags
-      );
+      auto* window = SDL_CreateWindow(owned_title.c_str(), descriptor->width, descriptor->height, flags);
       if (window == nullptr) return MOBAGEN_STATUS_FAILED;
 
       for (std::size_t index = 0; index < state->windows.size(); ++index) {
@@ -128,10 +105,7 @@ namespace {
         return MOBAGEN_STATUS_OUT_OF_MEMORY;
       }
       state->windows.push_back({.window = window});
-      *handle = {
-          static_cast<std::uint32_t>(state->windows.size() - 1),
-          state->windows.back().generation
-      };
+      *handle = {static_cast<std::uint32_t>(state->windows.size() - 1), state->windows.back().generation};
       return MOBAGEN_STATUS_OK;
     } catch (const std::bad_alloc&) {
       return MOBAGEN_STATUS_OUT_OF_MEMORY;
@@ -140,34 +114,25 @@ namespace {
     }
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL destroy_window(
-      void* opaque, MobagenWindowHandleV1 handle
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL destroy_window(void* opaque, MobagenWindowHandleV1 handle) noexcept {
     auto* state = static_cast<WindowPluginState*>(opaque);
-    if (state == nullptr || !on_owner_thread(*state))
-      return MOBAGEN_STATUS_INVALID_ARGUMENT;
+    if (state == nullptr || !on_owner_thread(*state)) return MOBAGEN_STATUS_INVALID_ARGUMENT;
     auto* slot = resolve(*state, handle);
     if (slot == nullptr) return MOBAGEN_STATUS_NOT_FOUND;
     destroy_slot(*slot);
     return MOBAGEN_STATUS_OK;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL native_surface(
-      void* opaque, MobagenWindowHandleV1 handle,
-      MobagenNativeSurfaceV1* surface
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL native_surface(void* opaque, MobagenWindowHandleV1 handle, MobagenNativeSurfaceV1* surface) noexcept {
     auto* state = static_cast<WindowPluginState*>(opaque);
-    if (state == nullptr || surface == nullptr
-        || surface->struct_size < MOBAGEN_NATIVE_SURFACE_V1_SIZE
-        || !on_owner_thread(*state)) {
+    if (state == nullptr || surface == nullptr || surface->struct_size < MOBAGEN_NATIVE_SURFACE_V1_SIZE || !on_owner_thread(*state)) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     auto* slot = resolve(*state, handle);
     if (slot == nullptr) return MOBAGEN_STATUS_NOT_FOUND;
     int width = 0;
     int height = 0;
-    if (!SDL_GetWindowSizeInPixels(slot->window, &width, &height) || width <= 0
-        || height <= 0) {
+    if (!SDL_GetWindowSizeInPixels(slot->window, &width, &height) || width <= 0 || height <= 0) {
       return MOBAGEN_STATUS_FAILED;
     }
     MobagenNativeSurfaceV1 value{
@@ -178,60 +143,39 @@ namespace {
 #if defined(SDL_PLATFORM_WIN32)
     const auto properties = SDL_GetWindowProperties(slot->window);
     value.kind = MOBAGEN_NATIVE_SURFACE_WIN32_V1;
-    value.display = SDL_GetPointerProperty(
-        properties, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr
-    );
-    value.window = SDL_GetPointerProperty(
-        properties, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr
-    );
+    value.display = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr);
+    value.window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 #elif defined(SDL_PLATFORM_APPLE)
-    if (slot->metal_view == nullptr)
-      slot->metal_view = SDL_Metal_CreateView(slot->window);
+    if (slot->metal_view == nullptr) slot->metal_view = SDL_Metal_CreateView(slot->window);
     value.kind = MOBAGEN_NATIVE_SURFACE_METAL_LAYER_V1;
-    value.window = slot->metal_view == nullptr
-                       ? nullptr
-                       : SDL_Metal_GetLayer(slot->metal_view);
+    value.window = slot->metal_view == nullptr ? nullptr : SDL_Metal_GetLayer(slot->metal_view);
 #elif defined(SDL_PLATFORM_LINUX)
     const auto properties = SDL_GetWindowProperties(slot->window);
     if (SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") == 0) {
       value.kind = MOBAGEN_NATIVE_SURFACE_WAYLAND_V1;
-      value.display = SDL_GetPointerProperty(
-          properties, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr
-      );
-      value.window = SDL_GetPointerProperty(
-          properties, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr
-      );
+      value.display = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
+      value.window = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
     } else {
       value.kind = MOBAGEN_NATIVE_SURFACE_XLIB_V1;
-      value.display = SDL_GetPointerProperty(
-          properties, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr
-      );
-      value.window_id = static_cast<std::uint64_t>(SDL_GetNumberProperty(
-          properties, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0
-      ));
+      value.display = SDL_GetPointerProperty(properties, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
+      value.window_id = static_cast<std::uint64_t>(SDL_GetNumberProperty(properties, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
     }
 #else
     return MOBAGEN_STATUS_UNSUPPORTED;
 #endif
-    if (value.window == nullptr
-        && value.kind != MOBAGEN_NATIVE_SURFACE_XLIB_V1) {
+    if (value.window == nullptr && value.kind != MOBAGEN_NATIVE_SURFACE_XLIB_V1) {
       return MOBAGEN_STATUS_FAILED;
     }
-    if (value.kind == MOBAGEN_NATIVE_SURFACE_XLIB_V1
-        && (value.display == nullptr || value.window_id == 0)) {
+    if (value.kind == MOBAGEN_NATIVE_SURFACE_XLIB_V1 && (value.display == nullptr || value.window_id == 0)) {
       return MOBAGEN_STATUS_FAILED;
     }
     *surface = value;
     return MOBAGEN_STATUS_OK;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL poll_event(
-      void* opaque, MobagenWindowEventV1* output
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL poll_event(void* opaque, MobagenWindowEventV1* output) noexcept {
     auto* state = static_cast<WindowPluginState*>(opaque);
-    if (state == nullptr || output == nullptr
-        || output->struct_size < MOBAGEN_WINDOW_EVENT_V1_SIZE
-        || !on_owner_thread(*state)) {
+    if (state == nullptr || output == nullptr || output->struct_size < MOBAGEN_WINDOW_EVENT_V1_SIZE || !on_owner_thread(*state)) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     SDL_Event event{};
@@ -244,15 +188,10 @@ namespace {
         translated.type = MOBAGEN_WINDOW_EVENT_QUIT_V1;
       } else if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
         translated.type = MOBAGEN_WINDOW_EVENT_CLOSE_REQUESTED_V1;
-        translated.window = handle_for(
-            *state, SDL_GetWindowFromID(event.window.windowID)
-        );
-      } else if (event.type == SDL_EVENT_WINDOW_RESIZED
-                 || event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+        translated.window = handle_for(*state, SDL_GetWindowFromID(event.window.windowID));
+      } else if (event.type == SDL_EVENT_WINDOW_RESIZED || event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
         translated.type = MOBAGEN_WINDOW_EVENT_RESIZED_V1;
-        translated.window = handle_for(
-            *state, SDL_GetWindowFromID(event.window.windowID)
-        );
+        translated.window = handle_for(*state, SDL_GetWindowFromID(event.window.windowID));
         translated.data1 = event.window.data1;
         translated.data2 = event.window.data2;
       } else {
@@ -264,12 +203,9 @@ namespace {
     return MOBAGEN_STATUS_NOT_FOUND;
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL configure(
-      void* opaque, const MobagenHostApiV1* host, MobagenByteView configuration
-  ) noexcept {
+  MobagenStatus MOBAGEN_PLUGIN_CALL configure(void* opaque, const MobagenHostApiV1* host, MobagenByteView configuration) noexcept {
     auto* state = static_cast<WindowPluginState*>(opaque);
-    if (state == nullptr || host == nullptr || host->publish_capability == nullptr
-        || configuration.size != 0) {
+    if (state == nullptr || host == nullptr || host->publish_capability == nullptr || configuration.size != 0) {
       return MOBAGEN_STATUS_INVALID_ARGUMENT;
     }
     state->api = {
@@ -283,22 +219,13 @@ namespace {
         .native_surface = native_surface,
         .poll_event = poll_event,
     };
-    return host->publish_capability(
-        host->host_context,
-        {MOBAGEN_WINDOW_SURFACE_V1_ID,
-         sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1},
-        MOBAGEN_WINDOW_SURFACE_V1_ABI_VERSION, &state->api,
-        MOBAGEN_WINDOW_SURFACE_V1_SIZE
-    );
+    return host->publish_capability(host->host_context, {MOBAGEN_WINDOW_SURFACE_V1_ID, sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1},
+                                    MOBAGEN_WINDOW_SURFACE_V1_ABI_VERSION, &state->api, MOBAGEN_WINDOW_SURFACE_V1_SIZE);
   }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL start(void* opaque) noexcept {
-    return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK;
-  }
+  MobagenStatus MOBAGEN_PLUGIN_CALL start(void* opaque) noexcept { return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK; }
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL quiesce(void* opaque) noexcept {
-    return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK;
-  }
+  MobagenStatus MOBAGEN_PLUGIN_CALL quiesce(void* opaque) noexcept { return opaque == nullptr ? MOBAGEN_STATUS_INVALID_ARGUMENT : MOBAGEN_STATUS_OK; }
 
   void MOBAGEN_PLUGIN_CALL stop(void* opaque) noexcept {
     auto* state = static_cast<WindowPluginState*>(opaque);
@@ -314,34 +241,20 @@ namespace {
     if (state == nullptr) return;
     const auto host = state->host;
     state->~WindowPluginState();
-    host.deallocate(
-        host.host_context, state, sizeof(WindowPluginState),
-        alignof(WindowPluginState)
-    );
+    host.deallocate(host.host_context, state, sizeof(WindowPluginState), alignof(WindowPluginState));
   }
 
 }  // namespace
 
-MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(
-    const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor
-) {
-  static const MobagenStringView provides[] = {
-      {MOBAGEN_WINDOW_SURFACE_V1_ID,
-       sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1}
-  };
-  static const MobagenStringView permissions[] = {
-      {"windowing", sizeof("windowing") - 1}
-  };
-  if (host == nullptr || descriptor == nullptr
-      || host->abi_version != MOBAGEN_PLUGIN_ABI_VERSION
-      || host->struct_size < MOBAGEN_PLUGIN_HOST_API_V1_SIZE
-      || host->allocate == nullptr || host->deallocate == nullptr
+MOBAGEN_PLUGIN_EXPORT MobagenStatus MOBAGEN_PLUGIN_CALL mobagen_plugin_entry_v1(const MobagenHostApiV1* host, MobagenPluginDescriptorV1* descriptor) {
+  static const MobagenStringView provides[] = {{MOBAGEN_WINDOW_SURFACE_V1_ID, sizeof(MOBAGEN_WINDOW_SURFACE_V1_ID) - 1}};
+  static const MobagenStringView permissions[] = {{"windowing", sizeof("windowing") - 1}};
+  if (host == nullptr || descriptor == nullptr || host->abi_version != MOBAGEN_PLUGIN_ABI_VERSION
+      || host->struct_size < MOBAGEN_PLUGIN_HOST_API_V1_SIZE || host->allocate == nullptr || host->deallocate == nullptr
       || descriptor->struct_size < MOBAGEN_PLUGIN_DESCRIPTOR_V1_SIZE) {
     return MOBAGEN_STATUS_UNSUPPORTED;
   }
-  auto* memory = host->allocate(
-      host->host_context, sizeof(WindowPluginState), alignof(WindowPluginState)
-  );
+  auto* memory = host->allocate(host->host_context, sizeof(WindowPluginState), alignof(WindowPluginState));
   if (memory == nullptr) return MOBAGEN_STATUS_OUT_OF_MEMORY;
   auto* state = new (memory) WindowPluginState{
       .host = *host,

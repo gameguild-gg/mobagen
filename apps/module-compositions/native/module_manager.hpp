@@ -47,9 +47,7 @@ namespace mobagen::compositions {
     std::optional<plugins::NativeCapabilityBindingView> binding;
     std::vector<NativeModuleManagerIssue> issues;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return binding.has_value() && issues.empty();
-    }
+    [[nodiscard]] bool ok() const noexcept { return binding.has_value() && issues.empty(); }
   };
 
   struct NativeModuleConfiguration {
@@ -75,32 +73,20 @@ namespace mobagen::compositions {
     ~NativeModuleManager();
 
     [[nodiscard]] NativeModuleManagerActionResult activate(std::string_view capability);
-    [[nodiscard]] NativeModuleCapabilityResult acquire(
-        std::string_view capability, std::uint32_t minimum_abi_version
-    );
+    [[nodiscard]] NativeModuleCapabilityResult acquire(std::string_view capability, std::uint32_t minimum_abi_version);
     [[nodiscard]] NativeModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept { return active_count_; }
     [[nodiscard]] plugins::PluginHost& host() noexcept { return host_; }
     [[nodiscard]] const plugins::PluginHost& host() const noexcept { return host_; }
 
   private:
-    friend NativeModuleManagerCreateResult create_native_module_manager(
-        std::unique_ptr<modules::LockedPluginActivationPlan>,
-        std::span<const NativeModuleConfiguration>, plugins::PluginLogSink, void*
-    );
+    friend NativeModuleManagerCreateResult create_native_module_manager(std::unique_ptr<modules::LockedPluginActivationPlan>,
+                                                                        std::span<const NativeModuleConfiguration>, plugins::PluginLogSink, void*);
 
-    NativeModuleManager(
-        std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-        std::vector<std::vector<std::byte>> configurations,
-        plugins::PluginLogSink log_sink, void* log_context
-    );
-    bool activate_provider(
-        std::size_t index, std::vector<std::size_t>& activated,
-        NativeModuleManagerActionResult& result
-    );
-    void rollback(
-        std::vector<std::size_t>& activated, NativeModuleManagerActionResult& result
-    );
+    NativeModuleManager(std::unique_ptr<modules::LockedPluginActivationPlan> plan, std::vector<std::vector<std::byte>> configurations,
+                        plugins::PluginLogSink log_sink, void* log_context);
+    bool activate_provider(std::size_t index, std::vector<std::size_t>& activated, NativeModuleManagerActionResult& result);
+    void rollback(std::vector<std::size_t>& activated, NativeModuleManagerActionResult& result);
 
     plugins::PluginHost host_;
     std::unique_ptr<modules::LockedPluginActivationPlan> plan_;
@@ -115,10 +101,8 @@ namespace mobagen::compositions {
 
   /* Construction indexes metadata only; native code is loaded by activate().
      The manager must be activated, stopped, and destroyed on its construction thread. */
-  [[nodiscard]] NativeModuleManagerCreateResult create_native_module_manager(
-      std::unique_ptr<modules::LockedPluginActivationPlan> plan,
-      std::span<const NativeModuleConfiguration> configurations = {},
-      plugins::PluginLogSink log_sink = nullptr, void* log_context = nullptr
-  );
+  [[nodiscard]] NativeModuleManagerCreateResult create_native_module_manager(std::unique_ptr<modules::LockedPluginActivationPlan> plan,
+                                                                             std::span<const NativeModuleConfiguration> configurations = {},
+                                                                             plugins::PluginLogSink log_sink = nullptr, void* log_context = nullptr);
 
 }  // namespace mobagen::compositions

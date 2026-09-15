@@ -332,10 +332,10 @@ namespace mobagen::plugins {
   }
 
   PortableWasmPluginActivationResult PortableWasmPluginActivation::activate_queried(std::unique_ptr<PortableWasmInstance> instance,
-                                                                                     modules::ProviderDescriptor provider,
-                                                                                     std::shared_ptr<const modules::CapabilityRegistry> registry,
-                                                                                     bool permissions_authorized,
-                                                                                     std::span<const std::byte> configuration) {
+                                                                                    modules::ProviderDescriptor provider,
+                                                                                    std::shared_ptr<const modules::CapabilityRegistry> registry,
+                                                                                    bool permissions_authorized,
+                                                                                    std::span<const std::byte> configuration) {
     PortableWasmPluginActivationResult result;
     if (instance == nullptr) {
       result.issues.push_back({PortableWasmPluginIssueCode::InvalidInstance,
@@ -447,11 +447,11 @@ namespace mobagen::plugins {
     return PortableWasmPluginActivation::activate_queried(std::move(plugin.instance_), std::move(plugin.provider_), nullptr, false, configuration);
   }
 
-  PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(
-      LoadedPortableWasmPlugin plugin, std::shared_ptr<const modules::CapabilityRegistry> resolved_registry,
-      std::span<const std::byte> configuration) {
-    return PortableWasmPluginActivation::activate_queried(std::move(plugin.instance_), std::move(plugin.provider_),
-                                                          std::move(resolved_registry), true, configuration);
+  PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin plugin,
+                                                                          std::shared_ptr<const modules::CapabilityRegistry> resolved_registry,
+                                                                          std::span<const std::byte> configuration) {
+    return PortableWasmPluginActivation::activate_queried(std::move(plugin.instance_), std::move(plugin.provider_), std::move(resolved_registry),
+                                                          true, configuration);
   }
 
 }  // namespace mobagen::plugins

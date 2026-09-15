@@ -8,5 +8,9 @@ if(MOBAGEN_HTTP_BACKEND_CURL)
   add_library(mobagen::http_curl ALIAS mobagen_http_curl)
   target_include_directories(mobagen_http_curl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
   target_compile_features(mobagen_http_curl PUBLIC cxx_std_20)
-  target_link_libraries(mobagen_http_curl PUBLIC mobagen::core_http PRIVATE ${MOBAGEN_CURL_TARGET})
+  target_link_libraries(
+    mobagen_http_curl
+    PUBLIC mobagen::core_http
+    PRIVATE ${MOBAGEN_CURL_TARGET}
+  )
 endif()

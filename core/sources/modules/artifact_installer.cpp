@@ -26,17 +26,14 @@ namespace mobagen::modules {
       bool committed{};
     };
 
-    ArtifactInstallResult failure(ArtifactInstallIssueCode code, std::string provider_id,
-                                  std::filesystem::path path, std::string message,
+    ArtifactInstallResult failure(ArtifactInstallIssueCode code, std::string provider_id, std::filesystem::path path, std::string message,
                                   std::error_code system_error = {}) {
       ArtifactInstallResult result;
-      result.issues.push_back({code, std::move(provider_id), std::move(path), system_error,
-                               std::move(message)});
+      result.issues.push_back({code, std::move(provider_id), std::move(path), system_error, std::move(message)});
       return result;
     }
 
-    bool verify_file(const std::filesystem::path& path, const assets::AssetId& expected_id,
-                     std::uint64_t expected_size, std::error_code& error) {
+    bool verify_file(const std::filesystem::path& path, const assets::AssetId& expected_id, std::uint64_t expected_size, std::error_code& error) {
       const auto status = std::filesystem::symlink_status(path, error);
       if (error || !std::filesystem::is_regular_file(status) || std::filesystem::is_symlink(status)) {
         return false;
@@ -85,14 +82,12 @@ namespace mobagen::modules {
       return verify_file(staged.artifact.binary_path, staged.artifact.id, staged.artifact.size, error);
     }
 
-    std::filesystem::path create_staging_directory(const std::filesystem::path& root,
-                                                   std::string_view provider_id,
-                                                   std::error_code& error) {
+    std::filesystem::path create_staging_directory(const std::filesystem::path& root, std::string_view provider_id, std::error_code& error) {
       const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
       for (std::size_t attempt = 0; attempt < unique_path_attempts; ++attempt) {
-        auto path = root / ("." + std::string{provider_id} + ".plugin.tmp-"
-                            + std::to_string(nonce) + '-'
-                            + std::to_string(unique_path_sequence.fetch_add(1, std::memory_order_relaxed)));
+        auto path = root
+                    / ("." + std::string{provider_id} + ".plugin.tmp-" + std::to_string(nonce) + '-'
+                       + std::to_string(unique_path_sequence.fetch_add(1, std::memory_order_relaxed)));
         if (std::filesystem::create_directory(path, error)) return path;
         if (error) return {};
       }
@@ -100,14 +95,12 @@ namespace mobagen::modules {
       return {};
     }
 
-    std::filesystem::path available_backup_path(const std::filesystem::path& root,
-                                                std::string_view provider_id,
-                                                std::error_code& error) {
+    std::filesystem::path available_backup_path(const std::filesystem::path& root, std::string_view provider_id, std::error_code& error) {
       const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
       for (std::size_t attempt = 0; attempt < unique_path_attempts; ++attempt) {
-        auto path = root / ("." + std::string{provider_id} + ".plugin.bak-"
-                            + std::to_string(nonce) + '-'
-                            + std::to_string(unique_path_sequence.fetch_add(1, std::memory_order_relaxed)));
+        auto path = root
+                    / ("." + std::string{provider_id} + ".plugin.bak-" + std::to_string(nonce) + '-'
+                       + std::to_string(unique_path_sequence.fetch_add(1, std::memory_order_relaxed)));
         const auto exists = std::filesystem::exists(path, error);
         if (error) return {};
         if (!exists) return path;
@@ -155,63 +148,54 @@ namespace mobagen::modules {
 #endif
   }
 
-  ArtifactInstallResult materialize_module_plugins(std::span<const CachedModuleArtifact> artifacts,
-                                                   const std::filesystem::path& install_root) {
+  ArtifactInstallResult materialize_module_plugins(std::span<const CachedModuleArtifact> artifacts, const std::filesystem::path& install_root) {
     if (install_root.empty()) {
-      return failure(ArtifactInstallIssueCode::InvalidRoot, {}, install_root,
-                     "plugin install root must not be empty");
+      return failure(ArtifactInstallIssueCode::InvalidRoot, {}, install_root, "plugin install root must not be empty");
     }
 
     std::error_code error;
     const auto root = std::filesystem::absolute(install_root, error).lexically_normal();
     if (error) {
-      return failure(ArtifactInstallIssueCode::InvalidRoot, {}, install_root,
-                     "plugin install root could not be resolved", error);
+      return failure(ArtifactInstallIssueCode::InvalidRoot, {}, install_root, "plugin install root could not be resolved", error);
     }
 
     std::set<std::string, std::less<>> providers;
     for (const auto& artifact : artifacts) {
       if (!is_provider_id(artifact.provider_id) || artifact.size == 0 || artifact.cache_path.empty()
           || !providers.insert(artifact.provider_id).second) {
-        return failure(ArtifactInstallIssueCode::InvalidArtifact, artifact.provider_id,
-                       artifact.cache_path, "cached plugin artifact metadata is invalid or duplicated");
+        return failure(ArtifactInstallIssueCode::InvalidArtifact, artifact.provider_id, artifact.cache_path,
+                       "cached plugin artifact metadata is invalid or duplicated");
       }
       if (module_plugin_binary_filename(artifact.linkage).empty()) {
-        return failure(ArtifactInstallIssueCode::UnsupportedLinkage, artifact.provider_id,
-                       artifact.cache_path,
+        return failure(ArtifactInstallIssueCode::UnsupportedLinkage, artifact.provider_id, artifact.cache_path,
                        "only dynamic and WASM artifacts can become runtime .plugin packages");
       }
       if (artifact.abi_version != runtime_plugin_abi_version(artifact.linkage)) {
-        return failure(ArtifactInstallIssueCode::UnsupportedAbi, artifact.provider_id,
-                       artifact.cache_path,
+        return failure(ArtifactInstallIssueCode::UnsupportedAbi, artifact.provider_id, artifact.cache_path,
                        "cached plugin artifact ABI is not supported by this runtime");
       }
       error.clear();
       if (!verify_file(artifact.cache_path, artifact.id, artifact.size, error)) {
-        return failure(ArtifactInstallIssueCode::SourceInvalid, artifact.provider_id,
-                       artifact.cache_path, "cached plugin artifact failed size or SHA-256 verification",
-                       error);
+        return failure(ArtifactInstallIssueCode::SourceInvalid, artifact.provider_id, artifact.cache_path,
+                       "cached plugin artifact failed size or SHA-256 verification", error);
       }
     }
     if (artifacts.empty()) return {};
 
     const auto root_exists = std::filesystem::exists(root, error);
     if (error) {
-      return failure(ArtifactInstallIssueCode::InvalidRoot, {}, root,
-                     "plugin install root could not be inspected", error);
+      return failure(ArtifactInstallIssueCode::InvalidRoot, {}, root, "plugin install root could not be inspected", error);
     }
     if (root_exists) {
       const auto status = std::filesystem::symlink_status(root, error);
       if (error || !std::filesystem::is_directory(status) || std::filesystem::is_symlink(status)) {
-        return failure(ArtifactInstallIssueCode::InvalidRoot, {}, root,
-                       "plugin install root must be a real directory, not a file or symbolic link",
+        return failure(ArtifactInstallIssueCode::InvalidRoot, {}, root, "plugin install root must be a real directory, not a file or symbolic link",
                        error);
       }
     } else {
       std::filesystem::create_directories(root, error);
       if (error) {
-        return failure(ArtifactInstallIssueCode::InvalidRoot, {}, root,
-                       "plugin install root could not be created", error);
+        return failure(ArtifactInstallIssueCode::InvalidRoot, {}, root, "plugin install root could not be created", error);
       }
     }
 
@@ -222,13 +206,11 @@ namespace mobagen::modules {
       auto staging = create_staging_directory(root, source.provider_id, error);
       if (error || staging.empty()) {
         cleanup_staging(staged);
-        return failure(ArtifactInstallIssueCode::StageFailed, source.provider_id, root,
-                       "could not create a private staging package", error);
+        return failure(ArtifactInstallIssueCode::StageFailed, source.provider_id, root, "could not create a private staging package", error);
       }
       const auto destination = root / (source.provider_id + ".plugin");
       const auto staging_binary = staging / binary_name;
-      std::filesystem::copy_file(source.cache_path, staging_binary,
-                                 std::filesystem::copy_options::none, error);
+      std::filesystem::copy_file(source.cache_path, staging_binary, std::filesystem::copy_options::none, error);
       if (error || !verify_file(staging_binary, source.id, source.size, error)) {
         remove_path(staging);
         cleanup_staging(staged);
@@ -254,9 +236,8 @@ namespace mobagen::modules {
       entry.destination_exists = std::filesystem::exists(entry.artifact.package_path, error);
       if (error) {
         cleanup_staging(staged);
-        return failure(ArtifactInstallIssueCode::CommitFailed, entry.artifact.provider_id,
-                       entry.artifact.package_path, "installed plugin package could not be inspected",
-                       error);
+        return failure(ArtifactInstallIssueCode::CommitFailed, entry.artifact.provider_id, entry.artifact.package_path,
+                       "installed plugin package could not be inspected", error);
       }
       if (entry.destination_exists && package_matches(entry, error)) {
         remove_path(entry.staging);
@@ -268,9 +249,8 @@ namespace mobagen::modules {
         entry.backup = available_backup_path(root, entry.artifact.provider_id, error);
         if (error || entry.backup.empty()) {
           cleanup_staging(staged);
-          return failure(ArtifactInstallIssueCode::CommitFailed, entry.artifact.provider_id,
-                         entry.artifact.package_path, "could not reserve plugin package backup path",
-                         error);
+          return failure(ArtifactInstallIssueCode::CommitFailed, entry.artifact.provider_id, entry.artifact.package_path,
+                         "could not reserve plugin package backup path", error);
         }
       }
     }
@@ -281,24 +261,19 @@ namespace mobagen::modules {
         std::filesystem::rename(entry.artifact.package_path, entry.backup, error);
         if (error) {
           const auto restored = rollback(staged);
-          return failure(restored ? ArtifactInstallIssueCode::CommitFailed
-                                  : ArtifactInstallIssueCode::RollbackFailed,
-                         entry.artifact.provider_id, entry.artifact.package_path,
-                         restored ? "could not move the active plugin package into backup"
-                                  : "plugin package commit failed and rollback was incomplete",
-                         error);
+          return failure(
+              restored ? ArtifactInstallIssueCode::CommitFailed : ArtifactInstallIssueCode::RollbackFailed, entry.artifact.provider_id,
+              entry.artifact.package_path,
+              restored ? "could not move the active plugin package into backup" : "plugin package commit failed and rollback was incomplete", error);
         }
         entry.backup_moved = true;
       }
       std::filesystem::rename(entry.staging, entry.artifact.package_path, error);
       if (error) {
         const auto restored = rollback(staged);
-        return failure(restored ? ArtifactInstallIssueCode::CommitFailed
-                                : ArtifactInstallIssueCode::RollbackFailed,
-                       entry.artifact.provider_id, entry.artifact.package_path,
-                       restored ? "could not commit the staged plugin package"
-                                : "plugin package commit failed and rollback was incomplete",
-                       error);
+        return failure(restored ? ArtifactInstallIssueCode::CommitFailed : ArtifactInstallIssueCode::RollbackFailed, entry.artifact.provider_id,
+                       entry.artifact.package_path,
+                       restored ? "could not commit the staged plugin package" : "plugin package commit failed and rollback was incomplete", error);
       }
       entry.staging.clear();
       entry.committed = true;
@@ -309,8 +284,8 @@ namespace mobagen::modules {
       if (!entry.backup_moved) continue;
       std::filesystem::remove_all(entry.backup, error);
       if (error) {
-        return failure(ArtifactInstallIssueCode::CleanupFailed, entry.artifact.provider_id,
-                       entry.backup, "updated plugin package backup could not be removed", error);
+        return failure(ArtifactInstallIssueCode::CleanupFailed, entry.artifact.provider_id, entry.backup,
+                       "updated plugin package backup could not be removed", error);
       }
     }
 

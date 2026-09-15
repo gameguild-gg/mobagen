@@ -24,8 +24,7 @@ namespace {
       static std::atomic_uint64_t sequence = 0;
       const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
       path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-module-install-" + std::to_string(ticks) + "-"
-                 + std::to_string(sequence.fetch_add(1)));
+              / ("mobagen-module-install-" + std::to_string(ticks) + "-" + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directory(path_));
     }
 
@@ -45,10 +44,8 @@ namespace {
     return {source.begin(), source.end()};
   }
 
-  mobagen::modules::CachedModuleArtifact cache_artifact(
-      const mobagen::assets::AssetCache& cache, std::string provider_id, std::string_view contents,
-      mobagen::modules::LinkageMode linkage = mobagen::modules::LinkageMode::Dynamic
-  ) {
+  mobagen::modules::CachedModuleArtifact cache_artifact(const mobagen::assets::AssetCache& cache, std::string provider_id, std::string_view contents,
+                                                        mobagen::modules::LinkageMode linkage = mobagen::modules::LinkageMode::Dynamic) {
     const auto bytes = artifact_bytes(contents);
     const auto stored = cache.store(bytes);
     REQUIRE(stored.ok());
@@ -65,9 +62,7 @@ namespace {
     };
   }
 
-  mobagen::modules::LockfileDocument locked_project(
-      const mobagen::modules::CachedModuleArtifact& artifact
-  ) {
+  mobagen::modules::LockfileDocument locked_project(const mobagen::modules::CachedModuleArtifact& artifact) {
     return {
         .metadata = {
             .sdk = {1, 0, 0},
@@ -152,8 +147,8 @@ TEST_CASE("Module artifact installer: a failed batch preserves every active pack
 
   CHECK_FALSE(rejected.ok());
   CHECK(rejected.artifacts.empty());
-  const auto active_binary = root.path() / "plugins" / "mobagen.runtime.first.plugin"
-                             / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
+  const auto active_binary
+      = root.path() / "plugins" / "mobagen.runtime.first.plugin" / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
   const auto active = cache.store_file(active_binary);
   REQUIRE(active.id.has_value());
   CHECK(*active.id == original.id);
@@ -196,8 +191,7 @@ TEST_CASE("Module lock verifier: installed packages validate offline without loa
   TemporaryModuleInstallRoot root;
   assets::AssetCache cache(root.path() / "cache", 1024);
   const auto cached = cache_artifact(cache, "mobagen.runtime.remote", "not-an-executable");
-  REQUIRE(modules::materialize_module_plugins(std::span{&cached, 1},
-                                              root.path() / ".mobagen" / "plugins").ok());
+  REQUIRE(modules::materialize_module_plugins(std::span{&cached, 1}, root.path() / ".mobagen" / "plugins").ok());
   const auto document = locked_project(cached);
 
   const auto verified = modules::verify_locked_project(document, root.path(), locked_context());
@@ -207,8 +201,7 @@ TEST_CASE("Module lock verifier: installed packages validate offline without loa
   CHECK(verified.plugins.front().provider_id == cached.provider_id);
   CHECK(verified.plugins.front().linkage == modules::LinkageMode::Dynamic);
   CHECK(verified.plugins.front().size == std::string_view{"not-an-executable"}.size());
-  CHECK(verified.plugins.front().binary_path.filename()
-        == modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic));
+  CHECK(verified.plugins.front().binary_path.filename() == modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic));
 }
 
 TEST_CASE("Module lock verifier: metadata, resolution, and package tampering fail closed") {
@@ -216,8 +209,7 @@ TEST_CASE("Module lock verifier: metadata, resolution, and package tampering fai
   TemporaryModuleInstallRoot root;
   assets::AssetCache cache(root.path() / "cache", 1024);
   const auto cached = cache_artifact(cache, "mobagen.runtime.remote", "locked-plugin");
-  REQUIRE(modules::materialize_module_plugins(std::span{&cached, 1},
-                                              root.path() / ".mobagen" / "plugins").ok());
+  REQUIRE(modules::materialize_module_plugins(std::span{&cached, 1}, root.path() / ".mobagen" / "plugins").ok());
   auto document = locked_project(cached);
 
   auto context = locked_context();
@@ -232,8 +224,7 @@ TEST_CASE("Module lock verifier: metadata, resolution, and package tampering fai
   CHECK(rejected.issues.front().code == modules::LockfileVerificationIssueCode::InvalidResolution);
 
   document.resolved.front().version = cached.version;
-  const auto binary = root.path() / document.metadata.plugins.front().package
-                      / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
+  const auto binary = root.path() / document.metadata.plugins.front().package / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
   std::ofstream(binary, std::ios::binary | std::ios::app) << "tampered";
   rejected = modules::verify_locked_project(document, root.path(), locked_context());
   REQUIRE_FALSE(rejected.ok());

@@ -15,8 +15,7 @@
 namespace mobagen::plugins {
 
   using WasmHostLogService = std::uint32_t (*)(void* state, std::uint32_t level, std::string_view message);
-  using WasmHostSubmitCommandsService
-      = std::uint32_t (*)(void* state, WasmCommandBatchView batch, std::span<const std::string> permissions);
+  using WasmHostSubmitCommandsService = std::uint32_t (*)(void* state, WasmCommandBatchView batch, std::span<const std::string> permissions);
 
   struct WasmHostServices {
     void* state{};
@@ -44,9 +43,8 @@ namespace mobagen::plugins {
 
     [[nodiscard]] std::uint32_t log(std::span<const std::byte> memory, std::uint32_t level, std::uint32_t message_offset,
                                     std::uint32_t message_size) const noexcept;
-    [[nodiscard]] std::uint32_t find_capability(std::span<std::byte> memory, std::uint32_t capability_offset,
-                                                std::uint32_t capability_size, std::uint32_t capability_version,
-                                                std::uint32_t output_handle_offset) const noexcept;
+    [[nodiscard]] std::uint32_t find_capability(std::span<std::byte> memory, std::uint32_t capability_offset, std::uint32_t capability_size,
+                                                std::uint32_t capability_version, std::uint32_t output_handle_offset) const noexcept;
     [[nodiscard]] std::uint32_t submit_commands(std::span<std::byte> memory, std::uint32_t input_batch_offset,
                                                 std::uint32_t result_offset) const noexcept;
 

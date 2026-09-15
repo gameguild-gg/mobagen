@@ -97,11 +97,8 @@ int mobagen_wasm_asset_store_abi_c_compile_test(void) {
   view.header.opcode = MOBAGEN_WASM_ASSET_COMMAND_VIEW;
   result.header.byte_size = MOBAGEN_WASM_ASSET_VIEW_RESULT_V1_SIZE;
   result.header.opcode = MOBAGEN_WASM_ASSET_RESULT_VIEW;
-  return acquire.header.byte_size == sizeof(acquire)
-                 && view.header.byte_size == sizeof(view)
-                 && result.header.byte_size == sizeof(result)
-                 && sizeof(MobagenWasmAssetConfigurationV1) == 16
-                 && sizeof(MobagenWasmAssetConfigurationEntryV1) == 40
+  return acquire.header.byte_size == sizeof(acquire) && view.header.byte_size == sizeof(view) && result.header.byte_size == sizeof(result)
+                 && sizeof(MobagenWasmAssetConfigurationV1) == 16 && sizeof(MobagenWasmAssetConfigurationEntryV1) == 40
              ? 0
              : 1;
 }
@@ -119,12 +116,9 @@ int mobagen_asset_store_abi_c_compile_test(void) {
   store.view = view_asset;
   store.release = release_asset;
 
-  return store.header.struct_size == sizeof(store)
-                 && store.acquire(store.store_state, &id, &handle) == MOBAGEN_STATUS_OK
-                 && handle.index == 5 && handle.generation == 7
-                 && store.view(store.store_state, handle, &bytes) == MOBAGEN_STATUS_OK
-                 && bytes.size == 3 && bytes.data[2] == 3
-                 && store.release(store.store_state, handle) == MOBAGEN_STATUS_OK
+  return store.header.struct_size == sizeof(store) && store.acquire(store.store_state, &id, &handle) == MOBAGEN_STATUS_OK && handle.index == 5
+                 && handle.generation == 7 && store.view(store.store_state, handle, &bytes) == MOBAGEN_STATUS_OK && bytes.size == 3
+                 && bytes.data[2] == 3 && store.release(store.store_state, handle) == MOBAGEN_STATUS_OK
              ? 0
              : 1;
 }
@@ -140,9 +134,7 @@ int mobagen_runtime_adapter_abi_c_compile_test(void) {
   renderer.header.abi_version = MOBAGEN_RENDER_BACKEND_V1_ABI_VERSION;
   surface.struct_size = MOBAGEN_NATIVE_SURFACE_V1_SIZE;
   context.struct_size = MOBAGEN_RENDER_CONTEXT_DESC_V1_SIZE;
-  return windows.header.struct_size == sizeof(windows)
-                 && renderer.header.struct_size == sizeof(renderer)
-                 && surface.struct_size == sizeof(surface)
+  return windows.header.struct_size == sizeof(windows) && renderer.header.struct_size == sizeof(renderer) && surface.struct_size == sizeof(surface)
                  && context.struct_size == sizeof(context)
              ? 0
              : 1;

@@ -19,9 +19,7 @@
 namespace mobagen::compositions {
 
   struct LockedPortableProjectOptions {
-    modules::SemanticVersion sdk_version{
-        MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH
-    };
+    modules::SemanticVersion sdk_version{MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH};
     modules::TargetPlatform target{};
     std::string profile;
   };
@@ -55,18 +53,14 @@ namespace mobagen::compositions {
     std::optional<modules::ProductDescriptor> product;
     std::vector<LockedPortableProjectIssue> issues;
 
-    [[nodiscard]] bool ok() const noexcept {
-      return manager != nullptr && product.has_value() && issues.empty();
-    }
+    [[nodiscard]] bool ok() const noexcept { return manager != nullptr && product.has_value() && issues.empty(); }
   };
 
   /* Opens a bootstrapped project from bounded local metadata. No plugin binary
      bytes are read and no WASM instance is created until manager.activate(). */
-  [[nodiscard]] LockedPortableProjectResult open_locked_portable_project(
-      const std::filesystem::path& manifest_path, LockedPortableProjectOptions options,
-      plugins::PortableWasmBackend& backend,
-      std::span<const modules::ProviderDescriptor> builtin_providers = {},
-      plugins::WasmHostServices host_services = {}
-  );
+  [[nodiscard]] LockedPortableProjectResult open_locked_portable_project(const std::filesystem::path& manifest_path,
+                                                                         LockedPortableProjectOptions options, plugins::PortableWasmBackend& backend,
+                                                                         std::span<const modules::ProviderDescriptor> builtin_providers = {},
+                                                                         plugins::WasmHostServices host_services = {});
 
 }  // namespace mobagen::compositions

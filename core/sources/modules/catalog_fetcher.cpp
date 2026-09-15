@@ -15,8 +15,8 @@ namespace mobagen::modules {
                                std::vector<DescriptorIssue> descriptor_issues = {}, std::vector<CatalogError> catalog_errors = {},
                                http::Error transport_error = {}) {
       CatalogFetchResult result;
-      result.issues.push_back({code, std::move(source_name), std::move(message), std::move(descriptor_issues), std::move(catalog_errors),
-                               std::move(transport_error)});
+      result.issues.push_back(
+          {code, std::move(source_name), std::move(message), std::move(descriptor_issues), std::move(catalog_errors), std::move(transport_error)});
       return result;
     }
 
@@ -41,11 +41,11 @@ namespace mobagen::modules {
             .max_redirects = 0,
         });
       } catch (const std::exception& exception) {
-        return failure(CatalogFetchIssueCode::Transport, source.name, "HTTPS client threw while fetching module catalog",
-                       {}, {}, {http::ErrorCode::Transfer, exception.what()});
+        return failure(CatalogFetchIssueCode::Transport, source.name, "HTTPS client threw while fetching module catalog", {}, {},
+                       {http::ErrorCode::Transfer, exception.what()});
       } catch (...) {
-        return failure(CatalogFetchIssueCode::Transport, source.name, "HTTPS client threw while fetching module catalog",
-                       {}, {}, {http::ErrorCode::Transfer, "unknown HTTPS client failure"});
+        return failure(CatalogFetchIssueCode::Transport, source.name, "HTTPS client threw while fetching module catalog", {}, {},
+                       {http::ErrorCode::Transfer, "unknown HTTPS client failure"});
       }
 
       if (!fetched.ok()) {

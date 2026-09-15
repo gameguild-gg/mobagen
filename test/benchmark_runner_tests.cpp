@@ -77,7 +77,8 @@ TEST_CASE("Benchmark paired measurement alternates and reports comparable median
   std::size_t baseline_calls = 0;
   std::size_t candidate_calls = 0;
 
-  const auto result = measure_paired("baseline", "candidate", options, [&] { ++baseline_calls; }, [&] { ++candidate_calls; });
+  const auto result = measure_paired(
+      "baseline", "candidate", options, [&] { ++baseline_calls; }, [&] { ++candidate_calls; });
 
   CHECK(baseline_calls == 6);
   CHECK(candidate_calls == 6);
@@ -87,7 +88,9 @@ TEST_CASE("Benchmark paired measurement alternates and reports comparable median
   CHECK(result.candidate.median_ns >= 0.0);
   CHECK(overhead_percent(Result{"baseline", {100.0}, 100.0, 100.0}, Result{"candidate", {101.0}, 101.0, 101.0}) == doctest::Approx(1.0));
 
-  CHECK_THROWS_AS(measure_paired("baseline", "candidate", options, [] {}, [] {}, 0), std::invalid_argument);
+  CHECK_THROWS_AS(measure_paired(
+                      "baseline", "candidate", options, [] {}, [] {}, 0),
+                  std::invalid_argument);
 }
 
 TEST_CASE("Benchmark paired overhead exposes median and conservative p05") {

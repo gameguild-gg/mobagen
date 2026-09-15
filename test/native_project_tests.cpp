@@ -292,32 +292,23 @@ TEST_CASE("Locked native project: verified lock opens offline and activates capa
       .policy = NativeProjectLockPolicy::Update,
       .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
   };
-  auto generated = load_native_project(
-      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
-  );
+  auto generated = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, update_lock);
   REQUIRE(generated.ok());
   REQUIRE(generated.runtime->stop().ok());
   generated.runtime.reset();
   std::error_code removal_error;
-  REQUIRE(std::filesystem::remove(
-      project.path() / "plugins" / "unselected.plugin"
-          / mobagen::plugins::native_plugin_binary_filename(),
-      removal_error
-  ));
+  REQUIRE(
+      std::filesystem::remove(project.path() / "plugins" / "unselected.plugin" / mobagen::plugins::native_plugin_binary_filename(), removal_error));
   REQUIRE_FALSE(removal_error);
 
-  auto opened = open_locked_native_project(
-      project.path() / "mobagen.yaml",
-      {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"}
-  );
+  auto opened
+      = open_locked_native_project(project.path() / "mobagen.yaml", {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"});
 
   REQUIRE(opened.ok());
   CHECK(opened.manager->active_count() == 0);
   CHECK(opened.manager->host().size() == 0);
   REQUIRE(opened.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID).ok());
-  const auto api = opened.manager->host().find<MobagenRuntimeTickV1>(
-      MOBAGEN_RUNTIME_TICK_V1_ID, 1
-  );
+  const auto api = opened.manager->host().find<MobagenRuntimeTickV1>(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
   REQUIRE(api.has_value());
   CHECK((*api)->tick((*api)->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK((*api)->tick_count((*api)->plugin_state) == 42);
@@ -332,19 +323,12 @@ TEST_CASE("Project module manager: manifest profile routes to lazy native module
       .policy = NativeProjectLockPolicy::Update,
       .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
   };
-  auto generated = load_native_project(
-      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
-  );
+  auto generated = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, update_lock);
   REQUIRE(generated.ok());
   REQUIRE(generated.runtime->stop().ok());
   generated.runtime.reset();
 
-  auto opened = open_locked_project(
-      project.path() / "mobagen.yaml",
-      {.sdk_version = {0, 0, 1},
-       .target = native_target(),
-       .profile = "release"}
-  );
+  auto opened = open_locked_project(project.path() / "mobagen.yaml", {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"});
 
   REQUIRE(opened.ok());
   CHECK(opened.product->name == "native-project-test");
@@ -360,9 +344,7 @@ TEST_CASE("Project module manager: manifest profile routes to lazy native module
   CHECK(acquired.endpoint->kind == ProjectModuleRuntimeKind::Native);
   REQUIRE(acquired.endpoint->native.has_value());
   CHECK(acquired.endpoint->portable == nullptr);
-  const auto* api = static_cast<const MobagenRuntimeTickV1*>(
-      acquired.endpoint->native->function_table
-  );
+  const auto* api = static_cast<const MobagenRuntimeTickV1*>(acquired.endpoint->native->function_table);
   CHECK(api->tick(api->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK(opened.manager->active_count() == 1);
   CHECK(opened.manager->native()->host().size() == 1);
@@ -373,9 +355,7 @@ TEST_CASE("Project module manager: manifest profile routes to lazy native module
   module_allocation_probe::enabled.store(true, std::memory_order_release);
   for (std::size_t index = 0; index < 1'024; ++index) {
     const auto* hot = opened.manager->find_active(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
-    endpoint_reused = endpoint_reused && hot != nullptr
-                      && hot->native->function_table
-                             == acquired.endpoint->native->function_table;
+    endpoint_reused = endpoint_reused && hot != nullptr && hot->native->function_table == acquired.endpoint->native->function_table;
   }
   module_allocation_probe::enabled.store(false, std::memory_order_release);
   CHECK(endpoint_reused);
@@ -392,34 +372,26 @@ TEST_CASE("Locked native project: tampered plugin bytes fail only when its capab
       .policy = NativeProjectLockPolicy::Update,
       .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
   };
-  auto generated = load_native_project(
-      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
-  );
+  auto generated = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, update_lock);
   REQUIRE(generated.ok());
   REQUIRE(generated.runtime->stop().ok());
   generated.runtime.reset();
-  std::ofstream tampered{
-      project.path() / "plugins" / "reference.plugin"
-          / mobagen::plugins::native_plugin_binary_filename(),
-      std::ios::binary | std::ios::app
-  };
+  std::ofstream tampered{project.path() / "plugins" / "reference.plugin" / mobagen::plugins::native_plugin_binary_filename(),
+                         std::ios::binary | std::ios::app};
   REQUIRE(tampered.is_open());
   tampered.put('\0');
   REQUIRE(tampered.good());
   tampered.close();
 
-  auto opened = open_locked_native_project(
-      project.path() / "mobagen.yaml",
-      {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"}
-  );
+  auto opened
+      = open_locked_native_project(project.path() / "mobagen.yaml", {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"});
 
   REQUIRE(opened.ok());
   CHECK(opened.manager->active_count() == 0);
   const auto activated = opened.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID);
   CHECK_FALSE(activated.ok());
   REQUIRE(activated.issues.size() == 1);
-  CHECK(activated.issues.front().code
-        == NativeModuleManagerIssueCode::ArtifactVerificationFailed);
+  CHECK(activated.issues.front().code == NativeModuleManagerIssueCode::ArtifactVerificationFailed);
   CHECK(opened.manager->active_count() == 0);
   CHECK(opened.manager->host().size() == 0);
 }
@@ -432,9 +404,7 @@ TEST_CASE("Locked native project: lock permissions cannot exceed the manifest pr
       .policy = NativeProjectLockPolicy::Update,
       .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
   };
-  auto generated = load_native_project(
-      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
-  );
+  auto generated = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, update_lock);
   REQUIRE(generated.ok());
   REQUIRE(generated.runtime->stop().ok());
   generated.runtime.reset();
@@ -444,10 +414,8 @@ TEST_CASE("Locked native project: lock permissions cannot exceed the manifest pr
   lock.replace(permission, std::string_view{"  - debug\n"}.size(), "  - filesystem\n");
   project.write_lockfile(lock);
 
-  const auto opened = open_locked_native_project(
-      project.path() / "mobagen.yaml",
-      {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"}
-  );
+  const auto opened
+      = open_locked_native_project(project.path() / "mobagen.yaml", {.sdk_version = {0, 0, 1}, .target = native_target(), .profile = "release"});
 
   CHECK_FALSE(opened.ok());
   CHECK(opened.manager == nullptr);

@@ -22,8 +22,8 @@ if(MOBAGEN_BUILD_RUNTIME)
 endif()
 
 # ---------------------------------------------------------------------------
-# Module host foundation. These targets remain available when the current
-# built-in engine implementation is omitted.
+# Module host foundation. These targets remain available when the current built-in engine
+# implementation is omitted.
 # ---------------------------------------------------------------------------
 add_subdirectory(sources/http)
 add_subdirectory(sources/modules)
@@ -74,9 +74,7 @@ if(MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
   if(BUILD_WEBREQUEST)
     add_library(core_webrequest STATIC sources/WebRequest.cpp sources/WebRequest.h)
     add_library(mobagen::core_webrequest ALIAS core_webrequest)
-    target_include_directories(
-      core_webrequest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/sources
-    )
+    target_include_directories(core_webrequest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/sources)
   endif()
 
   # android_main_wrapper.cpp is intentionally NOT compiled here. It is injected by the root
@@ -96,12 +94,8 @@ add_library(core INTERFACE)
 add_library(mobagen::core ALIAS core)
 
 target_link_libraries(
-  core
-  INTERFACE mobagen::core_http
-            mobagen::core_modules
-            mobagen::core_plugins
-            mobagen::core_resource
-            mobagen::core_assets
+  core INTERFACE mobagen::core_http mobagen::core_modules mobagen::core_plugins
+                 mobagen::core_resource mobagen::core_assets
 )
 
 if(MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)

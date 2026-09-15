@@ -18,20 +18,14 @@ namespace module_allocation_probe {
 
 namespace {
 
-  std::span<const std::byte> bytes(std::string_view value) {
-    return {reinterpret_cast<const std::byte*>(value.data()), value.size()};
-  }
+  std::span<const std::byte> bytes(std::string_view value) { return {reinterpret_cast<const std::byte*>(value.data()), value.size()}; }
 
   class TemporaryAssetStoreDirectory {
   public:
     TemporaryAssetStoreDirectory() {
       static std::atomic_uint64_t sequence = 0;
-      const auto ticks = std::chrono::high_resolution_clock::now()
-                             .time_since_epoch()
-                             .count();
-      path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-asset-store-" + std::to_string(ticks) + '-'
-                 + std::to_string(sequence.fetch_add(1)));
+      const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+      path_ = std::filesystem::temp_directory_path() / ("mobagen-asset-store-" + std::to_string(ticks) + '-' + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directory(path_));
     }
 
@@ -40,9 +34,7 @@ namespace {
       std::filesystem::remove_all(path_, error);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept {
-      return path_;
-    }
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 
   private:
     std::filesystem::path path_;
@@ -76,18 +68,14 @@ TEST_CASE("Asset store service: ABI acquires shared immutable blobs lazily") {
   REQUIRE(api.view != nullptr);
   REQUIRE(api.release != nullptr);
   CHECK(api.acquire(nullptr, &id, &first) == MOBAGEN_STATUS_INVALID_ARGUMENT);
-  CHECK(api.acquire(api.store_state, nullptr, &first)
-        == MOBAGEN_STATUS_INVALID_ARGUMENT);
-  CHECK(api.acquire(api.store_state, &id, nullptr)
-        == MOBAGEN_STATUS_INVALID_ARGUMENT);
+  CHECK(api.acquire(api.store_state, nullptr, &first) == MOBAGEN_STATUS_INVALID_ARGUMENT);
+  CHECK(api.acquire(api.store_state, &id, nullptr) == MOBAGEN_STATUS_INVALID_ARGUMENT);
 
   const auto missing_internal = sha256(bytes("missing asset payload"));
   REQUIRE(missing_internal.has_value());
   const auto missing = abi_id(*missing_internal);
-  CHECK(api.acquire(api.store_state, &missing, &first)
-        == MOBAGEN_STATUS_NOT_FOUND);
-  CHECK(api.view(api.store_state, first, nullptr)
-        == MOBAGEN_STATUS_INVALID_ARGUMENT);
+  CHECK(api.acquire(api.store_state, &missing, &first) == MOBAGEN_STATUS_NOT_FOUND);
+  CHECK(api.view(api.store_state, first, nullptr) == MOBAGEN_STATUS_INVALID_ARGUMENT);
   CHECK(api.release(nullptr, first) == MOBAGEN_STATUS_INVALID_ARGUMENT);
 
   REQUIRE(api.acquire(api.store_state, &id, &first) == MOBAGEN_STATUS_OK);
@@ -101,15 +89,8 @@ TEST_CASE("Asset store service: ABI acquires shared immutable blobs lazily") {
   module_allocation_probe::enabled.store(true, std::memory_order_release);
   for (std::size_t index = 0; index < 1'024; ++index) {
     MobagenByteView view{};
-    valid_views = valid_views
-                  && api.view(api.store_state, first, &view) == MOBAGEN_STATUS_OK
-                  && view.size == bytes("shared asset payload").size()
-                  && std::equal(
-                      view.data, view.data + view.size,
-                      reinterpret_cast<const std::uint8_t*>(
-                          "shared asset payload"
-                      )
-                  );
+    valid_views = valid_views && api.view(api.store_state, first, &view) == MOBAGEN_STATUS_OK && view.size == bytes("shared asset payload").size()
+                  && std::equal(view.data, view.data + view.size, reinterpret_cast<const std::uint8_t*>("shared asset payload"));
   }
   module_allocation_probe::enabled.store(false, std::memory_order_release);
   CHECK(valid_views);
@@ -142,10 +123,8 @@ TEST_CASE("Asset store service: ABI serializes concurrent leases") {
       for (std::size_t iteration = 0; iteration < 256; ++iteration) {
         MobagenAssetHandleV1 handle{};
         MobagenByteView view{};
-        if (api.acquire(api.store_state, &id, &handle) != MOBAGEN_STATUS_OK
-            || api.view(api.store_state, handle, &view) != MOBAGEN_STATUS_OK
-            || view.size != bytes("threaded asset").size()
-            || api.release(api.store_state, handle) != MOBAGEN_STATUS_OK) {
+        if (api.acquire(api.store_state, &id, &handle) != MOBAGEN_STATUS_OK || api.view(api.store_state, handle, &view) != MOBAGEN_STATUS_OK
+            || view.size != bytes("threaded asset").size() || api.release(api.store_state, handle) != MOBAGEN_STATUS_OK) {
           succeeded.store(false, std::memory_order_relaxed);
           return;
         }

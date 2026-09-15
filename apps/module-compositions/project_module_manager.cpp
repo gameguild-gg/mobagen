@@ -3,7 +3,7 @@
 #include "portable/locked_project.hpp"
 #include "project_support.hpp"
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-#include "native/locked_project.hpp"
+#  include "native/locked_project.hpp"
 #endif
 
 #include <algorithm>
@@ -23,16 +23,14 @@ namespace mobagen::compositions {
 
   namespace {
 
-    template <typename Issue>
-    ProjectModuleManagerIssue simplify_issue(Issue&& issue) {
+    template <typename Issue> ProjectModuleManagerIssue simplify_issue(Issue&& issue) {
       return {
           .provider_id = std::move(issue.provider_id),
           .message = std::move(issue.message),
       };
     }
 
-    template <typename Issues>
-    std::vector<ProjectModuleManagerIssue> simplify_issues(Issues&& issues) {
+    template <typename Issues> std::vector<ProjectModuleManagerIssue> simplify_issues(Issues&& issues) {
       std::vector<ProjectModuleManagerIssue> result;
       result.reserve(issues.size());
       for (auto& issue : issues) {
@@ -41,16 +39,12 @@ namespace mobagen::compositions {
       return result;
     }
 
-    template <typename Issues>
-    ProjectModuleManagerActionResult simplify_action(Issues&& issues) {
+    template <typename Issues> ProjectModuleManagerActionResult simplify_action(Issues&& issues) {
       return {.issues = simplify_issues(std::forward<Issues>(issues))};
     }
 
     template <typename ProjectIssue>
-    void append_open_issues(
-        LockedProjectResult& result, LockedProjectIssueCode code,
-        std::vector<ProjectIssue>&& issues
-    ) {
+    void append_open_issues(LockedProjectResult& result, LockedProjectIssueCode code, std::vector<ProjectIssue>&& issues) {
       result.issues.reserve(result.issues.size() + issues.size());
       for (auto& issue : issues) {
         result.issues.push_back({.code = code, .message = std::move(issue.message)});
@@ -59,24 +53,15 @@ namespace mobagen::compositions {
 
   }  // namespace
 
-  ProjectModuleManager::ProjectModuleManager(
-      std::unique_ptr<Storage> storage
-  ) noexcept
-      : storage_(std::move(storage)) {}
+  ProjectModuleManager::ProjectModuleManager(std::unique_ptr<Storage> storage) noexcept : storage_(std::move(storage)) {}
 
   ProjectModuleManager::ProjectModuleManager(ProjectModuleManager&&) noexcept = default;
-  ProjectModuleManager& ProjectModuleManager::operator=(
-      ProjectModuleManager&&
-  ) noexcept = default;
+  ProjectModuleManager& ProjectModuleManager::operator=(ProjectModuleManager&&) noexcept = default;
   ProjectModuleManager::~ProjectModuleManager() = default;
 
-  ProjectModuleRuntimeKind ProjectModuleManager::kind() const noexcept {
-    return storage_->kind;
-  }
+  ProjectModuleRuntimeKind ProjectModuleManager::kind() const noexcept { return storage_->kind; }
 
-  ProjectModuleManagerActionResult ProjectModuleManager::activate(
-      std::string_view capability
-  ) {
+  ProjectModuleManagerActionResult ProjectModuleManager::activate(std::string_view capability) {
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
     if (storage_->native != nullptr) {
       auto activated = storage_->native->activate(capability);
@@ -87,30 +72,22 @@ namespace mobagen::compositions {
     return simplify_action(std::move(activated.issues));
   }
 
-  ProjectModuleCapabilityResult ProjectModuleManager::acquire(
-      std::string_view capability, std::uint32_t minimum_native_abi_version
-  ) {
+  ProjectModuleCapabilityResult ProjectModuleManager::acquire(std::string_view capability, std::uint32_t minimum_native_abi_version) {
     ProjectModuleCapabilityResult result;
-    if (const auto* endpoint = find_active(
-            capability, minimum_native_abi_version
-        )) {
+    if (const auto* endpoint = find_active(capability, minimum_native_abi_version)) {
       result.endpoint = *endpoint;
       return result;
     }
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
     if (storage_->native != nullptr) {
-      auto acquired = storage_->native->acquire(
-          capability, minimum_native_abi_version
-      );
+      auto acquired = storage_->native->acquire(capability, minimum_native_abi_version);
       result.issues = simplify_issues(std::move(acquired.issues));
       if (acquired.binding.has_value()) {
         auto endpoint = ProjectModuleCapabilityEndpoint{
             .kind = ProjectModuleRuntimeKind::Native,
             .native = *acquired.binding,
         };
-        const auto [stored, inserted] = storage_->endpoints.try_emplace(
-            std::string{capability}, endpoint
-        );
+        const auto [stored, inserted] = storage_->endpoints.try_emplace(std::string{capability}, endpoint);
         static_cast<void>(inserted);
         result.endpoint = stored->second;
       }
@@ -126,24 +103,20 @@ namespace mobagen::compositions {
           .kind = ProjectModuleRuntimeKind::Portable,
           .portable = acquired.plugin,
       };
-      const auto [stored, inserted] = storage_->endpoints.try_emplace(
-          std::string{capability}, endpoint
-      );
+      const auto [stored, inserted] = storage_->endpoints.try_emplace(std::string{capability}, endpoint);
       static_cast<void>(inserted);
       result.endpoint = stored->second;
     }
     return result;
   }
 
-  const ProjectModuleCapabilityEndpoint* ProjectModuleManager::find_active(
-      std::string_view capability, std::uint32_t minimum_native_abi_version
-  ) const noexcept {
+  const ProjectModuleCapabilityEndpoint* ProjectModuleManager::find_active(std::string_view capability,
+                                                                           std::uint32_t minimum_native_abi_version) const noexcept {
     const auto found = storage_->endpoints.find(capability);
     if (found == storage_->endpoints.end()) return nullptr;
     const auto& endpoint = found->second;
     if (endpoint.kind == ProjectModuleRuntimeKind::Native
-        && (!endpoint.native.has_value()
-            || endpoint.native->abi_version < minimum_native_abi_version)) {
+        && (!endpoint.native.has_value() || endpoint.native->abi_version < minimum_native_abi_version)) {
       return nullptr;
     }
     return &endpoint;
@@ -184,18 +157,11 @@ namespace mobagen::compositions {
 #endif
   }
 
-  PortableModuleManager* ProjectModuleManager::portable() noexcept {
-    return storage_->portable.get();
-  }
+  PortableModuleManager* ProjectModuleManager::portable() noexcept { return storage_->portable.get(); }
 
-  const PortableModuleManager* ProjectModuleManager::portable() const noexcept {
-    return storage_->portable.get();
-  }
+  const PortableModuleManager* ProjectModuleManager::portable() const noexcept { return storage_->portable.get(); }
 
-  LockedProjectResult open_locked_project(
-      const std::filesystem::path& manifest_path, LockedProjectOptions options,
-      LockedProjectServices services
-  ) {
+  LockedProjectResult open_locked_project(const std::filesystem::path& manifest_path, LockedProjectOptions options, LockedProjectServices services) {
     LockedProjectResult result;
     auto source = detail::read_project_manifest_bounded(manifest_path);
     if (!source.ok()) {
@@ -205,9 +171,7 @@ namespace mobagen::compositions {
       });
       return result;
     }
-    auto parsed = modules::parse_product_manifest(
-        *source.contents, source.absolute_path.generic_string()
-    );
+    auto parsed = modules::parse_product_manifest(*source.contents, source.absolute_path.generic_string());
     if (!parsed.ok()) {
       result.issues.push_back({
           .code = LockedProjectIssueCode::ParseManifest,
@@ -216,10 +180,7 @@ namespace mobagen::compositions {
       });
       return result;
     }
-    const auto profile = std::ranges::find(
-        parsed.descriptor->profiles, options.profile,
-        &modules::ProfileDescriptor::name
-    );
+    const auto profile = std::ranges::find(parsed.descriptor->profiles, options.profile, &modules::ProfileDescriptor::name);
     if (profile == parsed.descriptor->profiles.end()) {
       result.issues.push_back({
           .code = LockedProjectIssueCode::ProfileUnavailable,
@@ -236,56 +197,40 @@ namespace mobagen::compositions {
         });
         return result;
       }
-      auto opened = open_locked_portable_project(
-          source.absolute_path,
-          {
-              .sdk_version = options.sdk_version,
-              .target = options.target,
-              .profile = std::move(options.profile),
-          },
-          *services.portable_backend, services.builtin_providers,
-          services.wasm_host_services
-      );
+      auto opened = open_locked_portable_project(source.absolute_path,
+                                                 {
+                                                     .sdk_version = options.sdk_version,
+                                                     .target = options.target,
+                                                     .profile = std::move(options.profile),
+                                                 },
+                                                 *services.portable_backend, services.builtin_providers, services.wasm_host_services);
       if (!opened.ok()) {
-        append_open_issues(
-            result, LockedProjectIssueCode::PortableProject,
-            std::move(opened.issues)
-        );
+        append_open_issues(result, LockedProjectIssueCode::PortableProject, std::move(opened.issues));
         return result;
       }
       auto storage = std::make_unique<ProjectModuleManager::Storage>();
       storage->kind = ProjectModuleRuntimeKind::Portable;
       storage->portable = std::move(opened.manager);
-      result.manager = std::unique_ptr<ProjectModuleManager>(
-          new ProjectModuleManager(std::move(storage))
-      );
+      result.manager = std::unique_ptr<ProjectModuleManager>(new ProjectModuleManager(std::move(storage)));
       result.product = std::move(opened.product);
       return result;
     }
 
     if (profile->linkage == modules::LinkageMode::Dynamic) {
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-      auto opened = open_locked_native_project(
-          source.absolute_path,
-          {
-              .sdk_version = options.sdk_version,
-              .target = options.target,
-              .profile = std::move(options.profile),
-          }
-      );
+      auto opened = open_locked_native_project(source.absolute_path, {
+                                                                         .sdk_version = options.sdk_version,
+                                                                         .target = options.target,
+                                                                         .profile = std::move(options.profile),
+                                                                     });
       if (!opened.ok()) {
-        append_open_issues(
-            result, LockedProjectIssueCode::NativeProject,
-            std::move(opened.issues)
-        );
+        append_open_issues(result, LockedProjectIssueCode::NativeProject, std::move(opened.issues));
         return result;
       }
       auto storage = std::make_unique<ProjectModuleManager::Storage>();
       storage->kind = ProjectModuleRuntimeKind::Native;
       storage->native = std::move(opened.manager);
-      result.manager = std::unique_ptr<ProjectModuleManager>(
-          new ProjectModuleManager(std::move(storage))
-      );
+      result.manager = std::unique_ptr<ProjectModuleManager>(new ProjectModuleManager(std::move(storage)));
       result.product = std::move(opened.product);
       return result;
 #else

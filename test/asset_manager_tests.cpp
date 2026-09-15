@@ -18,20 +18,15 @@ namespace module_allocation_probe {
 
 namespace {
 
-  std::span<const std::byte> bytes(std::string_view value) {
-    return {reinterpret_cast<const std::byte*>(value.data()), value.size()};
-  }
+  std::span<const std::byte> bytes(std::string_view value) { return {reinterpret_cast<const std::byte*>(value.data()), value.size()}; }
 
   class TemporaryAssetManagerDirectory {
   public:
     TemporaryAssetManagerDirectory() {
       static std::atomic_uint64_t sequence = 0;
-      const auto ticks = std::chrono::high_resolution_clock::now()
-                             .time_since_epoch()
-                             .count();
-      path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-asset-manager-" + std::to_string(ticks) + '-'
-                 + std::to_string(sequence.fetch_add(1)));
+      const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+      path_
+          = std::filesystem::temp_directory_path() / ("mobagen-asset-manager-" + std::to_string(ticks) + '-' + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directory(path_));
     }
 
@@ -40,9 +35,7 @@ namespace {
       std::filesystem::remove_all(path_, error);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept {
-      return path_;
-    }
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 
   private:
     std::filesystem::path path_;
@@ -53,20 +46,13 @@ namespace {
     bool fail{};
     std::optional<mobagen::assets::AssetId> rejected_id;
 
-    static bool decode(
-        void* context, const mobagen::assets::AssetDecodeRequest& request,
-        std::string& output
-    ) {
+    static bool decode(void* context, const mobagen::assets::AssetDecodeRequest& request, std::string& output) {
       auto& decoder = *static_cast<TextDecoder*>(context);
       ++decoder.calls;
-      if (decoder.fail
-          || (decoder.rejected_id.has_value()
-              && decoder.rejected_id == request.id)) {
+      if (decoder.fail || (decoder.rejected_id.has_value() && decoder.rejected_id == request.id)) {
         return false;
       }
-      output.assign(
-          reinterpret_cast<const char*>(request.bytes.data()), request.bytes.size()
-      );
+      output.assign(reinterpret_cast<const char*>(request.bytes.data()), request.bytes.size());
       return true;
     }
   };
@@ -81,9 +67,7 @@ TEST_CASE("Asset manager: content is decoded lazily and retained by generational
   REQUIRE(stored.ok());
   REQUIRE(stored.id.has_value());
   TextDecoder decoder;
-  AssetManager<std::string> manager{
-      cache, {.context = &decoder, .decode = TextDecoder::decode}
-  };
+  AssetManager<std::string> manager{cache, {.context = &decoder, .decode = TextDecoder::decode}};
 
   const auto first = manager.acquire(*stored.id);
 
@@ -110,12 +94,8 @@ TEST_CASE("Asset manager: content is decoded lazily and retained by generational
   module_allocation_probe::enabled.store(true, std::memory_order_release);
   for (std::size_t index = 0; index < 1'024; ++index) {
     const auto shared = manager.acquire(*stored.id);
-    same_asset = same_asset && shared.ok()
-                 && shared.status == AssetManagerStatus::resident
-                 && shared.handle == first.handle
-                 && manager.get(first.handle) != nullptr
-                 && *manager.get(first.handle) == "mesh payload"
-                 && manager.release(shared.handle);
+    same_asset = same_asset && shared.ok() && shared.status == AssetManagerStatus::resident && shared.handle == first.handle
+                 && manager.get(first.handle) != nullptr && *manager.get(first.handle) == "mesh payload" && manager.release(shared.handle);
   }
   module_allocation_probe::enabled.store(false, std::memory_order_release);
   CHECK(same_asset);
@@ -138,9 +118,7 @@ TEST_CASE("Asset manager: missing and rejected assets never become resident") {
   TemporaryAssetManagerDirectory directory;
   AssetCache cache{directory.path()};
   TextDecoder decoder;
-  AssetManager<std::string> manager{
-      cache, {.context = &decoder, .decode = TextDecoder::decode}
-  };
+  AssetManager<std::string> manager{cache, {.context = &decoder, .decode = TextDecoder::decode}};
   const auto missing_id = sha256(bytes("missing payload"));
   REQUIRE(missing_id.has_value());
 
@@ -185,19 +163,11 @@ TEST_CASE("Asset manager: dependency closure loads transactionally in dependency
   REQUIRE(graph.register_asset(*source.id));
   REQUIRE(graph.register_asset(*material.id));
   REQUIRE(graph.register_asset(*scene.id));
-  REQUIRE(
-      graph.set_dependencies(*material.id, std::array{*source.id})
-      == AssetDependencyStatus::success
-  );
-  REQUIRE(
-      graph.set_dependencies(*scene.id, std::array{*material.id})
-      == AssetDependencyStatus::success
-  );
+  REQUIRE(graph.set_dependencies(*material.id, std::array{*source.id}) == AssetDependencyStatus::success);
+  REQUIRE(graph.set_dependencies(*scene.id, std::array{*material.id}) == AssetDependencyStatus::success);
 
   TextDecoder decoder;
-  AssetManager<std::string> manager{
-      cache, {.context = &decoder, .decode = TextDecoder::decode}
-  };
+  AssetManager<std::string> manager{cache, {.context = &decoder, .decode = TextDecoder::decode}};
   const auto resident_source = manager.acquire(*source.id);
   REQUIRE(resident_source.ok());
   decoder.rejected_id = *scene.id;
@@ -244,9 +214,7 @@ TEST_CASE("Asset manager: unknown dependency roots fail before loading") {
   TemporaryAssetManagerDirectory directory;
   AssetCache cache{directory.path()};
   TextDecoder decoder;
-  AssetManager<std::string> manager{
-      cache, {.context = &decoder, .decode = TextDecoder::decode}
-  };
+  AssetManager<std::string> manager{cache, {.context = &decoder, .decode = TextDecoder::decode}};
   const auto missing = sha256(bytes("unknown graph root"));
   REQUIRE(missing.has_value());
   AssetDependencyGraph graph;

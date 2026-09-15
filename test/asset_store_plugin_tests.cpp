@@ -15,20 +15,15 @@
 
 namespace {
 
-  std::span<const std::byte> bytes(std::string_view value) {
-    return {reinterpret_cast<const std::byte*>(value.data()), value.size()};
-  }
+  std::span<const std::byte> bytes(std::string_view value) { return {reinterpret_cast<const std::byte*>(value.data()), value.size()}; }
 
   class TemporaryAssetPluginDirectory {
   public:
     TemporaryAssetPluginDirectory() {
       static std::atomic_uint64_t sequence = 0;
-      const auto ticks = std::chrono::high_resolution_clock::now()
-                             .time_since_epoch()
-                             .count();
-      path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-asset-plugin-" + std::to_string(ticks) + '-'
-                 + std::to_string(sequence.fetch_add(1)));
+      const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+      path_
+          = std::filesystem::temp_directory_path() / ("mobagen-asset-plugin-" + std::to_string(ticks) + '-' + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directory(path_));
     }
 
@@ -37,9 +32,7 @@ namespace {
       std::filesystem::remove_all(path_, error);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept {
-      return path_;
-    }
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 
   private:
     std::filesystem::path path_;
@@ -58,10 +51,7 @@ TEST_CASE("Asset store plugin: real package publishes the default native provide
   TemporaryAssetPluginDirectory directory;
   const auto package = directory.path() / "mobagen.assets.default.plugin";
   REQUIRE(std::filesystem::create_directory(package));
-  REQUIRE(std::filesystem::copy_file(
-      MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH,
-      package / plugins::native_plugin_binary_filename()
-  ));
+  REQUIRE(std::filesystem::copy_file(MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH, package / plugins::native_plugin_binary_filename()));
 
   const auto cache_root = directory.path() / "cache";
   assets::AssetCache cache{cache_root};
@@ -76,39 +66,28 @@ TEST_CASE("Asset store plugin: real package publishes the default native provide
     REQUIRE(loaded.plugin.has_value());
     const auto& provider = loaded.plugin->contract().provider;
     CHECK(provider.id == "mobagen.assets.default");
-    CHECK(provider.provides
-          == std::vector<std::string>{MOBAGEN_ASSET_STORE_V1_ID});
+    CHECK(provider.provides == std::vector<std::string>{MOBAGEN_ASSET_STORE_V1_ID});
     CHECK(provider.reload == modules::ReloadPolicy::Restart);
     CHECK(provider.configuration_schema == "mobagen.assets.default.config.v1");
     CHECK(provider.permissions == std::vector<std::string>{"filesystem-read"});
   }
 
-  auto activated = plugins::activate_native_plugin_package(
-      package, host, configuration
-  );
+  auto activated = plugins::activate_native_plugin_package(package, host, configuration);
 
   REQUIRE(activated.ok());
   CHECK(activated.activation->provider_id() == "mobagen.assets.default");
-  const auto api = host.find<MobagenAssetStoreV1>(
-      MOBAGEN_ASSET_STORE_V1_ID, MOBAGEN_ASSET_STORE_V1_ABI_VERSION
-  );
+  const auto api = host.find<MobagenAssetStoreV1>(MOBAGEN_ASSET_STORE_V1_ID, MOBAGEN_ASSET_STORE_V1_ABI_VERSION);
   REQUIRE(api.has_value());
   const auto id = abi_id(*stored.id);
   MobagenAssetHandleV1 handle{};
-  REQUIRE((*api)->acquire((*api)->store_state, &id, &handle)
-          == MOBAGEN_STATUS_OK);
+  REQUIRE((*api)->acquire((*api)->store_state, &id, &handle) == MOBAGEN_STATUS_OK);
   MobagenByteView view{};
-  REQUIRE((*api)->view((*api)->store_state, handle, &view)
-          == MOBAGEN_STATUS_OK);
+  REQUIRE((*api)->view((*api)->store_state, handle, &view) == MOBAGEN_STATUS_OK);
   CHECK(view.size == bytes("asset from a real plugin").size());
-  CHECK(std::equal(
-      view.data, view.data + view.size,
-      reinterpret_cast<const std::uint8_t*>("asset from a real plugin")
-  ));
+  CHECK(std::equal(view.data, view.data + view.size, reinterpret_cast<const std::uint8_t*>("asset from a real plugin")));
   CHECK((*api)->release((*api)->store_state, handle) == MOBAGEN_STATUS_OK);
 
   CHECK(activated.activation->quiesce().ok());
   CHECK(activated.activation->stop().ok());
-  CHECK_FALSE(host.find<MobagenAssetStoreV1>(MOBAGEN_ASSET_STORE_V1_ID, 1)
-                  .has_value());
+  CHECK_FALSE(host.find<MobagenAssetStoreV1>(MOBAGEN_ASSET_STORE_V1_ID, 1).has_value());
 }

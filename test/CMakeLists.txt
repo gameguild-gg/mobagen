@@ -75,8 +75,8 @@ set(PORTABLE_ASSET_STORE_PROVIDER_SOURCE
     ${CMAKE_CURRENT_SOURCE_DIR}/../modules/asset_store/portable_asset_store_plugin.c
 )
 set_source_files_properties(
-  ${PORTABLE_ASSET_STORE_PROVIDER_SOURCE}
-  PROPERTIES COMPILE_DEFINITIONS MOBAGEN_WASM_ASSET_STORE_TESTING=1
+  ${PORTABLE_ASSET_STORE_PROVIDER_SOURCE} PROPERTIES COMPILE_DEFINITIONS
+                                                     MOBAGEN_WASM_ASSET_STORE_TESTING=1
 )
 list(APPEND FOUNDATION_TEST_SOURCES ${PORTABLE_ASSET_STORE_PROVIDER_SOURCE})
 
@@ -106,19 +106,20 @@ if(TARGET mobagen::http_curl)
 endif()
 if(TARGET mobagen::module_manifest)
   list(
-    APPEND FOUNDATION_TEST_SOURCES
-           module_catalog_fetcher_tests.cpp
-           module_catalog_tests.cpp
-           module_composition_tests.cpp
-           module_artifact_installer_tests.cpp
-           module_artifact_fetcher_tests.cpp
-           locked_activation_plan_tests.cpp
-           locked_portable_project_tests.cpp
-           native_module_manager_tests.cpp
-           portable_module_manager_tests.cpp
-           module_manifest_tests.cpp
-           module_sync_plan_tests.cpp
-           native_project_tests.cpp
+    APPEND
+    FOUNDATION_TEST_SOURCES
+    module_catalog_fetcher_tests.cpp
+    module_catalog_tests.cpp
+    module_composition_tests.cpp
+    module_artifact_installer_tests.cpp
+    module_artifact_fetcher_tests.cpp
+    locked_activation_plan_tests.cpp
+    locked_portable_project_tests.cpp
+    native_module_manager_tests.cpp
+    portable_module_manager_tests.cpp
+    module_manifest_tests.cpp
+    module_sync_plan_tests.cpp
+    native_project_tests.cpp
   )
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
@@ -137,9 +138,7 @@ if(TARGET MobagenDefaultAssetStorePlugin)
   add_dependencies(FoundationTests MobagenDefaultAssetStorePlugin)
 endif()
 if(TARGET MobagenWindowSdl3Plugin AND TARGET MobagenRenderWebgpuPlugin)
-  add_dependencies(
-    FoundationTests MobagenWindowSdl3Plugin MobagenRenderWebgpuPlugin
-  )
+  add_dependencies(FoundationTests MobagenWindowSdl3Plugin MobagenRenderWebgpuPlugin)
   target_compile_definitions(
     FoundationTests
     PRIVATE MOBAGEN_WINDOW_SDL3_PLUGIN_PATH="$<TARGET_FILE:MobagenWindowSdl3Plugin>"
@@ -204,10 +203,14 @@ if(TARGET mobagen::module_manifest)
     FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../apps/module-compositions
   )
   target_link_libraries(
-    FoundationTests PRIVATE mobagen::headless_composition mobagen::module_manifest
-                            mobagen::native_project mobagen::portable_project
-                            mobagen::project_bootstrap mobagen::project_module_manager
-                            mobagen::project_startup
+    FoundationTests
+    PRIVATE mobagen::headless_composition
+            mobagen::module_manifest
+            mobagen::native_project
+            mobagen::portable_project
+            mobagen::project_bootstrap
+            mobagen::project_module_manager
+            mobagen::project_startup
   )
 endif()
 if(TARGET mobagen::module_distribution)
@@ -217,8 +220,8 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   target_link_libraries(FoundationTests PRIVATE mobagen::module_lockfile)
 endif()
 
-set(FOUNDATION_COMPILED_TARGETS mobagen_asset_store_service mobagen_core_assets
-                                mobagen_core_jobs mobagen_core_modules mobagen_core_plugins
+set(FOUNDATION_COMPILED_TARGETS mobagen_asset_store_service mobagen_core_assets mobagen_core_jobs
+                                mobagen_core_modules mobagen_core_plugins
 )
 if(TARGET MobagenDefaultAssetStorePlugin)
   list(APPEND FOUNDATION_COMPILED_TARGETS MobagenDefaultAssetStorePlugin)
@@ -284,8 +287,7 @@ set_tests_properties(foundation::dawn-configure-patch PROPERTIES LABELS foundati
 add_test(
   NAME foundation::license-disclaimer
   COMMAND
-    ${CMAKE_COMMAND}
-    "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/license-disclaimer-fixture"
+    ${CMAKE_COMMAND} "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/license-disclaimer-fixture"
     "-DMOBAGEN_SOURCE_DIR=${CMAKE_SOURCE_DIR}" -P
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/license_disclaimer_test.cmake
 )

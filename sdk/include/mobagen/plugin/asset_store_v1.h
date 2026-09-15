@@ -26,15 +26,9 @@ typedef struct MobagenAssetHandleV1 {
  * caller's matching release. Stale handles return MOBAGEN_STATUS_NOT_FOUND.
  * Providers synchronize these callbacks for concurrent host threads.
  */
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenAssetAcquireFnV1)(
-    void* store_state, const MobagenAssetIdV1* id, MobagenAssetHandleV1* handle
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenAssetViewFnV1)(
-    void* store_state, MobagenAssetHandleV1 handle, MobagenByteView* bytes
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenAssetReleaseFnV1)(
-    void* store_state, MobagenAssetHandleV1 handle
-);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenAssetAcquireFnV1)(void* store_state, const MobagenAssetIdV1* id, MobagenAssetHandleV1* handle);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenAssetViewFnV1)(void* store_state, MobagenAssetHandleV1 handle, MobagenByteView* bytes);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenAssetReleaseFnV1)(void* store_state, MobagenAssetHandleV1 handle);
 
 typedef struct MobagenAssetStoreV1 {
   MobagenCapabilityHeaderV1 header;

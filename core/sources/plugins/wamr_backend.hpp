@@ -25,7 +25,7 @@ namespace mobagen::plugins {
 
     [[nodiscard]] bool available() const noexcept;
     [[nodiscard]] PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary,
-                                                               std::shared_ptr<WasmHostImports> host_imports) override;
+                                                              std::shared_ptr<WasmHostImports> host_imports) override;
 
   private:
     class Impl;

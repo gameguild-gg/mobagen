@@ -16,12 +16,9 @@ namespace {
   public:
     TemporaryCatalogDirectory() {
       static std::atomic_uint64_t sequence = 0;
-      const auto ticks = std::chrono::high_resolution_clock::now()
-                             .time_since_epoch()
-                             .count();
+      const auto ticks = std::chrono::high_resolution_clock::now().time_since_epoch().count();
       path_ = std::filesystem::temp_directory_path()
-              / ("mobagen-catalog-publisher-" + std::to_string(ticks) + '-'
-                 + std::to_string(sequence.fetch_add(1)));
+              / ("mobagen-catalog-publisher-" + std::to_string(ticks) + '-' + std::to_string(sequence.fetch_add(1)));
       REQUIRE(std::filesystem::create_directory(path_));
     }
 
@@ -30,9 +27,7 @@ namespace {
       std::filesystem::remove_all(path_, error);
     }
 
-    [[nodiscard]] const std::filesystem::path& path() const noexcept {
-      return path_;
-    }
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 
   private:
     std::filesystem::path path_;
@@ -90,17 +85,12 @@ TEST_CASE("Module catalog publisher: real plugins produce deterministic distribu
   REQUIRE(published.artifacts.size() == 1);
   CHECK(published.artifacts.front().abi_version == 1);
   CHECK(published.artifacts.front().url
-        == "https://plugins.mobagen.dev/v1/mobagen.assets.default/1.0.0/"
-               + std::string{native_catalog_target_name()} + ".plugin");
+        == "https://plugins.mobagen.dev/v1/mobagen.assets.default/1.0.0/" + std::string{native_catalog_target_name()} + ".plugin");
   CHECK(published.artifacts.front().hash.starts_with("sha256:"));
-  CHECK(published.artifacts.front().size
-        == std::filesystem::file_size(MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH));
-  const auto artifact = directory.path() / "published" / "mobagen.assets.default"
-                        / "1.0.0"
-                        / (std::string{native_catalog_target_name()} + ".plugin");
+  CHECK(published.artifacts.front().size == std::filesystem::file_size(MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH));
+  const auto artifact = directory.path() / "published" / "mobagen.assets.default" / "1.0.0" / (std::string{native_catalog_target_name()} + ".plugin");
   REQUIRE(std::filesystem::is_regular_file(artifact));
-  CHECK(std::filesystem::file_size(artifact)
-        == std::filesystem::file_size(MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH));
+  CHECK(std::filesystem::file_size(artifact) == std::filesystem::file_size(MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH));
 
   const auto second = tools::publish_native_module_catalog(options);
   REQUIRE(second.ok());

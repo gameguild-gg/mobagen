@@ -12,9 +12,9 @@ namespace mobagen::plugins {
 
     enum class StoreRootMode : std::uint8_t { Create, Existing };
 
-    template <typename Result>
-    void add_issue(Result& result, PortableWasmPluginStoreIssueCode code, const std::filesystem::path& path, std::string message,
-                   std::error_code system_error = {}, std::vector<PortableWasmPluginLoadIssue> load_issues = {}) {
+    template <typename Result> void add_issue(Result& result, PortableWasmPluginStoreIssueCode code, const std::filesystem::path& path,
+                                              std::string message, std::error_code system_error = {},
+                                              std::vector<PortableWasmPluginLoadIssue> load_issues = {}) {
       result.issues.push_back({code, path, system_error, std::move(message), std::move(load_issues)});
     }
 
@@ -77,8 +77,7 @@ namespace mobagen::plugins {
       }
     }
 
-    [[nodiscard]] bool inspect_destination(const std::filesystem::path& destination, bool& exists,
-                                           PortableWasmPluginStoreActionResult& result) {
+    [[nodiscard]] bool inspect_destination(const std::filesystem::path& destination, bool& exists, PortableWasmPluginStoreActionResult& result) {
       std::error_code error;
       const auto status = std::filesystem::symlink_status(destination, error);
       if (error && status.type() != std::filesystem::file_type::not_found) {
@@ -153,8 +152,8 @@ namespace mobagen::plugins {
       backup = unique_transaction_path(root, result.provider_id, "backup");
       std::filesystem::rename(result.package, backup, error);
       if (error) {
-        add_issue(result, PortableWasmPluginStoreIssueCode::CommitFailed, result.package,
-                  "could not move installed plugin package into backup", error);
+        add_issue(result, PortableWasmPluginStoreIssueCode::CommitFailed, result.package, "could not move installed plugin package into backup",
+                  error);
         cleanup_directory(staging, result);
         return result;
       }
@@ -168,8 +167,8 @@ namespace mobagen::plugins {
         std::error_code rollback_error;
         std::filesystem::rename(backup, result.package, rollback_error);
         if (rollback_error) {
-          add_issue(result, PortableWasmPluginStoreIssueCode::RollbackFailed, backup,
-                    "could not restore the previous installed plugin package", rollback_error);
+          add_issue(result, PortableWasmPluginStoreIssueCode::RollbackFailed, backup, "could not restore the previous installed plugin package",
+                    rollback_error);
         }
       }
       cleanup_directory(staging, result);
@@ -205,8 +204,8 @@ namespace mobagen::plugins {
     std::error_code error;
     std::filesystem::rename(result.package, tombstone, error);
     if (error) {
-      add_issue(result, PortableWasmPluginStoreIssueCode::CommitFailed, result.package,
-                "could not remove plugin package from its active location", error);
+      add_issue(result, PortableWasmPluginStoreIssueCode::CommitFailed, result.package, "could not remove plugin package from its active location",
+                error);
       return result;
     }
 

@@ -120,8 +120,7 @@ namespace mobagen::modules {
       add_issue(result, LockfileIssueCode::InvalidValue, "profile", "expected a lowercase profile slug");
     }
     if (!is_sha256(metadata.manifest_hash)) {
-      add_issue(result, LockfileIssueCode::InvalidHash, "manifest",
-                "expected manifest SHA-256 followed by 64 lowercase hexadecimal digits");
+      add_issue(result, LockfileIssueCode::InvalidHash, "manifest", "expected manifest SHA-256 followed by 64 lowercase hexadecimal digits");
     }
     if (target_name(metadata.target).empty()) {
       add_issue(result, LockfileIssueCode::InvalidValue, "target", "target is not supported by the lockfile schema");

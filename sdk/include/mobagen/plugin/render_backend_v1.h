@@ -56,34 +56,18 @@ typedef struct MobagenRenderFrameV1 {
   MobagenRenderFrameStatusV1 status;
 } MobagenRenderFrameV1;
 
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderCreateContextFnV1)(
-    void* render_state, const MobagenRenderContextDescV1* descriptor,
-    MobagenRenderContextHandleV1* context
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderDestroyContextFnV1)(
-    void* render_state, MobagenRenderContextHandleV1 context
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderGetHandlesFnV1)(
-    void* render_state, MobagenRenderContextHandleV1 context,
-    MobagenRenderBackendHandlesV1* handles
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderConfigureSurfaceFnV1)(
-    void* render_state, MobagenRenderContextHandleV1 context, int32_t width,
-    int32_t height
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderAcquireFrameFnV1)(
-    void* render_state, MobagenRenderContextHandleV1 context,
-    MobagenRenderFrameV1* frame
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderReleaseFrameFnV1)(
-    void* render_state, MobagenRenderFrameV1 frame
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderPresentFnV1)(
-    void* render_state, MobagenRenderContextHandleV1 context
-);
-typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderTickFnV1)(
-    void* render_state, MobagenRenderContextHandleV1 context
-);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderCreateContextFnV1)(void* render_state, const MobagenRenderContextDescV1* descriptor,
+                                                                           MobagenRenderContextHandleV1* context);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderDestroyContextFnV1)(void* render_state, MobagenRenderContextHandleV1 context);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderGetHandlesFnV1)(void* render_state, MobagenRenderContextHandleV1 context,
+                                                                        MobagenRenderBackendHandlesV1* handles);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderConfigureSurfaceFnV1)(void* render_state, MobagenRenderContextHandleV1 context, int32_t width,
+                                                                              int32_t height);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderAcquireFrameFnV1)(void* render_state, MobagenRenderContextHandleV1 context,
+                                                                          MobagenRenderFrameV1* frame);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderReleaseFrameFnV1)(void* render_state, MobagenRenderFrameV1 frame);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderPresentFnV1)(void* render_state, MobagenRenderContextHandleV1 context);
+typedef MobagenStatus(MOBAGEN_PLUGIN_CALL* MobagenRenderTickFnV1)(void* render_state, MobagenRenderContextHandleV1 context);
 
 typedef struct MobagenRenderBackendV1 {
   MobagenCapabilityHeaderV1 header;
@@ -98,12 +82,9 @@ typedef struct MobagenRenderBackendV1 {
   MobagenRenderTickFnV1 tick;
 } MobagenRenderBackendV1;
 
-#define MOBAGEN_RENDER_CONTEXT_HANDLE_V1_SIZE \
-  ((uint32_t)sizeof(MobagenRenderContextHandleV1))
-#define MOBAGEN_RENDER_CONTEXT_DESC_V1_SIZE \
-  ((uint32_t)sizeof(MobagenRenderContextDescV1))
-#define MOBAGEN_RENDER_BACKEND_HANDLES_V1_SIZE \
-  ((uint32_t)sizeof(MobagenRenderBackendHandlesV1))
+#define MOBAGEN_RENDER_CONTEXT_HANDLE_V1_SIZE ((uint32_t)sizeof(MobagenRenderContextHandleV1))
+#define MOBAGEN_RENDER_CONTEXT_DESC_V1_SIZE ((uint32_t)sizeof(MobagenRenderContextDescV1))
+#define MOBAGEN_RENDER_BACKEND_HANDLES_V1_SIZE ((uint32_t)sizeof(MobagenRenderBackendHandlesV1))
 #define MOBAGEN_RENDER_FRAME_V1_SIZE ((uint32_t)sizeof(MobagenRenderFrameV1))
 #define MOBAGEN_RENDER_BACKEND_V1_SIZE ((uint32_t)sizeof(MobagenRenderBackendV1))
 
