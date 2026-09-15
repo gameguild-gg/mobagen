@@ -3,6 +3,8 @@
 #include "portable/locked_project.hpp"
 #include "portable/project_runtime.hpp"
 #include "project_module_manager.hpp"
+#include "project_startup.hpp"
+#include "http/client.hpp"
 #include "plugins/wasm_plugin_loader.hpp"
 #include "support/wasm_plugin_test_support.hpp"
 
@@ -80,6 +82,66 @@ namespace {
     };
   }
 
+  class PortableCatalogHttpClient final : public mobagen::http::Client {
+  public:
+    mobagen::http::GetResult get(
+        const mobagen::http::GetRequest& request
+    ) override {
+      static_cast<void>(request);
+      ++catalog_requests;
+      const auto catalog =
+          std::string{"schema: 1\n"
+                      "providers:\n"
+                      "  mobagen.wasm-package:\n"
+                      "    version: 1.0.0\n"
+                      "    provides: [runtime.package.v1]\n"
+                      "    reload: restart\n"
+                      "    artifacts:\n"
+                      "      - target: "}
+          + mobagen::test::portable_target_name()
+          + "\n"
+            "        linkage: wasm\n"
+            "        abi: 1\n"
+            "        url: https://plugins.mobagen.dev/reference.plugin\n"
+            "        size: "
+          + std::to_string(mobagen::test::valid_wasm_header.size())
+          + "\n"
+            "        hash: "
+          + mobagen::test::valid_wasm_hash() + "\n";
+      std::vector<std::byte> body(catalog.size());
+      for (std::size_t index = 0; index < catalog.size(); ++index) {
+        body[index] = static_cast<std::byte>(catalog[index]);
+      }
+      return {
+          .response = mobagen::http::Response{200, std::move(body)},
+      };
+    }
+
+    mobagen::http::StreamGetResult get_stream(
+        const mobagen::http::GetRequest& request,
+        mobagen::http::BodySink sink
+    ) override {
+      static_cast<void>(request);
+      ++artifact_requests;
+      if (!sink.write(sink.context, mobagen::test::valid_wasm_header)) {
+        return {
+            .error = mobagen::http::Error{
+                mobagen::http::ErrorCode::SinkRejected,
+                "artifact cache rejected test WASM bytes",
+            },
+        };
+      }
+      return {
+          .response = mobagen::http::StreamResponse{
+              200, mobagen::test::valid_wasm_header.size()
+          },
+      };
+    }
+
+    std::size_t catalog_requests{};
+    std::size_t artifact_requests{};
+  };
+
 }  // namespace
 
 TEST_CASE("Locked portable project: offline open performs zero WASM instantiations") {
@@ -132,6 +194,61 @@ TEST_CASE("Project module manager: manifest profile routes to lazy portable modu
   CHECK(opened.manager->active_count() == 1);
   CHECK(backend.calls == 1);
   CHECK(opened.manager->stop().ok());
+}
+
+TEST_CASE("Project startup: first run downloads portable modules without instantiating them") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory project;
+  test::write_text(
+      project.path() / "mobagen.yaml",
+      R"yaml(schema: 1
+name: portable-first-run
+sources:
+  official:
+    url: https://plugins.mobagen.dev/catalog.yaml
+modules:
+  runtime:
+    capability: runtime.package.v1
+    use: mobagen.wasm-package
+plugins: []
+profiles:
+  release:
+    linkage: wasm
+    editor: false
+)yaml"
+  );
+  PortableCatalogHttpClient client;
+  test::FakeWasmBackend backend;
+
+  auto started = compositions::prepare_and_open_project(
+      project.path() / "mobagen.yaml",
+      {
+          .resolver = {
+              .target = test::portable_target(),
+              .profile = "release",
+          },
+          .sdk_version = {0, 0, 1},
+      },
+      {
+          .http_client = &client,
+          .modules = {.portable_backend = &backend},
+      }
+  );
+
+  REQUIRE(started.ok());
+  CHECK(started.bootstrap.state
+        == compositions::ProjectBootstrapState::Synchronized);
+  CHECK(started.project.manager->kind()
+        == compositions::ProjectModuleRuntimeKind::Portable);
+  CHECK(started.project.manager->active_count() == 0);
+  CHECK(client.catalog_requests == 1);
+  CHECK(client.artifact_requests == 1);
+  CHECK(backend.calls == 0);
+
+  REQUIRE(started.project.manager->activate("runtime.package.v1").ok());
+  CHECK(started.project.manager->active_count() == 1);
+  CHECK(backend.calls == 1);
+  CHECK(started.project.manager->stop().ok());
 }
 
 TEST_CASE("Project module manager: portable profile requires an injected backend") {
