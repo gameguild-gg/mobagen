@@ -18,6 +18,8 @@ namespace mobagen::plugins {
 
   inline constexpr std::size_t max_portable_wasm_plugin_binary_bytes = 64U * 1024U * 1024U;
 
+  struct PortableWasmPluginLoadResult;
+
   struct PortableWasmInstantiationResult {
     std::unique_ptr<PortableWasmInstance> instance;
     std::optional<std::string> error;

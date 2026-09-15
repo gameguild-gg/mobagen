@@ -48,6 +48,8 @@ namespace mobagen::modules {
     std::string binary_hash;
   };
 
+  struct LockedActivationPlanResult;
+
   class LockedPluginActivationPlan {
   public:
     [[nodiscard]] std::span<const LockedPluginActivationEntry> entries() const noexcept {
