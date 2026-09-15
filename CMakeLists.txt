@@ -122,12 +122,39 @@ option(USE_VTK "Build VTK (visualization toolkit; reference only)" OFF)
 
 # App-group build switches
 option(MOBAGEN_BUILD_RUNTIME "Build SDL3, Dawn, ImGui, RmlUi, and application-host targets" ON)
+option(MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS
+       "Build the current built-in ECS, jobs, scene, render, and UI subsystems" ON
+)
+option(MOBAGEN_BUILD_BUNDLED_MODULES
+       "Build modules shipped in this source tree instead of resolving them as packages"
+       ${MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS}
+)
 option(BUILD_CORE_DEMOS "Build engine learning demos under apps/core_demos" ON)
 option(BUILD_VOLUME_DEMOS "Build volume smoke tests under apps/volume_demos" ON)
 option(BUILD_DICOM_VIEWER "Build the DICOM viewer app" ON)
 option(BUILD_PROTOTYPES "Build learning prototypes (dawn_probe, fibers)" OFF)
 option(MOBAGEN_BUILD_MANIFEST_TOOLS "Build the mobagen.yaml parser and composition tooling" ON)
 option(MOBAGEN_WASM_BACKEND_WAMR "Build the optional WAMR portable plugin backend" OFF)
+option(BUILD_TESTING "Build Mobagen tests" ON)
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+
+if(MOBAGEN_BUILD_RUNTIME AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  message(
+    FATAL_ERROR
+      "MOBAGEN_BUILD_RUNTIME currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
+  )
+endif()
+if(MOBAGEN_BUILD_BUNDLED_MODULES AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  message(
+    FATAL_ERROR
+      "MOBAGEN_BUILD_BUNDLED_MODULES currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
+  )
+endif()
+if(BUILD_TESTING AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  message(
+    FATAL_ERROR "BUILD_TESTING currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
+  )
+endif()
 if(EMSCRIPTEN)
   set(_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT OFF)
 else()
@@ -149,14 +176,20 @@ if(USE_VTK)
   include(external/vtk.cmake)
 endif()
 
-# GLM must be available before core/ — all DOD headers use it globally
-include(external/glm.cmake)
+# GLM belongs to the current built-in engine subsystem set.
+if(MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  include(external/glm.cmake)
+endif()
 
 # doctest must be available before test/ and apps/ formal test runners
-include(external/doctest.cmake)
+if(BUILD_TESTING OR BUILD_EXAMPLES)
+  include(external/doctest.cmake)
+endif()
 
 # Format.cmake (format-cmake targets) for test/ and style CI
-include(external/format-cmake.cmake)
+if(BUILD_TESTING)
+  include(external/format-cmake.cmake)
+endif()
 
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   include(external/yaml-cpp.cmake)
@@ -170,7 +203,9 @@ endif()
 
 add_subdirectory(sdk)
 add_subdirectory(core)
-add_subdirectory(modules)
+if(MOBAGEN_BUILD_BUNDLED_MODULES)
+  add_subdirectory(modules)
+endif()
 
 option(MOBAGEN_BUILD_ASSET_TOOLS "Build the native Mobagen asset command-line tools" ON)
 if(MOBAGEN_BUILD_ASSET_TOOLS)
@@ -182,8 +217,6 @@ if(MOBAGEN_BUILD_PLUGIN_TOOLS AND NOT EMSCRIPTEN)
   add_subdirectory(tools/plugins)
 endif()
 
-option(BUILD_TESTING "Build Mobagen tests" ON)
-option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"
        ${BUILD_EXAMPLES}
 )
