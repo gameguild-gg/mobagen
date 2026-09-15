@@ -55,9 +55,9 @@ if(NOT EMSCRIPTEN)
     add_custom_target(
       MobagenPerformanceGate
       COMMAND $<TARGET_FILE:MobagenPluginAbiDispatchBenchmark> --warmup 5 --samples 31
-              --max-overhead-percent 1
+              --max-dispatch-overhead-ns 1
       COMMAND $<TARGET_FILE:MobagenNativeModuleRuntimeBenchmark> --warmup 5 --samples 31
-              --max-overhead-percent 1
+              --max-dispatch-overhead-ns 1 --max-overhead-percent 1
       DEPENDS MobagenPluginAbiDispatchBenchmark MobagenNativeModuleRuntimeBenchmark
       USES_TERMINAL VERBATIM
     )

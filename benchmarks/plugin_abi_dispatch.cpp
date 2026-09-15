@@ -42,6 +42,7 @@ namespace {
 
   constexpr std::size_t dispatch_batch_size = 100'000;
   constexpr std::size_t dispatch_interleavings = 20;
+  constexpr std::size_t dispatch_operations_per_sample = dispatch_batch_size * dispatch_interleavings;
   std::atomic_uint64_t observation{0};
 
   struct DirectState {
@@ -129,11 +130,13 @@ int main(int argc, char** argv) {
       std::cerr << "warmed plugin dispatch allocated " << allocations << " times\n";
       return 4;
     }
-    if (options.max_overhead_percent.has_value()) {
-      const auto overhead = mobagen::benchmark::paired_overhead(paired);
-      std::cerr << "warmed dispatch overhead: median " << overhead.median_percent << "%, p05 " << overhead.p05_percent << "% (limit "
-                << *options.max_overhead_percent << "%)\n";
-      if (overhead.p05_percent > *options.max_overhead_percent) return 3;
+    const auto relative = mobagen::benchmark::paired_overhead(paired);
+    std::cerr << "warmed dispatch relative overhead (diagnostic): median " << relative.median_percent << "%, p05 " << relative.p05_percent << "%\n";
+    if (options.max_dispatch_overhead_ns.has_value()) {
+      const auto overhead = mobagen::benchmark::paired_operation_overhead(paired, dispatch_operations_per_sample);
+      std::cerr << "warmed dispatch overhead: median " << overhead.median_ns << " ns/call, p05 " << overhead.p05_ns << " ns/call (limit "
+                << *options.max_dispatch_overhead_ns << " ns/call)\n";
+      if (overhead.p05_ns > *options.max_dispatch_overhead_ns) return 3;
     }
     return 0;
   } catch (const std::invalid_argument& error) {

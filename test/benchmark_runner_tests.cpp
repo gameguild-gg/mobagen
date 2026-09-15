@@ -13,6 +13,7 @@ using mobagen::benchmark::measure;
 using mobagen::benchmark::measure_paired;
 using mobagen::benchmark::Options;
 using mobagen::benchmark::overhead_percent;
+using mobagen::benchmark::paired_operation_overhead;
 using mobagen::benchmark::paired_overhead;
 using mobagen::benchmark::parse_options;
 using mobagen::benchmark::percentile;
@@ -37,6 +38,8 @@ TEST_CASE("Benchmark options accept positive warmup and sample counts") {
       std::string_view{"11"},
       std::string_view{"--max-overhead-percent"},
       std::string_view{"1.25"},
+      std::string_view{"--max-dispatch-overhead-ns"},
+      std::string_view{"0.75"},
   };
 
   const Options options = parse_options(args);
@@ -45,6 +48,8 @@ TEST_CASE("Benchmark options accept positive warmup and sample counts") {
   CHECK(options.samples == 11);
   REQUIRE(options.max_overhead_percent.has_value());
   CHECK(*options.max_overhead_percent == doctest::Approx(1.25));
+  REQUIRE(options.max_dispatch_overhead_ns.has_value());
+  CHECK(*options.max_dispatch_overhead_ns == doctest::Approx(0.75));
 }
 
 TEST_CASE("Benchmark options reject unknown, missing, and zero values") {
@@ -52,11 +57,13 @@ TEST_CASE("Benchmark options reject unknown, missing, and zero values") {
   constexpr std::array missing{std::string_view{"--samples"}};
   constexpr std::array zero{std::string_view{"--samples"}, std::string_view{"0"}};
   constexpr std::array negative_overhead{std::string_view{"--max-overhead-percent"}, std::string_view{"-0.1"}};
+  constexpr std::array negative_dispatch{std::string_view{"--max-dispatch-overhead-ns"}, std::string_view{"-0.1"}};
 
   CHECK_THROWS_AS(parse_options(unknown), std::invalid_argument);
   CHECK_THROWS_AS(parse_options(missing), std::invalid_argument);
   CHECK_THROWS_AS(parse_options(zero), std::invalid_argument);
   CHECK_THROWS_AS(parse_options(negative_overhead), std::invalid_argument);
+  CHECK_THROWS_AS(parse_options(negative_dispatch), std::invalid_argument);
 }
 
 TEST_CASE("Benchmark measurement separates warmup from retained samples") {
@@ -111,6 +118,30 @@ TEST_CASE("Benchmark paired overhead exposes median and conservative p05") {
   CHECK(paired_overhead(persistent_regression).p05_percent == doctest::Approx(2.0));
 }
 
+TEST_CASE("Benchmark paired operation overhead reports absolute nanoseconds per call") {
+  const mobagen::benchmark::PairedResult result{
+      .baseline = Result{"baseline", {100.0, 100.0, 100.0}, 100.0, 100.0},
+      .candidate = Result{"candidate", {99.0, 102.0, 104.0}, 102.0, 104.0},
+  };
+
+  const auto overhead = paired_operation_overhead(result, 2);
+
+  CHECK(overhead.median_ns == doctest::Approx(1.0));
+  CHECK(overhead.p05_ns == doctest::Approx(-0.5));
+  CHECK_THROWS_AS(paired_operation_overhead(result, 0), std::invalid_argument);
+}
+
+TEST_CASE("Benchmark dispatch budget is stable for a sub-nanosecond dynamic boundary") {
+  const mobagen::benchmark::PairedResult cloud_runner_sample{
+      .baseline = Result{"baseline", {4'180'380.0}, 4'180'380.0, 4'180'380.0},
+      .candidate = Result{"candidate", {5'574'240.0}, 5'574'240.0, 5'574'240.0},
+  };
+
+  CHECK(paired_overhead(cloud_runner_sample).p05_percent > 30.0);
+  CHECK(paired_operation_overhead(cloud_runner_sample, 2'000'000).p05_ns == doctest::Approx(0.69693));
+  CHECK(paired_operation_overhead(cloud_runner_sample, 2'000'000).p05_ns < 1.0);
+}
+
 TEST_CASE("Benchmark JSON includes schema, options, statistics, and raw samples") {
   const Options options{.warmup = 2, .samples = 3};
   const std::array results{
@@ -125,6 +156,7 @@ TEST_CASE("Benchmark JSON includes schema, options, statistics, and raw samples"
   CHECK(json.find("\"warmup\":2") != std::string::npos);
   CHECK(json.find("\"samples\":3") != std::string::npos);
   CHECK(json.find("\"max_overhead_percent\":null") != std::string::npos);
+  CHECK(json.find("\"max_dispatch_overhead_ns\":null") != std::string::npos);
   CHECK(json.find("\"name\":\"operation\"") != std::string::npos);
   CHECK(json.find("\"median_ns\":20") != std::string::npos);
   CHECK(json.find("\"p95_ns\":30") != std::string::npos);
