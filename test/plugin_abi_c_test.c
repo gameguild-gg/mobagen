@@ -1,5 +1,6 @@
 #include "plugins/plugin_abi.h"
 #include "plugins/runtime_tick_v1.h"
+#include <mobagen/plugin/asset_store_v1.h>
 #include <mobagen/plugin/wasm_abi.h>
 
 #include <stddef.h>
@@ -23,6 +24,25 @@ static MobagenStatus MOBAGEN_PLUGIN_CALL configure_plugin(void* plugin_state, co
   (void)plugin_state;
   (void)configuration;
   return host != NULL && host->abi_version == MOBAGEN_PLUGIN_ABI_VERSION ? MOBAGEN_STATUS_OK : MOBAGEN_STATUS_INVALID_ARGUMENT;
+}
+
+static MobagenStatus MOBAGEN_PLUGIN_CALL acquire_asset(void* store_state, const MobagenAssetIdV1* id, MobagenAssetHandleV1* handle) {
+  if (store_state == NULL || id == NULL || handle == NULL) return MOBAGEN_STATUS_INVALID_ARGUMENT;
+  handle->index = id->bytes[0];
+  handle->generation = 7;
+  return MOBAGEN_STATUS_OK;
+}
+
+static MobagenStatus MOBAGEN_PLUGIN_CALL view_asset(void* store_state, MobagenAssetHandleV1 handle, MobagenByteView* bytes) {
+  static const uint8_t payload[] = {1, 2, 3};
+  if (store_state == NULL || bytes == NULL || handle.generation != 7) return MOBAGEN_STATUS_INVALID_ARGUMENT;
+  bytes->data = payload;
+  bytes->size = sizeof(payload);
+  return MOBAGEN_STATUS_OK;
+}
+
+static MobagenStatus MOBAGEN_PLUGIN_CALL release_asset(void* store_state, MobagenAssetHandleV1 handle) {
+  return store_state != NULL && handle.generation == 7 ? MOBAGEN_STATUS_OK : MOBAGEN_STATUS_INVALID_ARGUMENT;
 }
 
 static uint32_t wasm_allocate(uint32_t size, uint32_t alignment) { return size == 8 && alignment == MOBAGEN_WASM_EXCHANGE_ALIGNMENT ? 8 : 0; }
@@ -60,6 +80,29 @@ int mobagen_wasm_abi_c_compile_test(void) {
   batch.abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION;
   return descriptor.struct_size == sizeof(descriptor) && batch.struct_size == sizeof(batch) && allocate(8, MOBAGEN_WASM_EXCHANGE_ALIGNMENT) == 8
                  && deallocate(8, 8, MOBAGEN_WASM_EXCHANGE_ALIGNMENT) == MOBAGEN_WASM_STATUS_OK
+             ? 0
+             : 1;
+}
+
+int mobagen_asset_store_abi_c_compile_test(void) {
+  uint8_t state = 1;
+  MobagenAssetIdV1 id = {{5}};
+  MobagenAssetHandleV1 handle = {0};
+  MobagenByteView bytes = {0};
+  MobagenAssetStoreV1 store = {0};
+  store.header.struct_size = MOBAGEN_ASSET_STORE_V1_SIZE;
+  store.header.abi_version = MOBAGEN_ASSET_STORE_V1_ABI_VERSION;
+  store.store_state = &state;
+  store.acquire = acquire_asset;
+  store.view = view_asset;
+  store.release = release_asset;
+
+  return store.header.struct_size == sizeof(store)
+                 && store.acquire(store.store_state, &id, &handle) == MOBAGEN_STATUS_OK
+                 && handle.index == 5 && handle.generation == 7
+                 && store.view(store.store_state, handle, &bytes) == MOBAGEN_STATUS_OK
+                 && bytes.size == 3 && bytes.data[2] == 3
+                 && store.release(store.store_state, handle) == MOBAGEN_STATUS_OK
              ? 0
              : 1;
 }
