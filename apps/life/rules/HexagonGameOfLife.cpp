@@ -32,7 +32,7 @@ public:
     // todo: implement the underpopulation condition
     // hint: on the hex grid (B2/S34) a live cell is underpopulated below 3 neighbors
 
-    if (context.aliveNeighbors < 3)
+    if (context.aliveNeighbors < 2)
       return true;
     else
       return false;
@@ -47,7 +47,7 @@ public:
     // todo: implement the overpopulation condition
     // hint: on the hex grid (B2/S34) a live cell is overpopulated above 4 neighbors
 
-    if (context.aliveNeighbors > 4)
+    if (context.aliveNeighbors > 3)
       return true;
     else
       return false;
@@ -62,7 +62,7 @@ public:
     // todo: implement the reproduction condition
     // hint: on the hex grid (B2/S34) a dead cell is born with exactly 2 neighbors
 
-    if (context.aliveNeighbors == 2)
+    if (context.aliveNeighbors == 3)
       return true;
     else
       return false;

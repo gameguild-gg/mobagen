@@ -24,7 +24,7 @@ public:
   bool Test(const AgentContext& context) override {
     // todo: implement the underpopulation condition
 
-    if (context.aliveNeighbors < 3)
+    if (context.aliveNeighbors < 2)
       return true;
     else
       return false;
@@ -38,7 +38,7 @@ public:
   bool Test(const AgentContext& context) override {
     // todo: implement the overpopulation condition
 
-    if (context.aliveNeighbors > 4)
+    if (context.aliveNeighbors > 3)
       return true;
     else
       return false;
@@ -52,7 +52,7 @@ public:
   bool Test(const AgentContext& context) override {
     // todo: implement the reproduction condition
 
-    if (context.aliveNeighbors == 2)
+    if (context.aliveNeighbors == 3)
       return true;
     else
       return false;
