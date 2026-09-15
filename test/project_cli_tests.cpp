@@ -14,6 +14,7 @@
 #include "http/client.hpp"
 #include "modules/artifact_installer.hpp"
 #include "plugins/plugin_loader.hpp"
+#include "project_bootstrap.hpp"
 #include "project_cli.hpp"
 #include "support/wasm_plugin_test_support.hpp"
 #include <mobagen/version.h>
@@ -135,6 +136,16 @@ profiles:
     return "macos.plugin";
 #else
     return "linux.plugin";
+#endif
+  }
+
+  mobagen::modules::TargetPlatform project_target() noexcept {
+#ifdef _WIN32
+    return mobagen::modules::TargetPlatform::Windows;
+#elif defined(__APPLE__)
+    return mobagen::modules::TargetPlatform::MacOS;
+#else
+    return mobagen::modules::TargetPlatform::Linux;
 #endif
   }
 
@@ -330,6 +341,57 @@ TEST_CASE("Project CLI: bootstrap downloads once then validates the locked proje
   REQUIRE(mobagen::compositions::cli::run(arguments, output, error, {.http_client = &client}) == 0);
   CHECK(error.str().empty());
   CHECK(client.catalog_requests.size() == 3);
+  CHECK(client.artifact_requests.size() == 1);
+}
+
+TEST_CASE("Project bootstrap: first run prepares modules and later lazy probes stay offline") {
+  using namespace mobagen;
+  TemporaryProjectCliRoot project;
+  write_remote_project_manifest(project.path() / "mobagen.yaml");
+  ProjectCatalogHttpClient client;
+  compositions::ProjectBootstrapOptions options{
+      .resolver = {
+          .target = project_target(),
+          .profile = "release",
+          .defaults = {{
+              .target = project_target(),
+              .profile = "release",
+              .capability = "runtime.tick.v1",
+              .provider = "mobagen.runtime.remote",
+          }},
+      },
+      .sdk_version = {
+          MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR,
+          MOBAGEN_SDK_VERSION_PATCH,
+      },
+  };
+
+  const auto prepared = compositions::bootstrap_project(
+      project.path() / "mobagen.yaml", options, &client
+  );
+
+  REQUIRE(prepared.ok());
+  CHECK(prepared.state == compositions::ProjectBootstrapState::Synchronized);
+  CHECK(prepared.product_name == "remote-project-cli-test");
+  CHECK(prepared.plugin_count == 1);
+  CHECK(client.catalog_requests.size() == 1);
+  CHECK(client.artifact_requests.size() == 1);
+
+  const auto binary = project.path() / ".mobagen" / "plugins"
+                      / "mobagen.runtime.remote.plugin"
+                      / modules::module_plugin_binary_filename(
+                          modules::LinkageMode::Dynamic
+                      );
+  std::ofstream(binary, std::ios::binary | std::ios::app) << "tampered";
+
+  const auto offline = compositions::bootstrap_project(
+      project.path() / "mobagen.yaml", options
+  );
+
+  REQUIRE(offline.ok());
+  CHECK(offline.state == compositions::ProjectBootstrapState::Ready);
+  CHECK(offline.plugin_count == 1);
+  CHECK(client.catalog_requests.size() == 1);
   CHECK(client.artifact_requests.size() == 1);
 }
 
