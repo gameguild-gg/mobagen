@@ -37,11 +37,28 @@ if(TARGET MobagenDefaultAssetStorePlugin)
        "$<TARGET_FILE:MobagenDefaultAssetStorePlugin>"
   )
 endif()
+if(TARGET MobagenWindowSdl3Plugin)
+  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS
+       "$<TARGET_FILE:MobagenWindowSdl3Plugin>"
+  )
+endif()
+if(TARGET MobagenRenderWebgpuPlugin)
+  list(APPEND MOBAGEN_RECOMMENDED_NATIVE_PLUGINS
+       "$<TARGET_FILE:MobagenRenderWebgpuPlugin>"
+  )
+endif()
 
 if(MOBAGEN_RECOMMENDED_NATIVE_PLUGINS)
   set(MOBAGEN_RECOMMENDED_CATALOG_ARGS "")
   foreach(plugin IN LISTS MOBAGEN_RECOMMENDED_NATIVE_PLUGINS)
     list(APPEND MOBAGEN_RECOMMENDED_CATALOG_ARGS --plugin "${plugin}")
+  endforeach()
+  set(MOBAGEN_RECOMMENDED_CATALOG_DEPENDS MobagenCatalog)
+  foreach(plugin_target IN ITEMS MobagenDefaultAssetStorePlugin
+                                 MobagenWindowSdl3Plugin MobagenRenderWebgpuPlugin)
+    if(TARGET ${plugin_target})
+      list(APPEND MOBAGEN_RECOMMENDED_CATALOG_DEPENDS ${plugin_target})
+    endif()
   endforeach()
   add_custom_target(
     MobagenRecommendedCatalog
@@ -50,7 +67,7 @@ if(MOBAGEN_RECOMMENDED_NATIVE_PLUGINS)
       "${CMAKE_BINARY_DIR}/module-catalog/$<CONFIG>" --base-url
       "${MOBAGEN_CATALOG_BASE_URL}" --target "${MOBAGEN_CATALOG_TARGET}"
       ${MOBAGEN_RECOMMENDED_CATALOG_ARGS}
-    DEPENDS MobagenCatalog MobagenDefaultAssetStorePlugin
+    DEPENDS ${MOBAGEN_RECOMMENDED_CATALOG_DEPENDS}
     COMMAND_EXPAND_LISTS VERBATIM
   )
 endif()

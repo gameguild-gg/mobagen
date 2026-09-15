@@ -76,6 +76,9 @@ endif()
 if(TARGET MobagenDefaultAssetStorePlugin)
   list(APPEND FOUNDATION_TEST_SOURCES asset_store_plugin_tests.cpp)
 endif()
+if(TARGET MobagenWindowSdl3Plugin AND TARGET MobagenRenderWebgpuPlugin)
+  list(APPEND FOUNDATION_TEST_SOURCES runtime_plugin_adapter_tests.cpp)
+endif()
 if(TARGET mobagen::plugin_cli)
   list(APPEND FOUNDATION_TEST_SOURCES plugin_cli_tests.cpp)
 endif()
@@ -119,6 +122,16 @@ add_dependencies(
 )
 if(TARGET MobagenDefaultAssetStorePlugin)
   add_dependencies(FoundationTests MobagenDefaultAssetStorePlugin)
+endif()
+if(TARGET MobagenWindowSdl3Plugin AND TARGET MobagenRenderWebgpuPlugin)
+  add_dependencies(
+    FoundationTests MobagenWindowSdl3Plugin MobagenRenderWebgpuPlugin
+  )
+  target_compile_definitions(
+    FoundationTests
+    PRIVATE MOBAGEN_WINDOW_SDL3_PLUGIN_PATH="$<TARGET_FILE:MobagenWindowSdl3Plugin>"
+            MOBAGEN_RENDER_WEBGPU_PLUGIN_PATH="$<TARGET_FILE:MobagenRenderWebgpuPlugin>"
+  )
 endif()
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
 target_compile_definitions(

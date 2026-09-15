@@ -30,6 +30,17 @@ namespace app {
 
   enum class SurfaceFrameAction : std::uint8_t { Render, RenderThenReconfigure, Retry, Reconfigure, Fail };
 
+  enum class NativeSurfaceKind : std::uint8_t { None, Win32, MetalLayer, Wayland, Xlib };
+
+  struct NativeSurfaceSource {
+    NativeSurfaceKind kind{NativeSurfaceKind::None};
+    void* display{};
+    void* window{};
+    std::uint64_t window_id{};
+    int width{};
+    int height{};
+  };
+
   constexpr SurfaceFrameAction surface_frame_action(WGPUSurfaceGetCurrentTextureStatus status, bool has_texture) noexcept {
     switch (status) {
       case WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal:
@@ -59,6 +70,7 @@ namespace app {
     WGPUBackendType backend_type = WGPUBackendType_Undefined;  // Undefined = let the API pick
     bool want_surface = true;
     SDL_Window* window = nullptr;  // required when want_surface
+    const NativeSurfaceSource* native_surface = nullptr;
   };
 
   class WebGPUContext {
@@ -88,7 +100,7 @@ namespace app {
     bool tick();
 
   private:
-    bool create_surface(WGPUInstance instance, SDL_Window* window);
+    bool create_surface(WGPUInstance instance, const ContextDesc& desc);
 
     WGPUInstance instance_ = nullptr;
     WGPUAdapter adapter_ = nullptr;

@@ -1,7 +1,9 @@
 #include "plugins/plugin_abi.h"
 #include "plugins/runtime_tick_v1.h"
 #include <mobagen/plugin/asset_store_v1.h>
+#include <mobagen/plugin/render_backend_v1.h>
 #include <mobagen/plugin/wasm_abi.h>
+#include <mobagen/plugin/window_surface_v1.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -103,6 +105,25 @@ int mobagen_asset_store_abi_c_compile_test(void) {
                  && store.view(store.store_state, handle, &bytes) == MOBAGEN_STATUS_OK
                  && bytes.size == 3 && bytes.data[2] == 3
                  && store.release(store.store_state, handle) == MOBAGEN_STATUS_OK
+             ? 0
+             : 1;
+}
+
+int mobagen_runtime_adapter_abi_c_compile_test(void) {
+  MobagenWindowSurfaceV1 windows = {0};
+  MobagenRenderBackendV1 renderer = {0};
+  MobagenNativeSurfaceV1 surface = {0};
+  MobagenRenderContextDescV1 context = {0};
+  windows.header.struct_size = MOBAGEN_WINDOW_SURFACE_V1_SIZE;
+  windows.header.abi_version = MOBAGEN_WINDOW_SURFACE_V1_ABI_VERSION;
+  renderer.header.struct_size = MOBAGEN_RENDER_BACKEND_V1_SIZE;
+  renderer.header.abi_version = MOBAGEN_RENDER_BACKEND_V1_ABI_VERSION;
+  surface.struct_size = MOBAGEN_NATIVE_SURFACE_V1_SIZE;
+  context.struct_size = MOBAGEN_RENDER_CONTEXT_DESC_V1_SIZE;
+  return windows.header.struct_size == sizeof(windows)
+                 && renderer.header.struct_size == sizeof(renderer)
+                 && surface.struct_size == sizeof(surface)
+                 && context.struct_size == sizeof(context)
              ? 0
              : 1;
 }

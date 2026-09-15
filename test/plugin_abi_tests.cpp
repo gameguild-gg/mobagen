@@ -6,12 +6,15 @@
 #include <type_traits>
 
 #include <mobagen/plugin/asset_store_v1.h>
+#include <mobagen/plugin/render_backend_v1.h>
 #include "plugins/plugin_abi.h"
 #include <mobagen/plugin/wasm_abi.h>
+#include <mobagen/plugin/window_surface_v1.h>
 
 extern "C" int mobagen_plugin_abi_c_compile_test(void);
 extern "C" int mobagen_wasm_abi_c_compile_test(void);
 extern "C" int mobagen_asset_store_abi_c_compile_test(void);
+extern "C" int mobagen_runtime_adapter_abi_c_compile_test(void);
 
 namespace {
 
@@ -111,4 +114,21 @@ TEST_CASE("Plugin ABI: native asset store uses fixed content IDs and generationa
 
 TEST_CASE("Plugin ABI: exported entry point has one canonical symbol") {
   CHECK(std::string{MOBAGEN_PLUGIN_ENTRY_V1_SYMBOL} == "mobagen_plugin_entry_v1");
+}
+
+TEST_CASE("Plugin ABI: runtime adapters use versioned tables and generational handles") {
+  static_assert(std::is_standard_layout_v<MobagenWindowSurfaceV1>);
+  static_assert(std::is_trivially_copyable_v<MobagenWindowSurfaceV1>);
+  static_assert(std::is_standard_layout_v<MobagenNativeSurfaceV1>);
+  static_assert(std::is_standard_layout_v<MobagenRenderBackendV1>);
+  static_assert(std::is_trivially_copyable_v<MobagenRenderBackendV1>);
+  static_assert(std::is_standard_layout_v<MobagenRenderContextHandleV1>);
+
+  CHECK(std::string{MOBAGEN_WINDOW_SURFACE_V1_ID} == "window.surface.v1");
+  CHECK(std::string{MOBAGEN_RENDER_BACKEND_V1_ID} == "render.backend.v1");
+  CHECK(MOBAGEN_WINDOW_HANDLE_V1_SIZE == 8U);
+  CHECK(MOBAGEN_RENDER_CONTEXT_HANDLE_V1_SIZE == 8U);
+  CHECK(offsetof(MobagenWindowSurfaceV1, header) == 0U);
+  CHECK(offsetof(MobagenRenderBackendV1, header) == 0U);
+  CHECK(mobagen_runtime_adapter_abi_c_compile_test() == 0);
 }

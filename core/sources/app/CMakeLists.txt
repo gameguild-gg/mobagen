@@ -23,6 +23,7 @@ endif()
 
 add_library(mobagen_core_app STATIC webgpu_context.cpp app.cpp sdl_app.cpp)
 add_library(mobagen::core_app ALIAS mobagen_core_app)
+set_target_properties(mobagen_core_app PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Include root is core/sources so consumers include "app/webgpu_context.hpp".
 target_include_directories(mobagen_core_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_compile_features(mobagen_core_app PUBLIC cxx_std_23)
