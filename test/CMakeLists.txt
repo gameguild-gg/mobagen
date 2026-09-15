@@ -73,6 +73,9 @@ set(FOUNDATION_TEST_SOURCES
 if(TARGET mobagen::asset_cli)
   list(APPEND FOUNDATION_TEST_SOURCES asset_cli_tests.cpp)
 endif()
+if(TARGET MobagenDefaultAssetStorePlugin)
+  list(APPEND FOUNDATION_TEST_SOURCES asset_store_plugin_tests.cpp)
+endif()
 if(TARGET mobagen::plugin_cli)
   list(APPEND FOUNDATION_TEST_SOURCES plugin_cli_tests.cpp)
 endif()
@@ -111,6 +114,9 @@ add_dependencies(
   FoundationTests MobagenLifecycleFailurePlugin1 MobagenLifecycleFailurePlugin2
   MobagenLifecycleFailurePlugin3 MobagenMissingEntryPlugin MobagenReferencePlugin
 )
+if(TARGET MobagenDefaultAssetStorePlugin)
+  add_dependencies(FoundationTests MobagenDefaultAssetStorePlugin)
+endif()
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
 target_compile_definitions(
   FoundationTests
@@ -120,6 +126,12 @@ target_compile_definitions(
           MOBAGEN_MISSING_ENTRY_PLUGIN_PATH="$<TARGET_FILE:MobagenMissingEntryPlugin>"
           MOBAGEN_REFERENCE_PLUGIN_PATH="$<TARGET_FILE:MobagenReferencePlugin>"
 )
+if(TARGET MobagenDefaultAssetStorePlugin)
+  target_compile_definitions(
+    FoundationTests
+    PRIVATE MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH="$<TARGET_FILE:MobagenDefaultAssetStorePlugin>"
+  )
+endif()
 target_include_directories(
   FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks
                           ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
@@ -176,6 +188,9 @@ endif()
 set(FOUNDATION_COMPILED_TARGETS mobagen_asset_store_service mobagen_core_assets
                                 mobagen_core_jobs mobagen_core_modules mobagen_core_plugins
 )
+if(TARGET MobagenDefaultAssetStorePlugin)
+  list(APPEND FOUNDATION_COMPILED_TARGETS MobagenDefaultAssetStorePlugin)
+endif()
 if(TARGET mobagen_asset_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_asset_cli)
 endif()
