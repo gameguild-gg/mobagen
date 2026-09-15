@@ -102,16 +102,25 @@ TEST_CASE("Asset manager: content is decoded lazily and retained by generational
   CHECK_FALSE(resident.cache_status.has_value());
   CHECK(decoder.calls == 1);
 
+  CHECK(manager.release(resident.handle));
+  CHECK(manager.get(first.handle) != nullptr);
+
   bool same_asset = true;
   module_allocation_probe::count.store(0, std::memory_order_relaxed);
   module_allocation_probe::enabled.store(true, std::memory_order_release);
   for (std::size_t index = 0; index < 1'024; ++index) {
-    same_asset = same_asset && manager.get(first.handle) != nullptr
-                 && *manager.get(first.handle) == "mesh payload";
+    const auto shared = manager.acquire(*stored.id);
+    same_asset = same_asset && shared.ok()
+                 && shared.status == AssetManagerStatus::resident
+                 && shared.handle == first.handle
+                 && manager.get(first.handle) != nullptr
+                 && *manager.get(first.handle) == "mesh payload"
+                 && manager.release(shared.handle);
   }
   module_allocation_probe::enabled.store(false, std::memory_order_release);
   CHECK(same_asset);
   CHECK(module_allocation_probe::count.load(std::memory_order_relaxed) == 0);
+  CHECK(decoder.calls == 1);
 
   CHECK(manager.release(first.handle));
   CHECK(manager.get(first.handle) == nullptr);
@@ -206,6 +215,8 @@ TEST_CASE("Asset manager: dependency closure loads transactionally in dependency
   CHECK_FALSE(manager.find(*material.id).has_value());
   CHECK_FALSE(manager.find(*scene.id).has_value());
   CHECK(manager.size() == 1);
+  CHECK(manager.release(resident_source.handle));
+  CHECK(manager.size() == 0);
 
   decoder.rejected_id.reset();
   const auto loaded = manager.acquire_all(graph, std::array{*scene.id});
@@ -222,6 +233,10 @@ TEST_CASE("Asset manager: dependency closure loads transactionally in dependency
     CHECK(manager.valid(loaded.assets[index].handle));
   }
   CHECK(manager.size() == 3);
+  for (auto asset = loaded.assets.rbegin(); asset != loaded.assets.rend(); ++asset) {
+    CHECK(manager.release(asset->handle));
+  }
+  CHECK(manager.size() == 0);
 }
 
 TEST_CASE("Asset manager: unknown dependency roots fail before loading") {
