@@ -11,8 +11,9 @@
 
 using mobagen::benchmark::measure;
 using mobagen::benchmark::measure_paired;
-using mobagen::benchmark::overhead_percent;
 using mobagen::benchmark::Options;
+using mobagen::benchmark::overhead_percent;
+using mobagen::benchmark::paired_overhead;
 using mobagen::benchmark::parse_options;
 using mobagen::benchmark::percentile;
 using mobagen::benchmark::Result;
@@ -30,9 +31,12 @@ TEST_CASE("Benchmark percentile uses the nearest-rank value") {
 
 TEST_CASE("Benchmark options accept positive warmup and sample counts") {
   constexpr std::array args{
-      std::string_view{"--warmup"}, std::string_view{"7"},
-      std::string_view{"--samples"}, std::string_view{"11"},
-      std::string_view{"--max-overhead-percent"}, std::string_view{"1.25"},
+      std::string_view{"--warmup"},
+      std::string_view{"7"},
+      std::string_view{"--samples"},
+      std::string_view{"11"},
+      std::string_view{"--max-overhead-percent"},
+      std::string_view{"1.25"},
   };
 
   const Options options = parse_options(args);
@@ -47,10 +51,12 @@ TEST_CASE("Benchmark options reject unknown, missing, and zero values") {
   constexpr std::array unknown{std::string_view{"--other"}, std::string_view{"2"}};
   constexpr std::array missing{std::string_view{"--samples"}};
   constexpr std::array zero{std::string_view{"--samples"}, std::string_view{"0"}};
+  constexpr std::array negative_overhead{std::string_view{"--max-overhead-percent"}, std::string_view{"-0.1"}};
 
   CHECK_THROWS_AS(parse_options(unknown), std::invalid_argument);
   CHECK_THROWS_AS(parse_options(missing), std::invalid_argument);
   CHECK_THROWS_AS(parse_options(zero), std::invalid_argument);
+  CHECK_THROWS_AS(parse_options(negative_overhead), std::invalid_argument);
 }
 
 TEST_CASE("Benchmark measurement separates warmup from retained samples") {
@@ -71,10 +77,7 @@ TEST_CASE("Benchmark paired measurement alternates and reports comparable median
   std::size_t baseline_calls = 0;
   std::size_t candidate_calls = 0;
 
-  const auto result = measure_paired(
-      "baseline", "candidate", options, [&] { ++baseline_calls; },
-      [&] { ++candidate_calls; }
-  );
+  const auto result = measure_paired("baseline", "candidate", options, [&] { ++baseline_calls; }, [&] { ++candidate_calls; });
 
   CHECK(baseline_calls == 6);
   CHECK(candidate_calls == 6);
@@ -82,11 +85,27 @@ TEST_CASE("Benchmark paired measurement alternates and reports comparable median
   CHECK(result.candidate.samples_ns.size() == 4);
   CHECK(result.baseline.median_ns >= 0.0);
   CHECK(result.candidate.median_ns >= 0.0);
-  CHECK(overhead_percent(
-            Result{"baseline", {100.0}, 100.0, 100.0},
-            Result{"candidate", {101.0}, 101.0, 101.0}
-        )
-        == doctest::Approx(1.0));
+  CHECK(overhead_percent(Result{"baseline", {100.0}, 100.0, 100.0}, Result{"candidate", {101.0}, 101.0, 101.0}) == doctest::Approx(1.0));
+
+  CHECK_THROWS_AS(measure_paired("baseline", "candidate", options, [] {}, [] {}, 0), std::invalid_argument);
+}
+
+TEST_CASE("Benchmark paired overhead exposes median and conservative p05") {
+  const mobagen::benchmark::PairedResult result{
+      .baseline = Result{"baseline", {100.0, 100.0, 100.0}, 100.0, 100.0},
+      .candidate = Result{"candidate", {99.0, 102.0, 104.0}, 102.0, 104.0},
+  };
+
+  const auto overhead = paired_overhead(result);
+
+  CHECK(overhead.median_percent == doctest::Approx(2.0));
+  CHECK(overhead.p05_percent == doctest::Approx(-1.0));
+
+  const mobagen::benchmark::PairedResult persistent_regression{
+      .baseline = Result{"baseline", {100.0, 100.0, 100.0}, 100.0, 100.0},
+      .candidate = Result{"candidate", {102.0, 102.0, 102.0}, 102.0, 102.0},
+  };
+  CHECK(paired_overhead(persistent_regression).p05_percent == doctest::Approx(2.0));
 }
 
 TEST_CASE("Benchmark JSON includes schema, options, statistics, and raw samples") {

@@ -112,6 +112,45 @@ jobs:
           test ! -d build-module-host/_deps/glm-build
           test ! -d build-module-host/_deps/doctest-build
 
+  performance-gate:
+    name: Modular overhead gate (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v6
+        with:
+          path: "**/cpm_modules"
+          key: performance-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Configure lean performance build
+        run: >-
+          cmake -S . -B build-performance
+          -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DMOBAGEN_BUILD_BUILTIN_SUBSYSTEMS=OFF
+          -DMOBAGEN_BUILD_BUNDLED_MODULES=OFF
+          -DMOBAGEN_BUILD_MANIFEST_TOOLS=ON
+          -DMOBAGEN_BUILD_MODULE_COMPOSITIONS=ON
+          -DMOBAGEN_BUILD_PROJECT_TOOLS=OFF
+          -DMOBAGEN_BUILD_ASSET_TOOLS=OFF
+          -DMOBAGEN_BUILD_PLUGIN_TOOLS=OFF
+          -DMOBAGEN_BUILD_CATALOG_TOOLS=OFF
+          -DMOBAGEN_HTTP_BACKEND_CURL=OFF
+          -DMOBAGEN_BUILD_BENCHMARKS=ON
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=OFF
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=OFF
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build and enforce performance budget
+        run: >-
+          cmake --build build-performance --config Release --parallel 2
+          --target MobagenPerformanceGate
+
   sanitizers:
     name: ASan + UBSan (Ubuntu)
     runs-on: ubuntu-latest
