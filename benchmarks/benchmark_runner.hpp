@@ -16,6 +16,19 @@
 #include <utility>
 #include <vector>
 
+// Keep both sides of function-table benchmarks behind the same indirect-call
+// boundary. GCC's interprocedural constant propagation can otherwise clone a
+// local baseline helper and devirtualize only that side of the comparison.
+#if defined(_MSC_VER)
+#  define MOBAGEN_BENCHMARK_OPAQUE_CALL __declspec(noinline)
+#elif defined(__GNUC__) && !defined(__clang__)
+#  define MOBAGEN_BENCHMARK_OPAQUE_CALL __attribute__((noipa))
+#elif defined(__clang__)
+#  define MOBAGEN_BENCHMARK_OPAQUE_CALL __attribute__((noinline))
+#else
+#  define MOBAGEN_BENCHMARK_OPAQUE_CALL
+#endif
+
 namespace mobagen::benchmark {
   struct Options {
     std::size_t warmup = 5;

@@ -16,6 +16,12 @@ It reports these operations as JSON:
 - `frame.direct` and `frame.modular`: compare 240 representative CPU frames.
   Both sides execute the same deterministic 8,192-item workload.
 
+The local baseline helpers are opaque to compiler interprocedural analysis.
+This prevents GCC from devirtualizing only the statically visible side: both
+baseline and module measurements retain the same cached function-table call
+boundary, while the module implementation still executes from its loaded
+`.plugin` binary.
+
 Dispatch and frame samples are measured as short A/B blocks with alternating
 order. Each outer sample is the median block cost scaled to the complete work
 count, which rejects scheduler interruptions without hiding persistent cost.

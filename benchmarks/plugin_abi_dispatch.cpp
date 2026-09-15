@@ -44,30 +44,24 @@ namespace {
   constexpr std::size_t dispatch_interleavings = 20;
   std::atomic_uint64_t observation{0};
 
-#ifdef _MSC_VER
-#  define MOBAGEN_NOINLINE __declspec(noinline)
-#else
-#  define MOBAGEN_NOINLINE __attribute__((noinline))
-#endif
-
   struct DirectState {
     unsigned started{1};
     std::uint64_t ticks{};
   };
 
-  MOBAGEN_NOINLINE MobagenStatus MOBAGEN_PLUGIN_CALL direct_tick(void* opaque) noexcept {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL MobagenStatus MOBAGEN_PLUGIN_CALL direct_tick(void* opaque) noexcept {
     auto* state = static_cast<DirectState*>(opaque);
     if (state == nullptr || state->started == 0) return MOBAGEN_STATUS_CONFLICT;
     ++state->ticks;
     return MOBAGEN_STATUS_OK;
   }
 
-  MOBAGEN_NOINLINE std::uint64_t MOBAGEN_PLUGIN_CALL direct_tick_count(const void* opaque) noexcept {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL std::uint64_t MOBAGEN_PLUGIN_CALL direct_tick_count(const void* opaque) noexcept {
     const auto* state = static_cast<const DirectState*>(opaque);
     return state == nullptr ? 0 : state->ticks;
   }
 
-  MOBAGEN_NOINLINE std::uint64_t execute_plugin_batch(const MobagenRuntimeTickV1* api) {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL std::uint64_t execute_plugin_batch(const MobagenRuntimeTickV1* api) {
     unsigned status = 0;
     for (std::size_t invocation = 0; invocation < dispatch_batch_size; ++invocation) {
       status |= static_cast<unsigned>(api->tick(api->plugin_state));
