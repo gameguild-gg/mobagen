@@ -34,6 +34,7 @@ set(FOUNDATION_TEST_SOURCES
     asset_manager_tests.cpp
     asset_pipeline_tests.cpp
     asset_registry_tests.cpp
+    asset_store_service_tests.cpp
     benchmark_runner_tests.cpp
     binary_reader_tests.cpp
     ecs_tests.cpp
@@ -139,6 +140,7 @@ target_link_libraries(
           mobagen::core_render
           mobagen::core_resource
           mobagen::core_assets
+          mobagen::asset_store_service
           mobagen::volume
 )
 if(TARGET mobagen::asset_cli)
@@ -171,8 +173,8 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   target_link_libraries(FoundationTests PRIVATE mobagen::module_lockfile)
 endif()
 
-set(FOUNDATION_COMPILED_TARGETS mobagen_core_assets mobagen_core_jobs mobagen_core_modules
-                                mobagen_core_plugins
+set(FOUNDATION_COMPILED_TARGETS mobagen_asset_store_service mobagen_core_assets
+                                mobagen_core_jobs mobagen_core_modules mobagen_core_plugins
 )
 if(TARGET mobagen_asset_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_asset_cli)
