@@ -159,6 +159,7 @@ if(TARGET mobagen::module_manifest)
   target_link_libraries(
     FoundationTests PRIVATE mobagen::headless_composition mobagen::module_manifest
                             mobagen::native_project mobagen::portable_project
+                            mobagen::project_module_manager
   )
 endif()
 if(TARGET mobagen::module_distribution)
@@ -191,6 +192,9 @@ if(TARGET mobagen_portable_project)
 endif()
 if(TARGET mobagen_project_support)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_project_support)
+endif()
+if(TARGET mobagen_project_module_manager)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_project_module_manager)
 endif()
 if(TARGET mobagen_module_manifest)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_manifest)

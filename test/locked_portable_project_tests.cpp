@@ -2,6 +2,7 @@
 
 #include "portable/locked_project.hpp"
 #include "portable/project_runtime.hpp"
+#include "project_module_manager.hpp"
 #include "plugins/wasm_plugin_loader.hpp"
 #include "support/wasm_plugin_test_support.hpp"
 
@@ -101,6 +102,56 @@ TEST_CASE("Locked portable project: offline open performs zero WASM instantiatio
   CHECK(opened.manager->active_count() == 1);
   CHECK(backend.calls == 1);
   CHECK(opened.manager->stop().ok());
+}
+
+TEST_CASE("Project module manager: manifest profile routes to lazy portable modules") {
+  using namespace mobagen;
+  LockedPortableProjectFixture project;
+  test::FakeWasmBackend generator;
+  project.generate_lock(generator);
+  test::FakeWasmBackend backend;
+
+  auto opened = compositions::open_locked_project(
+      project.manifest(),
+      {.sdk_version = {0, 0, 1},
+       .target = test::portable_target(),
+       .profile = "release"},
+      {.portable_backend = &backend}
+  );
+
+  REQUIRE(opened.ok());
+  CHECK(opened.product->name == "locked-portable-project");
+  CHECK(opened.manager->kind()
+        == compositions::ProjectModuleRuntimeKind::Portable);
+  CHECK(opened.manager->native() == nullptr);
+  CHECK(opened.manager->portable() != nullptr);
+  CHECK(opened.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+
+  REQUIRE(opened.manager->activate("runtime.package.v1").ok());
+  CHECK(opened.manager->active_count() == 1);
+  CHECK(backend.calls == 1);
+  CHECK(opened.manager->stop().ok());
+}
+
+TEST_CASE("Project module manager: portable profile requires an injected backend") {
+  using namespace mobagen;
+  LockedPortableProjectFixture project;
+  test::FakeWasmBackend generator;
+  project.generate_lock(generator);
+
+  const auto opened = compositions::open_locked_project(
+      project.manifest(),
+      {.sdk_version = {0, 0, 1},
+       .target = test::portable_target(),
+       .profile = "release"}
+  );
+
+  CHECK_FALSE(opened.ok());
+  CHECK(opened.manager == nullptr);
+  REQUIRE(opened.issues.size() == 1);
+  CHECK(opened.issues.front().code
+        == compositions::LockedProjectIssueCode::PortableBackendUnavailable);
 }
 
 TEST_CASE("Locked portable project: tampered bytes fail only when requested") {

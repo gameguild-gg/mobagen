@@ -13,6 +13,7 @@
 #include "assets/asset_id.hpp"
 #include "native/locked_project.hpp"
 #include "native/project_runtime.hpp"
+#include "project_module_manager.hpp"
 #include "plugins/runtime_tick_v1.h"
 
 namespace {
@@ -315,6 +316,42 @@ TEST_CASE("Locked native project: verified lock opens offline and activates capa
   REQUIRE(api.has_value());
   CHECK((*api)->tick((*api)->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK((*api)->tick_count((*api)->plugin_state) == 42);
+  CHECK(opened.manager->stop().ok());
+}
+
+TEST_CASE("Project module manager: manifest profile routes to lazy native modules") {
+  using namespace mobagen::compositions;
+  TemporaryNativeProject project;
+  project.write(valid_native_project_manifest);
+  const NativeProjectLockOptions update_lock{
+      .policy = NativeProjectLockPolicy::Update,
+      .sdk_version = mobagen::modules::SemanticVersion{0, 0, 1},
+  };
+  auto generated = load_native_project(
+      project.path() / "mobagen.yaml", runtime_options(), {}, update_lock
+  );
+  REQUIRE(generated.ok());
+  REQUIRE(generated.runtime->stop().ok());
+  generated.runtime.reset();
+
+  auto opened = open_locked_project(
+      project.path() / "mobagen.yaml",
+      {.sdk_version = {0, 0, 1},
+       .target = native_target(),
+       .profile = "release"}
+  );
+
+  REQUIRE(opened.ok());
+  CHECK(opened.product->name == "native-project-test");
+  CHECK(opened.manager->kind() == ProjectModuleRuntimeKind::Native);
+  CHECK(opened.manager->native() != nullptr);
+  CHECK(opened.manager->portable() == nullptr);
+  CHECK(opened.manager->active_count() == 0);
+  CHECK(opened.manager->native()->host().size() == 0);
+
+  REQUIRE(opened.manager->activate(MOBAGEN_RUNTIME_TICK_V1_ID).ok());
+  CHECK(opened.manager->active_count() == 1);
+  CHECK(opened.manager->native()->host().size() == 1);
   CHECK(opened.manager->stop().ok());
 }
 

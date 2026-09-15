@@ -15,6 +15,30 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   if(NOT EMSCRIPTEN)
     add_subdirectory(native)
   endif()
+
+  add_library(
+    mobagen_project_module_manager STATIC project_module_manager.cpp
+                                          project_module_manager.hpp
+  )
+  add_library(mobagen::project_module_manager ALIAS mobagen_project_module_manager)
+  target_include_directories(
+    mobagen_project_module_manager PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  target_compile_features(mobagen_project_module_manager PUBLIC cxx_std_20)
+  target_link_libraries(
+    mobagen_project_module_manager
+    PUBLIC mobagen::portable_project
+    PRIVATE mobagen::project_support
+  )
+  if(TARGET mobagen::native_project)
+    target_compile_definitions(
+      mobagen_project_module_manager
+      PRIVATE MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE=1
+    )
+    target_link_libraries(
+      mobagen_project_module_manager PUBLIC mobagen::native_project
+    )
+  endif()
 endif()
 
 if(MOBAGEN_BUILD_RUNTIME)
