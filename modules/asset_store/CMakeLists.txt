@@ -1,0 +1,13 @@
+set_target_properties(
+  mobagen_core_assets mobagen_asset_store_service
+  PROPERTIES POSITION_INDEPENDENT_CODE ON
+)
+
+add_library(MobagenDefaultAssetStorePlugin MODULE default_asset_store_plugin.cpp)
+target_compile_features(MobagenDefaultAssetStorePlugin PRIVATE cxx_std_20)
+target_compile_definitions(MobagenDefaultAssetStorePlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
+target_link_libraries(
+  MobagenDefaultAssetStorePlugin
+  PRIVATE mobagen::asset_store_service mobagen::plugin_sdk
+)
+set_target_properties(MobagenDefaultAssetStorePlugin PROPERTIES PREFIX "")
