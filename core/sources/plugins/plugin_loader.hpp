@@ -13,6 +13,7 @@
 namespace mobagen::plugins {
 
   class NativePluginActivation;
+  struct NativePluginLoadResult;
 
   enum class NativePluginLoadIssueCode : std::uint8_t {
     invalid_host,
