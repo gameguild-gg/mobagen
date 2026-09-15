@@ -17,6 +17,21 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   endif()
 
   add_library(
+    mobagen_project_bootstrap STATIC project_bootstrap.cpp project_bootstrap.hpp
+  )
+  add_library(mobagen::project_bootstrap ALIAS mobagen_project_bootstrap)
+  target_include_directories(
+    mobagen_project_bootstrap PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  target_compile_features(mobagen_project_bootstrap PUBLIC cxx_std_20)
+  target_link_libraries(
+    mobagen_project_bootstrap
+    PUBLIC mobagen::module_distribution mobagen::module_lockfile
+           mobagen::plugin_sdk
+    PRIVATE mobagen::project_support
+  )
+
+  add_library(
     mobagen_project_module_manager STATIC project_module_manager.cpp
                                           project_module_manager.hpp
   )
