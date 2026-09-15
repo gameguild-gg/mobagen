@@ -1,6 +1,7 @@
 #pragma once
 
 #include "asset_cache.hpp"
+#include "asset_dependency_graph.hpp"
 #include "asset_registry.hpp"
 
 #include <cstdint>
@@ -8,6 +9,7 @@
 #include <span>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace mobagen::assets {
 
@@ -39,6 +41,29 @@ namespace mobagen::assets {
     [[nodiscard]] bool ok() const noexcept {
       return status == AssetManagerStatus::resident
              || status == AssetManagerStatus::loaded;
+    }
+  };
+
+  enum class AssetManagerBatchStatus : std::uint8_t {
+    success,
+    dependency_error,
+    asset_error,
+  };
+
+  struct AssetManagerResolvedAsset {
+    AssetId id;
+    resource::Handle handle{resource::kNullHandle};
+  };
+
+  struct AssetManagerBatchResult {
+    AssetManagerBatchStatus status{AssetManagerBatchStatus::dependency_error};
+    AssetDependencyStatus dependency_status{AssetDependencyStatus::success};
+    std::optional<AssetId> failed_asset;
+    std::optional<AssetManagerAcquireResult> failure;
+    std::vector<AssetManagerResolvedAsset> assets;
+
+    [[nodiscard]] bool ok() const noexcept {
+      return status == AssetManagerBatchStatus::success;
     }
   };
 
@@ -106,6 +131,49 @@ namespace mobagen::assets {
             .cache_status = cached.status,
         };
       }
+    }
+
+    [[nodiscard]] AssetManagerBatchResult acquire_all(
+        const AssetDependencyGraph& graph, std::span<const AssetId> roots
+    ) {
+      auto order = graph.build_order(roots);
+      if (order.status != AssetDependencyStatus::success) {
+        return {
+            .status = AssetManagerBatchStatus::dependency_error,
+            .dependency_status = order.status,
+        };
+      }
+
+      std::vector<AssetManagerResolvedAsset> resolved;
+      std::vector<resource::Handle> newly_loaded;
+      resolved.reserve(order.assets.size());
+      newly_loaded.reserve(order.assets.size());
+
+      for (const auto& id : order.assets) {
+        const auto acquired = acquire(id);
+        if (!acquired.ok()) {
+          for (auto handle = newly_loaded.rbegin();
+               handle != newly_loaded.rend(); ++handle) {
+            (void)registry_.release(*handle);
+          }
+          return {
+              .status = AssetManagerBatchStatus::asset_error,
+              .dependency_status = AssetDependencyStatus::success,
+              .failed_asset = id,
+              .failure = acquired,
+          };
+        }
+        if (acquired.status == AssetManagerStatus::loaded) {
+          newly_loaded.push_back(acquired.handle);
+        }
+        resolved.push_back({id, acquired.handle});
+      }
+
+      return {
+          .status = AssetManagerBatchStatus::success,
+          .dependency_status = AssetDependencyStatus::success,
+          .assets = std::move(resolved),
+      };
     }
 
     [[nodiscard]] std::optional<resource::Handle> find(const AssetId& id) const {
