@@ -31,6 +31,7 @@ set(FOUNDATION_TEST_SOURCES
     asset_cache_tests.cpp
     asset_dependency_graph_tests.cpp
     asset_id_tests.cpp
+    asset_manager_tests.cpp
     asset_pipeline_tests.cpp
     asset_registry_tests.cpp
     benchmark_runner_tests.cpp
