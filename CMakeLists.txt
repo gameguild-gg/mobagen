@@ -37,6 +37,11 @@ include(external/compilerchecks.cmake)
 # first-party sanitizer policy and target helper
 include(cmake/sanitizers.cmake)
 
+# Robust license aggregation for CPM packages. Some projects expose a LICENSES
+# directory alongside a regular COPYING file, which the upstream helper treats
+# as a readable license file.
+include(cmake/licenses.cmake)
+
 # developer tooling (sanitizers / ccache / static analyzers) — no-op for normal builds
 include(cmake/tools.cmake)
 
@@ -262,7 +267,7 @@ if(MOBAGEN_BUILD_RUNTIME)
     GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
     VERSION 0.0.5
   )
-  write_license_disclaimer("third_party.txt" "${CPM_PACKAGES}")
+  mobagen_write_license_disclaimer("${CMAKE_BINARY_DIR}/third_party.txt" "${CPM_PACKAGES}")
 endif()
 
 # Android: create a SHARED library from the same sources as the selected app target, named "main" (→

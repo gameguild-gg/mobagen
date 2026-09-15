@@ -250,6 +250,16 @@ add_test(NAME foundation::dawn-configure-patch
 set_tests_properties(foundation::dawn-configure-patch PROPERTIES LABELS foundation)
 
 add_test(
+  NAME foundation::license-disclaimer
+  COMMAND
+    ${CMAKE_COMMAND}
+    "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/license-disclaimer-fixture"
+    "-DMOBAGEN_SOURCE_DIR=${CMAKE_SOURCE_DIR}" -P
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/license_disclaimer_test.cmake
+)
+set_tests_properties(foundation::license-disclaimer PROPERTIES LABELS foundation)
+
+add_test(
   NAME foundation::plugin-sdk-installed-consumer
   COMMAND
     ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/plugin-sdk-consumer"
