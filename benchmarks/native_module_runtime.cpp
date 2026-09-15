@@ -58,19 +58,19 @@ namespace {
     std::uint64_t accumulator{UINT64_C(0xcbf29ce484222325)};
   };
 
-  MobagenStatus MOBAGEN_PLUGIN_CALL direct_tick(void* opaque) noexcept {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL MobagenStatus MOBAGEN_PLUGIN_CALL direct_tick(void* opaque) noexcept {
     auto* state = static_cast<DirectState*>(opaque);
     if (state == nullptr || state->started == 0) return MOBAGEN_STATUS_CONFLICT;
     ++state->ticks;
     return MOBAGEN_STATUS_OK;
   }
 
-  std::uint64_t MOBAGEN_PLUGIN_CALL direct_tick_count(const void* opaque) noexcept {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL std::uint64_t MOBAGEN_PLUGIN_CALL direct_tick_count(const void* opaque) noexcept {
     const auto* state = static_cast<const DirectState*>(opaque);
     return state == nullptr ? 0 : state->ticks;
   }
 
-  std::uint64_t MOBAGEN_PLUGIN_CALL direct_run_frame(void* opaque, std::uint32_t item_count) noexcept {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL std::uint64_t MOBAGEN_PLUGIN_CALL direct_run_frame(void* opaque, std::uint32_t item_count) noexcept {
     auto* state = static_cast<DirectState*>(opaque);
     if (state == nullptr || state->started == 0) return 0;
     state->accumulator = mobagen_benchmark_frame_workload(state->accumulator ^ state->frames, item_count);
@@ -78,7 +78,7 @@ namespace {
     return state->accumulator;
   }
 
-  std::uint64_t MOBAGEN_PLUGIN_CALL direct_frame_count(const void* opaque) noexcept {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL std::uint64_t MOBAGEN_PLUGIN_CALL direct_frame_count(const void* opaque) noexcept {
     const auto* state = static_cast<const DirectState*>(opaque);
     return state == nullptr ? 0 : state->frames;
   }
@@ -165,7 +165,7 @@ namespace {
     return result;
   }
 
-  std::uint64_t execute_tick_batch(const MobagenRuntimeTickV1* api) {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL std::uint64_t execute_tick_batch(const MobagenRuntimeTickV1* api) {
     unsigned status = 0;
     for (std::size_t invocation = 0; invocation < dispatch_batch_size; ++invocation) {
       status |= static_cast<unsigned>(api->tick(api->plugin_state));
@@ -174,7 +174,7 @@ namespace {
     return api->tick_count(api->plugin_state);
   }
 
-  std::uint64_t execute_frame_batch(const MobagenBenchmarkFrameV1* api) {
+  MOBAGEN_BENCHMARK_OPAQUE_CALL std::uint64_t execute_frame_batch(const MobagenBenchmarkFrameV1* api) {
     const auto result = api->run_frame(api->plugin_state, frame_item_count);
     if (api->frame_count(api->plugin_state) == 0) {
       throw std::runtime_error("frame batch failed");
