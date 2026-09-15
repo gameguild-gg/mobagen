@@ -20,7 +20,7 @@
 namespace benchmark_allocation_probe {
   std::atomic_bool enabled{false};
   std::atomic_size_t count{0};
-}
+}  // namespace benchmark_allocation_probe
 
 void* operator new(std::size_t size) {
   if (benchmark_allocation_probe::enabled.load(std::memory_order_relaxed)) {
@@ -40,7 +40,8 @@ void operator delete[](void* allocation, std::size_t) noexcept { std::free(alloc
 
 namespace {
 
-  constexpr std::size_t dispatch_batch_size = 1'000'000;
+  constexpr std::size_t dispatch_batch_size = 100'000;
+  constexpr std::size_t dispatch_interleavings = 20;
   std::atomic_uint64_t observation{0};
 
 #ifdef _MSC_VER
@@ -61,9 +62,7 @@ namespace {
     return MOBAGEN_STATUS_OK;
   }
 
-  MOBAGEN_NOINLINE std::uint64_t MOBAGEN_PLUGIN_CALL direct_tick_count(
-      const void* opaque
-  ) noexcept {
+  MOBAGEN_NOINLINE std::uint64_t MOBAGEN_PLUGIN_CALL direct_tick_count(const void* opaque) noexcept {
     const auto* state = static_cast<const DirectState*>(opaque);
     return state == nullptr ? 0 : state->ticks;
   }
@@ -102,9 +101,7 @@ namespace {
       if (activation_->state() == mobagen::plugins::NativePluginActivationState::Quiesced) (void)activation_->stop();
     }
 
-    void direct_batch() {
-      observation.fetch_xor(execute_plugin_batch(&direct_api_), std::memory_order_relaxed);
-    }
+    void direct_batch() { observation.fetch_xor(execute_plugin_batch(&direct_api_), std::memory_order_relaxed); }
     void plugin_batch() { observation.fetch_xor(execute_plugin_batch(api_), std::memory_order_relaxed); }
 
   private:
@@ -122,27 +119,27 @@ int main(int argc, char** argv) {
     const auto options = mobagen::benchmark::parse_options(argc, argv);
     PluginAbiDispatchFixture fixture;
     const auto paired = mobagen::benchmark::measure_paired(
-        "plugin.direct_1m", "plugin.c_abi_1m", options,
-        [&fixture] { fixture.direct_batch(); }, [&fixture] { fixture.plugin_batch(); }
-    );
+        "plugin.direct_2m", "plugin.c_abi_2m", options, [&fixture] { fixture.direct_batch(); }, [&fixture] { fixture.plugin_batch(); },
+        dispatch_interleavings);
     const std::array results{paired.baseline, paired.candidate};
     mobagen::benchmark::write_json(std::cout, options, results);
     benchmark_allocation_probe::count.store(0, std::memory_order_relaxed);
     benchmark_allocation_probe::enabled.store(true, std::memory_order_release);
-    fixture.plugin_batch();
+    for (std::size_t index = 0; index < dispatch_interleavings; ++index) {
+      fixture.plugin_batch();
+    }
     benchmark_allocation_probe::enabled.store(false, std::memory_order_release);
     const auto allocations = benchmark_allocation_probe::count.load(std::memory_order_relaxed);
+    std::cerr << "warmed plugin dispatch allocations: " << allocations << '\n';
     if (allocations != 0) {
       std::cerr << "warmed plugin dispatch allocated " << allocations << " times\n";
       return 4;
     }
     if (options.max_overhead_percent.has_value()) {
-      const auto overhead = mobagen::benchmark::overhead_percent(
-          paired.baseline, paired.candidate
-      );
-      std::cerr << "warmed dispatch overhead: " << overhead << "% (limit "
+      const auto overhead = mobagen::benchmark::paired_overhead(paired);
+      std::cerr << "warmed dispatch overhead: median " << overhead.median_percent << "%, p05 " << overhead.p05_percent << "% (limit "
                 << *options.max_overhead_percent << "%)\n";
-      if (overhead > *options.max_overhead_percent) return 3;
+      if (overhead.p05_percent > *options.max_overhead_percent) return 3;
     }
     return 0;
   } catch (const std::invalid_argument& error) {

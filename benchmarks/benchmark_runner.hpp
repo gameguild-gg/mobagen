@@ -39,13 +39,10 @@ namespace mobagen::benchmark {
     return parsed;
   }
 
-  inline double parse_non_negative_number(
-      std::string_view value, std::string_view option
-  ) {
+  inline double parse_non_negative_number(std::string_view value, std::string_view option) {
     double parsed = 0.0;
     const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
-    if (result.ec != std::errc{} || result.ptr != value.data() + value.size()
-        || !std::isfinite(parsed) || parsed < 0.0) {
+    if (result.ec != std::errc{} || result.ptr != value.data() + value.size() || !std::isfinite(parsed) || parsed < 0.0) {
       throw std::invalid_argument(std::string(option) + " requires a non-negative number");
     }
     return parsed;
@@ -55,8 +52,7 @@ namespace mobagen::benchmark {
     Options options;
     for (std::size_t index = 0; index < arguments.size(); ++index) {
       const std::string_view option = arguments[index];
-      if (option != "--warmup" && option != "--samples"
-          && option != "--max-overhead-percent") {
+      if (option != "--warmup" && option != "--samples" && option != "--max-overhead-percent") {
         throw std::invalid_argument("unknown benchmark option: " + std::string(option));
       }
       if (++index == arguments.size()) {
@@ -85,8 +81,8 @@ namespace mobagen::benchmark {
     if (!std::isfinite(quantile) || quantile <= 0.0 || quantile > 1.0) {
       throw std::invalid_argument("percentile quantile must be in (0, 1]");
     }
-    if (!std::all_of(values.begin(), values.end(), [](double value) { return std::isfinite(value) && value >= 0.0; })) {
-      throw std::invalid_argument("percentile samples must be finite and non-negative");
+    if (!std::all_of(values.begin(), values.end(), [](double value) { return std::isfinite(value); })) {
+      throw std::invalid_argument("percentile samples must be finite");
     }
 
     std::sort(values.begin(), values.end());
@@ -120,17 +116,22 @@ namespace mobagen::benchmark {
     Result candidate;
   };
 
-  template <class Baseline, class Candidate>
-  PairedResult measure_paired(
-      std::string baseline_name, std::string candidate_name, const Options& options,
-      Baseline&& baseline, Candidate&& candidate
-  ) {
-    if (options.warmup == 0 || options.samples == 0) {
-      throw std::invalid_argument("benchmark warmup and samples must be positive");
+  template <class Baseline, class Candidate> PairedResult measure_paired(std::string baseline_name, std::string candidate_name,
+                                                                         const Options& options, Baseline&& baseline, Candidate&& candidate,
+                                                                         std::size_t interleavings = 1) {
+    if (options.warmup == 0 || options.samples == 0 || interleavings == 0) {
+      throw std::invalid_argument("benchmark warmup, samples, and interleavings must be positive");
     }
     for (std::size_t index = 0; index < options.warmup; ++index) {
-      baseline();
-      candidate();
+      for (std::size_t interleave = 0; interleave < interleavings; ++interleave) {
+        if ((index + interleave) % 2 == 0) {
+          baseline();
+          candidate();
+        } else {
+          candidate();
+          baseline();
+        }
+      }
     }
 
     PairedResult result{{std::move(baseline_name)}, {std::move(candidate_name)}};
@@ -143,13 +144,22 @@ namespace mobagen::benchmark {
       return std::chrono::duration<double, std::nano>(end - begin).count();
     };
     for (std::size_t index = 0; index < options.samples; ++index) {
-      if (index % 2 == 0) {
-        result.baseline.samples_ns.push_back(sample(baseline));
-        result.candidate.samples_ns.push_back(sample(candidate));
-      } else {
-        result.candidate.samples_ns.push_back(sample(candidate));
-        result.baseline.samples_ns.push_back(sample(baseline));
+      std::vector<double> baseline_blocks;
+      std::vector<double> candidate_blocks;
+      baseline_blocks.reserve(interleavings);
+      candidate_blocks.reserve(interleavings);
+      for (std::size_t interleave = 0; interleave < interleavings; ++interleave) {
+        if ((index + interleave) % 2 == 0) {
+          baseline_blocks.push_back(sample(baseline));
+          candidate_blocks.push_back(sample(candidate));
+        } else {
+          candidate_blocks.push_back(sample(candidate));
+          baseline_blocks.push_back(sample(baseline));
+        }
       }
+      const auto scale = static_cast<double>(interleavings);
+      result.baseline.samples_ns.push_back(percentile(baseline_blocks, 0.50) * scale);
+      result.candidate.samples_ns.push_back(percentile(candidate_blocks, 0.50) * scale);
     }
     result.baseline.median_ns = percentile(result.baseline.samples_ns, 0.50);
     result.baseline.p95_ns = percentile(result.baseline.samples_ns, 0.95);
@@ -159,11 +169,35 @@ namespace mobagen::benchmark {
   }
 
   inline double overhead_percent(const Result& baseline, const Result& candidate) {
-    if (!std::isfinite(baseline.median_ns) || baseline.median_ns <= 0.0
-        || !std::isfinite(candidate.median_ns) || candidate.median_ns < 0.0) {
+    if (!std::isfinite(baseline.median_ns) || baseline.median_ns <= 0.0 || !std::isfinite(candidate.median_ns) || candidate.median_ns < 0.0) {
       throw std::invalid_argument("overhead comparison requires finite positive timings");
     }
     return ((candidate.median_ns / baseline.median_ns) - 1.0) * 100.0;
+  }
+
+  struct PairedOverhead {
+    double median_percent{};
+    double p05_percent{};
+  };
+
+  inline PairedOverhead paired_overhead(const PairedResult& result) {
+    if (result.baseline.samples_ns.empty() || result.baseline.samples_ns.size() != result.candidate.samples_ns.size()) {
+      throw std::invalid_argument("paired overhead requires equally sized non-empty sample sets");
+    }
+    std::vector<double> samples;
+    samples.reserve(result.baseline.samples_ns.size());
+    for (std::size_t index = 0; index < result.baseline.samples_ns.size(); ++index) {
+      const auto baseline = result.baseline.samples_ns[index];
+      const auto candidate = result.candidate.samples_ns[index];
+      if (!std::isfinite(baseline) || baseline <= 0.0 || !std::isfinite(candidate) || candidate < 0.0) {
+        throw std::invalid_argument("paired overhead requires finite positive timings");
+      }
+      samples.push_back(((candidate / baseline) - 1.0) * 100.0);
+    }
+    return {
+        .median_percent = percentile(samples, 0.50),
+        .p05_percent = percentile(samples, 0.05),
+    };
   }
 
   inline void write_json_string(std::ostream& output, std::string_view value) {
@@ -218,8 +252,8 @@ namespace mobagen::benchmark {
       }
     }
 
-    output << "{\"schema\":\"mobagen.foundation-benchmark.v1\",\"warmup\":" << options.warmup
-           << ",\"samples\":" << options.samples << ",\"max_overhead_percent\":";
+    output << "{\"schema\":\"mobagen.foundation-benchmark.v1\",\"warmup\":" << options.warmup << ",\"samples\":" << options.samples
+           << ",\"max_overhead_percent\":";
     if (options.max_overhead_percent.has_value()) {
       output << std::setprecision(17) << *options.max_overhead_percent;
     } else {
