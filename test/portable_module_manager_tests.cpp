@@ -228,6 +228,33 @@ TEST_CASE("Portable module manager: first capability request instantiates and ac
   CHECK(created.manager->stop().ok());
 }
 
+TEST_CASE("Portable module manager: capability acquisition returns its active WASM endpoint") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto package = add_portable_plugin(directory, "reference.plugin");
+  auto created = compositions::create_portable_module_manager(
+      portable_plan(package), backend
+  );
+  REQUIRE(created.ok());
+
+  const auto acquired = created.manager->acquire("runtime.package.v1");
+
+  REQUIRE(acquired.ok());
+  REQUIRE(acquired.plugin != nullptr);
+  CHECK(acquired.plugin->provider().id == "mobagen.wasm-package");
+  CHECK(acquired.plugin->state() == plugins::PortableWasmPluginState::Active);
+  CHECK(created.manager->active_count() == 1);
+  CHECK(backend.calls == 1);
+
+  const auto reused = created.manager->acquire("runtime.package.v1");
+  REQUIRE(reused.ok());
+  CHECK(reused.plugin == acquired.plugin);
+  CHECK(created.manager->active_count() == 1);
+  CHECK(backend.calls == 1);
+  CHECK(created.manager->stop().ok());
+}
+
 TEST_CASE("Portable module manager: unrelated selected WASM remains uninstantiated") {
   using namespace mobagen;
   test::TemporaryWasmDirectory directory;

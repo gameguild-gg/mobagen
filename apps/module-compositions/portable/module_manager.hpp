@@ -28,6 +28,7 @@ namespace mobagen::compositions {
     PermissionDenied,
     RegistryFailed,
     ActivationFailed,
+    CapabilityUnavailable,
     ShutdownFailed,
   };
 
@@ -44,6 +45,15 @@ namespace mobagen::compositions {
     std::vector<PortableModuleManagerIssue> issues;
 
     [[nodiscard]] bool ok() const noexcept { return issues.empty(); }
+  };
+
+  struct PortableModuleCapabilityResult {
+    plugins::PortableWasmPluginActivation* plugin{};
+    std::vector<PortableModuleManagerIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept {
+      return plugin != nullptr && issues.empty();
+    }
   };
 
   struct PortableModuleConfiguration {
@@ -69,6 +79,9 @@ namespace mobagen::compositions {
     ~PortableModuleManager();
 
     [[nodiscard]] PortableModuleManagerActionResult activate(std::string_view capability);
+    [[nodiscard]] PortableModuleCapabilityResult acquire(
+        std::string_view capability
+    );
     [[nodiscard]] PortableModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept { return active_count_; }
     [[nodiscard]] plugins::PortableWasmPluginActivation* plugin(
