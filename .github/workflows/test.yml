@@ -67,6 +67,51 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: bash <(curl -sSfL https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
 
+  module-host:
+    name: Lean module host (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v6
+        with:
+          path: "**/cpm_modules"
+          key: module-host-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Configure lean module host
+        run: >-
+          cmake -S . -B build-module-host
+          -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DMOBAGEN_BUILD_BUILTIN_SUBSYSTEMS=OFF
+          -DMOBAGEN_BUILD_BUNDLED_MODULES=OFF
+          -DMOBAGEN_BUILD_MODULE_COMPOSITIONS=ON
+          -DMOBAGEN_BUILD_PROJECT_TOOLS=OFF
+          -DMOBAGEN_BUILD_ASSET_TOOLS=OFF
+          -DMOBAGEN_BUILD_PLUGIN_TOOLS=OFF
+          -DMOBAGEN_HTTP_BACKEND_CURL=ON
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=OFF
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=OFF
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build module manager and HTTPS backend
+        run: >-
+          cmake --build build-module-host --config Release --parallel 2
+          --target mobagen_project_startup mobagen_http_curl
+
+      - name: Verify built-in engine graph is absent
+        shell: bash
+        run: |
+          test ! -d build-module-host/core/sources/ecs
+          test ! -d build-module-host/core/sources/render
+          test ! -d build-module-host/modules
+          test ! -d build-module-host/_deps/glm-build
+          test ! -d build-module-host/_deps/doctest-build
+
   sanitizers:
     name: ASan + UBSan (Ubuntu)
     runs-on: ubuntu-latest
