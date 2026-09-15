@@ -6,6 +6,7 @@ add_library(
   asset_dependency_graph.hpp
   asset_id.cpp
   asset_id.hpp
+  asset_manager.hpp
   asset_pipeline.cpp
   asset_pipeline.hpp
   asset_registry.hpp
