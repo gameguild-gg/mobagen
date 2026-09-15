@@ -32,6 +32,8 @@ add_library(
   wasm_plugin_activation_set.hpp
   wasm_command_channel.cpp
   wasm_command_channel.hpp
+  wasm_asset_store.cpp
+  wasm_asset_store.hpp
   wasm_host_imports.cpp
   wasm_host_imports.hpp
   wasm_plugin_contract.cpp
