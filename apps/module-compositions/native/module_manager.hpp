@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -24,6 +25,7 @@ namespace mobagen::compositions {
     LoadFailed,
     DescriptorMismatch,
     ActivationFailed,
+    UnsupportedCapabilityAbi,
     ShutdownFailed,
   };
 
@@ -39,6 +41,15 @@ namespace mobagen::compositions {
     std::vector<NativeModuleManagerIssue> issues;
 
     [[nodiscard]] bool ok() const noexcept { return issues.empty(); }
+  };
+
+  struct NativeModuleCapabilityResult {
+    std::optional<plugins::NativeCapabilityBindingView> binding;
+    std::vector<NativeModuleManagerIssue> issues;
+
+    [[nodiscard]] bool ok() const noexcept {
+      return binding.has_value() && issues.empty();
+    }
   };
 
   struct NativeModuleConfiguration {
@@ -64,6 +75,9 @@ namespace mobagen::compositions {
     ~NativeModuleManager();
 
     [[nodiscard]] NativeModuleManagerActionResult activate(std::string_view capability);
+    [[nodiscard]] NativeModuleCapabilityResult acquire(
+        std::string_view capability, std::uint32_t minimum_abi_version
+    );
     [[nodiscard]] NativeModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept { return active_count_; }
     [[nodiscard]] plugins::PluginHost& host() noexcept { return host_; }

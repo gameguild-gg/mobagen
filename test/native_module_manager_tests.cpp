@@ -192,6 +192,54 @@ TEST_CASE("Native module manager: first capability request activates once and re
   CHECK(created.manager->host().size() == 0);
 }
 
+TEST_CASE("Native module manager: capability acquisition returns the direct ABI table") {
+  using namespace mobagen;
+  TemporaryNativeModuleProject project;
+  auto created = compositions::create_native_module_manager(
+      reference_plan(project.add_reference_plugin())
+  );
+  REQUIRE(created.ok());
+
+  const auto acquired = created.manager->acquire(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
+
+  REQUIRE(acquired.ok());
+  REQUIRE(acquired.binding.has_value());
+  CHECK(acquired.binding->provider_id == "mobagen.reference");
+  CHECK(acquired.binding->capability_id == MOBAGEN_RUNTIME_TICK_V1_ID);
+  CHECK(acquired.binding->abi_version == 1);
+  REQUIRE(acquired.binding->function_table_size >= sizeof(MobagenRuntimeTickV1));
+  const auto* api = static_cast<const MobagenRuntimeTickV1*>(
+      acquired.binding->function_table
+  );
+  CHECK(api->tick(api->plugin_state) == MOBAGEN_STATUS_OK);
+  CHECK(created.manager->active_count() == 1);
+
+  const auto reused = created.manager->acquire(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
+  REQUIRE(reused.ok());
+  CHECK(reused.binding->function_table == acquired.binding->function_table);
+  CHECK(created.manager->active_count() == 1);
+  CHECK(created.manager->stop().ok());
+}
+
+TEST_CASE("Native module manager: capability acquisition enforces the requested ABI") {
+  using namespace mobagen;
+  TemporaryNativeModuleProject project;
+  auto created = compositions::create_native_module_manager(
+      reference_plan(project.add_reference_plugin())
+  );
+  REQUIRE(created.ok());
+
+  const auto acquired = created.manager->acquire(MOBAGEN_RUNTIME_TICK_V1_ID, 2);
+
+  CHECK_FALSE(acquired.ok());
+  CHECK_FALSE(acquired.binding.has_value());
+  REQUIRE(acquired.issues.size() == 1);
+  CHECK(acquired.issues.front().code
+        == compositions::NativeModuleManagerIssueCode::UnsupportedCapabilityAbi);
+  CHECK(created.manager->active_count() == 1);
+  CHECK(created.manager->stop().ok());
+}
+
 TEST_CASE("Native module manager: configuration must match the locked digest before loading") {
   using namespace mobagen;
   const std::vector configurations{configuration("42")};
