@@ -26,7 +26,8 @@
 
     <script>
         // emdawnwebgpu creates its surface from the element with id "canvas".
-        var Module = { canvas: document.getElementById('canvas') };
+        var Module = typeof Module !== "undefined" ? Module : {};
+        Module.canvas = document.getElementById('canvas');
 
         const canvas = document.getElementById('canvas');
         const container = document.getElementById('container');
