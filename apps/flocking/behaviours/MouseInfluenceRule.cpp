@@ -4,15 +4,28 @@
 glm::vec2 MouseInfluenceRule::computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
   glm::vec2 force(0.f);
 
-  // ImGui::IsMouseDown(ImGuiMouseButton_Left) returns true if the left mouse button is currently pressed.
-  // ImGui::GetIO().MousePos returns the current mouse position as an ImVec2.
-  // glm::length(vec) returns the length of a vector
-
   // begin solution
+
+  if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+  {
+    return force;
+  }
+
+  ImVec2 mp = ImGui::GetIO().MousePos;
+  glm::vec2 mousePos(mp.x, mp.y);
+
+  glm::vec2 offset = mousePos - boid.position;
+  float distance = glm::length(offset);
+
+  if (distance > 0.0001f)
+  {
+    glm::vec2 direction = offset / distance;
+    force = isRepulsive ? -direction : direction;
+  }
 
   // end solution
 
-  return force;
+  return force * 100.f;
 }
 
 bool MouseInfluenceRule::drawImguiRuleExtra() {

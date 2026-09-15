@@ -40,6 +40,7 @@ if(NOT EMSCRIPTEN)
   )
   # App-local includes only; core paths are inherited from apps/CMakeLists.txt.
   target_include_directories(flocking-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(flocking-tests PRIVATE doctest::doctest glm::glm flocking_tests_imgui)
   # imgui_core (external/imgui.cmake) provides ImGui headers without the SDL3/dawn deps a console
   # runner must not pull in.
   target_link_libraries(flocking-tests PRIVATE doctest::doctest glm::glm imgui_core)

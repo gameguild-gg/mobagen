@@ -13,6 +13,7 @@ private:
   int height;
   inline std::vector<bool>& currentBuffer() { return buffer[currentBufferId % 2]; }
   inline std::vector<bool>& nextBuffer() { return buffer[(currentBufferId + 1) % 2]; }
+  int Index(Point2D point) const;
 
 public:
   inline const int& Width() const { return width; };
@@ -26,9 +27,7 @@ public:
   // life-tests runner) right AFTER a rule Step returns - never from inside a
   // rule, which must only write via SetNext.
   void SwapBuffers();
-  // todo: make it follow the standard at() function that returns the exactly element
   bool Get(Point2D point);
-  // todo: make it follow the standard at() function that returns the exactly element
   void SetNext(Point2D point, bool value);
   void SetCurrent(Point2D point, bool value);
   void Randomize();
