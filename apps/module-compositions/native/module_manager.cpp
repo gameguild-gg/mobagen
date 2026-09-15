@@ -193,6 +193,29 @@ namespace mobagen::compositions {
     return result;
   }
 
+  NativeModuleCapabilityResult NativeModuleManager::acquire(
+      std::string_view capability, std::uint32_t minimum_abi_version
+  ) {
+    NativeModuleCapabilityResult result;
+    auto activated = activate(capability);
+    if (!activated.ok()) {
+      result.issues = std::move(activated.issues);
+      return result;
+    }
+    result.binding = host_.find_binding(capability, minimum_abi_version);
+    if (!result.binding.has_value()) {
+      const auto selected = capabilities_.find(capability);
+      result.issues.push_back({
+          .code = NativeModuleManagerIssueCode::UnsupportedCapabilityAbi,
+          .provider_id = selected == capabilities_.end()
+                             ? std::string{}
+                             : plan_->entries()[selected->second].provider_id,
+          .message = "native capability does not support the requested ABI version",
+      });
+    }
+    return result;
+  }
+
   NativeModuleManagerActionResult NativeModuleManager::stop() {
     NativeModuleManagerActionResult result;
     if (!host_.owns_current_thread()) {
