@@ -7,6 +7,7 @@
 #endif
 
 #include <algorithm>
+#include <map>
 #include <utility>
 
 namespace mobagen::compositions {
@@ -17,6 +18,7 @@ namespace mobagen::compositions {
     std::unique_ptr<NativeModuleManager> native;
 #endif
     std::unique_ptr<PortableModuleManager> portable;
+    std::map<std::string, ProjectModuleCapabilityEndpoint, std::less<>> endpoints;
   };
 
   namespace {
@@ -89,6 +91,12 @@ namespace mobagen::compositions {
       std::string_view capability, std::uint32_t minimum_native_abi_version
   ) {
     ProjectModuleCapabilityResult result;
+    if (const auto* endpoint = find_active(
+            capability, minimum_native_abi_version
+        )) {
+      result.endpoint = *endpoint;
+      return result;
+    }
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
     if (storage_->native != nullptr) {
       auto acquired = storage_->native->acquire(
@@ -96,10 +104,15 @@ namespace mobagen::compositions {
       );
       result.issues = simplify_issues(std::move(acquired.issues));
       if (acquired.binding.has_value()) {
-        result.endpoint = ProjectModuleCapabilityEndpoint{
+        auto endpoint = ProjectModuleCapabilityEndpoint{
             .kind = ProjectModuleRuntimeKind::Native,
             .native = *acquired.binding,
         };
+        const auto [stored, inserted] = storage_->endpoints.try_emplace(
+            std::string{capability}, endpoint
+        );
+        static_cast<void>(inserted);
+        result.endpoint = stored->second;
       }
       return result;
     }
@@ -109,15 +122,35 @@ namespace mobagen::compositions {
     auto acquired = storage_->portable->acquire(capability);
     result.issues = simplify_issues(std::move(acquired.issues));
     if (acquired.plugin != nullptr) {
-      result.endpoint = ProjectModuleCapabilityEndpoint{
+      auto endpoint = ProjectModuleCapabilityEndpoint{
           .kind = ProjectModuleRuntimeKind::Portable,
           .portable = acquired.plugin,
       };
+      const auto [stored, inserted] = storage_->endpoints.try_emplace(
+          std::string{capability}, endpoint
+      );
+      static_cast<void>(inserted);
+      result.endpoint = stored->second;
     }
     return result;
   }
 
+  const ProjectModuleCapabilityEndpoint* ProjectModuleManager::find_active(
+      std::string_view capability, std::uint32_t minimum_native_abi_version
+  ) const noexcept {
+    const auto found = storage_->endpoints.find(capability);
+    if (found == storage_->endpoints.end()) return nullptr;
+    const auto& endpoint = found->second;
+    if (endpoint.kind == ProjectModuleRuntimeKind::Native
+        && (!endpoint.native.has_value()
+            || endpoint.native->abi_version < minimum_native_abi_version)) {
+      return nullptr;
+    }
+    return &endpoint;
+  }
+
   ProjectModuleManagerActionResult ProjectModuleManager::stop() {
+    storage_->endpoints.clear();
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
     if (storage_->native != nullptr) {
       auto stopped = storage_->native->stop();

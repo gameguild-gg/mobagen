@@ -16,6 +16,11 @@
 #include "project_module_manager.hpp"
 #include "plugins/runtime_tick_v1.h"
 
+namespace module_allocation_probe {
+  extern std::atomic_bool enabled;
+  extern std::atomic_size_t count;
+}  // namespace module_allocation_probe
+
 namespace {
 
   class TemporaryNativeProject {
@@ -361,7 +366,22 @@ TEST_CASE("Project module manager: manifest profile routes to lazy native module
   CHECK(api->tick(api->plugin_state) == MOBAGEN_STATUS_OK);
   CHECK(opened.manager->active_count() == 1);
   CHECK(opened.manager->native()->host().size() == 1);
+  CHECK(opened.manager->find_active(MOBAGEN_RUNTIME_TICK_V1_ID, 2) == nullptr);
+
+  bool endpoint_reused = true;
+  module_allocation_probe::count.store(0, std::memory_order_relaxed);
+  module_allocation_probe::enabled.store(true, std::memory_order_release);
+  for (std::size_t index = 0; index < 1'024; ++index) {
+    const auto* hot = opened.manager->find_active(MOBAGEN_RUNTIME_TICK_V1_ID, 1);
+    endpoint_reused = endpoint_reused && hot != nullptr
+                      && hot->native->function_table
+                             == acquired.endpoint->native->function_table;
+  }
+  module_allocation_probe::enabled.store(false, std::memory_order_release);
+  CHECK(endpoint_reused);
+  CHECK(module_allocation_probe::count.load(std::memory_order_relaxed) == 0);
   CHECK(opened.manager->stop().ok());
+  CHECK(opened.manager->find_active(MOBAGEN_RUNTIME_TICK_V1_ID, 1) == nullptr);
 }
 
 TEST_CASE("Locked native project: tampered plugin bytes fail only when its capability is requested") {
