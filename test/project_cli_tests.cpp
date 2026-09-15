@@ -206,6 +206,9 @@ sources:
   official:
     url: "https://registry.example/mobagen/catalog.yaml"
 modules:
+  assets:
+    capability: assets.store.v1
+    use: mobagen.assets.default
   render:
     capability: render.backend.v1
     use: mobagen.render.webgpu
@@ -218,12 +221,14 @@ profiles:
     linkage: dynamic
     editor: true
     permissions:
+      - filesystem-read
       - gpu
       - windowing
   release:
     linkage: dynamic
     editor: false
     permissions:
+      - filesystem-read
       - gpu
       - windowing
 )yaml");
