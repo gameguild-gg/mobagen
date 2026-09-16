@@ -1,7 +1,10 @@
 #include <doctest/doctest.h>
+#include "group.hpp"
 #include "world.hpp"
-#include "jobs/scheduler.hpp"
-#include <chrono>
+
+#include <atomic>
+#include <stdexcept>
+#include <thread>
 
 namespace {
   struct Position {
@@ -27,6 +30,90 @@ TEST_CASE("World: create entity and check generation") {
   CHECK(!w.valid(e0));
   auto e2 = w.create();
   CHECK(w.valid(e2));
+}
+
+TEST_CASE("World: a destroyed slot is invalid until it is recycled") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  world.destroy(entity);
+
+  const ecs::Entity fabricated_current_generation = ecs::make_entity(ecs::entity_index(entity), ecs::entity_gen(entity) + 1);
+
+  CHECK_FALSE(world.valid(fabricated_current_generation));
+}
+
+TEST_CASE("World: stale handles cannot observe a recycled entity's components") {
+  ecs::World world;
+  const ecs::Entity stale = world.create();
+  world.add<Position>(stale, 1.0f, 2.0f, 3.0f);
+  world.destroy(stale);
+
+  const ecs::Entity replacement = world.create();
+  REQUIRE(ecs::entity_index(replacement) == ecs::entity_index(stale));
+  world.add<Position>(replacement, 4.0f, 5.0f, 6.0f);
+
+  CHECK_FALSE(world.has<Position>(stale));
+  CHECK(world.has<Position>(replacement));
+}
+
+TEST_CASE("World: stale handles cannot attach components to a replacement") {
+  ecs::World world;
+  const ecs::Entity stale = world.create();
+  world.destroy(stale);
+  const ecs::Entity replacement = world.create();
+
+  CHECK_THROWS_AS(world.add<Velocity>(stale, 1.0f, 2.0f), std::invalid_argument);
+  CHECK_FALSE(world.has<Velocity>(replacement));
+}
+
+TEST_CASE("World: duplicate components are rejected without changing storage") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+
+  CHECK_THROWS_AS(world.add<Position>(entity, 4.0f, 5.0f, 6.0f), std::logic_error);
+  CHECK(world.count<Position>() == 1);
+  CHECK(world.get<Position>(entity).x == 1.0f);
+}
+
+TEST_CASE("World: missing components have explicit safe operations") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+
+  CHECK(world.try_get<Position>(entity) == nullptr);
+  CHECK_THROWS_AS(world.get<Position>(entity), std::out_of_range);
+  CHECK_FALSE(world.remove<Position>(entity));
+
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+  const ecs::World& const_world = world;
+  REQUIRE(const_world.try_get<Position>(entity) != nullptr);
+  CHECK(const_world.get<Position>(entity).x == 1.0f);
+  CHECK(world.remove<Position>(entity));
+  CHECK_FALSE(world.remove<Position>(entity));
+}
+
+TEST_CASE("World: destroy reports whether an entity was alive") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+
+  CHECK(world.destroy(entity));
+  CHECK_FALSE(world.destroy(entity));
+}
+
+TEST_CASE("World: views tolerate absent storage and ranges reject invalid bounds") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  int calls = 0;
+
+  world.view<Position>([&](auto, Position&) { ++calls; });
+  world.apply_range<Position, Velocity>(0, 0, [&](auto, Position&, Velocity&) { ++calls; });
+  CHECK(calls == 0);
+
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+  const auto past_end = [&] { world.apply_range<Position, Velocity>(0, 2, [](auto, Position&, Velocity&) {}); };
+  const auto reversed = [&] { world.apply_range<Position, Velocity>(1, 0, [](auto, Position&, Velocity&) {}); };
+  CHECK_THROWS_AS(past_end(), std::out_of_range);
+  CHECK_THROWS_AS(reversed(), std::out_of_range);
 }
 
 TEST_CASE("Storage: add component, get, has, remove") {
@@ -73,23 +160,86 @@ TEST_CASE("World: type-erased destroy cleans all components") {
   CHECK(!w.has<Velocity>(e));
 }
 
-TEST_CASE("Perf: 2M entity parallel_for >= 3x faster than serial") {
-  ecs::World w;
-  jobs::Scheduler sched;
-  const int N = 200000;
-  for (int i = 0; i < N; ++i) {
-    auto e = w.create();
-    w.add<Position>(e, float(i), 0.0f, 0.0f);
-    w.add<Velocity>(e, 1.0f, 0.0f);
+TEST_CASE("World: apply_range updates only the requested dense interval") {
+  ecs::World world;
+  for (int i = 0; i < 8; ++i) {
+    const auto entity = world.create();
+    world.add<Position>(entity, static_cast<float>(i), 0.0f, 0.0f);
+    world.add<Velocity>(entity, 10.0f, 0.0f);
   }
-  auto t0 = std::chrono::high_resolution_clock::now();
-  w.view<Position, Velocity>([&](auto, Position& p, Velocity& v) { p.x += v.vx; });
-  auto t1 = std::chrono::high_resolution_clock::now();
-  auto serial_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-  t0 = std::chrono::high_resolution_clock::now();
-  jobs::WaitGroup wg;
-  w.apply_range<Position, Velocity>(0, N, [&](auto, Position& p, Velocity& v) { p.x += v.vx; });
-  t1 = std::chrono::high_resolution_clock::now();
-  auto parallel_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-  WARN(parallel_us * 3 < serial_us);
+
+  world.apply_range<Position, Velocity>(2, 5, [](auto, Position& position, Velocity& velocity) { position.x += velocity.vx; });
+
+  int dense_index = 0;
+  world.view<Position>([&](auto, Position& position) {
+    const float expected = dense_index >= 2 && dense_index < 5 ? static_cast<float>(dense_index) + 10.0f : static_cast<float>(dense_index);
+    CHECK(position.x == expected);
+    ++dense_index;
+  });
+}
+
+TEST_CASE("World: structural mutation is rejected away from the owner thread") {
+  ecs::World world;
+  const ecs::Entity entity = world.create();
+  world.add<Position>(entity, 1.0f, 2.0f, 3.0f);
+  ecs::Group<Position, Velocity> group(world);
+  std::atomic<int> rejected{0};
+
+  std::thread worker([&] {
+    try {
+      (void)world.create();
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      world.add<Velocity>(entity, 1.0f, 2.0f);
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      (void)world.remove<Position>(entity);
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      (void)world.destroy(entity);
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+    try {
+      group.refresh();
+    } catch (const std::logic_error&) {
+      rejected.fetch_add(1, std::memory_order_relaxed);
+    }
+  });
+  worker.join();
+
+  CHECK(rejected.load(std::memory_order_relaxed) == 5);
+  CHECK(world.alive() == 1);
+  CHECK(world.valid(entity));
+  CHECK(world.has<Position>(entity));
+  CHECK_FALSE(world.has<Velocity>(entity));
+}
+
+TEST_CASE("World: workers may update disjoint pre-existing component ranges") {
+  ecs::World world;
+  for (int i = 0; i < 8; ++i) {
+    const ecs::Entity entity = world.create();
+    world.add<Position>(entity, static_cast<float>(i), 0.0f, 0.0f);
+    world.add<Velocity>(entity, 10.0f, 0.0f);
+  }
+
+  auto update = [&](std::size_t begin, std::size_t end) {
+    world.apply_range<Position, Velocity>(begin, end, [](auto, Position& position, Velocity& velocity) { position.x += velocity.vx; });
+  };
+  std::thread first(update, 0, 4);
+  std::thread second(update, 4, 8);
+  first.join();
+  second.join();
+
+  int dense_index = 0;
+  world.view<Position>([&](auto, Position& position) {
+    CHECK(position.x == static_cast<float>(dense_index) + 10.0f);
+    ++dense_index;
+  });
 }

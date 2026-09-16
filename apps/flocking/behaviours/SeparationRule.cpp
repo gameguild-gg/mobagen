@@ -8,10 +8,10 @@ glm::vec2 SeparationRule::computeForce(const std::vector<BoidView>& neighborhood
   // the header have the desiredMinimalDistance member variable, which is the distance that the boids should try to maintain from each other.
   // glm::length(vec) returns the length of a vector,
   // glm::normalize(vec) returns the normalized vector (length 1) in the same direction as vec.
-  // multiply by (desiredMinimalDistance / distance) is the proportionality factor that makes the force stronger when the boids are closer together, and weaker when they are farther apart.
+  // multiply by (desiredMinimalDistance / distance) is the proportionality factor that makes the force stronger when the boids are closer together,
+  // and weaker when they are farther apart.
 
   // begin solution
-
 
   // end solution
 

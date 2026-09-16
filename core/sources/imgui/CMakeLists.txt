@@ -1,10 +1,9 @@
 # imgui module — Dear ImGui GUI layer for the core app host.
 #
-# ImGuiLayer (app::GuiLayerView): wraps the ImGui SDL3 platform backend +
-# WebGPU renderer backend boot/frame/shutdown so hosted apps get ImGui by
-# attaching one layer. The external IMGUI target (backends included, Dawn
-# flavor) is linked PRIVATE — imgui includes stay inside this module and the
-# public header stays imgui-free.
+# ImGuiLayer (app::GuiLayerView): wraps the ImGui SDL3 platform backend + WebGPU renderer backend
+# boot/frame/shutdown so hosted apps get ImGui by attaching one layer. The external IMGUI target
+# (backends included, Dawn flavor) is linked PRIVATE — imgui includes stay inside this module and
+# the public header stays imgui-free.
 
 add_library(mobagen_core_imgui STATIC imgui_layer.cpp)
 add_library(mobagen::core_imgui ALIAS mobagen_core_imgui)

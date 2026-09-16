@@ -14,7 +14,7 @@ struct Asset {
 
 int main() {
   resource::ResourceRegistry<Asset> reg;
-  using Handle = resource::ResourceRegistry<Asset>::Handle;
+  using resource::Handle;
 
   Handle a = reg.create(Asset{1, 1.5f});
   Handle b = reg.create(Asset{2, 2.5f});

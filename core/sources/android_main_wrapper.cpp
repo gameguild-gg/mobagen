@@ -37,5 +37,4 @@ extern "C" int SDL_main(int argc, char* argv[]);
 
 // The pointer is never read; its relocation against SDL_main IS the anchor.
 // `used` stops the compiler from eliding the unused internal-linkage object.
-__attribute__((used))
-static int (*const sdl_main_anchor)(int, char*[]) = &SDL_main;
+__attribute__((used)) static int (*const sdl_main_anchor)(int, char*[]) = &SDL_main;

@@ -14,6 +14,7 @@
 //   A CT volume can be hundreds of MB; that belongs in a loader arena or GPU
 //   resource manager. Entities keep a stable id/handle to that resource.
 
+#include "resource_handle.hpp"
 #include "transform.hpp"
 #include "world.hpp"
 
@@ -34,9 +35,9 @@ namespace render {
   enum class VolumeRenderMode : std::uint8_t { DVR, MIP, Isosurface };
 
   struct VolumeSource {
-    // Stable resource id. Later this points at a CPU volume asset and/or a GPU
-    // texture object. Keeping it as an id makes the C ABI and wasm boundary easy.
-    std::uint32_t id = 0;
+    // Full stable handle to the CPU volume asset and/or GPU texture object.
+    // Both words are POD values suitable for the C ABI and WASM boundary.
+    resource::Handle handle;
 
     std::uint32_t width = 0;
     std::uint32_t height = 0;

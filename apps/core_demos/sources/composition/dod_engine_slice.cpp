@@ -36,7 +36,7 @@ int main() {
   ecs::Entity e = world.create();
   world.add<scene::Transform>(e, scene::Transform{});
   render::VolumeRenderable v;
-  v.source.id = volAsset.index;  // handle into the resource registry
+  v.source.handle = volAsset;
   v.source.width = v.source.height = v.source.depth = 96;
   v.source.spacing_mm = {1.0f, 1.0f, 1.5f};
   v.display.mode = render::VolumeRenderMode::DVR;
@@ -60,7 +60,7 @@ int main() {
   render::RenderBridge bridge;
   bridge.build(world);
   assert(bridge.volume_commands().size() == 1);
-  assert(bridge.volume_commands()[0].source.id == volAsset.index);
+  assert(bridge.volume_commands()[0].source.handle == volAsset);
 
   // 5) Persist + reload the scene (editor save/open).
   std::vector<std::uint8_t> blob = render::save_scene(world);

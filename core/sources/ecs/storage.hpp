@@ -48,6 +48,7 @@ namespace ecs {
     }
 
     T& get(std::uint32_t id) { return at_ref(index(id)); }
+    const T& get(std::uint32_t id) const { return at_ref(index(id)); }
 
     // Component at a dense position (lets a view be split into parallel ranges).
     T& data_at(std::size_t dense_index) { return at_ref(dense_index); }
@@ -88,6 +89,7 @@ namespace ecs {
 
   private:
     T& at_ref(std::size_t idx) { return chunks_[idx / ChunkElems][idx % ChunkElems]; }
+    const T& at_ref(std::size_t idx) const { return chunks_[idx / ChunkElems][idx % ChunkElems]; }
 
     std::vector<std::vector<T>> chunks_;  // the arena: a list of fixed-capacity chunks
   };

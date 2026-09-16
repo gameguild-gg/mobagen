@@ -39,6 +39,10 @@ build*/
 
 node_modules
 
+# Python test/tool caches
+__pycache__/
+*.py[cod]
+
 package-lock.json
 
 ide/clion/
@@ -100,6 +104,18 @@ data/state_store.db
 .omo/
 
 .cache/
+.mobagen/
 graphify-out/
+
+# Local agent planning artifacts (never publish)
+docs/superpowers/
+
+# DICOM viewer asset-manager outputs and restricted source studies
+apps/dicom_viewer/assets/cache/
+apps/dicom_viewer/assets/dicom/
+apps/dicom_viewer/assets/*.raw
+apps/dicom_viewer/assets/*.mvol
+!apps/dicom_viewer/assets/assets.json
+!apps/dicom_viewer/assets/README.md
 
 imgui.ini
