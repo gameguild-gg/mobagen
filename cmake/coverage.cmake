@@ -11,7 +11,15 @@ function(mobagen_enable_coverage)
         message(FATAL_ERROR "Cannot enable coverage for missing target '${target}'")
       endif()
       target_compile_options(${target} PRIVATE -O0 -g --coverage)
-      target_link_options(${target} PRIVATE --coverage)
+      get_target_property(target_type ${target} TYPE)
+      if(target_type STREQUAL "STATIC_LIBRARY")
+        # Instrumented archive members pull gcov references into every final
+        # link that uses the library, so consumers need the profiling runtime
+        # even when they are not instrumented themselves.
+        target_link_options(${target} INTERFACE --coverage)
+      else()
+        target_link_options(${target} PRIVATE --coverage)
+      endif()
     endforeach()
   else()
     message(
