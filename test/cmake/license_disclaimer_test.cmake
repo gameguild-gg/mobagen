@@ -1,0 +1,28 @@
+foreach(REQUIRED_VARIABLE IN ITEMS TEST_ROOT MOBAGEN_SOURCE_DIR)
+  if(NOT DEFINED ${REQUIRED_VARIABLE} OR "${${REQUIRED_VARIABLE}}" STREQUAL "")
+    message(FATAL_ERROR "${REQUIRED_VARIABLE} is required")
+  endif()
+endforeach()
+
+file(REMOVE_RECURSE "${TEST_ROOT}")
+file(MAKE_DIRECTORY "${TEST_ROOT}/curl/LICENSES" "${TEST_ROOT}/directory-only/LICENSES")
+file(WRITE "${TEST_ROOT}/curl/COPYING" "curl license text\n")
+file(WRITE "${TEST_ROOT}/curl/LICENSES/curl.txt" "nested license text\n")
+
+set(curl_SOURCE_DIR "${TEST_ROOT}/curl")
+set(directory_only_SOURCE_DIR "${TEST_ROOT}/directory-only")
+set(TEST_PACKAGES curl directory_only)
+
+include("${MOBAGEN_SOURCE_DIR}/cmake/licenses.cmake")
+mobagen_write_license_disclaimer("${TEST_ROOT}/third_party.txt" "${TEST_PACKAGES}")
+
+file(READ "${TEST_ROOT}/third_party.txt" DISCLAIMER)
+if(NOT DISCLAIMER MATCHES "software may be included in this product: curl")
+  message(FATAL_ERROR "curl attribution is missing:\n${DISCLAIMER}")
+endif()
+if(NOT DISCLAIMER MATCHES "curl license text")
+  message(FATAL_ERROR "the regular COPYING file was not used:\n${DISCLAIMER}")
+endif()
+if(DISCLAIMER MATCHES "nested license text")
+  message(FATAL_ERROR "a LICENSES directory was treated as a license file:\n${DISCLAIMER}")
+endif()

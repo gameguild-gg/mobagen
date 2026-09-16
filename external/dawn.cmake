@@ -19,11 +19,15 @@ add_library(dawn::webgpu ALIAS dawn_webgpu)
 # Dawn requires Python 3 (interpreter) plus the jinja2 module at configure and build time — it
 # fetches third-party dependencies and generates headers (webgpu.h / webgpu_cpp.h / tint) from
 # templates. Check this BEFORE CPMAddPackage so students fail fast with actionable instructions
-# instead of Dawn's mid-configure "find_package(Python3 REQUIRED)" or "Missing dependencies for
-# code generation" errors.
+# instead of Dawn's mid-configure "find_package(Python3 REQUIRED)" or "Missing dependencies for code
+# generation" errors.
 # ---------------------------------------------------------------------------
 if(NOT EMSCRIPTEN)
-  find_package(Python3 COMPONENTS Interpreter QUIET)
+  find_package(
+    Python3
+    COMPONENTS Interpreter
+    QUIET
+  )
   if(NOT Python3_FOUND)
     if(WIN32)
       set(_DAWN_PYTHON_HINT
@@ -46,20 +50,12 @@ if(NOT EMSCRIPTEN)
     )
   endif()
 
-#  execute_process(
-#    COMMAND "${Python3_EXECUTABLE}" -c "import jinja2"
-#    RESULT_VARIABLE _DAWN_JINJA2_RESULT
-#    OUTPUT_QUIET ERROR_QUIET
-#  )
-#  if(NOT _DAWN_JINJA2_RESULT EQUAL 0)
-#    message(
-#      FATAL_ERROR
-#        "MoBaGEn requires the python 'jinja2' module to build Dawn (WebGPU): it is used by Dawn's "
-#        "code generators. It is missing for interpreter '${Python3_EXECUTABLE}'. Fix with: "
-#        "'${Python3_EXECUTABLE}' -m pip install jinja2, then delete the build directory and reload "
-#        "the CMake project."
-#    )
-#  endif()
+  # execute_process( COMMAND "${Python3_EXECUTABLE}" -c "import jinja2" RESULT_VARIABLE
+  # _DAWN_JINJA2_RESULT OUTPUT_QUIET ERROR_QUIET ) if(NOT _DAWN_JINJA2_RESULT EQUAL 0) message(
+  # FATAL_ERROR "MoBaGEn requires the python 'jinja2' module to build Dawn (WebGPU): it is used by
+  # Dawn's " "code generators. It is missing for interpreter '${Python3_EXECUTABLE}'. Fix with: "
+  # "'${Python3_EXECUTABLE}' -m pip install jinja2, then delete the build directory and reload "
+  # "the CMake project." ) endif()
 endif()
 
 # ---------------------------------------------------------------------------
@@ -228,23 +224,22 @@ if(NOT EMSCRIPTEN)
 endif()
 
 # ---------------------------------------------------------------------------
-# Single CPMAddPackage for both native and web. On Emscripten we only need the source tree (for the
-# emdawnwebgpu port), so we skip building.
+# Populate Dawn without immediately adding its source directory. Dawn's audited release prints the
+# complete process environment while locating the Windows SDK, so the first-party security patch
+# must run before any of Dawn's CMake code executes. Emscripten only needs the downloaded source.
 # ---------------------------------------------------------------------------
-if(EMSCRIPTEN)
-  set(_DAWN_DOWNLOAD_ONLY YES)
-else()
-  set(_DAWN_DOWNLOAD_ONLY NO)
-endif()
-
 string(TIMESTAMP BEFORE "%s")
 CPMAddPackage(
   NAME dawn
   VERSION 20260423.175430
   URL https://github.com/google/dawn/archive/refs/tags/v20260423.175430.tar.gz
-  DOWNLOAD_ONLY ${_DAWN_DOWNLOAD_ONLY}
-  OPTIONS "DAWN_BUILD_MONOLITHIC_LIBRARY ${DAWN_BUILD_MONOLITHIC_LIBRARY}"
+  DOWNLOAD_ONLY YES
 )
+if(NOT EMSCRIPTEN)
+  include(${CMAKE_CURRENT_LIST_DIR}/../cmake/patches/dawn-no-environment-dump.cmake)
+  mobagen_patch_dawn_environment_dump("${dawn_SOURCE_DIR}")
+  add_subdirectory("${dawn_SOURCE_DIR}" "${dawn_BINARY_DIR}" EXCLUDE_FROM_ALL)
+endif()
 string(TIMESTAMP AFTER "%s")
 math(EXPR DELTADAWN "${AFTER} - ${BEFORE}")
 message(STATUS "Dawn fetch/configure TIME: ${DELTADAWN}s")

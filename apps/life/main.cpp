@@ -23,41 +23,41 @@
 
 namespace {
 
-struct LifeApp : app::AppCallbacks {
-  app::ImGuiLayer gui_layer;
-  Manager manager;
-  int smoke_frames = -1;  // --smoke-frames <N>: request exit after N iterates
+  struct LifeApp : app::AppCallbacks {
+    app::ImGuiLayer gui_layer;
+    Manager manager;
+    int smoke_frames = -1;  // --smoke-frames <N>: request exit after N iterates
 
-  SDL_AppResult on_init(app::App& app, int argc, char** argv) override {
-    app.settings.title = "Conway's Game of Life";
-    app.settings.clear_color[0] = 0.05f;
-    app.settings.clear_color[1] = 0.05f;
-    app.settings.clear_color[2] = 0.05f;
-    app.settings.clear_color[3] = 1.00f;
-    app::AppSettings::parse(argc, argv, app.settings);
-    for (int i = 1; i + 1 < argc; ++i)
-      if (std::strcmp(argv[i], "--smoke-frames") == 0) smoke_frames = std::atoi(argv[i + 1]);
+    SDL_AppResult on_init(app::App& app, int argc, char** argv) override {
+      app.settings.title = "Conway's Game of Life";
+      app.settings.clear_color[0] = 0.05f;
+      app.settings.clear_color[1] = 0.05f;
+      app.settings.clear_color[2] = 0.05f;
+      app.settings.clear_color[3] = 1.00f;
+      app::AppSettings::parse(argc, argv, app.settings);
+      for (int i = 1; i + 1 < argc; ++i)
+        if (std::strcmp(argv[i], "--smoke-frames") == 0) smoke_frames = std::atoi(argv[i + 1]);
 
-    if (app.settings.render_mode != app::AppSettings::RenderMode::HeadlessNone) app.attach_gui(gui_layer);
+      if (app.settings.render_mode != app::AppSettings::RenderMode::HeadlessNone) app.attach_gui(gui_layer);
 
-    manager.Start();
-    SDL_Log("Game of Life Started");
-    return SDL_APP_CONTINUE;
-  }
+      manager.Start();
+      SDL_Log("Game of Life Started");
+      return SDL_APP_CONTINUE;
+    }
 
-  SDL_AppResult on_iterate(app::App& app, float dt) override {
-    manager.Update(dt);
-    if (smoke_frames > 0 && --smoke_frames == 0) app.request_exit();
-    return SDL_APP_CONTINUE;
-  }
+    SDL_AppResult on_iterate(app::App& app, float dt) override {
+      manager.Update(dt);
+      if (smoke_frames > 0 && --smoke_frames == 0) app.request_exit();
+      return SDL_APP_CONTINUE;
+    }
 
-  void on_draw(app::App& app, WGPURenderPassEncoder pass) override {
-    (void)app;
-    (void)pass;  // Manager draws through ImGui's background draw list
-    manager.OnGui();
-    manager.OnDraw();
-  }
-};
+    void on_draw(app::App& app, WGPURenderPassEncoder pass) override {
+      (void)app;
+      (void)pass;  // Manager draws through ImGui's background draw list
+      manager.OnGui();
+      manager.OnDraw();
+    }
+  };
 
 }  // namespace
 

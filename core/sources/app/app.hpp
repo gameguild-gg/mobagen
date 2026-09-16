@@ -22,7 +22,8 @@
 //                  builds always — emdawnwebgpu has no null backend — and
 //                  native builds whose Dawn lacks the null backend).
 //   HeadlessNone — SDL_Init(0) only; zero GPU objects, on_draw never called.
-// Finally gui->init.
+// Finally gui->init, then app on_ready() after every requested host resource
+// exists. This is the safe activation point for resource-backed modules.
 //
 // Frame order (SDL_AppIterate, windowed AND HeadlessNull): dt (clamped at
 // 0.1 s) -> app on_iterate(dt) -> GPU frame: acquire the frame target (window
@@ -38,10 +39,11 @@
 // between iterates through SDL_AppEvent, matching InputState's clear-before-
 // feed contract).
 //
-// Exit paths: on_init/on_event/on_iterate returning SDL_APP_SUCCESS/FAILURE
-// (exit code 0/1) or App::request_exit() stop the loop; SDL_AppQuit always
-// runs afterwards, so on_shutdown and the GUI shutdown must tolerate states
-// where later init stages never ran (e.g. SUCCESS straight out of on_init).
+// Exit paths: on_init/on_ready/on_event/on_iterate returning
+// SDL_APP_SUCCESS/FAILURE (exit code 0/1) or App::request_exit() stop the loop;
+// SDL_AppQuit always runs afterwards, so on_shutdown and the GUI shutdown must
+// tolerate states where later init stages never ran (e.g. SUCCESS straight out
+// of on_init).
 #include "app/app_settings.hpp"
 #include "app/webgpu_context.hpp"
 #include "ecs/world.hpp"
@@ -52,11 +54,27 @@
 #include <SDL3/SDL_init.h>
 #include <webgpu/webgpu.h>
 
+#include <cstddef>
+
 struct SDL_Window;
 
 namespace app {
 
   class App;  // defined below; referenced by GuiLayerView / AppCallbacks
+
+  // Thin, allocation-free seam around the frame operations whose handles must
+  // be validated before submission. Providers and tests may replace the table;
+  // the referenced table must outlive the App host lifecycle.
+  struct GpuFrameApi {
+    WGPUTexture (*create_texture)(WGPUDevice, const WGPUTextureDescriptor*) = nullptr;
+    WGPUTextureView (*create_texture_view)(WGPUTexture, const WGPUTextureViewDescriptor*) = nullptr;
+    WGPUCommandEncoder (*create_command_encoder)(WGPUDevice, const WGPUCommandEncoderDescriptor*) = nullptr;
+    WGPURenderPassEncoder (*begin_render_pass)(WGPUCommandEncoder, const WGPURenderPassDescriptor*) = nullptr;
+    WGPUCommandBuffer (*finish_command_encoder)(WGPUCommandEncoder, const WGPUCommandBufferDescriptor*) = nullptr;
+    void (*queue_submit)(WGPUQueue, std::size_t, const WGPUCommandBuffer*) = nullptr;
+  };
+
+  const GpuFrameApi& default_gpu_frame_api();
 
   // Type-erased GUI layer attach point. Implemented by the GUI layer targets
   // of the core-app-host plan (todos 6/7); the host calls these hooks at the
@@ -86,6 +104,15 @@ namespace app {
       (void)app;
       (void)argc;
       (void)argv;
+      return SDL_APP_CONTINUE;
+    }
+
+    // End of SDL_AppInit, AFTER SDL, window/GPU resources and the optional GUI
+    // layer are initialized for the selected render mode. Resource-backed
+    // modules should activate here. A non-CONTINUE result aborts startup;
+    // on_shutdown still runs and must roll back any partial activation.
+    virtual SDL_AppResult on_ready(App& app) {
+      (void)app;
       return SDL_APP_CONTINUE;
     }
 
@@ -126,8 +153,8 @@ namespace app {
     input::InputState input;
     ecs::World world;
     jobs::Scheduler sched;
-    SDL_Window* window = nullptr;        // null when headless or init failed
-    AppCallbacks* callbacks = nullptr;   // wired by MOBAGEN_MAIN
+    SDL_Window* window = nullptr;       // null when headless or init failed
+    AppCallbacks* callbacks = nullptr;  // wired by MOBAGEN_MAIN
 
     void attach_gui(GuiLayerView& gui) { gui_ = &gui; }
     GuiLayerView* gui() const { return gui_; }
@@ -140,6 +167,9 @@ namespace app {
     int width() const { return surface_width_; }        // configured surface size
     int height() const { return surface_height_; }
 
+    void set_gpu_frame_api(const GpuFrameApi& api) { gpu_frame_api_ = &api; }
+    const GpuFrameApi& gpu_frame_api() const { return *gpu_frame_api_; }
+
     // --- host-side wiring (app.cpp / sdl_app.cpp); not for app code ---------
     void set_surface_size(int width, int height);
     // Returns and clears a pending request_exit(); SDL_APP_CONTINUE if none.
@@ -150,6 +180,7 @@ namespace app {
     int surface_width_ = 0;
     int surface_height_ = 0;
     SDL_AppResult pending_exit_ = SDL_APP_CONTINUE;
+    const GpuFrameApi* gpu_frame_api_ = &default_gpu_frame_api();
   };
 
   // Host registration (app.cpp). MOBAGEN_MAIN calls set_app from a static

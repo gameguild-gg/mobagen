@@ -20,15 +20,15 @@
 #include "app/app.hpp"
 
 /// Instantiate + register AppT (an app::AppCallbacks subclass) with the host.
-#define MOBAGEN_MAIN(AppT)                            \
-  namespace {                                         \
-  struct MobagenAppRegistrar {                        \
-    MobagenAppRegistrar() {                           \
-      static ::app::App mobagen_host;                 \
-      static AppT mobagen_callbacks;                  \
-      mobagen_host.callbacks = &mobagen_callbacks;    \
-      ::app::set_app(&mobagen_host);                  \
-    }                                                 \
-  };                                                  \
-  static const MobagenAppRegistrar mobagen_app_registrar; \
+#define MOBAGEN_MAIN(AppT)                                  \
+  namespace {                                               \
+    struct MobagenAppRegistrar {                            \
+      MobagenAppRegistrar() {                               \
+        static ::app::App mobagen_host;                     \
+        static AppT mobagen_callbacks;                      \
+        mobagen_host.callbacks = &mobagen_callbacks;        \
+        ::app::set_app(&mobagen_host);                      \
+      }                                                     \
+    };                                                      \
+    static const MobagenAppRegistrar mobagen_app_registrar; \
   }

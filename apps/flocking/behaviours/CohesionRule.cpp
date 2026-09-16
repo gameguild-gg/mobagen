@@ -9,7 +9,6 @@ glm::vec2 CohesionRule::computeForce(const std::vector<BoidView>& neighborhood, 
 
   // begin solution
 
-
   // end solution
 
   return cohesionForce;
