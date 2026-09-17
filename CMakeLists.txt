@@ -34,6 +34,13 @@ endif()
 # compiler checks
 include(external/compilerchecks.cmake)
 
+# first-party sanitizer policy and target helper
+include(cmake/sanitizers.cmake)
+
+# Robust license aggregation for CPM packages. Some projects expose a LICENSES directory alongside a
+# regular COPYING file, which the upstream helper treats as a readable license file.
+include(cmake/licenses.cmake)
+
 # developer tooling (sanitizers / ccache / static analyzers) — no-op for normal builds
 include(cmake/tools.cmake)
 
@@ -106,6 +113,7 @@ if(EMSCRIPTEN)
   file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/htmls/*")
   file(COPY ${HTML} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
 
+  set(BUILD_TESTING OFF)
   set(ENABLE_TEST_COVERAGE OFF)
 endif()
 
@@ -117,12 +125,46 @@ option(USE_ITK "Build ITK (medical image processing; bundles GDCM)" OFF)
 option(USE_VTK "Build VTK (visualization toolkit; reference only)" OFF)
 
 # App-group build switches
+option(MOBAGEN_BUILD_RUNTIME "Build SDL3, Dawn, ImGui, RmlUi, and application-host targets" ON)
+option(MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS
+       "Build the current built-in ECS, jobs, scene, render, and UI subsystems" ON
+)
+option(MOBAGEN_BUILD_BUNDLED_MODULES
+       "Build modules shipped in this source tree instead of resolving them as packages"
+       ${MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS}
+)
 option(BUILD_CORE_DEMOS "Build engine learning demos under apps/core_demos" ON)
 option(BUILD_VOLUME_DEMOS "Build volume smoke tests under apps/volume_demos" ON)
 option(BUILD_DICOM_VIEWER "Build the DICOM viewer app" ON)
 option(BUILD_PROTOTYPES "Build learning prototypes (dawn_probe, fibers)" OFF)
+option(MOBAGEN_BUILD_MANIFEST_TOOLS "Build the mobagen.yaml parser and composition tooling" ON)
+option(MOBAGEN_WASM_BACKEND_WAMR "Build the optional WAMR portable plugin backend" OFF)
+option(BUILD_TESTING "Build Mobagen tests" ON)
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 
-include(external/external.cmake)
+if(MOBAGEN_BUILD_RUNTIME AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  message(FATAL_ERROR "MOBAGEN_BUILD_RUNTIME currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS")
+endif()
+if(MOBAGEN_BUILD_BUNDLED_MODULES AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  message(
+    FATAL_ERROR "MOBAGEN_BUILD_BUNDLED_MODULES currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS"
+  )
+endif()
+if(BUILD_TESTING AND NOT MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  message(FATAL_ERROR "BUILD_TESTING currently requires MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS")
+endif()
+if(EMSCRIPTEN)
+  set(_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT OFF)
+else()
+  set(_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT ON)
+endif()
+option(MOBAGEN_HTTP_BACKEND_CURL "Build the native HTTPS client with libcurl"
+       ${_MOBAGEN_HTTP_BACKEND_CURL_DEFAULT}
+)
+
+if(MOBAGEN_BUILD_RUNTIME)
+  include(external/external.cmake)
+endif()
 
 if(USE_GDCM)
   include(external/gdcm.cmake)
@@ -134,24 +176,87 @@ if(USE_VTK)
   include(external/vtk.cmake)
 endif()
 
-# GLM must be available before core/ — all DOD headers use it globally
-include(external/glm.cmake)
+# GLM belongs to the current built-in engine subsystem set.
+if(MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)
+  include(external/glm.cmake)
+endif()
 
 # doctest must be available before test/ and apps/ formal test runners
-include(external/doctest.cmake)
+if(BUILD_TESTING OR BUILD_EXAMPLES)
+  include(external/doctest.cmake)
+endif()
 
 # Format.cmake (format-cmake targets) for test/ and style CI
-include(external/format-cmake.cmake)
+if(BUILD_TESTING)
+  include(external/format-cmake.cmake)
+endif()
 
+if(MOBAGEN_BUILD_MANIFEST_TOOLS)
+  include(external/yaml-cpp.cmake)
+endif()
+if(MOBAGEN_WASM_BACKEND_WAMR)
+  include(external/wasm.cmake)
+endif()
+if(MOBAGEN_HTTP_BACKEND_CURL)
+  include(external/curl.cmake)
+endif()
+
+add_subdirectory(sdk)
 add_subdirectory(core)
-add_subdirectory(modules)
+if(MOBAGEN_BUILD_BUNDLED_MODULES)
+  add_subdirectory(modules)
+endif()
 
-option(ENABLE_TEST_COVERAGE "ENABLE_TEST_COVERAGE" ON)
-if(ENABLE_TEST_COVERAGE)
+option(MOBAGEN_BUILD_ASSET_TOOLS "Build the native Mobagen asset command-line tools" ON)
+if(MOBAGEN_BUILD_ASSET_TOOLS)
+  add_subdirectory(tools/assets)
+endif()
+
+option(MOBAGEN_BUILD_PLUGIN_TOOLS "Build the native Mobagen plugin command-line tools" ON)
+if(MOBAGEN_BUILD_PLUGIN_TOOLS AND NOT EMSCRIPTEN)
+  add_subdirectory(tools/plugins)
+endif()
+
+option(MOBAGEN_BUILD_CATALOG_TOOLS "Build native first-party module catalog tooling"
+       ${MOBAGEN_BUILD_MANIFEST_TOOLS}
+)
+if(MOBAGEN_BUILD_CATALOG_TOOLS
+   AND MOBAGEN_BUILD_MANIFEST_TOOLS
+   AND NOT EMSCRIPTEN
+)
+  add_subdirectory(tools/catalog)
+endif()
+
+option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"
+       ${BUILD_EXAMPLES}
+)
+option(MOBAGEN_BUILD_PROJECT_TOOLS "Build the native mobagen.yaml project command-line tools"
+       ${MOBAGEN_BUILD_MANIFEST_TOOLS}
+)
+if(BUILD_TESTING
+   OR MOBAGEN_BUILD_MODULE_COMPOSITIONS
+   OR MOBAGEN_BUILD_PROJECT_TOOLS
+)
+  add_subdirectory(apps/module-compositions)
+endif()
+if(MOBAGEN_BUILD_PROJECT_TOOLS
+   AND MOBAGEN_BUILD_MANIFEST_TOOLS
+   AND NOT EMSCRIPTEN
+)
+  add_subdirectory(tools/project)
+endif()
+
+option(ENABLE_TEST_COVERAGE "Instrument supported test targets for coverage" ON)
+if(BUILD_TESTING)
+  enable_testing()
   add_subdirectory(test)
 endif()
 
-option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+option(MOBAGEN_BUILD_BENCHMARKS "Build Mobagen performance baseline executables" OFF)
+if(MOBAGEN_BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
+endif()
+
 if(BUILD_EXAMPLES)
   add_subdirectory(apps)
 endif()
@@ -161,29 +266,30 @@ if(ENABLE_DOCUMENTATION)
   add_subdirectory(documentation)
 endif()
 
-CPMAddPackage(
-  NAME CPMLicenses.cmake
-  GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
-  VERSION 0.0.5
-)
-write_license_disclaimer("third_party.txt" "${CPM_PACKAGES}")
+if(MOBAGEN_BUILD_RUNTIME)
+  CPMAddPackage(
+    NAME CPMLicenses.cmake
+    GITHUB_REPOSITORY cpm-cmake/CPMLicenses.cmake
+    VERSION 0.0.5
+  )
+  mobagen_write_license_disclaimer("${CMAKE_BINARY_DIR}/third_party.txt" "${CPM_PACKAGES}")
+endif()
 
-# Android: create a SHARED library from the same sources as the selected app target, named
-# "main" (→ libmain.so) so SDLActivity can load it via System.loadLibrary("main"). Apps are
-# normally built with `add_executable`, but the NDK toolchain produces those as PIE binaries with
-# no exported text symbols — which breaks SDLActivity's dlsym("SDL_main"). Building a separate
-# SHARED library target from the same files fixes this without modifying any per-app CMakeLists.
+# Android: create a SHARED library from the same sources as the selected app target, named "main" (→
+# libmain.so) so SDLActivity can load it via System.loadLibrary("main"). Apps are normally built
+# with `add_executable`, but the NDK toolchain produces those as PIE binaries with no exported text
+# symbols — which breaks SDLActivity's dlsym("SDL_main"). Building a separate SHARED library target
+# from the same files fixes this without modifying any per-app CMakeLists.
 #
 # Entry chain (SDL3 callback model): SDLActivity calls nativeRunMain("SDL_main"), which dlsym's
 # SDL_main in libmain.so (SDL3 src/core/android/SDL_android.c). On Android SDL_main.h sets
-# SDL_MAIN_EXPORTED and its impl header DEFINES the exported SDL_main under
-# SDL_MAIN_USE_CALLBACKS (SDL_main_impl.h) — that definition is synthesized in
-# core/sources/app/sdl_app.cpp, the single TU including the SDL3 main header; MOBAGEN_MAIN apps
-# define neither SDL_main nor main(). The injected android_main_wrapper.cpp therefore no longer
-# forwards SDL_main -> main(); it is a pure anchor whose reference to SDL_main drags sdl_app.o
-# out of libmobagen_core_app.a into the shared library (a shared-lib link has no undefined
-# `main` to pull the archive member, so without the anchor libmain.so would silently export no
-# SDL_main and dlsym would fail at app launch).
+# SDL_MAIN_EXPORTED and its impl header DEFINES the exported SDL_main under SDL_MAIN_USE_CALLBACKS
+# (SDL_main_impl.h) — that definition is synthesized in core/sources/app/sdl_app.cpp, the single TU
+# including the SDL3 main header; MOBAGEN_MAIN apps define neither SDL_main nor main(). The injected
+# android_main_wrapper.cpp therefore no longer forwards SDL_main -> main(); it is a pure anchor
+# whose reference to SDL_main drags sdl_app.o out of libmobagen_core_app.a into the shared library
+# (a shared-lib link has no undefined `main` to pull the archive member, so without the anchor
+# libmain.so would silently export no SDL_main and dlsym would fail at app launch).
 #
 # Set -DANDROID_MAIN_TARGET=<app_name> when configuring for Android.
 if(ANDROID AND DEFINED ANDROID_MAIN_TARGET)

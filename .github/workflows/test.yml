@@ -3,56 +3,222 @@ name: Test
 on:
   push:
     branches:
-      - '*'
+      - '**'
   pull_request:
     branches:
-      - '*'
+      - '**'
+
+permissions:
+  contents: read
 
 env:
   CTEST_OUTPUT_ON_FAILURE: 1
-  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
 
 jobs:
-  build:
+  foundation:
+    name: Foundation (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest ] # , windows-latest]
+        include:
+          - os: ubuntu-latest
+            coverage: ON
+          - os: macos-latest
+            coverage: OFF
+          - os: windows-2022
+            coverage: OFF
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: "**/cpm_modules"
-          key: ${{ matrix.os }}-${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          key: foundation-${{ matrix.os }}-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
-      - name: Install dependencies
-        if: startsWith(matrix.os,'ubuntu')
+      - name: Configure foundation
+        run: >-
+          cmake -S . -B build-foundation
+          -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=ON
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=${{ matrix.coverage }}
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build foundation
+        run: cmake --build build-foundation --config Debug --parallel 2 --target FoundationTests
+
+      - name: Test foundation
+        run: ctest --test-dir build-foundation -C Debug -L foundation --output-on-failure
+
+      - name: Test asset policy
+        run: python -m unittest discover -s test/python -p "test_*policy.py" -v
+
+      - name: Collect code coverage on Ubuntu
+        if: matrix.coverage == 'ON'
+        shell: bash
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: bash <(curl -sSfL https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
+
+  module-host:
+    name: Lean module host (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v6
+        with:
+          path: "**/cpm_modules"
+          key: module-host-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Configure lean module host
+        run: >-
+          cmake -S . -B build-module-host
+          -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DMOBAGEN_BUILD_BUILTIN_SUBSYSTEMS=OFF
+          -DMOBAGEN_BUILD_BUNDLED_MODULES=OFF
+          -DMOBAGEN_BUILD_MODULE_COMPOSITIONS=ON
+          -DMOBAGEN_BUILD_PROJECT_TOOLS=OFF
+          -DMOBAGEN_BUILD_ASSET_TOOLS=OFF
+          -DMOBAGEN_BUILD_PLUGIN_TOOLS=OFF
+          -DMOBAGEN_HTTP_BACKEND_CURL=ON
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=OFF
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=OFF
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build module manager and HTTPS backend
+        run: >-
+          cmake --build build-module-host --config Release --parallel 2
+          --target mobagen_project_startup mobagen_http_curl
+
+      - name: Verify built-in engine graph is absent
+        shell: bash
+        run: |
+          test ! -d build-module-host/core/sources/ecs
+          test ! -d build-module-host/core/sources/render
+          test ! -d build-module-host/modules
+          test ! -d build-module-host/_deps/glm-build
+          test ! -d build-module-host/_deps/doctest-build
+
+  performance-gate:
+    name: Modular overhead gate (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v6
+        with:
+          path: "**/cpm_modules"
+          key: performance-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Configure lean performance build
+        run: >-
+          cmake -S . -B build-performance
+          -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DMOBAGEN_BUILD_BUILTIN_SUBSYSTEMS=OFF
+          -DMOBAGEN_BUILD_BUNDLED_MODULES=OFF
+          -DMOBAGEN_BUILD_MANIFEST_TOOLS=ON
+          -DMOBAGEN_BUILD_MODULE_COMPOSITIONS=ON
+          -DMOBAGEN_BUILD_PROJECT_TOOLS=OFF
+          -DMOBAGEN_BUILD_ASSET_TOOLS=OFF
+          -DMOBAGEN_BUILD_PLUGIN_TOOLS=OFF
+          -DMOBAGEN_BUILD_CATALOG_TOOLS=OFF
+          -DMOBAGEN_HTTP_BACKEND_CURL=OFF
+          -DMOBAGEN_BUILD_BENCHMARKS=ON
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=OFF
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=OFF
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build and enforce performance budget
+        run: >-
+          cmake --build build-performance --config Release --parallel 2
+          --target MobagenPerformanceGate
+
+  sanitizers:
+    name: ASan + UBSan (Ubuntu)
+    runs-on: ubuntu-latest
+
+    env:
+      ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1:check_initialization_order=1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v6
+        with:
+          path: "**/cpm_modules"
+          key: sanitizers-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Configure sanitizers
+        run: >-
+          cmake -S . -B build-sanitizers
+          -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=ON
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=OFF
+          -DMOBAGEN_ENABLE_SANITIZERS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build sanitizer tests
+        run: cmake --build build-sanitizers --config Debug --parallel 2 --target FoundationTests
+
+      - name: Test with ASan and UBSan
+        run: ctest --test-dir build-sanitizers -C Debug -L foundation --output-on-failure
+
+  runtime-integration:
+    name: Runtime integration (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v6
+        with:
+          path: "**/cpm_modules"
+          key: runtime-ubuntu-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: Install runtime dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-common-dev mesa-utils libgl-dev libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxext-dev libxfixes-dev libxkbcommon-dev libxcb1-dev libx11-xcb-dev
+          sudo apt install -y build-essential cmake mesa-common-dev libgl1-mesa-dev libx11-dev mesa-utils libgl-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxext-dev libxfixes-dev libxkbcommon-dev libxcb1-dev libx11-xcb-dev
 
-#      - name: Upload coverage reports to Codecov
-#        uses: codecov/codecov-action@v3
+      - name: Configure runtime integration
+        run: >-
+          cmake -S . -B build-runtime
+          -DMOBAGEN_BUILD_RUNTIME=ON
+          -DBUILD_EXAMPLES=OFF
+          -DBUILD_TESTING=ON
+          -DENABLE_DOCUMENTATION=OFF
+          -DENABLE_TEST_COVERAGE=OFF
+          -DCMAKE_BUILD_TYPE=Debug
 
-      - name: configure
-        run: cmake -S. -Bbuild -DENABLE_TEST_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+      - name: Build app-host integration tests
+        run: cmake --build build-runtime --config Debug --parallel 2 --target AppHostTests
 
-      - name: build
-        # parallel 2: full-parallel Debug+coverage build of Dawn OOMs the runner
-        run: cmake --build build --parallel 2 --target CoreTests
-
-      - name: test
-        run: |
-          cd build
-          cd test
-          ctest --build-config Debug
-
-      - name: collect code coverage on ubuntu
-        if: startsWith(matrix.os,'ubuntu')
-        run: bash <(curl -s https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
+      - name: Test app-host integration
+        run: ctest --test-dir build-runtime -C Debug -L app-host --output-on-failure

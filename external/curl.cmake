@@ -1,24 +1,68 @@
-# curl
-string(TIMESTAMP BEFORE "%s")
+find_package(CURL 7.85 QUIET)
+if(TARGET CURL::libcurl)
+  set(MOBAGEN_CURL_TARGET CURL::libcurl)
+  message(STATUS "Mobagen HTTP: using system libcurl ${CURL_VERSION_STRING}")
+  return()
+endif()
+
+set(_MOBAGEN_CURL_OPTIONS
+    "BUILD_CURL_EXE OFF"
+    "BUILD_LIBCURL_DOCS OFF"
+    "BUILD_MISC_DOCS OFF"
+    "BUILD_SHARED_LIBS OFF"
+    "BUILD_STATIC_LIBS ON"
+    "CURL_BROTLI OFF"
+    "CURL_DISABLE_ALTSVC ON"
+    "CURL_DISABLE_BINDLOCAL ON"
+    "CURL_DISABLE_COOKIES ON"
+    "CURL_DISABLE_DICT ON"
+    "CURL_DISABLE_FILE ON"
+    "CURL_DISABLE_FTP ON"
+    "CURL_DISABLE_GOPHER ON"
+    "CURL_DISABLE_IMAP ON"
+    "CURL_DISABLE_INSTALL ON"
+    "CURL_DISABLE_IPFS ON"
+    "CURL_DISABLE_LDAP ON"
+    "CURL_DISABLE_LDAPS ON"
+    "CURL_DISABLE_MQTT ON"
+    "CURL_DISABLE_NETRC ON"
+    "CURL_DISABLE_POP3 ON"
+    "CURL_DISABLE_PROGRESS_METER ON"
+    "CURL_DISABLE_RTSP ON"
+    "CURL_DISABLE_SMTP ON"
+    "CURL_DISABLE_TELNET ON"
+    "CURL_DISABLE_TFTP ON"
+    "CURL_DISABLE_WEBSOCKETS ON"
+    "CURL_USE_LIBPSL OFF"
+    "CURL_USE_LIBSSH2 OFF"
+    "CURL_ZLIB OFF"
+    "CURL_ZSTD OFF"
+    "USE_LIBIDN2 OFF"
+    "USE_NGHTTP2 OFF"
+)
+if(WIN32)
+  list(APPEND _MOBAGEN_CURL_OPTIONS "CURL_USE_SCHANNEL ON" "CURL_USE_OPENSSL OFF"
+       "USE_WIN32_IDN ON"
+  )
+else()
+  list(APPEND _MOBAGEN_CURL_OPTIONS "CURL_USE_OPENSSL ON")
+  if(APPLE)
+    list(APPEND _MOBAGEN_CURL_OPTIONS "USE_APPLE_SECTRUST ON")
+  endif()
+endif()
 
 CPMAddPackage(
+  NAME curl
   GITHUB_REPOSITORY curl/curl
-  # GIT_TAG curl-7_88_1
-  GIT_TAG curl-8_5_0
-  OPTIONS "CURL_USE_MBEDTLS ON"
-          "CMAKE_USE_MBEDTLS ON"
-          "MBEDTLS_INCLUDE_DIRS ${mbedtls_SOURCE_DIR}/include"
-          "MBEDTLS_LIBRARY mbedtls"
-          "MBEDX509_LIBRARY mbedcrypto"
-          "MBEDCRYPTO_LIBRARY mbedx509"
-          "BUILD_TESTING OFF"
-          "CURL_CA_FALLBACK 1"
+  GIT_TAG curl-8_22_0
+  GIT_SHALLOW TRUE EXCLUDE_FROM_ALL TRUE
+  OPTIONS ${_MOBAGEN_CURL_OPTIONS}
 )
-string(TIMESTAMP AFTER "%s")
-math(EXPR DELTAcurl "${AFTER} - ${BEFORE}")
-message(STATUS "curl TIME: ${DELTAcurl}s")
-if(curl_ADDED)
-  include_directories(${curl_SOURCE_DIR}/include)
+
+if(TARGET libcurl_static)
+  set(MOBAGEN_CURL_TARGET libcurl_static)
+elseif(TARGET CURL::libcurl)
+  set(MOBAGEN_CURL_TARGET CURL::libcurl)
 else()
-  message(FATAL_ERROR "curl not configured correctly")
+  message(FATAL_ERROR "Mobagen HTTP requires a usable libcurl target")
 endif()

@@ -273,8 +273,8 @@ namespace app {
     // list (rmluidemo frame order: Update, NewFrame, ctx->Render, Render).
     imgui_layer_.new_frame();
     if (context_ == nullptr) return;
-    context_->Update();    // layout update
-    context_->Render();    // geometry -> ImGui background draw list
+    context_->Update();  // layout update
+    context_->Render();  // geometry -> ImGui background draw list
   }
 
   void RmlUiLayer::render(WGPURenderPassEncoder pass) { imgui_layer_.render(pass); }

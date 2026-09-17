@@ -51,9 +51,7 @@ namespace app {
     wgpu_init.NumFramesInFlight = 3;
     // Headless-null has no surface, so gpu.surface_format() reports Undefined
     // there — the host's offscreen render target is BGRA8Unorm (app.cpp).
-    wgpu_init.RenderTargetFormat = app.gpu.surface_format() != WGPUTextureFormat_Undefined
-                                       ? app.gpu.surface_format()
-                                       : WGPUTextureFormat_BGRA8Unorm;
+    wgpu_init.RenderTargetFormat = app.gpu.surface_format() != WGPUTextureFormat_Undefined ? app.gpu.surface_format() : WGPUTextureFormat_BGRA8Unorm;
     wgpu_init.DepthStencilFormat = WGPUTextureFormat_Undefined;
     wgpu_ready_ = ImGui_ImplWGPU_Init(&wgpu_init);
     if (!wgpu_ready_) SDL_Log("ImGui_ImplWGPU_Init failed");

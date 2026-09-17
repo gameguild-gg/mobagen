@@ -4,12 +4,14 @@
 // ============================================================================
 // Big assets (CPU volume buffers now; meshes/textures/GPU objects later) are
 // OWNED here, in a packed array. Consumers hold a small Handle {index,
-// generation}, never a raw pointer — so the render bridge's VolumeSource.id
+// generation}, never a raw pointer — so the render bridge's VolumeSource.handle
 // becomes a real handle into a registry instead of a bare integer.
 //
 // Releasing a slot bumps its generation, so any stale handle resolves to null
 // (use-after-free safety), mirroring the ECS entity index+generation scheme.
 // Freed slots are recycled via a free list.
+
+#include "resource_handle.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -20,14 +22,7 @@ namespace resource {
 
   template <class T> class ResourceRegistry {
   public:
-    struct Handle {
-      std::uint32_t index = 0;
-      std::uint32_t generation = 0xFFFFFFFFu;  // distinct from any live slot gen
-      bool operator==(const Handle& o) const { return index == o.index && generation == o.generation; }
-      bool operator!=(const Handle& o) const { return !(*this == o); }
-    };
-
-    static constexpr Handle null_handle() { return Handle{0, 0xFFFFFFFFu}; }
+    static constexpr Handle null_handle() { return kNullHandle; }
 
     template <class... Args> Handle create(Args&&... args) {
       std::uint32_t idx;

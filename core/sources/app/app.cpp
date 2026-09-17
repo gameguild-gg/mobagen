@@ -25,6 +25,14 @@ namespace app {
   void set_app(App* app) { g_app = app; }
   App* app_instance() { return g_app; }
 
+  const GpuFrameApi& default_gpu_frame_api() {
+    static const GpuFrameApi api{
+        wgpuDeviceCreateTexture,           wgpuTextureCreateView,    wgpuDeviceCreateCommandEncoder,
+        wgpuCommandEncoderBeginRenderPass, wgpuCommandEncoderFinish, wgpuQueueSubmit,
+    };
+    return api;
+  }
+
   // ---------------------------------------------------------------------------
   // App members
   // ---------------------------------------------------------------------------
@@ -83,8 +91,8 @@ namespace app {
       const int w = static_cast<int>(static_cast<float>(app.settings.width) * scale);
       const int h = static_cast<int>(static_cast<float>(app.settings.height) * scale);
 
-      const SDL_WindowFlags flags = (app.settings.resizable ? SDL_WINDOW_RESIZABLE : 0) |
-                                    (app.settings.high_pixel_density ? SDL_WINDOW_HIGH_PIXEL_DENSITY : 0);
+      const SDL_WindowFlags flags
+          = (app.settings.resizable ? SDL_WINDOW_RESIZABLE : 0) | (app.settings.high_pixel_density ? SDL_WINDOW_HIGH_PIXEL_DENSITY : 0);
       app.window = SDL_CreateWindow(app.settings.title, w, h, flags);
       if (app.window == nullptr) {
         SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
@@ -143,6 +151,13 @@ namespace app {
       return SDL_APP_FAILURE;
     }
 
+    // Modules that depend on concrete host resources activate only after the
+    // selected render mode and optional GUI layer are fully initialized.
+    if (app.callbacks != nullptr) {
+      const SDL_AppResult rc = app.callbacks->on_ready(app);
+      if (rc != SDL_APP_CONTINUE) return rc;
+    }
+
     return SDL_APP_CONTINUE;
   }
 
@@ -154,30 +169,44 @@ namespace app {
     // Field translation mirrors apps/rmluidemo's InputState feed.
     void feed_input(App& app, const SDL_Event& e) {
       switch (e.type) {
-        case SDL_EVENT_KEY_DOWN: app.input.on_key(e.key.key, true); break;
-        case SDL_EVENT_KEY_UP: app.input.on_key(e.key.key, false); break;
-        case SDL_EVENT_MOUSE_MOTION: app.input.on_mouse_move(e.motion.x, e.motion.y, e.motion.xrel, e.motion.yrel); break;
-        case SDL_EVENT_MOUSE_BUTTON_DOWN: app.input.on_mouse_button(e.button.button, true); break;
-        case SDL_EVENT_MOUSE_BUTTON_UP: app.input.on_mouse_button(e.button.button, false); break;
-        case SDL_EVENT_MOUSE_WHEEL: app.input.on_wheel(e.wheel.y); break;
-        default: break;
+        case SDL_EVENT_KEY_DOWN:
+          app.input.on_key(e.key.key, true);
+          break;
+        case SDL_EVENT_KEY_UP:
+          app.input.on_key(e.key.key, false);
+          break;
+        case SDL_EVENT_MOUSE_MOTION:
+          app.input.on_mouse_move(e.motion.x, e.motion.y, e.motion.xrel, e.motion.yrel);
+          break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+          app.input.on_mouse_button(e.button.button, true);
+          break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+          app.input.on_mouse_button(e.button.button, false);
+          break;
+        case SDL_EVENT_MOUSE_WHEEL:
+          app.input.on_wheel(e.wheel.y);
+          break;
+        default:
+          break;
       }
     }
 
     // Surface RECONFIGURE-ONLY resize handling (canonical family-A behavior;
     // no GUI device-object invalidate dance). Returns after handling.
-    void handle_window_resize(App& app, const SDL_Event& e) {
-      if (e.type != SDL_EVENT_WINDOW_RESIZED && e.type != SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) return;
-      if (app.window == nullptr || e.window.windowID != SDL_GetWindowID(app.window)) return;
+    bool handle_window_resize(App& app, const SDL_Event& e) {
+      if (e.type != SDL_EVENT_WINDOW_RESIZED && e.type != SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) return true;
+      if (app.window == nullptr || e.window.windowID != SDL_GetWindowID(app.window)) return true;
 
       int w = 0, h = 0;
       SDL_GetWindowSizeInPixels(app.window, &w, &h);
-      if (w <= 0 || h <= 0) return;
-      if (w == app.width() && h == app.height()) return;  // dedupe RESIZED + PIXEL_SIZE_CHANGED pairs
+      if (w <= 0 || h <= 0) return true;
+      if (w == app.width() && h == app.height()) return true;  // dedupe RESIZED + PIXEL_SIZE_CHANGED pairs
 
-      app.gpu.configure_surface(w, h);
+      if (!app.gpu.configure_surface(w, h)) return false;
       app.set_surface_size(w, h);
       if (app.gui() != nullptr) app.gui()->on_surface_resized();
+      return true;
     }
 
   }  // namespace
@@ -185,7 +214,10 @@ namespace app {
   SDL_AppResult host_event(App& app, const SDL_Event& event) {
     if (app.gui() != nullptr) app.gui()->process_event(event);
     feed_input(app, event);
-    handle_window_resize(app, event);
+    if (!handle_window_resize(app, event)) {
+      SDL_Log("WebGPU surface resize rejected because the context is unavailable");
+      return SDL_APP_FAILURE;
+    }
 
     if (app.callbacks != nullptr) {
       const SDL_AppResult rc = app.callbacks->on_event(app, event);
@@ -193,8 +225,7 @@ namespace app {
     }
 
     if (event.type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
-    if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && app.window != nullptr &&
-        event.window.windowID == SDL_GetWindowID(app.window))
+    if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && app.window != nullptr && event.window.windowID == SDL_GetWindowID(app.window))
       return SDL_APP_SUCCESS;
     return SDL_APP_CONTINUE;
   }
@@ -214,8 +245,6 @@ namespace app {
       if (dt > 0.1f) dt = 0.1f;
       return dt;
     }
-
-    bool surface_status_fatal(WGPUSurfaceGetCurrentTextureStatus status) { return status == WGPUSurfaceGetCurrentTextureStatus_Error; }
 
     // HeadlessNull's offscreen frame target, kept in app.cpp (NOT inside
     // WebGPUContext — the context stays surface-centric; this cache is a host
@@ -238,9 +267,12 @@ namespace app {
 
     // Create-or-reuse the offscreen texture + view for the current size.
     WGPUTextureView offscreen_frame_view(App& app) {
-      if (g_offscreen.owner != &app || g_offscreen.texture == nullptr || g_offscreen.width != app.width() ||
-          g_offscreen.height != app.height()) {
+      if (g_offscreen.owner != &app || g_offscreen.texture == nullptr || g_offscreen.width != app.width() || g_offscreen.height != app.height()) {
         release_offscreen_target();
+        if (!app.gpu.operational() || app.device() == nullptr || app.width() <= 0 || app.height() <= 0) return nullptr;
+
+        const GpuFrameApi& api = app.gpu_frame_api();
+        if (api.create_texture == nullptr || api.create_texture_view == nullptr) return nullptr;
 
         WGPUTextureDescriptor tex_desc = {};
         tex_desc.usage = WGPUTextureUsage_RenderAttachment;
@@ -249,7 +281,8 @@ namespace app {
         tex_desc.format = WGPUTextureFormat_BGRA8Unorm;
         tex_desc.mipLevelCount = 1;
         tex_desc.sampleCount = 1;
-        g_offscreen.texture = wgpuDeviceCreateTexture(app.device(), &tex_desc);
+        WGPUTexture texture = api.create_texture(app.device(), &tex_desc);
+        if (texture == nullptr) return nullptr;
 
         WGPUTextureViewDescriptor view_desc = {};
         view_desc.format = WGPUTextureFormat_BGRA8Unorm;
@@ -257,11 +290,17 @@ namespace app {
         view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
         view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
         view_desc.aspect = WGPUTextureAspect_All;
-        g_offscreen.view = wgpuTextureCreateView(g_offscreen.texture, &view_desc);
+        WGPUTextureView view = api.create_texture_view(texture, &view_desc);
+        if (view == nullptr) {
+          wgpuTextureRelease(texture);
+          return nullptr;
+        }
 
         g_offscreen.owner = &app;
         g_offscreen.width = app.width();
         g_offscreen.height = app.height();
+        g_offscreen.texture = texture;
+        g_offscreen.view = view;
       }
       return g_offscreen.view;
     }
@@ -279,22 +318,55 @@ namespace app {
       // present). HeadlessNone — and a HeadlessNull that fell back — has no
       // device and runs the pure logic loop.
       if (app.device() == nullptr) return SDL_APP_CONTINUE;
+      if (!app.gpu.operational()) {
+        SDL_Log("WebGPU context is not operational");
+        return SDL_APP_FAILURE;
+      }
+
+      const GpuFrameApi& api = app.gpu_frame_api();
+      if (api.create_texture == nullptr || api.create_texture_view == nullptr || api.create_command_encoder == nullptr
+          || api.begin_render_pass == nullptr || api.finish_command_encoder == nullptr || api.queue_submit == nullptr) {
+        SDL_Log("WebGPU frame API is incomplete");
+        return SDL_APP_FAILURE;
+      }
 
       const bool windowed = app.window != nullptr;
-      WGPUTexture frame_texture = nullptr;  // surface-owned (windowed) or the cached offscreen texture
+      WGPUTexture frame_texture = nullptr;  // surface-owned; offscreen texture remains cached
       WGPUTextureView frame_view = nullptr;
+      bool reconfigure_after_present = false;
+
+      auto release_surface_frame = [&]() {
+        if (!windowed) return;
+        if (frame_view != nullptr) {
+          wgpuTextureViewRelease(frame_view);
+          frame_view = nullptr;
+        }
+        if (frame_texture != nullptr) {
+          wgpuTextureRelease(frame_texture);
+          frame_texture = nullptr;
+        }
+      };
 
       if (windowed) {
         WGPUSurfaceTexture st = app.gpu.acquire();
-        if (surface_status_fatal(st.status)) {
-          SDL_Log("Unrecoverable surface texture status=%d", static_cast<int>(st.status));
-          return SDL_APP_FAILURE;
-        }
-        if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal || st.texture == nullptr) {
-          // Suboptimal/outdated/lost: drop this frame's texture and reconfigure.
-          if (st.texture != nullptr) wgpuTextureRelease(st.texture);
-          app.gpu.configure_surface(app.width(), app.height());
-          return SDL_APP_CONTINUE;
+        frame_texture = st.texture;
+        switch (surface_frame_action(st.status, st.texture != nullptr)) {
+          case SurfaceFrameAction::Render:
+            break;
+          case SurfaceFrameAction::RenderThenReconfigure:
+            reconfigure_after_present = true;
+            break;
+          case SurfaceFrameAction::Retry:
+            release_surface_frame();
+            return SDL_APP_CONTINUE;
+          case SurfaceFrameAction::Reconfigure:
+            release_surface_frame();
+            return app.gpu.configure_surface(app.width(), app.height()) ? SDL_APP_CONTINUE : SDL_APP_FAILURE;
+          case SurfaceFrameAction::Fail:
+          default:
+            SDL_Log("Unrecoverable surface texture status=%d", static_cast<int>(st.status));
+            release_surface_frame();
+            return SDL_APP_FAILURE;
         }
 
         WGPUTextureViewDescriptor view_desc = {};
@@ -303,14 +375,17 @@ namespace app {
         view_desc.mipLevelCount = WGPU_MIP_LEVEL_COUNT_UNDEFINED;
         view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
         view_desc.aspect = WGPUTextureAspect_All;
-        frame_texture = st.texture;
-        frame_view = wgpuTextureCreateView(st.texture, &view_desc);
+        frame_view = api.create_texture_view(st.texture, &view_desc);
       } else {
-        frame_texture = g_offscreen.texture;
         frame_view = offscreen_frame_view(app);
       }
+      if (frame_view == nullptr) {
+        SDL_Log("Failed to create WebGPU frame texture view");
+        release_surface_frame();
+        return SDL_APP_FAILURE;
+      }
 
-      const float (&c)[4] = app.settings.clear_color;
+      const float(&c)[4] = app.settings.clear_color;
       WGPURenderPassColorAttachment color_att = {};
       color_att.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
       color_att.loadOp = WGPULoadOp_Clear;
@@ -324,8 +399,19 @@ namespace app {
       rp_desc.depthStencilAttachment = nullptr;
 
       WGPUCommandEncoderDescriptor enc_desc = {};
-      WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(app.device(), &enc_desc);
-      WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp_desc);
+      WGPUCommandEncoder encoder = api.create_command_encoder(app.device(), &enc_desc);
+      if (encoder == nullptr) {
+        SDL_Log("Failed to create WebGPU command encoder");
+        release_surface_frame();
+        return SDL_APP_FAILURE;
+      }
+      WGPURenderPassEncoder pass = api.begin_render_pass(encoder, &rp_desc);
+      if (pass == nullptr) {
+        SDL_Log("Failed to begin WebGPU render pass");
+        wgpuCommandEncoderRelease(encoder);
+        release_surface_frame();
+        return SDL_APP_FAILURE;
+      }
 
       // GUI new_frame BEFORE on_draw so app GUI code in on_draw emits into an
       // open GUI frame; gui->render(pass) below submits it (chess order).
@@ -336,21 +422,38 @@ namespace app {
       wgpuRenderPassEncoderEnd(pass);
 
       WGPUCommandBufferDescriptor cmd_desc = {};
-      WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, &cmd_desc);
-      wgpuQueueSubmit(app.gpu.queue(), 1, &cmd);
+      WGPUCommandBuffer cmd = api.finish_command_encoder(encoder, &cmd_desc);
+      if (cmd == nullptr) {
+        SDL_Log("Failed to finish WebGPU command buffer");
+        wgpuRenderPassEncoderRelease(pass);
+        wgpuCommandEncoderRelease(encoder);
+        release_surface_frame();
+        return SDL_APP_FAILURE;
+      }
+
+      WGPUQueue queue = app.gpu.queue();
+      if (!app.gpu.operational() || queue == nullptr) {
+        SDL_Log("WebGPU context became unavailable before submission");
+        wgpuCommandBufferRelease(cmd);
+        wgpuRenderPassEncoderRelease(pass);
+        wgpuCommandEncoderRelease(encoder);
+        release_surface_frame();
+        return SDL_APP_FAILURE;
+      }
+      api.queue_submit(queue, 1, &cmd);
 
       if (windowed) {
         // Offscreen frames keep texture+view cached across frames; surface
         // textures are per-frame and must go back before present().
-        wgpuTextureViewRelease(frame_view);
-        wgpuTextureRelease(frame_texture);
-        app.gpu.present();
+        release_surface_frame();
       }
       wgpuCommandBufferRelease(cmd);
       wgpuRenderPassEncoderRelease(pass);
       wgpuCommandEncoderRelease(encoder);
 
-      app.gpu.tick();
+      if (windowed && !app.gpu.present()) return SDL_APP_FAILURE;
+      if (reconfigure_after_present && !app.gpu.configure_surface(app.width(), app.height())) return SDL_APP_FAILURE;
+      if (!app.gpu.tick()) return SDL_APP_FAILURE;
       return SDL_APP_CONTINUE;
     }
 
