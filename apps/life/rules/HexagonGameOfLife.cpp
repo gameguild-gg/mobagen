@@ -27,67 +27,101 @@
 
 // begin solution
 namespace hexagon {
-  class Underpopulation : public Condition {
-  public:
-    bool Test(const AgentContext& context) override {
-      // todo: implement the underpopulation condition
-      // hint: on the hex grid (B2/S34) a live cell is underpopulated below 3 neighbors
-      throw std::logic_error("Underpopulation condition not implemented yet");
-    }
-  };
+class Underpopulation : public Condition {
+public:
+  bool Test(const AgentContext& context) override {
+    // todo: implement the underpopulation condition
+    // hint: on the hex grid (B2/S34) a live cell is underpopulated below 3 neighbors
 
-  class Overpopulation : public Condition {
-  public:
-    bool Test(const AgentContext& context) override {
-      // todo: implement the overpopulation condition
-      // hint: on the hex grid (B2/S34) a live cell is overpopulated above 4 neighbors
-      throw std::logic_error("Overpopulation condition not implemented yet");
-    }
-  };
+    if (context.aliveNeighbors < 2)
+      return true;
+    else
+      return false;
 
-  class Reproduction : public Condition {
-  public:
-    bool Test(const AgentContext& context) override {
-      // todo: implement the reproduction condition
-      // hint: on the hex grid (B2/S34) a dead cell is born with exactly 2 neighbors
-      throw std::logic_error("Reproduction condition not implemented yet");
-    }
-  };
+    throw std::logic_error("Underpopulation condition not implemented yet");
+  }
+};
 
-  class DieAction : public Action {
-  public:
-    void Execute(const AgentContext& context) override {
-      // todo: implement the die action
-      // hint:
-      //   use the context.world.SetNext() to set the next state of the cell to dead
-      //   use the context.position to get the current cell's position
-      throw std::logic_error("Die action not implemented yet");
-    }
-  };
+class Overpopulation : public Condition {
+public:
+  bool Test(const AgentContext& context) override {
+    // todo: implement the overpopulation condition
+    // hint: on the hex grid (B2/S34) a live cell is overpopulated above 4 neighbors
 
-  class BornAction : public Action {
-  public:
-    void Execute(const AgentContext& context) override {
-      // see hints in DieAction
-      throw std::logic_error("Born action not implemented yet");
-    }
-  };
+    if (context.aliveNeighbors > 3)
+      return true;
+    else
+      return false;
 
-  class StayAliveAction : public Action {
-  public:
-    void Execute(const AgentContext& context) override {
-      // see hints in DieAction
-      throw std::logic_error("StayAlive action not implemented yet");
-    }
-  };
+    throw std::logic_error("Overpopulation condition not implemented yet");
+  }
+};
 
-  class StayDeadAction : public Action {
-  public:
-    void Execute(const AgentContext& context) override {
-      // see hints in DieAction
-      throw std::logic_error("StayDead action not implemented yet");
-    }
-  };
+class Reproduction : public Condition {
+public:
+  bool Test(const AgentContext& context) override {
+    // todo: implement the reproduction condition
+    // hint: on the hex grid (B2/S34) a dead cell is born with exactly 2 neighbors
+
+    if (context.aliveNeighbors == 3)
+      return true;
+    else
+      return false;
+
+    throw std::logic_error("Reproduction condition not implemented yet");
+  }
+};
+
+class DieAction : public Action {
+public:
+  void Execute(const AgentContext& context) override {
+    // todo: implement the die action
+    // hint:
+    //   use the context.world.SetNext() to set the next state of the cell to dead
+    //   use the context.position to get the current cell's position
+
+    context.world.SetNext(context.position, false);
+    return;
+
+    throw std::logic_error("Die action not implemented yet");
+  }
+};
+
+class BornAction : public Action {
+public:
+  void Execute(const AgentContext& context) override {
+    // see hints in DieAction
+
+    context.world.SetNext(context.position, true);
+    return;
+
+    throw std::logic_error("Born action not implemented yet");
+  }
+};
+
+class StayAliveAction : public Action {
+public:
+  void Execute(const AgentContext& context) override {
+    // see hints in DieAction
+
+    context.world.SetNext(context.position, true);
+    return;
+
+    throw std::logic_error("StayAlive action not implemented yet");
+  }
+};
+
+class StayDeadAction : public Action {
+public:
+  void Execute(const AgentContext& context) override {
+    // see hints in DieAction
+
+    context.world.SetNext(context.position, false);
+    return;
+
+    throw std::logic_error("StayDead action not implemented yet");
+  }
+};
 }  // namespace hexagon
 
 // end solution
@@ -100,11 +134,17 @@ HexagonGameOfLife::HexagonGameOfLife() {
 
   const auto die = std::make_shared<DieAction>();
   const auto born = std::make_shared<BornAction>();
+  const auto stayAlive = std::make_shared<StayAliveAction>();
+  const auto stayDead = std::make_shared<StayDeadAction>();
 
   // todo: add transitions and actions for alive, dead. example:
   //   alive->AddTransition(std::make_shared<Underpopulation>(), dead, {die});
   //   dead->AddAction(std::make_shared<StayDeadAction>());
   // begin solution
+
+  alive -> AddTransition(std::make_shared<Underpopulation>(), dead, {die});
+  alive -> AddTransition(std::make_shared<Overpopulation>(), dead, {born});
+  alive -> AddTransition(std::make_shared<Reproduction>(), dead, {born});
 
   SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "HexagonGameOfLife: transitions and actions for alive and dead states not implemented yet");
 
