@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/InfiniBrains/mobagen/compare/v1.25.0...v1.25.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **flocking:** improve formality and hints ([aa3e86f](https://github.com/InfiniBrains/mobagen/commit/aa3e86fe9b13e6d50229af0d0572b3c8857626da))
+
 # [1.25.0](https://github.com/InfiniBrains/mobagen/compare/v1.24.1...v1.25.0) (2026-09-17)
 
 
