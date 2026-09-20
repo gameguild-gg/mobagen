@@ -23,6 +23,10 @@ namespace fs = std::filesystem;
 // Pass/reject per fixture, recorded by fixturePasses() and printed by the custom main below.
 std::map<std::string, bool> fixtureResults;
 
+// Set by `--regenerate` in main: rewrite the .out files from the current rule implementations
+// instead of comparing against them (instructor tool for refreshing the formal fixtures).
+bool regenerateFixtures = false;
+
 // Helper function to normalize line endings (convert \r\n and \r to the standard linux style \n)
 std::string normalizeLineEndings(const std::string& str) {
   std::string result = str;
@@ -92,14 +96,16 @@ std::string runFlockingSimulation(const std::string& input) {
     vel.emplace_back(vx, vy);
   }
 
-  // Rule weights carry the K constants; base weight multipliers are all 1. SeparationRule's
-  // desiredMinimalDistance doubles as the separation constant: force = sum (away/d) * (Ks/d).
-  CohesionRule cohesion(static_cast<float>(cohesionK));
-  AlignmentRule alignment(static_cast<float>(alignmentK));
-  SeparationRule separation(static_cast<float>(separationK), 1.f);
+  // Rule weights carry the K constants; base weight multipliers are all 1. Each rule filters its own
+  // neighborhood from the full boid list using its radius member (boundary-inclusive; alignment
+  // counts self): cohesion/alignment radii come from the header radii, separation's radius comes
+  // from r_s and K_s rides its weight. Separation is clamped to separationMaxForce after the weighted sum.
+  CohesionRule cohesion(static_cast<float>(cohesionRadius), static_cast<float>(cohesionK));
+  AlignmentRule alignment(static_cast<float>(alignmentRadius), static_cast<float>(alignmentK));
+  SeparationRule separation(static_cast<float>(separationRadius), static_cast<float>(separationK));
 
   std::vector<glm::dvec2> newPos = pos, newVel = vel;
-  std::vector<BoidView> cohesionNeighborhood, alignmentNeighborhood, separationNeighborhood;
+  std::vector<BoidView> views(static_cast<std::size_t>(numberOfBoids));
 
   std::ostringstream outputStream;
   outputStream << std::fixed << std::setprecision(3);
@@ -107,22 +113,12 @@ std::string runFlockingSimulation(const std::string& input) {
   double deltaTime;
   while (inputStream >> deltaTime) {
     for (int i = 0; i < numberOfBoids; i++) {
-      cohesionNeighborhood.clear();
-      alignmentNeighborhood.clear();
-      separationNeighborhood.clear();
-      for (int j = 0; j < numberOfBoids; j++) {
-        const double distance = glm::length(pos[j] - pos[i]);
-        const BoidView view{glm::vec2(pos[j]), glm::vec2(vel[j])};
-        if (j != i && distance <= cohesionRadius)
-          cohesionNeighborhood.push_back(view);                                  // boundary-inclusive: fixtures include d == rc (cohesion_only)
-        if (distance <= alignmentRadius) alignmentNeighborhood.push_back(view);  // includes self per spec
-        if (j != i && distance <= separationRadius) separationNeighborhood.push_back(view);
-      }
-      const BoidView self{glm::vec2(pos[i]), glm::vec2(vel[i])};
-
-      const glm::vec2 cohesionForce = cohesion.computeWeightedForce(cohesionNeighborhood, self);     // Kc * normalized
-      const glm::vec2 alignmentForce = alignment.computeWeightedForce(alignmentNeighborhood, self);  // Ka * raw mean
-      glm::dvec2 separationForce(separation.computeWeightedForce(separationNeighborhood, self));     // sum (away/d) * (Ks/d)
+      views[i] = BoidView{glm::vec2(pos[i]), glm::vec2(vel[i])};
+    }
+    for (int i = 0; i < numberOfBoids; i++) {
+      const glm::vec2 cohesionForce = cohesion.computeWeightedForce(views, i);    // Kc * toCom/rc (proportional)
+      const glm::vec2 alignmentForce = alignment.computeWeightedForce(views, i);  // Ka * raw mean (self included)
+      glm::dvec2 separationForce(separation.computeWeightedForce(views, i));      // sum (away/d) * (Ks/d)
 
       // Spec clamp position: after accumulation, harness-side only (the visual app does not clamp).
       const double separationMagnitude = glm::length(separationForce);
@@ -173,16 +169,28 @@ std::vector<FixtureFiles> findFixtures(const fs::path& testsDir) {
 
 bool fixturePasses(const FixtureFiles& fixture) {
   std::ifstream inFile(fixture.input);
-  std::ifstream outFile(fixture.output);
+
+  if (!inFile.is_open()) {
+    fixtureResults[fixture.name] = false;
+    return false;
+  }
+
+  std::string input((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+  input = normalizeLineEndings(input);
+  std::string actualOutput = trim(runFlockingSimulation(input));
+
+  if (regenerateFixtures) {
+    std::ofstream outFile(fixture.output, std::ios::binary);
+    outFile << actualOutput << "\n";
+    fixtureResults[fixture.name] = true;
+    return true;
+  }
 
   bool passed = false;
-  if (inFile.is_open() && outFile.is_open()) {
-    std::string input((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+  std::ifstream outFile(fixture.output);
+  if (outFile.is_open()) {
     std::string expectedOutput((std::istreambuf_iterator<char>(outFile)), std::istreambuf_iterator<char>());
-
-    input = normalizeLineEndings(input);
     expectedOutput = trim(normalizeLineEndings(expectedOutput));
-    std::string actualOutput = runFlockingSimulation(input);
     passed = compareOutputs(actualOutput, expectedOutput, 1e-3);
   }
 
@@ -199,7 +207,17 @@ TEST_CASE("Flocking formal fixtures") {
 }
 
 int main(int argc, char** argv) {
-  doctest::Context ctx(argc, argv);
+  std::vector<char*> keptArgs;
+  keptArgs.push_back(argv[0]);
+  for (int i = 1; i < argc; i++) {
+    if (std::string(argv[i]) == "--regenerate") {
+      regenerateFixtures = true;
+    } else {
+      keptArgs.push_back(argv[i]);
+    }
+  }
+
+  doctest::Context ctx(static_cast<int>(keptArgs.size()), keptArgs.data());
   int res = ctx.run();
 
   if (fixtureResults.empty()) {

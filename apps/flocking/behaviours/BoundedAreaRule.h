@@ -19,7 +19,7 @@ public:
   const char* getRuleExplanation() override { return "Steer to avoid the window's borders."; }
   float getBaseWeightMultiplier() override { return 1.f; }
 
-  glm::vec2 computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) override;
+  glm::vec2 computeForce(const std::vector<BoidView>& boids, int selfIndex) override;
   bool drawImguiRuleExtra() override;
   void drawWorldOverlay(ImDrawList* dl) const override;
 };
