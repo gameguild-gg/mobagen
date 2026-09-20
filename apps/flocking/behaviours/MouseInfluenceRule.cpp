@@ -1,7 +1,7 @@
 #include "MouseInfluenceRule.h"
 #include "imgui.h"
 
-glm::vec2 MouseInfluenceRule::computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
+glm::vec2 MouseInfluenceRule::computeForce(const std::vector<BoidView>& boids, int selfIndex) {
   glm::vec2 force(0.f);
 
   // ImGui::IsMouseDown(ImGuiMouseButton_Left) returns true if the left mouse button is currently pressed.

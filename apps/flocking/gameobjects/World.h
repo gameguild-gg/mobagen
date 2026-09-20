@@ -19,7 +19,6 @@ private:
   float desiredSpeed = 120.0f;
   bool hasMaxAcceleration = false;
   float maxAcceleration = 200.0f;
-  float detectionRadius = 80.f;
 
   bool showRadius = false;
   bool showRules = false;

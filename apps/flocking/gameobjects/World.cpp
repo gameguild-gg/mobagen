@@ -22,10 +22,10 @@
 FlockingManager::FlockingManager(ecs::World& world, jobs::Scheduler& sched) : ecs_(world), sched_(sched) {}
 
 void FlockingManager::initializeRules() {
-  boidsRules.emplace_back(std::make_unique<SeparationRule>(15.f, 300.f));
-  boidsRules.emplace_back(std::make_unique<CohesionRule>(300.f));
-  boidsRules.emplace_back(std::make_unique<AlignmentRule>(1.2f));
-  boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(20.f));
+  boidsRules.emplace_back(std::make_unique<SeparationRule>(30.f, 200.f));
+  boidsRules.emplace_back(std::make_unique<CohesionRule>(70.f, 300.f));
+  boidsRules.emplace_back(std::make_unique<AlignmentRule>(70.f, 7.f));
+  boidsRules.emplace_back(std::make_unique<MouseInfluenceRule>(1000.f));
   boidsRules.emplace_back(std::make_unique<BoundedAreaRule>(200, 800.f, false));
   boidsRules.emplace_back(std::make_unique<WindRule>(1.f, 6.f, false));
 
@@ -54,7 +54,6 @@ ecs::Entity FlockingManager::createBoid() {
   ecs_.add<BoidForceCache>(e);
 
   BoidConfig& cfg = ecs_.add<BoidConfig>(e);
-  cfg.detectionRadius = detectionRadius;
   cfg.speed = desiredSpeed;
   cfg.hasConstantSpeed = hasConstantSpeed;
   cfg.maxAcceleration = hasMaxAcceleration ? maxAcceleration : 100000.f;
@@ -137,17 +136,9 @@ void FlockingManager::Update(float deltaTime) {
           BoidConfig& cfg = ecs_.get<BoidConfig>(e);
           BoidForceCache& fc = ecs_.get<BoidForceCache>(e);
 
-          std::vector<BoidView> neighborhood;
-          const float r2 = cfg.detectionRadius * cfg.detectionRadius;
-          for (int j = 0; j < n; j++) {
-            if (static_cast<std::size_t>(j) == i) continue;
-            glm::vec2 d = snapshot[j].position - snapshot[i].position;
-            if (glm::dot(d, d) <= r2) neighborhood.push_back(snapshot[j]);
-          }
-
           fc.forces.resize(rules.size());
           for (std::size_t ri = 0; ri < rules.size(); ri++) {
-            glm::vec2 f = rules[ri]->computeWeightedForce(neighborhood, snapshot[i]);
+            glm::vec2 f = rules[ri]->computeWeightedForce(snapshot, static_cast<int>(i));
             fc.forces[ri] = f;
             acc.acc += f;
           }
@@ -184,7 +175,6 @@ void FlockingManager::OnDraw() {
     BoidPos& pos = ecs_.get<BoidPos>(e);
     BoidVel& vel = ecs_.get<BoidVel>(e);
     BoidAcc& acc = ecs_.get<BoidAcc>(e);
-    BoidConfig& cfg = ecs_.get<BoidConfig>(e);
     BoidDebug& dbg = ecs_.get<BoidDebug>(e);
 
     glm::vec2 p = pos.pos;
@@ -200,9 +190,12 @@ void FlockingManager::OnDraw() {
                          static_cast<int>(dbg.color.a * 255));
     dl->AddTriangleFilled(tip, left, right, col);
 
+    BoidView bv{p, v};
+
     if (showRadius || dbg.drawDebugRadius) {
-      dl->AddCircle({p.x, p.y}, cfg.detectionRadius,
-                    IM_COL32(static_cast<int>(dbg.color.r * 255), static_cast<int>(dbg.color.g * 255), static_cast<int>(dbg.color.b * 255), 64), 32);
+      for (const auto& rule : boidsRules) {
+        if (rule->isEnabled) rule->drawRadius(bv, dl);
+      }
     }
 
     if (showAcceleration || dbg.drawAcceleration) {
@@ -212,7 +205,6 @@ void FlockingManager::OnDraw() {
 
     if (showRules || dbg.drawDebugRules) {
       BoidForceCache& fc = ecs_.get<BoidForceCache>(e);
-      BoidView bv{p, v};
       for (std::size_t ri = 0; ri < boidsRules.size() && ri < fc.forces.size(); ri++) {
         if (boidsRules[ri]->isEnabled) boidsRules[ri]->draw(bv, dl, fc.forces[ri]);
       }
@@ -235,9 +227,6 @@ void FlockingManager::drawGeneralUI() {
     }
     ImGui::SameLine();
     HelpMarker("Drag to change the weight's value or CTRL+Click to input a new value.");
-
-    if (ImGui::SliderFloat("Neighborhood Radius", &detectionRadius, 0.0f, 250.0f, "%.f"))
-      for (auto e : boidEntities) ecs_.get<BoidConfig>(e).detectionRadius = detectionRadius;
 
     ImGui::SetNextItemOpen(false, ImGuiCond_Once);
     if (ImGui::TreeNode("Movement Settings")) {

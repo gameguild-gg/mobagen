@@ -19,7 +19,7 @@ protected:
   explicit FlockingRule(Color32 debugColor_, float weight_, bool isEnabled_ = true)
       : debugColor(debugColor_), weight(weight_), isEnabled(isEnabled_) {}
 
-  virtual glm::vec2 computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) = 0;
+  virtual glm::vec2 computeForce(const std::vector<BoidView>& boids, int selfIndex) = 0;
 
   virtual float getBaseWeightMultiplier() { return 1.f; }
 
@@ -36,11 +36,14 @@ public:
 
   virtual std::unique_ptr<FlockingRule> clone() = 0;
 
-  glm::vec2 computeWeightedForce(const std::vector<BoidView>& neighborhood, const BoidView& boid);
+  glm::vec2 computeWeightedForce(const std::vector<BoidView>& boids, int selfIndex);
 
   virtual bool drawImguiRule();
 
   virtual void draw(const BoidView& boid, ImDrawList* dl, glm::vec2 cachedForce) const;
+
+  // Rules that own a detection radius draw it around each boid; default: nothing to draw.
+  virtual void drawRadius(const BoidView& boid, ImDrawList* dl) const {}
 
   virtual void drawWorldOverlay(ImDrawList* dl) const {}
 };

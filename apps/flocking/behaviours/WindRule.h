@@ -18,7 +18,7 @@ public:
   const char* getRuleExplanation() override { return "Apply a constant force to all boids."; }
   float getBaseWeightMultiplier() override { return 0.5f; }
 
-  glm::vec2 computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) override;
+  glm::vec2 computeForce(const std::vector<BoidView>& boids, int selfIndex) override;
   bool drawImguiRuleExtra() override;
 };
 
