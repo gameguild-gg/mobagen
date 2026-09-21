@@ -6,6 +6,7 @@
 #include "MazeGeneratorBase.h"
 #include "Node.h"
 #include "math/Point2D.h"
+#include <cassert>
 #include <vector>
 
 class World {
@@ -28,10 +29,13 @@ private:
   std::vector<bool> data;
   // the boxes colors
   std::vector<Color32> colors;
-  // convert a point into the index of the left vertex of the node
+  // convert a point into the index of the left vertex of the node.
+  // points are in grid units: (0, 0) is the top-left cell, x grows right,
+  // y grows down; valid while 0 <= x < width and 0 <= y < height.
   inline int Point2DtoIndex(const Point2D& point) {
     // todo: test. unstable interface
-    return (point.y + height / 2) * (width + 1) * 2 + (point.x + width / 2) * 2;
+    assert(0 <= point.x && point.x < width && 0 <= point.y && point.y < height);
+    return point.y * (width + 1) * 2 + point.x * 2;
   }
 
 public:
@@ -50,11 +54,8 @@ public:
   void SetSouth(const Point2D& point, const bool& state);
   void SetWest(const Point2D& point, const bool& state);
 
-  // The world stores cells in centered units: x in [-width/2, (width-1)/2],
-  // y in [-height/2, (height-1)/2]. The formal assignment works in units with
-  // (0, 0) at the top-left corner; these two helpers translate back and forth.
-  Point2D ToWorldCoords(const Point2D& formalPoint) const;
-  Point2D ToFormalCoords(const Point2D& worldPoint) const;
+  // All points are in grid units: (0, 0) is the top-left cell, x grows right,
+  // y grows down; valid while 0 <= x < width and 0 <= y < height.
 
   void Start();
   void OnGui();

@@ -78,8 +78,8 @@ bool compareOutputs(const std::string& actual, const std::string& expected) {
   return normalizeSpaces(normalizeLineEndings(actual)) == normalizeSpaces(normalizeLineEndings(expected));
 }
 
-// Renders the World as the classic ascii maze in formal units: (0, 0) at the
-// top-left, "_" for horizontal walls, "|" for vertical walls. Trailing
+// Renders the World as the classic ascii maze: (0, 0) at the top-left,
+// "_" for horizontal walls, "|" for vertical walls. Trailing
 // newlines and spaces are stripped from the result.
 std::string renderMaze(World& world) {
   const int width = world.GetWidth();
@@ -87,7 +87,7 @@ std::string renderMaze(World& world) {
 
   std::string result = " ";
   for (int c = 0; c < width; c++) {
-    result += world.GetNorth(world.ToWorldCoords({c, 0})) ? "_" : " ";
+    result += world.GetNorth({c, 0}) ? "_" : " ";
     result += " ";
   }
   result += " \n";
@@ -95,7 +95,7 @@ std::string renderMaze(World& world) {
   for (int r = 0; r < height; r++) {
     result += "|";
     for (int c = 0; c < width; c++) {
-      Point2D cell = world.ToWorldCoords({c, r});
+      Point2D cell = {c, r};
       result += world.GetSouth(cell) ? "_" : " ";
       result += world.GetEast(cell) ? "|" : " ";
     }
