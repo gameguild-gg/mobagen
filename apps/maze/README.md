@@ -29,9 +29,9 @@ Randomness comes ONLY from the fixed `randomNumbers` array in `SeededRandom.h`, 
 
 :::
 
-::: note "Two coordinate systems"
+::: note "One coordinate system"
 
-The generator's algorithm runs in **formal units**: `(0, 0)` is the top-left cell, x grows right, y grows down. The `World` stores cells in **centered units** around its middle. `World::ToWorldCoords` and `World::ToFormalCoords` translate between the two — the hints use formal units and translate only when touching the grid.
+Everything — the generator, the `World` API, and the ascii output — speaks the same units: `(0, 0)` is the top-left cell, x grows right, y grows down. A cell `(x, y)` is valid while `0 <= x < World::GetWidth()` and `0 <= y < World::GetHeight()`. The demo app centers the maze on screen for you; that placement never shows up in the coordinates you work with.
 
 :::
 
@@ -53,7 +53,7 @@ A recursive backtracker over the grid, starting at cell `(0, 0)`:
 2. If there is exactly one visitable neighbor, move to it — do **not** consume a random number;
 3. If there are two or more, consume `Random::next()` and move to the neighbor at `next() % visitableCount`;
 4. If there are none, backtrack (pop the path stack);
-5. Moving to a neighbor removes the wall between the two cells — translate the formal cell with `World::ToWorldCoords` first;
+5. Moving to a neighbor removes the wall between the two cells (`World::SetNorth`/`SetEast`/`SetSouth`/`SetWest` with `false`);
 6. The maze is complete when the path stack empties.
 
 `getVisitables`'s hint lists the neighbors already in the required order.
