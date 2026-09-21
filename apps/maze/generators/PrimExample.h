@@ -16,6 +16,7 @@ private:
   std::vector<Point2D> getVisitedNeighbors(World* w, const Point2D& p);
   Point2D randomStartPoint(World* world);
   std::vector<Point2D> deltas = {Point2D(0, -1), Point2D(0, 1), Point2D(-1, 0), Point2D(1, 0)};  // N, S, W, E
+  bool willBeVisited(const Point2D& p);
 
 public:
   PrimExample() = default;

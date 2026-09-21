@@ -49,8 +49,10 @@ bool PrimExample::Step(World* w) {
       w->SetEast(p, false);
     }
     for (Point2D nb : startNeighbors) {
-      toBeVisited.push_back(nb);
-      w->SetNodeColor(nb, Color::Orange);
+      {
+        if (!willBeVisited(nb)) toBeVisited.push_back(nb);
+        w->SetNodeColor(nb, Color::Orange);
+      }
     }
     if (toBeVisited.size() == 0) 
     {
@@ -112,4 +114,16 @@ std::vector<Point2D> PrimExample::getVisitedNeighbors(World* w, const Point2D& p
   }
 
   return neighbors;
+}
+
+bool PrimExample::willBeVisited(const Point2D& p) 
+{ 
+    if (toBeVisited.size() > 0) {
+    for (Point2D& point : toBeVisited) {
+      if (point == p) {
+        return true;
+      }
+    }
+  }
+    return false;
 }
