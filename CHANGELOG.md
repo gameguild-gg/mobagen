@@ -1,3 +1,10 @@
+## [1.25.2](https://github.com/InfiniBrains/mobagen/compare/v1.25.1...v1.25.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* **maze:** WARNING! This fix drops MVC on maze app. This will potentially break your code! Now all center is top-left on all APIs ([e55d4c8](https://github.com/InfiniBrains/mobagen/commit/e55d4c8fe61c030ed35ff2adc7118895c4cc5a8b))
+
 ## [1.25.1](https://github.com/InfiniBrains/mobagen/compare/v1.25.0...v1.25.1) (2026-09-20)
 
 
