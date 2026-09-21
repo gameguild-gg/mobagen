@@ -11,6 +11,7 @@ bool HuntAndKillExample::Step(World* w) {
   Point2D p = stack[stack.size() - 1];
   stack.pop_back();
   w->SetNodeColor(p, Color::Black);
+  visited[p.x][p.y] = true;
   std::vector<Point2D> visitables = getVisitables(w, p);
   int index = 0;
   if (visitables.size() > 1) 
@@ -21,7 +22,7 @@ bool HuntAndKillExample::Step(World* w) {
   {
     Point2D huntedPoint = hunt(w);
 
-    if (huntedPoint.x == INT_MAX) 
+    if (huntedPoint == Point2D{INT_MAX,INT_MAX}) 
     {
       return false;
     }
@@ -90,7 +91,7 @@ std::vector<Point2D> HuntAndKillExample::getVisitables(World* w, const Point2D& 
   for (Point2D delta : deltas) 
   {
     Point2D point = p + delta;
-    if (!visited[point.x][point.y]) 
+    if (!visited[point.x][point.y] && point.x >= -sideOver2 && point.x <= sideOver2 && point.y >= -sideOver2 && point.y <= sideOver2) 
     {
       visitables.push_back(point);
     }
@@ -118,7 +119,7 @@ Point2D HuntAndKillExample::hunt(World* w)
 
   for (int y = -sideOver2; y <= sideOver2; y++)
     for (int x = -sideOver2; x <= sideOver2; x++)
-      if (!visited[y][x] && getVisitedNeighbors(w,{x,y}).size() > 0) return {x, y};
+      if (!visited[y][x] && getVisitedNeighbors(w,{y,x}).size() > 0) return {y, x};
   return {INT_MAX, INT_MAX};
 
 }
