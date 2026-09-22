@@ -23,6 +23,45 @@ namespace mobagen::modules {
     constexpr std::size_t max_module_manifest_nodes = 16384;
     constexpr std::size_t max_module_manifest_entries = 1024;
 
+    [[nodiscard]] bool marshaling_type_name(ModuleMarshalingType type, std::string_view& name) {
+      switch (type) {
+        case ModuleMarshalingType::Void:
+          name = "void";
+          return true;
+        case ModuleMarshalingType::I32:
+          name = "i32";
+          return true;
+        case ModuleMarshalingType::I64:
+          name = "i64";
+          return true;
+        case ModuleMarshalingType::F32:
+          name = "f32";
+          return true;
+        case ModuleMarshalingType::F64:
+          name = "f64";
+          return true;
+        case ModuleMarshalingType::Ptr:
+          name = "ptr";
+          return true;
+        case ModuleMarshalingType::Span:
+          name = "span";
+          return true;
+      }
+      return false;
+    }
+
+    [[nodiscard]] std::optional<ModuleMarshalingType> marshaling_type_from_name(std::string_view name) {
+      static constexpr std::pair<std::string_view, ModuleMarshalingType> names[]{
+          {"void", ModuleMarshalingType::Void},   {"i32", ModuleMarshalingType::I32},   {"i64", ModuleMarshalingType::I64},
+          {"f32", ModuleMarshalingType::F32},     {"f64", ModuleMarshalingType::F64},   {"ptr", ModuleMarshalingType::Ptr},
+          {"span", ModuleMarshalingType::Span},
+      };
+      for (const auto& [candidate, type] : names) {
+        if (name == candidate) return type;
+      }
+      return std::nullopt;
+    }
+
     struct MapEntry {
       std::string key;
       YAML::Node value;
@@ -75,10 +114,13 @@ namespace mobagen::modules {
       }
 
       static bool is_valid_signature_id(std::uint64_t value) {
-        /* Mirrors mobagen_module_signature_decode: magic 0x4D, <=5 params, reserved bits zero. */
-        if ((value >> 24) != 0x4DU || (value & 0x3U) != 0) return false;
-        const auto count = (value >> 20) & 0xFU;
-        return count <= 5;
+        if (value == 0 || value > UINT32_MAX) return false;
+        /* Full descriptor decodability (todo 10): the id must decode into a
+         * marshaling descriptor the dispatchers can walk — magic, param
+         * count, and every type code. Undecodable ids are rejected HERE, at
+         * load time, never at call time. */
+        ModuleExportMarshaling decoded;
+        return decode_module_export_marshaling(static_cast<std::uint32_t>(value), decoded);
       }
 
       void add_error(ModuleManifestErrorCode code, const YAML::Mark& mark, std::string field, std::string message) {
@@ -284,24 +326,70 @@ namespace mobagen::modules {
         std::set<std::string> seen;
         for (std::size_t index = 0; index < node.size(); ++index) {
           const auto field = "exports[" + std::to_string(index) + ']';
-          const auto entries = read_map(node[index], field, {"name", "signature"});
+          const auto entries = read_map(node[index], field, {"name", "signature", "return", "params"});
           const auto* name = require_entry(entries, "name", field, node[index].Mark());
           const auto* signature = require_entry(entries, "signature", field, node[index].Mark());
+          const auto* return_type = find_entry(entries, "return");
+          const auto* params = find_entry(entries, "params");
           ModuleManifestExport parsed;
           if (name && read_string(*name, field + ".name", parsed.name) && parsed.name.empty()) {
             add_error(ModuleManifestErrorCode::InvalidValue, name->Mark(), field + ".name", "export name must be non-empty");
           }
           std::uint64_t signature_id = 0;
           if (signature && read_unsigned(*signature, field + ".signature", signature_id)) {
-            if (signature_id == 0 || signature_id > UINT32_MAX || !is_valid_signature_id(signature_id)) {
+            if (!is_valid_signature_id(signature_id)) {
               add_error(ModuleManifestErrorCode::InvalidValue, signature->Mark(), field + ".signature",
                         "signature id is not a valid module ABI v1 signature id");
             } else {
               parsed.signature_id = static_cast<std::uint32_t>(signature_id);
+              ModuleExportMarshaling decoded;
+              static_cast<void>(decode_module_export_marshaling(parsed.signature_id, decoded));
+              parsed.marshaling = decoded;
             }
           }
           if (!parsed.name.empty() && !seen.insert(parsed.name).second) {
             add_error(ModuleManifestErrorCode::DuplicateEntry, node[index].Mark(), field, "export names must be unique");
+          }
+          /* The decoded marshaling descriptor (todo 10) is DERIVED data: when
+           * present it must agree with signature_id exactly, otherwise
+           * serialization would not be canonical. Mismatch = parse error. */
+          if (parsed.marshaling.has_value() && (return_type != nullptr || params != nullptr)) {
+            const auto& expected = *parsed.marshaling;
+            if (return_type != nullptr) {
+              std::string value;
+              if (read_string(*return_type, field + ".return", value)) {
+                const auto type = marshaling_type_from_name(value);
+                if (!type.has_value()) {
+                  add_error(ModuleManifestErrorCode::InvalidValue, return_type->Mark(), field + ".return", "unknown marshaling type code");
+                } else if (*type != expected.return_type) {
+                  add_error(ModuleManifestErrorCode::InvalidValue, return_type->Mark(), field + ".return",
+                            "return type disagrees with the signature id");
+                }
+              }
+            }
+            if (params != nullptr) {
+              if (!params->IsSequence()) {
+                add_error(ModuleManifestErrorCode::WrongType, params->Mark(), field + ".params", "expected a sequence of marshaling type codes");
+              } else if (params->size() != expected.param_count) {
+                add_error(ModuleManifestErrorCode::InvalidValue, params->Mark(), field + ".params",
+                          "parameter count disagrees with the signature id");
+              } else {
+                for (std::size_t param = 0; param < params->size(); ++param) {
+                  const auto param_field = field + ".params[" + std::to_string(param) + ']';
+                  std::string value;
+                  if (params->operator[](param).IsScalar() && read_string(params->operator[](param), param_field, value)) {
+                    const auto type = marshaling_type_from_name(value);
+                    if (!type.has_value()) {
+                      add_error(ModuleManifestErrorCode::InvalidValue, params->operator[](param).Mark(), param_field,
+                                "unknown marshaling type code");
+                    } else if (*type != expected.params[param]) {
+                      add_error(ModuleManifestErrorCode::InvalidValue, params->operator[](param).Mark(), param_field,
+                                "parameter type disagrees with the signature id");
+                    }
+                  }
+                }
+              }
+            }
           }
           manifest_.exports.push_back(std::move(parsed));
         }
@@ -376,16 +464,43 @@ namespace mobagen::modules {
       output << "  producer: " << manifest.toolchain->producer << '\n';
       output << "  version: " << manifest.toolchain->version << '\n';
     }
-    output << "exports:\n";
-    for (const auto& entry : manifest.exports) {
-      output << "  - name: " << entry.name << '\n';
-      output << "    signature: " << entry.signature_id << '\n';
+    if (manifest.exports.empty()) {
+      output << "exports: []\n";
+    } else {
+      output << "exports:\n";
+      for (const auto& entry : manifest.exports) {
+        output << "  - name: " << entry.name << '\n';
+        output << "    signature: " << entry.signature_id << '\n';
+        /* Derived marshaling descriptor (todo 10): decoded from the signature
+         * id so the dispatchers can walk the manifest mechanically. Always
+         * emitted for valid ids; byte-stable because the decode is pure. */
+        ModuleExportMarshaling decoded;
+        if (decode_module_export_marshaling(entry.signature_id, decoded)) {
+          std::string_view return_name;
+          if (marshaling_type_name(decoded.return_type, return_name)) {
+            output << "    return: " << return_name << '\n';
+            output << "    params: [";
+            for (std::uint32_t param = 0; param < decoded.param_count; ++param) {
+              std::string_view param_name;
+              if (marshaling_type_name(decoded.params[param], param_name)) {
+                if (param != 0) output << ", ";
+                output << param_name;
+              }
+            }
+            output << "]\n";
+          }
+        }
+      }
     }
-    output << "payloads:\n";
-    for (const auto& payload : manifest.payloads) {
-      output << "  - file: " << payload.filename << '\n';
-      output << "    hash: " << payload.hash << '\n';
-      output << "    size: " << payload.size << '\n';
+    if (manifest.payloads.empty()) {
+      output << "payloads: []\n";
+    } else {
+      output << "payloads:\n";
+      for (const auto& payload : manifest.payloads) {
+        output << "  - file: " << payload.filename << '\n';
+        output << "    hash: " << payload.hash << '\n';
+        output << "    size: " << payload.size << '\n';
+      }
     }
     return std::move(output).str();
   }

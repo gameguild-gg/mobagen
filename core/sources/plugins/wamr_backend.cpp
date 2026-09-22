@@ -126,31 +126,36 @@ namespace mobagen::plugins {
       return static_cast<WasmHostImports*>(wasm_runtime_get_custom_data(module_instance));
     }
 
-    std::uint32_t host_log(wasm_exec_env_t execution_environment, std::uint32_t level, std::uint32_t message_offset,
-                           std::uint32_t message_size) noexcept {
+    /* Resolves the executing instance's imports and walks the canonical
+       descriptor for `id` over the guest's real linear memory. */
+    template <WasmHostImportId id, std::size_t cell_count>
+    std::uint32_t dispatch_import(wasm_exec_env_t execution_environment, const std::array<std::uint32_t, cell_count>& cells) noexcept {
       if (execution_environment == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
       const auto module_instance = wasm_runtime_get_module_inst(execution_environment);
       auto* imports = module_host_imports(module_instance);
       if (module_instance == nullptr || imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
-      return imports->log(module_memory(module_instance), level, message_offset, message_size);
+      return dispatch_wasm_host_import(*imports, id, module_memory(module_instance), cells);
+    }
+
+    /* Canonical host imports marshal through the shared descriptor walker
+     * (todo 10) — the same cells->typed-call interpretation the browser
+     * backend's import seam uses. */
+    std::uint32_t host_log(wasm_exec_env_t execution_environment, std::uint32_t level, std::uint32_t message_offset,
+                           std::uint32_t message_size) noexcept {
+      const std::array<std::uint32_t, 3> cells{level, message_offset, message_size};
+      return dispatch_import<WasmHostImportId::Log>(execution_environment, cells);
     }
 
     std::uint32_t host_find_capability(wasm_exec_env_t execution_environment, std::uint32_t capability_offset, std::uint32_t capability_size,
                                        std::uint32_t capability_version, std::uint32_t output_handle_offset) noexcept {
-      if (execution_environment == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
-      const auto module_instance = wasm_runtime_get_module_inst(execution_environment);
-      auto* imports = module_host_imports(module_instance);
-      if (module_instance == nullptr || imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
-      return imports->find_capability(module_memory(module_instance), capability_offset, capability_size, capability_version, output_handle_offset);
+      const std::array<std::uint32_t, 4> cells{capability_offset, capability_size, capability_version, output_handle_offset};
+      return dispatch_import<WasmHostImportId::FindCapability>(execution_environment, cells);
     }
 
     std::uint32_t host_submit_commands(wasm_exec_env_t execution_environment, std::uint32_t input_batch_offset,
                                        std::uint32_t result_offset) noexcept {
-      if (execution_environment == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
-      const auto module_instance = wasm_runtime_get_module_inst(execution_environment);
-      auto* imports = module_host_imports(module_instance);
-      if (module_instance == nullptr || imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
-      return imports->submit_commands(module_memory(module_instance), input_batch_offset, result_offset);
+      const std::array<std::uint32_t, 2> cells{input_batch_offset, result_offset};
+      return dispatch_import<WasmHostImportId::SubmitCommands>(execution_environment, cells);
     }
 
     std::array<NativeSymbol, 3>& host_symbols() {
@@ -308,6 +313,53 @@ namespace mobagen::plugins {
       }
 
       [[nodiscard]] std::span<std::byte> writable_memory() noexcept override { return mutable_memory(); }
+
+      /*
+       * Generic descriptor-driven export invocation (todo 10): marshals the
+       * raw cells per the descriptor's type codes straight into WAMR's argv
+       * cell array — the native wasm convention already matches (i64/f64
+       * occupy two consecutive u32 cells on wasm32) — after bounds-checking
+       * ptr/span cells against this instance's linear memory. One path for
+       * every annotated export; mirrors browser_wasm_invoke_typed_export.
+       */
+      [[nodiscard]] int typed_export_call(std::string_view export_name, const modules::ModuleExportMarshaling& marshaling,
+                                          std::span<const std::uint32_t> cells, std::array<std::uint32_t, 2>& out_result_cells,
+                                          std::string& error) noexcept {
+        out_result_cells = {};
+        if (marshaling.param_count > modules::module_abi_max_export_params) return -2;
+        const auto memory = mutable_memory();
+        if (!modules::module_marshaling_cells_in_bounds(marshaling, cells, memory.size())) return -3;
+        if (std::this_thread::get_id() != owner_thread_) {
+          error = "WAMR instance called outside its owner thread";
+          return -4;
+        }
+
+        char name[128]{};
+        const auto length = std::min(export_name.size(), sizeof name - 1U);
+        std::memcpy(name, export_name.data(), length);
+        const auto exported = wasm_runtime_lookup_function(module_instance_, name);
+        if (exported == nullptr) return -1;
+
+        std::array<std::uint32_t, max_argument_cells> argv{};
+        const auto argument_cells = modules::module_marshaling_cell_count(marshaling);
+        if (argument_cells > argv.size() || cells.size() != argument_cells) return -2;
+        std::ranges::copy(cells, argv.begin());
+
+        wasm_runtime_clear_exception(module_instance_);
+        if (!wasm_runtime_call_wasm(execution_environment_, exported, argument_cells, argv.data())) {
+          error = "WAMR exception while invoking ";
+          error += name;
+          if (const char* exception = wasm_runtime_get_exception(module_instance_); exception != nullptr && *exception != '\0') {
+            error += ": ";
+            error += exception;
+          }
+          wasm_runtime_clear_exception(module_instance_);
+          return -4;
+        }
+        out_result_cells[0] = argv[0];
+        out_result_cells[1] = argv[1];
+        return 0;
+      }
 
     private:
       [[nodiscard]] std::span<std::byte> mutable_memory() const noexcept { return module_memory(module_instance_); }
@@ -476,8 +528,7 @@ namespace mobagen::plugins {
 
   PortableWasmInstantiationResult WamrBackend::instantiate_loaded(std::shared_ptr<WasmHostImports> host_imports,
                                                                   std::span<const std::byte> binary) {
-    if (binary.empty()) return PortableWasmInstantiationResult::failure("WAMR cannot instantiate an empty module");
-    if (binary.size() > std::numeric_limits<std::uint32_t>::max()) {
+    if (binary.empty()) return PortableWasmInstantiationResult::failure("WAMR cannot instantiate an empty module");    if (binary.size() > std::numeric_limits<std::uint32_t>::max()) {
       return PortableWasmInstantiationResult::failure("WAMR module exceeds the 32-bit binary size limit");
     }
     std::string memory_error;
@@ -545,6 +596,17 @@ namespace mobagen::plugins {
       wasm_runtime_unload(module);
       return PortableWasmInstantiationResult::failure("WAMR instance allocation failed");
     }
+  }
+
+  int WamrBackend::wamr_invoke_typed_export(PortableWasmInstance& instance, std::string_view export_name,
+                                            const modules::ModuleExportMarshaling& marshaling, std::span<const std::uint32_t> cells,
+                                            std::array<std::uint32_t, 2>& out_result_cells, std::string* out_error) noexcept {
+    auto* const wamr_instance = dynamic_cast<WamrInstance*>(&instance);
+    if (wamr_instance == nullptr) return -1;
+    std::string error;
+    const auto status = wamr_instance->typed_export_call(export_name, marshaling, cells, out_result_cells, error);
+    if (status != 0 && out_error != nullptr) *out_error = error;
+    return status;
   }
 
 }  // namespace mobagen::plugins

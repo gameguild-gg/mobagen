@@ -2,6 +2,7 @@
 
 #include "wasm_plugin_loader.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -58,6 +59,22 @@ namespace mobagen::plugins {
      * shared_heap_size_bytes is 0. The span stays valid for the backend's
      * lifetime. Consumed by todo 13's native memory shim. */
     [[nodiscard]] WamrSharedHeapRegion shared_heap_region() const noexcept;
+
+    /*
+     * Generic descriptor-driven export invocation (todo 10), native
+     * counterpart of browser_wasm_invoke_typed_export: walks the decoded
+     * marshaling descriptor and marshals raw u32 cells per its type codes —
+     * i32/i64/f32/f64 pass through; ptr/span are (offset[,size]) pairs
+     * bounds-checked against the guest linear memory BEFORE the call.
+     *
+     * out_result_cells[0] (and [1] for i64/f64 returns) receives the result.
+     * Returns 0 ok; -1 missing export / wrong instance; -2 bad descriptor;
+     * -3 cells out of bounds; -4 WAMR call failure (result carries the
+     * exception text).
+     */
+    [[nodiscard]] static int wamr_invoke_typed_export(PortableWasmInstance& instance, std::string_view export_name,
+                                                      const modules::ModuleExportMarshaling& marshaling, std::span<const std::uint32_t> cells,
+                                                      std::array<std::uint32_t, 2>& out_result_cells, std::string* out_error = nullptr) noexcept;
 
   private:
     class Impl;

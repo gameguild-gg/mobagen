@@ -174,4 +174,39 @@ namespace mobagen::plugins {
     return status;
   }
 
+  std::uint32_t dispatch_wasm_host_import(const WasmHostImports& imports, WasmHostImportId id, std::span<std::byte> memory,
+                                          std::span<const std::uint32_t> cells) noexcept {
+    const auto* descriptor = find_wasm_host_import_descriptor(id);
+    if (descriptor == nullptr) return MOBAGEN_WASM_STATUS_UNSUPPORTED;
+    /* Unknown signature/shape is rejected here — load-time validation keeps
+     * manifests decodable, and the canonical import descriptors are static,
+     * so this guard only fires for host-side wiring bugs, never for guest
+     * data. */
+    if (!modules::module_marshaling_cells_in_bounds(descriptor->marshaling, cells, memory.size())) {
+      return MOBAGEN_WASM_STATUS_INVALID_ARGUMENT;
+    }
+
+    switch (id) {
+      case WasmHostImportId::Log: {
+        const auto level = cells[0];
+        const auto message_offset = cells[1];
+        const auto message_size = cells[2];
+        return imports.log(memory, level, message_offset, message_size);
+      }
+      case WasmHostImportId::FindCapability: {
+        const auto capability_offset = cells[0];
+        const auto capability_size = cells[1];
+        const auto version = cells[2];
+        const auto output_handle_offset = cells[3];
+        return imports.find_capability(memory, capability_offset, capability_size, version, output_handle_offset);
+      }
+      case WasmHostImportId::SubmitCommands: {
+        const auto input_batch_offset = cells[0];
+        const auto result_offset = cells[1];
+        return imports.submit_commands(memory, input_batch_offset, result_offset);
+      }
+    }
+    return MOBAGEN_WASM_STATUS_UNSUPPORTED;
+  }
+
 }  // namespace mobagen::plugins

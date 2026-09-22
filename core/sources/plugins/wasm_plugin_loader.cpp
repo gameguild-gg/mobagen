@@ -2,6 +2,8 @@
 
 #include "modules/module_manifest.hpp"
 
+#include <mobagen/module/module_abi.h>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -17,6 +19,7 @@
 namespace mobagen::plugins {
   namespace {
 
+    constexpr std::string_view quiesce_export_symbol = MOBAGEN_MODULE_THREAD_QUIESCE_EXPORT_V1;
     constexpr std::array wasm_magic{std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d}};
     constexpr std::array wasm_version_1{std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
 
@@ -219,7 +222,83 @@ namespace mobagen::plugins {
       result.adopt_loaded_plugin(path, std::move(instantiated.instance), std::move(*queried.provider));
     }
 
+    struct ManifestCheck {
+      std::optional<modules::ModuleManifest> manifest;
+      bool present{};
+    };
+
+    ManifestCheck validate_present_manifest(const std::filesystem::path& package, PortableWasmPluginLoadResult& result) {
+      const auto manifest_path = package / portable_wasm_plugin_manifest_filename();
+      std::error_code error;
+      if (!std::filesystem::is_regular_file(manifest_path, error) || error) return {};
+      std::ifstream input(manifest_path, std::ios::binary);
+      if (!input.is_open()) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::ManifestInvalid, manifest_path, "module.manifest could not be opened");
+        return {.present = true};
+      }
+      std::string source{std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+      auto parsed = modules::parse_module_manifest(source, manifest_path.string());
+      if (!parsed.ok()) {
+        auto message = std::string{"module.manifest is invalid"};
+        if (!parsed.errors.empty()) message += ": " + parsed.errors.front().message;
+        add_issue(result, PortableWasmPluginLoadIssueCode::ManifestInvalid, manifest_path, std::move(message));
+        return {.present = true};
+      }
+      const auto& manifest = *parsed.manifest;
+      if (manifest.threads == modules::ModuleThreadsPolicy::Managed
+          && std::ranges::find(manifest.exports, std::string_view{quiesce_export_symbol}, &modules::ModuleManifestExport::name)
+              == manifest.exports.end()) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::MissingExport, package,
+                  std::string{"module.manifest declares managed threads but does not export "} + std::string{quiesce_export_symbol});
+        return {.present = true};
+      }
+      return {.manifest = std::move(parsed.manifest), .present = true};
+    }
+
   }  // namespace
+
+  PortableWasmPluginLoadResult verify_portable_wasm_module_contract(const std::filesystem::path& package,
+                                                                    const PortableWasmModuleContract& contract) {
+    PortableWasmPluginLoadResult result;
+    const auto check = validate_present_manifest(package, result);
+    if (!check.present) {
+      if (!contract.signature.empty()) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::MissingManifest, package / portable_wasm_plugin_manifest_filename(),
+                  "contract lockfile requires a module.manifest in the plugin package");
+      }
+      return result;
+    }
+    if (!check.manifest.has_value()) return result;
+    const auto& actual = *check.manifest;
+    if (actual.api_version != contract.api_version) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::ApiVersionMismatch, package,
+                "module.manifest api version " + std::to_string(actual.api_version) + " does not match the locked api version "
+                    + std::to_string(contract.api_version));
+    }
+    if (actual.abi_version != contract.abi_version) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::AbiVersionMismatch, package,
+                "module.manifest abi version " + std::to_string(actual.abi_version) + " does not match the locked abi version "
+                    + std::to_string(contract.abi_version));
+    }
+    if (actual.threads != contract.threads) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::ThreadsPolicyMismatch, package,
+                std::string{"module.manifest threads policy "} + std::string{modules::module_threads_policy_name(actual.threads)}
+                    + " does not match the locked policy " + std::string{modules::module_threads_policy_name(contract.threads)});
+    }
+    if (actual.shared_memory != contract.shared_memory) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::SharedMemoryMismatch, package,
+                std::string{"module.manifest shared-memory is "} + (actual.shared_memory ? "true" : "false") + " but the lock says "
+                    + (contract.shared_memory ? "true" : "false"));
+    }
+    if (!contract.signature.empty()) {
+      const auto digest = modules::module_manifest_signature(actual);
+      if (digest != contract.signature) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::SignatureMismatch, package,
+                  "module.manifest export-table digest does not match the locked signature");
+      }
+    }
+    return result;
+  }
 
   PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend,
                                                                  WasmHostServices host_services) {
@@ -277,8 +356,11 @@ namespace mobagen::plugins {
       return result;
     }
 
+    /* A present manifest is validated eagerly, before any payload is read (todo 11). */
+    const auto manifest_check = validate_present_manifest(absolute, result);
+    if (manifest_check.present && !manifest_check.manifest.has_value()) return result;
+
     const auto aot = absolute / portable_wasm_plugin_aot_filename();
-    const auto manifest_path = absolute / portable_wasm_plugin_manifest_filename();
     std::error_code aot_error;
     const auto aot_is_regular = std::filesystem::is_regular_file(aot, aot_error) && !aot_error;
     /* Payload selection stays inside the backend (todo 7): the loader only
@@ -295,13 +377,8 @@ namespace mobagen::plugins {
       if (!aot_ok) return result;
 
       std::string toolchain_version;
-      std::error_code manifest_error;
-      const auto manifest_is_regular = std::filesystem::is_regular_file(manifest_path, manifest_error) && !manifest_error;
-      if (manifest_is_regular) {
-        std::ifstream manifest_input(manifest_path, std::ios::binary);
-        std::string manifest_source{std::istreambuf_iterator<char>{manifest_input}, std::istreambuf_iterator<char>{}};
-        const auto manifest = modules::parse_module_manifest(manifest_source, manifest_path.string());
-        if (manifest.ok() && manifest.manifest->toolchain.has_value()) toolchain_version = manifest.manifest->toolchain->version;
+      if (manifest_check.manifest.has_value() && manifest_check.manifest->toolchain.has_value()) {
+        toolchain_version = manifest_check.manifest->toolchain->version;
       }
 
       PortableWasmAotSelection selection;

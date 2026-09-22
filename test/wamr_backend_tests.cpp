@@ -15,9 +15,11 @@
 #include <thread>
 #include <vector>
 
+#include <mobagen/module/module_abi.h>
 #include <mobagen/plugin/wasm_abi.h>
 
 #include "modules/capability_registry.hpp"
+#include "modules/module_manifest.hpp"
 #include "plugins/wamr_backend.hpp"
 #include "plugins/wasm_plugin_activation_set.hpp"
 #include "plugins/wasm_runtime.hpp"
@@ -810,6 +812,99 @@ TEST_CASE("WAMR backend: a shared heap region is exposed, attached, and reused")
 
   WamrBackend bad_heap({.shared_heap_size_bytes = 8U});
   CHECK_FALSE(bad_heap.available());
+}
+
+TEST_CASE("WAMR backend: descriptor-driven marshal invokes a two-i32 export with correct values") {
+  using namespace mobagen::plugins;
+  using mobagen::modules::ModuleMarshalingType;
+  using mobagen::modules::ModuleExportMarshaling;
+
+  /* (add: (i32,i32)->i32 via local.get 0; local.get 1; i32.add) plus the
+     required memory export; type section also declares ()->void for a void
+     probe. */
+  std::vector<std::byte> module{
+      std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+  };
+  std::vector<std::byte> types;
+  append_u32_leb(types, 2);
+  for (const std::uint32_t parameter_count : {2U, 0U}) {
+    types.push_back(std::byte{0x60});
+    append_u32_leb(types, parameter_count);
+    for (std::uint32_t parameter = 0; parameter < parameter_count; ++parameter) types.push_back(std::byte{0x7f});
+    if (parameter_count != 0U) {
+      types.push_back(std::byte{0x01});
+      types.push_back(std::byte{0x7f});
+    } else {
+      types.push_back(std::byte{0x00});
+    }
+  }
+  append_section(module, 1, types);
+
+  const std::array function_section{std::byte{0x02}, std::byte{0x00}, std::byte{0x01}};
+  append_section(module, 3, function_section);
+  const std::array memory_section{std::byte{0x01}, std::byte{0x00}, std::byte{0x01}};
+  append_section(module, 5, memory_section);
+
+  std::vector<std::byte> exports;
+  append_u32_leb(exports, 2);
+  append_name(exports, MOBAGEN_WASM_MEMORY_EXPORT_V1);
+  exports.insert(exports.end(), {std::byte{0x02}, std::byte{0x00}});
+  append_name(exports, "mobagen_add");
+  exports.push_back(std::byte{0x00});
+  append_u32_leb(exports, 0);
+  append_section(module, 7, exports);
+
+  std::vector<std::byte> code;
+  append_u32_leb(code, 2);
+  std::vector<std::byte> add_body{std::byte{0x00}, std::byte{0x20}, std::byte{0x00}, std::byte{0x20}, std::byte{0x01}, std::byte{0x6a},
+                                  std::byte{0x0b}};
+  append_function_body(code, add_body);
+  std::vector<std::byte> void_body{std::byte{0x00}, std::byte{0x0b}};
+  append_function_body(code, void_body);
+  append_section(module, 10, code);
+
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  auto instantiated = backend.instantiate(module, nullptr);
+  REQUIRE_MESSAGE(instantiated.ok(), instantiated.error.value_or("unknown WAMR error"));
+
+  const ModuleExportMarshaling add_marshal{ModuleMarshalingType::I32, 2, {ModuleMarshalingType::I32, ModuleMarshalingType::I32}};
+  std::array<std::uint32_t, 2> result_cells{};
+  const std::array arguments{std::uint32_t{20}, std::uint32_t{22}};
+  const auto status = WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", add_marshal, arguments, result_cells);
+  REQUIRE(status == 0);
+  CHECK(result_cells[0] == 42);
+
+  /* Wrong cell count for the descriptor = loud rejection before the call. */
+  const std::array one_argument{std::uint32_t{20}};
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", add_marshal, one_argument, result_cells) == -3);
+
+  /* Unknown export name = missing-export rejection. */
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_missing", add_marshal, arguments, result_cells) == -1);
+
+  /* ptr cell beyond guest memory = bounds rejection before the call. */
+  const ModuleExportMarshaling ptr_marshal{ModuleMarshalingType::I32, 1, {ModuleMarshalingType::Ptr}};
+  const std::array out_of_bounds{std::uint32_t{0x7fffffff}};
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", ptr_marshal, out_of_bounds, result_cells) == -3);
+
+  /* Same descriptor decodes from a manifest round-trip: the descriptor the
+     dispatcher walks is exactly the manifest's derived data. */
+  const auto signature = MOBAGEN_MODULE_SIG_2(MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32);
+  mobagen::modules::ModuleManifest manifest;
+  manifest.api_version = 1;
+  manifest.abi_version = 1;
+  manifest.entry = "mobagen_module_entry_v1";
+  manifest.exports = {{"mobagen_add", signature, {}}};
+  const auto parsed = mobagen::modules::parse_module_manifest(mobagen::modules::serialize_module_manifest(manifest));
+  REQUIRE(parsed.ok());
+  REQUIRE(parsed.manifest->exports[0].marshaling.has_value());
+  CHECK(parsed.manifest->exports[0].marshaling->return_type == add_marshal.return_type);
+  CHECK(parsed.manifest->exports[0].marshaling->param_count == add_marshal.param_count);
+  CHECK(parsed.manifest->exports[0].marshaling->params == add_marshal.params);
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", *parsed.manifest->exports[0].marshaling, arguments,
+                                              result_cells)
+        == 0);
+  CHECK(result_cells[0] == 42);
 }
 
 TEST_CASE("WAMR backend: a dot-plugin package with a plugin.aot payload resolves through the loader") {

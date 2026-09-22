@@ -53,9 +53,15 @@ const BOOT_EVIDENCE = [
 // Todo 8: browser-backend module-load markers (MobagenBrowserBackendSmoke
 // output). The value-assert line proves a guest export was invoked through
 // the backend and returned the expected number, not just a boot.
+// Todo 10 extends the same smoke with the descriptor-driven dispatcher:
+// mobagen_smoke_mul(6,7) must return 42 through the generic marshaller, and
+// a span-taking export must marshal its (offset,size) pair correctly.
 const MODULE_SMOKE_EVIDENCE = [
   "[browser-smoke] PASS: reference guest loaded through BrowserWasmBackend (sync instantiate + descriptor query)",
   "[browser-smoke] PASS: mobagen_smoke_add(20, 22) returned 42",
+  "[browser-smoke] PASS: mobagen_smoke_mul(6, 7) returned 42 through the descriptor path",
+  "[browser-smoke] PASS: mobagen_smoke_span_sum({2,2,2,2,2}) returned 10 through the descriptor path",
+  "[browser-smoke] PASS: out-of-bounds span cells rejected before the call",
   "[browser-smoke] PASS: invalid wasm bytes mapped to the BackendFailure issue code",
   "browser-backend-smoke-ok",
 ];

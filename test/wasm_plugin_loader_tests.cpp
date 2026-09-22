@@ -233,7 +233,7 @@ TEST_CASE("Portable WASM plugin loader: v2 packages allow plugin.aot and module.
   write_binary(full_v2 / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
   std::ofstream(full_v2 / mobagen::plugins::portable_wasm_plugin_aot_filename()) << "aot-bytes";
   std::ofstream(full_v2 / mobagen::plugins::portable_wasm_plugin_manifest_filename()) << "schema: 2\napi: 1\nabi: 1\nentry: "
-                                                                                            "mobagen_module_entry_v1\nexports: []\n";
+                                                                                             "mobagen_module_entry_v1\nexports: []\n";
   const auto complete = mobagen::plugins::load_portable_wasm_plugin_package(full_v2, backend);
   CHECK(complete.plugin.has_value());
   CHECK(complete.issues.empty());
@@ -245,6 +245,47 @@ TEST_CASE("Portable WASM plugin loader: v2 packages allow plugin.aot and module.
   const auto near_miss = mobagen::plugins::load_portable_wasm_plugin_package(stray, backend);
   CHECK(has_issue(near_miss, mobagen::plugins::PortableWasmPluginLoadIssueCode::InvalidPackage));
   CHECK(backend.calls == 2);
+}
+
+TEST_CASE("Portable WASM plugin loader: a present module.manifest must parse") {
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+  const auto package = directory.path() / "broken.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(), "schema: 2\napi: not-a-number\n");
+
+  const auto loaded = mobagen::plugins::load_portable_wasm_plugin_package(package, backend);
+
+  CHECK_FALSE(loaded.ok());
+  CHECK(has_issue(loaded, mobagen::plugins::PortableWasmPluginLoadIssueCode::ManifestInvalid));
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable WASM plugin loader: managed threads require the quiesce export") {
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+  const auto package = directory.path() / "managed.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nthreads: managed\nexports: []\n");
+
+  const auto loaded = mobagen::plugins::load_portable_wasm_plugin_package(package, backend);
+
+  CHECK_FALSE(loaded.ok());
+  CHECK(has_issue(loaded, mobagen::plugins::PortableWasmPluginLoadIssueCode::MissingExport));
+  CHECK(backend.calls == 0);
+
+  const auto compliant = directory.path() / "quiesced.plugin";
+  REQUIRE(std::filesystem::create_directory(compliant));
+  write_binary(compliant / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(compliant / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nthreads: managed\nexports:\n  - name: "
+             "mobagen_module_thread_quiesce_v1\n    signature: 1291845632\n");
+  const auto quiesced = mobagen::plugins::load_portable_wasm_plugin_package(compliant, backend);
+  CHECK(quiesced.plugin.has_value());
+  CHECK(quiesced.issues.empty());
 }
 
 TEST_CASE("Portable WASM plugin catalog: manifest packages join builtins in one registry") {
