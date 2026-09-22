@@ -40,7 +40,51 @@ namespace mobagen::plugins {
 
     /* The backend must synchronously consume or compile the borrowed binary and retain host_imports in the returned instance. */
     [[nodiscard]] virtual PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary,
-                                                                      std::shared_ptr<WasmHostImports> host_imports)
+                                                                       std::shared_ptr<WasmHostImports> host_imports)
+        = 0;
+  };
+
+  /* Issue codes specific to the optional .aot payload of a v2 package. */
+  enum class PortableWasmAotIssueCode : std::uint8_t {
+    AotUnsupportedPlatform, /* this runtime build has AOT compiled out (e.g. iOS) */
+    AotVersionMismatch,     /* manifest toolchain version does not match the runtime's WAMR version */
+    AotInvalidBinary,       /* corrupted / truncated / unloadable .aot payload */
+  };
+
+  struct PortableWasmAotSelection {
+    PortableWasmInstantiationResult result;
+    std::optional<PortableWasmAotIssueCode> issue; /* set when the .aot payload was rejected */
+    bool used_aot{false};                          /* true when the instantiated module came from plugin.aot */
+  };
+
+  /*
+   * Optional SIDE interface for backends that can prefer an AOT payload over the
+   * interpreter payload. Additive: PortableWasmBackend itself never changes and
+   * every backend still satisfies it alone; the v2 package loader down-casts to
+   * this interface only when the package carries a plugin.aot payload. Payload
+   * selection therefore stays inside each backend (plan todo 7 Must NOT).
+   */
+  class AotAwarePortableWasmBackend {
+  public:
+    AotAwarePortableWasmBackend() = default;
+    AotAwarePortableWasmBackend(const AotAwarePortableWasmBackend&) = delete;
+    AotAwarePortableWasmBackend& operator=(const AotAwarePortableWasmBackend&) = delete;
+    AotAwarePortableWasmBackend(AotAwarePortableWasmBackend&&) = delete;
+    AotAwarePortableWasmBackend& operator=(AotAwarePortableWasmBackend&&) = delete;
+    virtual ~AotAwarePortableWasmBackend() = default;
+
+    /*
+     * Prefer the .aot payload when the platform allows it; fall back to the
+     * interpreter payload when .aot is absent. `aot_toolchain_version` is the
+     * producing wamrc/WAMR version from module.manifest (todo 2's toolchain
+     * field, protected by per-file hashing); empty means the manifest did not
+     * declare one. A declared-but-mismatched version must be rejected loudly
+     * BEFORE instantiation.
+     */
+    [[nodiscard]] virtual PortableWasmAotSelection instantiate_prefer_aot(std::span<const std::byte> wasm_binary,
+                                                                         std::span<const std::byte> aot_binary,
+                                                                         std::string_view aot_toolchain_version,
+                                                                         std::shared_ptr<WasmHostImports> host_imports)
         = 0;
   };
 
@@ -61,6 +105,7 @@ namespace mobagen::plugins {
   private:
     friend struct PortableWasmPluginLoadResult;
     friend PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path&, PortableWasmBackend&, WasmHostServices);
+    friend PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path&, PortableWasmBackend&, WasmHostServices);
     friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin, std::span<const std::byte>);
     friend PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin,
                                                                                    std::shared_ptr<const modules::CapabilityRegistry>,
@@ -85,6 +130,7 @@ namespace mobagen::plugins {
     OutOfMemory,
     InvalidPackage,
     MissingPackageBinary,
+    AotRejected,
   };
 
   struct PortableWasmPluginLoadIssue {
@@ -93,6 +139,7 @@ namespace mobagen::plugins {
     std::error_code system_error;
     std::string message;
     std::vector<WasmPluginQueryIssue> query_issues;
+    std::optional<PortableWasmAotIssueCode> aot_issue; /* set when code == AotRejected */
   };
 
   struct PortableWasmPluginLoadResult {
@@ -100,7 +147,13 @@ namespace mobagen::plugins {
     std::vector<PortableWasmPluginLoadIssue> issues;
 
     [[nodiscard]] bool ok() const noexcept { return plugin.has_value() && issues.empty(); }
+
+    /* Adopts an instantiated plugin into this result (private-ctor access via
+     * the loader's friendship, exposed for its internal helpers). */
+    void adopt_loaded_plugin(std::filesystem::path path, std::unique_ptr<PortableWasmInstance> instance, modules::ProviderDescriptor provider);
   };
+
+  [[nodiscard]] std::string_view portable_wasm_aot_issue_name(PortableWasmAotIssueCode code) noexcept;
 
   [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend,
                                                                               WasmHostServices host_services = {});

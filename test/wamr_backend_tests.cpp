@@ -4,6 +4,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <span>
 #include <string>
@@ -20,6 +24,86 @@
 #include "support/wasm_plugin_test_support.hpp"
 
 namespace {
+
+  /* WAMR AOT magic (config.h 0x746f6100, little-endian "\0aot") + the current
+   * AOT package version — synthesized "fake .aot" bytes for the always-run
+   * rejection tests (never a real wamrc artifact). */
+  constexpr std::array aot_magic_bytes{std::byte{0x00}, std::byte{0x61}, std::byte{0x6f}, std::byte{0x74}};
+
+  std::vector<std::byte> make_fake_aot(std::size_t size) {
+    std::vector<std::byte> bytes(size, std::byte{0});
+    if (size >= aot_magic_bytes.size()) {
+      std::ranges::copy(aot_magic_bytes, bytes.begin());
+      if (size >= 8) {
+        bytes[4] = std::byte{0x05};  // AOT_CURRENT_VERSION 5 for WAMR 2.4.5
+        bytes[5] = std::byte{0x00};
+        bytes[6] = std::byte{0x00};
+        bytes[7] = std::byte{0x00};
+      }
+    }
+    return bytes;
+  }
+
+#if !defined(MOBAGEN_TEST_WAMRC_CACHE_DIR)
+#define MOBAGEN_TEST_WAMRC_CACHE_DIR ""
+#endif
+
+#if !defined(MOBAGEN_TEST_WAMR_SOURCE_DIR)
+#define MOBAGEN_TEST_WAMR_SOURCE_DIR ""
+#endif
+
+  /* Runs wamrc (WAMR-2.4.5 prebuilt fetched into external/wamrc-cache/, or any
+   * wamrc on PATH built from the same pinned source) over a reference wasm to
+   * produce a real .aot fixture at test time. Returns empty when unavailable —
+   * callers must SKIP loudly then. */
+  std::vector<std::byte> compile_aot_fixture(const std::filesystem::path& wasm_path, const std::filesystem::path& output_path) {
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    if (const char* cache = std::getenv("MOBAGEN_WAMRC_PATH"); cache != nullptr && *cache != '\0') candidates.emplace_back(cache);
+    if constexpr (std::string_view{MOBAGEN_TEST_WAMRC_CACHE_DIR} != "") {
+      candidates.emplace_back(fs::path{MOBAGEN_TEST_WAMRC_CACHE_DIR} / "wamrc" / "wamrc");
+      candidates.emplace_back(fs::path{MOBAGEN_TEST_WAMRC_CACHE_DIR} / "wamrc");
+    }
+    candidates.emplace_back("wamrc");
+
+    fs::path wamrc;
+    std::string attempted;
+    for (const auto& candidate : candidates) {
+      std::error_code ignored;
+      if (fs::is_regular_file(candidate, ignored) || candidate == "wamrc") {
+        wamrc = candidate;
+        break;
+      }
+      attempted += " " + candidate.string();
+    }
+    if (wamrc.empty()) {
+      std::fprintf(stderr, "SKIP: no wamrc available (tried:%s); set MOBAGEN_WAMRC_PATH or populate external/wamrc-cache/ to enable the real-AOT fixture\n",
+                   attempted.c_str());
+      return {};
+    }
+
+#if defined(__aarch64__) || defined(_M_ARM64)
+    constexpr const char* target = "aarch64";
+#elif defined(__x86_64__) || defined(_M_X64)
+    constexpr const char* target = "x86_64";
+#else
+    std::fprintf(stderr, "SKIP: real-AOT fixture has no target mapping on this CPU\n");
+    return {};
+#endif
+
+    const auto command = wamrc.string() + " --target=" + target + " -o " + output_path.string() + " " + wasm_path.string() + " 2>&1";
+    const auto status = std::system(command.c_str());
+    std::error_code ignored;
+    if (status != 0 || !fs::is_regular_file(output_path, ignored) || fs::file_size(output_path, ignored) == 0) {
+      std::fprintf(stderr, "SKIP: wamrc failed to produce the .aot fixture (exit %d)\n", status);
+      fs::remove(output_path, ignored);
+      return {};
+    }
+
+    std::ifstream input(output_path, std::ios::binary);
+    std::string bytes{std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+    return {reinterpret_cast<const std::byte*>(bytes.data()), reinterpret_cast<const std::byte*>(bytes.data() + bytes.size())};
+  }
 
   void append_u32_leb(std::vector<std::byte>& output, std::uint32_t value) {
     do {
@@ -587,4 +671,218 @@ TEST_CASE("WAMR backend: a dot-plugin package resolves and activates end to end"
 
   CHECK(activated.activation->stop().ok());
   CHECK(active->state() == plugins::PortableWasmPluginState::Stopped);
+}
+
+#if MOBAGEN_WAMR_AOT_BUILD
+
+TEST_CASE("WAMR backend: AOT payload selection prefers .aot and falls back to the interpreter") {
+  using namespace mobagen::plugins;
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  CHECK(WamrBackend::runtime_wamr_version() == std::string_view{"2.4.5"});
+  const auto wasm = make_module(wasm_plugin_export_name(WasmPluginExport::Start));
+
+  SUBCASE("no .aot payload: interpreter fallback") {
+    const auto selection = backend.instantiate_prefer_aot(wasm, {}, "2.4.5", nullptr);
+    REQUIRE_MESSAGE(selection.result.ok(), selection.result.error.value_or("unknown WAMR error"));
+    CHECK_FALSE(selection.used_aot);
+    CHECK_FALSE(selection.issue.has_value());
+    const auto started = selection.result.instance->invoke(WasmPluginExport::Start, {});
+    REQUIRE(started.ok());
+    CHECK(*started.value == 0U);
+  }
+
+  SUBCASE("truncated .aot payload: loud AotInvalidBinary, no fallback") {
+    const auto truncated = make_fake_aot(3);
+    const auto selection = backend.instantiate_prefer_aot(wasm, truncated, "", nullptr);
+    CHECK_FALSE(selection.result.ok());
+    CHECK_FALSE(selection.used_aot);
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotInvalidBinary);
+    CHECK(selection.result.error->find("AOT") != std::string::npos);
+  }
+
+  SUBCASE("corrupted .aot payload with valid magic: loud AotInvalidBinary") {
+    auto corrupted = make_fake_aot(256);
+    for (std::size_t index = 8; index < corrupted.size(); ++index) corrupted[index] = std::byte{0xc3};
+    const auto selection = backend.instantiate_prefer_aot(wasm, corrupted, "", nullptr);
+    CHECK_FALSE(selection.result.ok());
+    CHECK_FALSE(selection.used_aot);
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotInvalidBinary);
+  }
+
+  SUBCASE("version-mismatched manifest toolchain: loud AotVersionMismatch before instantiation") {
+    const auto fake = make_fake_aot(64);
+    const auto selection = backend.instantiate_prefer_aot(wasm, fake, "2.4.4", nullptr);
+    CHECK_FALSE(selection.result.ok());
+    CHECK_FALSE(selection.used_aot);
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotVersionMismatch);
+    CHECK(selection.result.error->find("2.4.4") != std::string::npos);
+    CHECK(selection.result.error->find(WamrBackend::runtime_wamr_version()) != std::string::npos);
+  }
+
+  SUBCASE("matching manifest toolchain version is accepted") {
+    const auto fake = make_fake_aot(64);
+    const auto selection = backend.instantiate_prefer_aot(wasm, fake, std::string{WamrBackend::runtime_wamr_version()}, nullptr);
+    REQUIRE_FALSE(selection.result.ok());  // fake bytes cannot actually load
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotInvalidBinary);  // version check passed; payload itself is fake
+  }
+}
+
+TEST_CASE("WAMR backend: a real wamrc fixture loads and invokes through the AOT path") {
+  using namespace mobagen::plugins;
+  namespace fs = std::filesystem;
+
+  const mobagen::test::TemporaryWasmDirectory directory;
+  const auto wasm_path = directory.path() / "reference.wasm";
+  const auto aot_path = directory.path() / "reference.aot";
+  mobagen::test::write_binary(wasm_path, make_module(wasm_plugin_export_name(WasmPluginExport::Start)));
+
+  const auto aot = compile_aot_fixture(wasm_path, aot_path);
+  if (aot.empty()) return;  // SKIP already reported by compile_aot_fixture
+
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  const auto selection = backend.instantiate_prefer_aot(make_module(wasm_plugin_export_name(WasmPluginExport::Start)), aot,
+                                                        WamrBackend::runtime_wamr_version(), nullptr);
+  REQUIRE_MESSAGE(selection.result.ok(), selection.result.error.value_or("unknown WAMR error"));
+  CHECK(selection.used_aot);
+
+  const auto started = selection.result.instance->invoke(WasmPluginExport::Start, {});
+  REQUIRE(started.ok());
+  CHECK(*started.value == 0U);
+  REQUIRE(selection.result.instance->memory().size() == 64U * 1024U);
+}
+
+#else
+
+TEST_CASE("WAMR backend: AOT payloads are rejected on interpreter-only platforms") {
+  using namespace mobagen::plugins;
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  const auto wasm = make_module(wasm_plugin_export_name(WasmPluginExport::Start));
+  const auto selection = backend.instantiate_prefer_aot(wasm, make_fake_aot(64), "2.4.5", nullptr);
+  CHECK_FALSE(selection.result.ok());
+  REQUIRE(selection.issue.has_value());
+  CHECK(*selection.issue == PortableWasmAotIssueCode::AotUnsupportedPlatform);
+
+  const auto fallback = backend.instantiate_prefer_aot(wasm, {}, "2.4.5", nullptr);
+  REQUIRE_MESSAGE(fallback.result.ok(), fallback.result.error.value_or("unknown WAMR error"));
+  CHECK_FALSE(fallback.used_aot);
+}
+
+#endif
+
+TEST_CASE("WAMR backend: a shared heap region is exposed, attached, and reused") {
+  using namespace mobagen::plugins;
+  constexpr std::uint32_t heap_bytes = 8U * 1024U;
+
+  WamrBackend plain;
+  REQUIRE(plain.available());
+  CHECK(plain.shared_heap_region().data == nullptr);
+  CHECK(plain.shared_heap_region().size == 0U);
+
+  WamrBackend shared({.shared_heap_size_bytes = heap_bytes});
+  REQUIRE(shared.available());
+  const auto region = shared.shared_heap_region();
+  REQUIRE(region.data != nullptr);
+  CHECK(region.size >= heap_bytes);  // WAMR requires page-aligned sizes; the region may be rounded up
+  const auto region_size = region.size;
+  CHECK((reinterpret_cast<std::uintptr_t>(region.data) % (64U * 1024U)) == 0U);
+  region.data[0] = std::byte{0x7f};
+  region.data[region_size - 1] = std::byte{0x5a};
+
+  const auto wasm = make_module(wasm_plugin_export_name(WasmPluginExport::Start));
+  {
+    auto first = shared.instantiate(wasm, nullptr);
+    REQUIRE_MESSAGE(first.ok(), first.error.value_or("unknown WAMR error"));
+    CHECK(first.instance->writable_memory().size() == 64U * 1024U);
+    auto second = shared.instantiate(wasm, nullptr);
+    REQUIRE_MESSAGE(second.ok(), second.error.value_or("unknown WAMR error"));
+    CHECK(first.instance->invoke(WasmPluginExport::Start, {}).ok());
+    CHECK(second.instance->invoke(WasmPluginExport::Start, {}).ok());
+  }
+  CHECK(shared.shared_heap_region().data[0] == std::byte{0x7f});
+  CHECK(shared.shared_heap_region().data[region_size - 1] == std::byte{0x5a});
+
+  WamrBackend bad_heap({.shared_heap_size_bytes = 8U});
+  CHECK_FALSE(bad_heap.available());
+}
+
+TEST_CASE("WAMR backend: a dot-plugin package with a plugin.aot payload resolves through the loader") {
+  using namespace mobagen;
+  namespace fs = std::filesystem;
+
+  const test::TemporaryWasmDirectory directory;
+  HostCapture capture;
+  const plugins::WasmHostServices services{.state = &capture, .submit_commands = capture_commands};
+
+  const auto write_package = [&](const std::string& name) {
+    const auto package = directory.path() / name;
+    REQUIRE(fs::create_directory(package));
+    test::write_binary(package / plugins::portable_wasm_plugin_binary_filename(),
+                       make_module(plugins::wasm_plugin_export_name(plugins::WasmPluginExport::Start)));
+    return package;
+  };
+
+  plugins::WamrBackend backend;
+  REQUIRE(backend.available());
+
+#if MOBAGEN_WAMR_AOT_BUILD
+  const auto rejected = write_package("corrupt.plugin");
+  test::write_binary(rejected / plugins::portable_wasm_plugin_aot_filename(), make_fake_aot(3));
+  test::write_text(rejected / plugins::portable_wasm_plugin_manifest_filename(),
+                   "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\ntoolchain:\n  producer: wamrc\n  version: "
+                       + std::string{plugins::WamrBackend::runtime_wamr_version()} + "\n");
+  const auto corrupt = plugins::load_portable_wasm_plugin_package(rejected, backend, services);
+  CHECK_FALSE(corrupt.ok());
+  REQUIRE_FALSE(corrupt.issues.empty());
+  CHECK(corrupt.issues.front().code == plugins::PortableWasmPluginLoadIssueCode::AotRejected);
+  REQUIRE(corrupt.issues.front().aot_issue.has_value());
+  CHECK(*corrupt.issues.front().aot_issue == plugins::PortableWasmAotIssueCode::AotInvalidBinary);
+  CHECK(corrupt.issues.front().message.find("aot-invalid-binary") != std::string::npos);
+
+  const auto mismatched = write_package("mismatch.plugin");
+  test::write_binary(mismatched / plugins::portable_wasm_plugin_aot_filename(), make_fake_aot(64));
+  test::write_text(mismatched / plugins::portable_wasm_plugin_manifest_filename(),
+                   "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\ntoolchain:\n  producer: wamrc\n  version: 2.4.4\n");
+  const auto mismatch = plugins::load_portable_wasm_plugin_package(mismatched, backend, services);
+  CHECK_FALSE(mismatch.ok());
+  REQUIRE_FALSE(mismatch.issues.empty());
+  CHECK(mismatch.issues.front().code == plugins::PortableWasmPluginLoadIssueCode::AotRejected);
+  REQUIRE(mismatch.issues.front().aot_issue.has_value());
+  CHECK(*mismatch.issues.front().aot_issue == plugins::PortableWasmAotIssueCode::AotVersionMismatch);
+  CHECK(mismatch.issues.front().message.find("aot-version-mismatch") != std::string::npos);
+
+  const auto real_aot_package = directory.path() / "real.plugin";
+  REQUIRE(fs::create_directory(real_aot_package));
+  const auto reference = make_reference_plugin_module();
+  test::write_binary(real_aot_package / plugins::portable_wasm_plugin_binary_filename(), reference);
+  test::write_binary(directory.path() / "reference.wasm", reference);
+  const auto aot = compile_aot_fixture(directory.path() / "reference.wasm", directory.path() / "reference.aot");
+  if (!aot.empty()) {
+    CHECK(aot.size() > aot_magic_bytes.size());
+    test::write_binary(real_aot_package / plugins::portable_wasm_plugin_aot_filename(), aot);
+    test::write_text(real_aot_package / plugins::portable_wasm_plugin_manifest_filename(),
+                     "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\ntoolchain:\n  producer: wamrc\n  version: "
+                         + std::string{plugins::WamrBackend::runtime_wamr_version()} + "\n");
+    const auto loaded = plugins::load_portable_wasm_plugin_package(real_aot_package, backend, services);
+    std::string error = "unknown load error";
+    if (!loaded.issues.empty()) error = loaded.issues.front().message;
+    REQUIRE_MESSAGE(loaded.ok(), error);
+    CHECK(loaded.plugin->provider().id == "mobagen.wamr-reference");
+  }
+#endif
+
+  const auto fallback = directory.path() / "fallback.plugin";
+  REQUIRE(fs::create_directory(fallback));
+  test::write_binary(fallback / plugins::portable_wasm_plugin_binary_filename(), make_reference_plugin_module());
+  const auto plain = plugins::load_portable_wasm_plugin_package(fallback, backend, services);
+  std::string plain_error = "unknown load error";
+  if (!plain.issues.empty()) plain_error = plain.issues.front().message;
+  CHECK_MESSAGE(plain.ok(), plain_error);
+  CHECK(plain.plugin.has_value());
 }

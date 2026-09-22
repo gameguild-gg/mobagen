@@ -1,11 +1,14 @@
 #include "wasm_plugin_loader.hpp"
 
+#include "modules/module_manifest.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <fstream>
+#include <iterator>
 #include <new>
 #include <string>
 #include <utility>
@@ -18,8 +21,9 @@ namespace mobagen::plugins {
     constexpr std::array wasm_version_1{std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
 
     void add_issue(PortableWasmPluginLoadResult& result, PortableWasmPluginLoadIssueCode code, const std::filesystem::path& path, std::string message,
-                   std::error_code system_error = {}, std::vector<WasmPluginQueryIssue> query_issues = {}) {
-      result.issues.push_back({code, path, system_error, std::move(message), std::move(query_issues)});
+                   std::error_code system_error = {}, std::vector<WasmPluginQueryIssue> query_issues = {},
+                   std::optional<PortableWasmAotIssueCode> aot_issue = {}) {
+      result.issues.push_back({code, path, system_error, std::move(message), std::move(query_issues), aot_issue});
     }
 
   }  // namespace
@@ -148,6 +152,75 @@ namespace mobagen::plugins {
 
   std::filesystem::path portable_wasm_plugin_manifest_filename() { return "module.manifest"; }
 
+  std::string_view portable_wasm_aot_issue_name(PortableWasmAotIssueCode code) noexcept {
+    switch (code) {
+      case PortableWasmAotIssueCode::AotUnsupportedPlatform:
+        return "aot-unsupported-platform";
+      case PortableWasmAotIssueCode::AotVersionMismatch:
+        return "aot-version-mismatch";
+      case PortableWasmAotIssueCode::AotInvalidBinary:
+        return "aot-invalid-binary";
+    }
+    return "aot-unknown";
+  }
+
+  void PortableWasmPluginLoadResult::adopt_loaded_plugin(std::filesystem::path path, std::unique_ptr<PortableWasmInstance> instance,
+                                                         modules::ProviderDescriptor provider) {
+    plugin = LoadedPortableWasmPlugin{std::move(path), std::move(instance), std::move(provider)};
+  }
+
+  namespace {
+
+    std::vector<std::byte> read_payload_file(const std::filesystem::path& path, PortableWasmPluginLoadResult& result, bool& ok) {
+      std::vector<std::byte> bytes;
+      ok = false;
+      std::error_code error;
+      const auto size = std::filesystem::file_size(path, error);
+      if (error || size > max_portable_wasm_plugin_binary_bytes) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::SizeLimit, path,
+                  "portable plugin payload size is unavailable or exceeds the 64 MiB binary limit", error);
+        return bytes;
+      }
+      std::ifstream input(path, std::ios::binary);
+      if (!input.is_open()) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::OpenFailed, path, "portable plugin payload could not be opened");
+        return bytes;
+      }
+      bytes.resize(static_cast<std::size_t>(size));
+      input.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+      if (input.gcount() != static_cast<std::streamsize>(bytes.size())) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::OpenFailed, path, "portable plugin payload changed while loading");
+        return bytes;
+      }
+      ok = true;
+      return bytes;
+    }
+
+    void finish_instantiated_result(PortableWasmPluginLoadResult& result, PortableWasmInstantiationResult instantiated,
+                                    const std::filesystem::path& path, std::shared_ptr<WasmHostImports>& host_imports) {
+      if (!instantiated.ok()) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::BackendFailure, path,
+                  instantiated.error.has_value() ? std::move(*instantiated.error) : "portable WASM backend returned no instance");
+        return;
+      }
+      if (instantiated.instance->host_imports() != host_imports.get()) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::BackendFailure, path,
+                  "portable WASM backend returned an instance that does not retain its injected host imports");
+        return;
+      }
+
+      auto queried = query_portable_wasm_plugin(*instantiated.instance);
+      if (!queried.ok()) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::QueryFailed, path, "portable WASM plugin descriptor query failed", {},
+                  std::move(queried.issues));
+        return;
+      }
+
+      result.adopt_loaded_plugin(path, std::move(instantiated.instance), std::move(*queried.provider));
+    }
+
+  }  // namespace
+
   PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend,
                                                                  WasmHostServices host_services) {
     PortableWasmPluginLoadResult result;
@@ -196,6 +269,67 @@ namespace mobagen::plugins {
       return result;
     }
 
+    std::shared_ptr<WasmHostImports> host_imports;
+    try {
+      host_imports = std::make_shared<WasmHostImports>(host_services);
+    } catch (const std::bad_alloc&) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::OutOfMemory, absolute, "portable WASM host imports allocation failed");
+      return result;
+    }
+
+    const auto aot = absolute / portable_wasm_plugin_aot_filename();
+    const auto manifest_path = absolute / portable_wasm_plugin_manifest_filename();
+    std::error_code aot_error;
+    const auto aot_is_regular = std::filesystem::is_regular_file(aot, aot_error) && !aot_error;
+    /* Payload selection stays inside the backend (todo 7): the loader only
+     * gathers payloads and the manifest toolchain version, then hands both to
+     * the backend's optional AOT side interface. Backends that do not
+     * implement it (browser backend, test fakes) always use plugin.wasm. */
+    auto* aot_aware = aot_is_regular ? dynamic_cast<AotAwarePortableWasmBackend*>(&backend) : nullptr;
+    if (aot_aware != nullptr) {
+      bool wasm_ok = false;
+      const auto wasm_bytes = read_payload_file(binary, result, wasm_ok);
+      if (!wasm_ok) return result;
+      bool aot_ok = false;
+      const auto aot_bytes = read_payload_file(aot, result, aot_ok);
+      if (!aot_ok) return result;
+
+      std::string toolchain_version;
+      std::error_code manifest_error;
+      const auto manifest_is_regular = std::filesystem::is_regular_file(manifest_path, manifest_error) && !manifest_error;
+      if (manifest_is_regular) {
+        std::ifstream manifest_input(manifest_path, std::ios::binary);
+        std::string manifest_source{std::istreambuf_iterator<char>{manifest_input}, std::istreambuf_iterator<char>{}};
+        const auto manifest = modules::parse_module_manifest(manifest_source, manifest_path.string());
+        if (manifest.ok() && manifest.manifest->toolchain.has_value()) toolchain_version = manifest.manifest->toolchain->version;
+      }
+
+      PortableWasmAotSelection selection;
+      try {
+        selection = aot_aware->instantiate_prefer_aot(wasm_bytes, aot_bytes, toolchain_version, host_imports);
+      } catch (const std::bad_alloc&) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::OutOfMemory, absolute, "portable WASM backend ran out of memory");
+        return result;
+      } catch (const std::exception& exception) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::BackendFailure, absolute, std::string{"portable WASM backend threw: "} + exception.what());
+        return result;
+      } catch (...) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::BackendFailure, absolute, "portable WASM backend threw");
+        return result;
+      }
+      if (!selection.result.ok()) {
+        auto message = selection.result.error.has_value() ? std::move(*selection.result.error) : std::string{"portable WASM backend returned no instance"};
+        if (selection.issue.has_value()) {
+          message = "portable plugin package AOT payload rejected (" + std::string{portable_wasm_aot_issue_name(*selection.issue)} + "): " + message;
+        }
+        add_issue(result, PortableWasmPluginLoadIssueCode::AotRejected, aot, std::move(message), {}, {}, selection.issue);
+        return result;
+      }
+      finish_instantiated_result(result, std::move(selection.result), binary, host_imports);
+      return result;
+    }
+
+    /* Interpreter path: no plugin.aot payload, or the backend ignores AOT. */
     return load_portable_wasm_plugin_binary(binary, backend, host_services);
   }
 

@@ -31,6 +31,9 @@ set(WAMR_BUILD_MULTI_MODULE 0)
 set(WAMR_BUILD_THREAD_MGR 1)
 set(WAMR_BUILD_LIB_PTHREAD 1)
 set(WAMR_BUILD_SHARED_MEMORY 1)
+# Shared-heap library (wasm_runtime_create_shared_heap / attach) — todo 7's
+# backend shared heap and todo 13's memory shim consume it.
+set(WAMR_BUILD_SHARED_HEAP 1)
 set(WAMR_BUILD_SIMD 0)
 set(WAMR_BUILD_REF_TYPES 0)
 set(WAMR_BUILD_BULK_MEMORY 1)
