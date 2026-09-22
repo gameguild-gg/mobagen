@@ -253,31 +253,54 @@ class WebPlatform(Platform):
             "-DEMSCRIPTEN=1",
             f"-DCMAKE_BUILD_TYPE={self.cfg.build_type}",
             "-DENABLE_TEST_COVERAGE=OFF",
+            # Reset cached C/CXX flags: the root CMakeLists appends the variant
+            # flags to CMAKE_*_FLAGS, so a stale cache from a differently-flagged
+            # configure would stack conflicting -sUSE_PTHREADS=0/1 settings.
+            "-DCMAKE_C_FLAGS=",
+            "-DCMAKE_CXX_FLAGS=",
             "-H.", f"-B{self.cfg.build_dir}",
         ]
 
-    def _cmake_configure(self, extra: Optional[list[str]] = None) -> None:
-        build_dir = self.cfg.build_dir
+    def _configure_variant(self, build_dir: Path, shared: bool) -> None:
         if self.cfg.clean and build_dir.exists():
             info(f"Cleaning {build_dir}")
             shutil.rmtree(build_dir)
         build_dir.mkdir(parents=True, exist_ok=True)
 
-        env = None
         cmd = self.configure_args()
-        if extra:
-            cmd += extra
+        # configure_args targets cfg.build_dir; retarget at this variant's dir.
+        cmd = [c if not c.startswith("-B") else f"-B{build_dir}" for c in cmd]
+        cmd.append(f"-DMOBAGEN_WEB_SHARED={'ON' if shared else 'OFF'}")
         for kv in self.cfg.extra_cmake:
             cmd.append(f"-D{kv}" if not kv.startswith("-D") else kv)
-        run(cmd, env=env)
+        run(cmd)
 
-    def build(self) -> None:
-        env = None
-        cmd = ["cmake", "--build", str(self.cfg.build_dir),
+    def _build_variant(self, build_dir: Path) -> None:
+        cmd = ["cmake", "--build", str(build_dir),
                "--parallel", str(self.cfg.parallel)]
         if self.cfg.target != "all":
             cmd += ["--target", self.cfg.target]
-        run(cmd, env=env)
+        run(cmd)
+
+    def execute(self) -> None:
+        self.detect_toolchain()
+
+        # Two build variants (dynamic-loading-all-platforms todo 5): shared
+        # (pthreads + shared memory -> needs crossOriginIsolated) and isolated
+        # (always-bootable fallback). Both trees always ship; a shared-only
+        # Pages deploy would brick non-isolated browsers. CPM sources are
+        # shared via external/cpm.cmake's CPM_SOURCE_CACHE=<repo>/external.
+        variants = [
+            ("shared", self.cfg.build_dir, True),
+            ("isolated", self.cfg.build_dir.with_name(self.cfg.build_dir.name + "-isolated"), False),
+        ]
+        for name, build_dir, shared in variants:
+            info(f"--- Web variant: {name} -> {build_dir} ---")
+            self._configure_variant(build_dir, shared)
+            self._build_variant(build_dir)
+
+        if self.cfg.run_after:
+            self.run_target()
 
     def run_target(self) -> None:
         bin_dir = self.cfg.build_dir / "bin"

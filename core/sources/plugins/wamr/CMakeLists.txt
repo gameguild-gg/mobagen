@@ -22,20 +22,34 @@ endif()
 
 set(WAMR_BUILD_INTERP 1)
 set(WAMR_BUILD_FAST_INTERP 1)
-set(WAMR_BUILD_AOT 0)
 set(WAMR_BUILD_JIT 0)
 set(WAMR_BUILD_FAST_JIT 0)
 set(WAMR_BUILD_LIBC_BUILTIN 0)
 set(WAMR_BUILD_LIBC_WASI 0)
 set(WAMR_BUILD_MULTI_MODULE 0)
-set(WAMR_BUILD_THREAD_MGR 0)
-set(WAMR_BUILD_LIB_PTHREAD 0)
-set(WAMR_BUILD_SHARED_MEMORY 0)
+# pthread lib + shared memory require the thread manager; all three on together.
+set(WAMR_BUILD_THREAD_MGR 1)
+set(WAMR_BUILD_LIB_PTHREAD 1)
+set(WAMR_BUILD_SHARED_MEMORY 1)
 set(WAMR_BUILD_SIMD 0)
 set(WAMR_BUILD_REF_TYPES 0)
 set(WAMR_BUILD_BULK_MEMORY 1)
 set(WAMR_BUILD_MEMORY64 0)
 set(WAMR_DISABLE_HW_BOUND_CHECK 1)
+
+# AOT-load only on desktop/android; iOS toolchain stays interpreter-only.
+# Guard first, before this file sets its own value, so an explicit
+# -DWAMR_BUILD_AOT=1 request on the iOS toolchain fails at configure time.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  if(WAMR_BUILD_AOT)
+    message(FATAL_ERROR
+      "WAMR_BUILD_AOT=1 was requested but the iOS toolchain is interpreter-only "
+      "(no AOT on iOS, per mobagen policy). Reconfigure without -DWAMR_BUILD_AOT=1.")
+  endif()
+  set(WAMR_BUILD_AOT 0)
+else()
+  set(WAMR_BUILD_AOT 1)
+endif()
 
 set(WAMR_ROOT_DIR "${wasm-micro-runtime_SOURCE_DIR}")
 include("${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake")
@@ -45,6 +59,13 @@ add_library(mobagen::wamr_vm ALIAS mobagen_wamr_vm)
 target_compile_features(mobagen_wamr_vm PUBLIC c_std_11)
 target_include_directories(mobagen_wamr_vm PUBLIC "${WAMR_ROOT_DIR}/core/iwasm/include")
 set_target_properties(mobagen_wamr_vm PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# Compile-time AOT marker: 1 on desktop/android, 0 on iOS — verifiable in the
+# build graph without a device (e.g. genex-visible in compile commands).
+if(WAMR_BUILD_AOT)
+  target_compile_definitions(mobagen_wamr_vm PUBLIC MOBAGEN_WAMR_AOT_BUILD=1)
+else()
+  target_compile_definitions(mobagen_wamr_vm PUBLIC MOBAGEN_WAMR_AOT_BUILD=0)
+endif()
 
 find_package(Threads REQUIRED)
 target_link_libraries(mobagen_wamr_vm PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
