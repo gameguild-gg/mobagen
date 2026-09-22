@@ -303,11 +303,66 @@ class WebPlatform(Platform):
             self.run_target()
 
     def run_target(self) -> None:
-        bin_dir = self.cfg.build_dir / "bin"
-        if not bin_dir.exists():
-            die(f"Build output not found at {bin_dir}. Build first.")
-        info(f"Serving {bin_dir} at http://localhost:8000 (Ctrl+C to stop)")
-        run([sys.executable, "-m", "http.server", "8000"], cwd=bin_dir, check=False)
+        shared_root = self.cfg.build_dir / "bin"
+        isolated_root = self.cfg.build_dir.with_name(
+            self.cfg.build_dir.name + "-isolated"
+        ) / "bin"
+        if not shared_root.exists():
+            die(f"Build output not found at {shared_root}. Build first.")
+        if not isolated_root.exists():
+            warn(
+                f"Isolated variant not found at {isolated_root}; serving the "
+                f"shared tree at / without an isolated fallback."
+            )
+        _serve_web_coop_coep(isolated_root, shared_root)
+
+
+def _serve_web_coop_coep(
+    isolated_root: Path, shared_root: Optional[Path], port: int = 8000
+) -> None:
+    """Serve the web trees with COOP/COEP isolation headers.
+
+    Layout mirrors the static-host deployment the pages assume (see
+    htmls/mobagen_variant.js): / -> isolated tree (always bootable),
+    /shared/ -> shared tree, /isolated/ -> isolated tree alias. With the
+    headers below every context is crossOriginIsolated, so the in-page
+    variant picker upgrades to the shared bundle under /shared/.
+    """
+    import http.server
+    import urllib.parse
+
+    class CoopCoepHandler(http.server.SimpleHTTPRequestHandler):
+        def end_headers(self) -> None:
+            self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+            self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+            super().end_headers()
+
+        def translate_path(self, path: str) -> str:
+            rel = urllib.parse.unquote(urllib.parse.urlsplit(path).path)
+            if shared_root is not None and rel.startswith("/shared/"):
+                root, rest = shared_root, rel[len("/shared/"):]
+            elif rel.startswith("/isolated/"):
+                root, rest = isolated_root, rel[len("/isolated/"):]
+            else:
+                root, rest = isolated_root, rel.lstrip("/")
+            parts = [p for p in rest.split("/") if p not in ("", ".")]
+            if any(p == ".." for p in parts):
+                return str(root / "__traversal_blocked__")
+            if not parts:
+                return str(root)
+            return str(root.joinpath(*parts))
+
+    isolated_display = isolated_root if isolated_root.exists() else shared_root
+    info(
+        f"Serving http://localhost:{port} "
+        f"/ -> {isolated_display} | /shared/ -> {shared_root} "
+        f"(COOP+COEP on every response; Ctrl+C to stop)"
+    )
+    with http.server.ThreadingHTTPServer(("", port), CoopCoepHandler) as httpd:
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            ok("Dev server stopped.")
 
 # ---------------------------------------------------------------------------
 # Linux
