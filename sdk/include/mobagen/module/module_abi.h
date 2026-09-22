@@ -286,8 +286,31 @@ MOBAGEN_MODULE_EXPORT MobagenModuleStatus MOBAGEN_MODULE_CALL mobagen_module_ent
       = {MOBAGEN_MODULE_TABLE_V1, MOBAGEN_MODULE_ABI_VERSION, (uint32_t)MOBAGEN_MODULE_ENTRY_COUNT(__VA_ARGS__), 0U,                     \
          MOBAGEN_MODULE_ENTRY_CAT(MOBAGEN_MODULE_TABLE_LIST_, MOBAGEN_MODULE_ENTRY_COUNT(__VA_ARGS__))(table_, ##__VA_ARGS__)};          \
   MOBAGEN_MODULE_STATIC_ASSERT(MOBAGEN_MODULE_ENTRY_COUNT(__VA_ARGS__) == table_##_capacity,                                             \
-                               "MOBAGEN_MODULE_EXPORT_TABLE_END: entry_count mismatch - the entry list must name exactly the functions " \
-                               "annotated since TABLE_BEGIN")
+                                "MOBAGEN_MODULE_EXPORT_TABLE_END: entry_count mismatch - the entry list must name exactly the functions " \
+                                "annotated since TABLE_BEGIN")
+
+/*
+ * Wasm discoverability bridge (additive; consumed by the extraction tool).
+ *
+ * A C struct array in linear memory cannot be a wasm export on its own. This
+ * declares the canonical export symbol MOBAGEN_MODULE_TABLE_EXPORT_SYMBOL_V1
+ * as a const global holding the table's linear-memory OFFSET. wasm-ld turns
+ * that global's address into an immutable wasm global; the linker may fold
+ * the address into the global init expression (global init == table offset,
+ * read the table directly at that address) or keep the four storage bytes in
+ * linear memory (storage at the global's address holds the table offset —
+ * read a u32 there first and use it as the table address). Both shapes are
+ * produced by wasm-ld depending on its garbage collection; consumers resolve
+ * the export, then follow one indirection at most. `used` keeps the storage
+ * alive in the second shape. Invoke AFTER MOBAGEN_MODULE_EXPORT_TABLE_END —
+ * the table must be complete.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#  define MOBAGEN_MODULE_EXPORT_PUBLISH_TABLE(table_) \
+    __attribute__((used, visibility("default"))) const uintptr_t mobagen_module_exports_v1 = (uintptr_t)&table_;
+#else
+#  define MOBAGEN_MODULE_EXPORT_PUBLISH_TABLE(table_) const uintptr_t mobagen_module_exports_v1 = (uintptr_t)&table_;
+#endif
 
 #ifdef __cplusplus
 } /* extern "C" */

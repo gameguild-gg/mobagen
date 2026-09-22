@@ -97,6 +97,9 @@ endif()
 if(TARGET mobagen::plugin_cli)
   list(APPEND FOUNDATION_TEST_SOURCES plugin_cli_tests.cpp)
 endif()
+if(TARGET mobagen::module_extraction)
+  list(APPEND FOUNDATION_TEST_SOURCES module_manifest_extraction_tests.cpp)
+endif()
 if(TARGET mobagen::project_cli)
   list(APPEND FOUNDATION_TEST_SOURCES project_cli_tests.cpp)
 endif()
@@ -163,6 +166,12 @@ if(TARGET MobagenDefaultAssetStorePlugin)
     PRIVATE MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH="$<TARGET_FILE:MobagenDefaultAssetStorePlugin>"
   )
 endif()
+if(MOBAGEN_WASM_BACKEND_WAMR)
+  # Real-AOT fixture path (todo 7): wamrc fetched out-of-band into the
+  # gitignored external/wamrc-cache/ dir, or MOBAGEN_WAMRC_PATH at test time;
+  # the suite skips loudly when neither is present.
+  target_compile_definitions(FoundationTests PRIVATE MOBAGEN_TEST_WAMRC_CACHE_DIR="${CMAKE_SOURCE_DIR}/external/wamrc-cache")
+endif()
 target_include_directories(
   FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks
                           ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
@@ -191,6 +200,19 @@ if(TARGET mobagen::asset_cli)
 endif()
 if(TARGET mobagen::plugin_cli)
   target_link_libraries(FoundationTests PRIVATE mobagen::plugin_cli)
+endif()
+if(TARGET mobagen::module_extraction)
+  target_link_libraries(FoundationTests PRIVATE mobagen::module_extraction)
+  if(TARGET mobagen_module_reference_guests)
+    add_dependencies(FoundationTests mobagen_module_reference_guests)
+    target_compile_definitions(
+      FoundationTests
+      PRIVATE
+        MOBAGEN_MODULE_EXTRACTION_REFERENCE_GUEST="${CMAKE_BINARY_DIR}/tools/modules/reference_guest/plugin.wasm"
+        MOBAGEN_MODULE_EXTRACTION_ENTRYLESS_GUEST="${CMAKE_BINARY_DIR}/tools/modules/entryless_guest/plugin.wasm"
+        MOBAGEN_MODULE_EXTRACTION_GOLDEN_MANIFEST="${CMAKE_SOURCE_DIR}/tools/modules/golden_manifest.yaml"
+    )
+  endif()
 endif()
 if(TARGET mobagen::project_cli)
   target_link_libraries(FoundationTests PRIVATE mobagen::project_cli)
@@ -234,6 +256,9 @@ if(TARGET mobagen_asset_cli)
 endif()
 if(TARGET mobagen_plugin_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_plugin_cli)
+endif()
+if(TARGET mobagen_module_extraction)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_extraction)
 endif()
 if(TARGET mobagen_project_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_project_cli)
