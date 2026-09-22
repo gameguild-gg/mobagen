@@ -5,6 +5,9 @@
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
 #  include "native/locked_project.hpp"
 #endif
+#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_BROWSER)
+#  include "plugins/browser/browser_wasm_backend.hpp"
+#endif
 
 #include <algorithm>
 #include <map>
@@ -190,7 +193,15 @@ namespace mobagen::compositions {
     }
 
     if (profile->linkage == modules::LinkageMode::Wasm) {
-      if (services.portable_backend == nullptr) {
+#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_BROWSER)
+      /* Web default backend (todo 8): the browser engine compiles/instantiates
+         plugin modules; callers can still inject their own backend. */
+      plugins::BrowserWasmBackend bundled_browser_backend;
+      plugins::PortableWasmBackend* backend = services.portable_backend != nullptr ? services.portable_backend : &bundled_browser_backend;
+#else
+      plugins::PortableWasmBackend* backend = services.portable_backend;
+#endif
+      if (backend == nullptr) {
         result.issues.push_back({
             .code = LockedProjectIssueCode::PortableBackendUnavailable,
             .message = "selected wasm profile requires a portable backend",
@@ -203,7 +214,7 @@ namespace mobagen::compositions {
                                                      .target = options.target,
                                                      .profile = std::move(options.profile),
                                                  },
-                                                 *services.portable_backend, services.builtin_providers, services.wasm_host_services);
+                                                 *backend, services.builtin_providers, services.wasm_host_services);
       if (!opened.ok()) {
         append_open_issues(result, LockedProjectIssueCode::PortableProject, std::move(opened.issues));
         return result;
