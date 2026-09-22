@@ -238,6 +238,11 @@ if(MOBAGEN_BUILD_PLUGIN_TOOLS AND NOT EMSCRIPTEN)
   add_subdirectory(tools/plugins)
 endif()
 
+option(MOBAGEN_BUILD_MODULE_TOOLS "Build the native Mobagen module manifest command-line tools" ON)
+if(MOBAGEN_BUILD_MODULE_TOOLS AND MOBAGEN_BUILD_MANIFEST_TOOLS AND NOT EMSCRIPTEN)
+  add_subdirectory(tools/modules)
+endif()
+
 option(MOBAGEN_BUILD_CATALOG_TOOLS "Build native first-party module catalog tooling"
        ${MOBAGEN_BUILD_MANIFEST_TOOLS}
 )

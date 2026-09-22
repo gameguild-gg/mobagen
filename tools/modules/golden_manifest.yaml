@@ -1,0 +1,17 @@
+schema: 2
+api: 1
+abi: 1
+entry: mobagen_module_entry_v1
+threads: none
+shared-memory: false
+exports:
+  - name: reference_guest_ping
+    signature: 1294092288
+  - name: reference_guest_span_bytes
+    signature: 1293107200
+  - name: reference_guest_health
+    signature: 1291845632
+payloads:
+  - file: plugin.wasm
+    hash: sha256:903ff216ecd145cf086bd5c523383d3b70be0666606c1294bbe5e3c10cdd129d
+    size: 463
