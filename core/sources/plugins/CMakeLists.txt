@@ -50,5 +50,18 @@ target_link_libraries(mobagen_core_plugins PRIVATE ${CMAKE_DL_LIBS})
 if(MOBAGEN_WASM_BACKEND_WAMR)
   add_subdirectory(wamr)
   target_sources(mobagen_core_plugins PRIVATE wamr_backend.cpp wamr_backend.hpp)
-  target_link_libraries(mobagen_core_plugins PRIVATE mobagen::wamr_vm)
+  # PUBLIC: consumers of the static lib must link the WAMR runtime and see its
+  # MOBAGEN_WAMR_AOT_BUILD compile definition (tests gate AOT cases on it).
+  target_link_libraries(mobagen_core_plugins PUBLIC mobagen::wamr_vm)
+  # v2 package AOT path reads module.manifest's toolchain version (todo 7).
+  if(TARGET mobagen::module_manifest)
+    target_link_libraries(mobagen_core_plugins PRIVATE mobagen::module_manifest)
+  endif()
+endif()
+
+# Browser backend (todo 8): delegates plugin compilation to the browser's own
+# wasm engine via the synchronous WebAssembly.Module/Instance constructors.
+# Emscripten-only; also builds the MobagenBrowserBackendSmoke node bundle.
+if(EMSCRIPTEN)
+  add_subdirectory(browser)
 endif()

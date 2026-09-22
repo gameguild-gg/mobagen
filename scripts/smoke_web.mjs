@@ -15,8 +15,13 @@
 // wasm memory constructed at startup -> cannot boot in a non-isolated
 // browser context; node allows SAB in dedicated workers only, hence the
 // worker_threads host); isolated = single-threaded flags, boots anywhere.
-// Todo 8 extends this runner with module-loading checks under the same CLI
-// (hook points: BOOT_TARGET, BOOT_EVIDENCE, extraModuleConfig()).
+//
+// Todo 8 extension: after the headless boot, the runner ALSO boots the
+// MobagenBrowserBackendSmoke bundle of the same variant. That bundle runs the
+// real loader pipeline through BrowserWasmBackend (sync WebAssembly.Module +
+// Instance over the reference guest bytes) and asserts an exported function's
+// return value; its stdout marker `browser-backend-smoke-ok` is required
+// evidence. Same --variant CLI, same exit contract.
 //
 // Node shims (verified against generated bundles): SDL3's emscripten port
 // reads `window.location.search` inside an EM_ASM during SDL_Init, so a
@@ -35,6 +40,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 
 const BOOT_TARGET = "headless";
+const MODULE_SMOKE_TARGET = "MobagenBrowserBackendSmoke";
 const BOOT_TIMEOUT_MS = 120_000;
 
 // Engine-side markers proving real startup progress (headless app output):
@@ -42,6 +48,16 @@ const BOOT_TIMEOUT_MS = 120_000;
 const BOOT_EVIDENCE = [
   "Creating Headless World",
   "Headless simulation completed successfully!",
+];
+
+// Todo 8: browser-backend module-load markers (MobagenBrowserBackendSmoke
+// output). The value-assert line proves a guest export was invoked through
+// the backend and returned the expected number, not just a boot.
+const MODULE_SMOKE_EVIDENCE = [
+  "[browser-smoke] PASS: reference guest loaded through BrowserWasmBackend (sync instantiate + descriptor query)",
+  "[browser-smoke] PASS: mobagen_smoke_add(20, 22) returned 42",
+  "[browser-smoke] PASS: invalid wasm bytes mapped to the BackendFailure issue code",
+  "browser-backend-smoke-ok",
 ];
 
 function parseArgs(argv) {
@@ -149,7 +165,7 @@ function extraModuleConfig() {
   return {};
 }
 
-function boot(jsPath, timeoutMs) {
+function boot(jsPath, timeoutMs, bootEvidence = BOOT_EVIDENCE) {
   return new Promise((resolve) => {
     let settled = false;
     const settle = (m) => {
@@ -160,7 +176,7 @@ function boot(jsPath, timeoutMs) {
     };
     const child = new Worker(BOOT_WORKER_SOURCE, {
       eval: true,
-      workerData: { jsPath, bootEvidence: BOOT_EVIDENCE, timeoutMs, extraModuleConfig: extraModuleConfig() },
+      workerData: { jsPath, bootEvidence, timeoutMs, extraModuleConfig: extraModuleConfig() },
     });
     child.on("message", (m) => settle(m));
     child.on("error", (e) => settle({ ok: false, error: "worker error: " + e }));
@@ -172,6 +188,7 @@ async function main() {
   const args = parseArgs(process.argv);
   const binDir = variantBinDir(args.variant);
   const jsPath = path.join(binDir, `${BOOT_TARGET}.js`);
+  const moduleSmokePath = path.join(binDir, `${MODULE_SMOKE_TARGET}.js`);
 
   console.log(`[smoke_web] variant=${args.variant} bin=${binDir} target=${BOOT_TARGET}`);
 
@@ -191,15 +208,25 @@ async function main() {
     process.exit(1);
   }
 
-  const result = await boot(jsPath, BOOT_TIMEOUT_MS);
-
-  if (result.ok) {
-    console.log(`[smoke_web] PASS: ${args.variant} variant booted (evidence: ${result.seen.join(" | ")})`);
-    process.exit(0);
-  } else {
-    console.error(`[smoke_web] FAIL: ${args.variant} variant boot failed: ${result.error}`);
+  const bootResult = await boot(jsPath, BOOT_TIMEOUT_MS);
+  if (!bootResult.ok) {
+    console.error(`[smoke_web] FAIL: ${args.variant} variant boot failed: ${bootResult.error}`);
     process.exit(1);
   }
+  console.log(`[smoke_web] PASS: ${args.variant} variant booted (evidence: ${bootResult.seen.join(" | ")})`);
+
+  // Todo 8: module loading through BrowserWasmBackend, same variant.
+  if (!fs.existsSync(moduleSmokePath)) {
+    console.error(`[smoke_web] FAIL: ${moduleSmokePath} not found — run 'python3 scripts/build.py web' first`);
+    process.exit(1);
+  }
+  const moduleSmokeResult = await boot(moduleSmokePath, BOOT_TIMEOUT_MS, MODULE_SMOKE_EVIDENCE);
+  if (moduleSmokeResult.ok) {
+    console.log(`[smoke_web] PASS: ${args.variant} variant browser-backend module load (evidence: ${moduleSmokeResult.seen.join(" | ")})`);
+    process.exit(0);
+  }
+  console.error(`[smoke_web] FAIL: ${args.variant} variant browser-backend module load failed: ${moduleSmokeResult.error}`);
+  process.exit(1);
 }
 
 main().catch((e) => {
