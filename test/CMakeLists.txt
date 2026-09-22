@@ -44,6 +44,8 @@ set(FOUNDATION_TEST_SOURCES
     module_descriptor_tests.cpp
     module_execution_graph_tests.cpp
     module_lifecycle_tests.cpp
+    module_abi_c_test.c
+    module_abi_tests.cpp
     module_registry_tests.cpp
     module_resolver_tests.cpp
     plugin_abi_c_test.c

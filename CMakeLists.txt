@@ -103,12 +103,33 @@ if(EMSCRIPTEN)
   # with current emsdk crashes (SIGABRT) at link time. Every WebGPU-capable browser supports WASM,
   # so the JS fallback served no purpose here. -pthread: the emdawnwebgpu port links with shared
   # memory, which requires all objects to be compiled with atomics + bulk-memory features.
+  #
+  # Web build variants (dual-variant policy, dynamic-loading-all-platforms todo 5):
+  #   MOBAGEN_WEB_SHARED=ON  -> shared variant: -sUSE_PTHREADS=1 -sSHARED_MEMORY=1 (SAB-capable,
+  #                             needs crossOriginIsolated; emdawnwebgpu already links shared memory)
+  #   MOBAGEN_WEB_SHARED=OFF -> isolated variant: -sUSE_PTHREADS=0 -sSHARED_MEMORY=0 (always
+  #                             bootable fallback for non-isolated contexts: Safari/static hosts)
+  # A -sSHARED_MEMORY=1 engine constructs shared wasm memory at startup and FAILS TO BOOT in any
+  # non-crossOriginIsolated browser context (no runtime toggle) — hence BOTH variants are shipped
+  # and a boot-time capability probe picks between them (todo 6). ASYNCIFY stays on in both: todo 9
+  # owns its verdict with evidence. PROXY_TO_PTHREAD is deliberately NOT set.
+  option(MOBAGEN_WEB_SHARED "Web build variant: shared memory + pthreads (vs isolated fallback)" ON)
+  if(MOBAGEN_WEB_SHARED)
+    set(MOBAGEN_WEB_VARIANT_FLAGS "-sUSE_PTHREADS=1 -sSHARED_MEMORY=1")
+    set(MOBAGEN_WEB_VARIANT_NAME "shared")
+  else()
+    set(MOBAGEN_WEB_VARIANT_FLAGS "-sUSE_PTHREADS=0 -sSHARED_MEMORY=0")
+    set(MOBAGEN_WEB_VARIANT_NAME "isolated")
+  endif()
+  message(STATUS "emscripten variant: ${MOBAGEN_WEB_VARIANT_NAME} (${MOBAGEN_WEB_VARIANT_FLAGS})")
   set(CMAKE_CXX_FLAGS
-      "${CMAKE_CXX_FLAGS} -Oz -s USE_PTHREADS=0 -sSHARED_MEMORY=0 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_CXX_FLAGS} -Oz ${MOBAGEN_WEB_VARIANT_FLAGS} -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
   set(CMAKE_C_FLAGS
-      "${CMAKE_C_FLAGS} -Oz -s USE_PTHREADS=0 -sSHARED_MEMORY=0 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_C_FLAGS} -Oz ${MOBAGEN_WEB_VARIANT_FLAGS} -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
+  # C++ variant visibility (todos 6/8/14 read it): 1 in the shared variant, undefined otherwise.
+  add_compile_definitions($<$<BOOL:${MOBAGEN_WEB_SHARED}>:MOBAGEN_WEB_SHARED=1>)
 
   file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/htmls/*")
   file(COPY ${HTML} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
