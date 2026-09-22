@@ -114,6 +114,20 @@ static int overlaps(uint32_t offset, uint32_t size, const Allocation* allocation
 
 MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_smoke_add(uint32_t a, uint32_t b) { return a + b; }
 
+/* Todo 10 dispatcher representative: a second two-i32 export invoked through
+   the generic descriptor-driven dispatcher, plus a span-taking export so the
+   (offset,size) marshaling pair is exercised on the web too. */
+MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_smoke_mul(uint32_t a, uint32_t b) { return a * b; }
+
+MOBAGEN_WASM_GUEST_EXPORT uint32_t mobagen_smoke_span_sum(MobagenModuleSpan32 span) {
+  uint32_t sum = 0;
+  uint32_t index;
+  uint8_t* bytes = guest_pointer(span.offset, span.size);
+  if (bytes == NULL) return UINT32_MAX;
+  for (index = 0; index < span.size; ++index) sum += bytes[index];
+  return sum;
+}
+
 MOBAGEN_WASM_GUEST_EXPORT MobagenModuleStatus MOBAGEN_MODULE_CALL mobagen_module_entry_v1(const MobagenModuleHostApiV1* host,
                                                                                            MobagenModuleDescriptorV1* descriptor) {
   if (host == NULL || descriptor == NULL) return MOBAGEN_MODULE_STATUS_INVALID_ARGUMENT;
@@ -126,10 +140,13 @@ MOBAGEN_WASM_GUEST_EXPORT MobagenModuleStatus MOBAGEN_MODULE_CALL mobagen_module
   return MOBAGEN_MODULE_STATUS_OK;
 }
 
-MOBAGEN_MODULE_EXPORT_TABLE_BEGIN(MobagenBrowserSmokeExports, 1)
+MOBAGEN_MODULE_EXPORT_TABLE_BEGIN(MobagenBrowserSmokeExports, 3)
 MOBAGEN_MODULE_EXPORT_ENTRY(MobagenBrowserSmokeExports, mobagen_smoke_add, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32,
                             MOBAGEN_MODULE_T_I32)
-MOBAGEN_MODULE_EXPORT_TABLE_END(MobagenBrowserSmokeExports, mobagen_smoke_add);
+MOBAGEN_MODULE_EXPORT_ENTRY(MobagenBrowserSmokeExports, mobagen_smoke_mul, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32,
+                            MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(MobagenBrowserSmokeExports, mobagen_smoke_span_sum, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_SPAN)
+MOBAGEN_MODULE_EXPORT_TABLE_END(MobagenBrowserSmokeExports, mobagen_smoke_add, mobagen_smoke_mul, mobagen_smoke_span_sum);
 
 /* The annotation table must be discoverable under the canonical symbol. */
 const MobagenModuleExportTableV1* MOBAGEN_WASM_GUEST_EXPORT mobagen_module_exports_v1 = (const MobagenModuleExportTableV1*)&MobagenBrowserSmokeExports;

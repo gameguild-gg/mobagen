@@ -1,7 +1,10 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <cstddef>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -17,11 +20,139 @@ namespace mobagen::modules {
   inline constexpr std::string_view module_aot_payload_filename = "plugin.aot";
   inline constexpr std::string_view module_entry_symbol_v1 = "mobagen_module_entry_v1";
 
+  inline constexpr std::uint32_t module_abi_max_export_params = 5;
+
+  /*
+   * Marshaling type codes — the decoded view of the module ABI v1 signature-id
+   * type codes (sdk/include/mobagen/module/module_abi.h MOBAGEN_MODULE_T_*).
+   * The numbering is identical on purpose: the descriptor carries no
+   * vocabulary beyond what the signature table already defines.
+   */
+  enum class ModuleMarshalingType : std::uint8_t {
+    Void = 0,
+    I32 = 1,
+    I64 = 2,
+    F32 = 3,
+    F64 = 4,
+    Ptr = 5,
+    Span = 6,
+  };
+
+  /*
+   * The marshaling DESCRIPTOR for one annotated export (todo 10): pure data
+   * decoded from the signature-id. The generic dispatchers — the browser
+   * backend's typed invoke / host-import seam and the WAMR native shims —
+   * walk this mechanically: i32/i64/f32/f64 pass through, ptr resolves to a
+   * bounds-checked offset, span to a bounds-checked (offset,size) pair
+   * against the guest linear memory.
+   */
+  struct ModuleExportMarshaling {
+    ModuleMarshalingType return_type{ModuleMarshalingType::Void};
+    std::uint32_t param_count{};
+    std::array<ModuleMarshalingType, module_abi_max_export_params> params{}; /* first param_count entries valid */
+  };
+
+  /*
+   * THE shared decode helper (one place; header-only so every consumer —
+   * manifest validation, the extraction tool, both dispatchers — includes it
+   * without link dependencies). False = the id is not decodable. That is a
+   * load-time contract: manifests carrying it are rejected at parse, and a
+   * dispatcher that still receives one fails loudly at the call boundary.
+   */
+  [[nodiscard]] inline bool decode_module_export_marshaling(std::uint32_t signature_id, ModuleExportMarshaling& out) noexcept {
+    if ((signature_id >> 24) != 0x4DU || (signature_id & 0x3U) != 0) return false;
+    const auto count = (signature_id >> 20) & 0xFU;
+    if (count > out.params.size()) return false;
+    const auto return_code = (signature_id >> 17) & 0x7U;
+    if (return_code > static_cast<std::uint32_t>(ModuleMarshalingType::Span)) return false;
+    out.return_type = static_cast<ModuleMarshalingType>(return_code);
+    out.param_count = count;
+    for (std::uint32_t index = 0; index < count; ++index) {
+      const auto code = (signature_id >> (14U - 3U * index)) & 0x7U;
+      if (code > static_cast<std::uint32_t>(ModuleMarshalingType::Span)) return false;
+      out.params[index] = static_cast<ModuleMarshalingType>(code);
+    }
+    return true;
+  }
+
+  /*
+   * Cells (u32 words) one descriptor's argument list occupies — the wasm
+   * boundary convention shared by both dispatchers: i32/f32/ptr/span take
+   * one cell (a span cell names the guest-memory (offset,size) pair), i64
+   * and f64 take two.
+   */
+  [[nodiscard]] inline std::uint32_t module_marshaling_cell_count(const ModuleExportMarshaling& marshaling) noexcept {
+    std::uint32_t cells = 0;
+    for (std::uint32_t index = 0; index < marshaling.param_count; ++index) {
+      const auto type = marshaling.params[index];
+      cells += type == ModuleMarshalingType::I64 || type == ModuleMarshalingType::F64 ? 2U : 1U;
+    }
+    return cells;
+  }
+
+  /*
+   * Validates a cell list against a decoded descriptor and the guest linear
+   * memory size BEFORE any call: exact cell count, ptr offsets inside memory
+   * (0 is the ABI null offset and passes), span cells pointing at a readable
+   * 8-byte (offset,size) pair (the wasm32 calling convention passes the
+   * by-value MobagenModuleSpan32 struct by hidden reference — one i32
+   * argument naming where the pair lives). Pure.
+   */
+  [[nodiscard]] inline bool module_marshaling_cells_in_bounds(const ModuleExportMarshaling& marshaling, std::span<const std::uint32_t> cells,
+                                                              std::size_t memory_bytes) noexcept {
+    if (cells.size() != module_marshaling_cell_count(marshaling)) return false;
+    std::uint32_t cell = 0;
+    for (std::uint32_t index = 0; index < marshaling.param_count; ++index) {
+      switch (marshaling.params[index]) {
+        case ModuleMarshalingType::I64:
+        case ModuleMarshalingType::F64:
+          cell += 2U;
+          break;
+        case ModuleMarshalingType::Ptr: {
+          const auto offset = cells[cell++];
+          if (offset != 0 && static_cast<std::size_t>(offset) >= memory_bytes) return false;
+          break;
+        }
+        case ModuleMarshalingType::Span: {
+          const auto span_ptr = cells[cell++];
+          if (static_cast<std::size_t>(span_ptr) + 8U > memory_bytes) return false;
+          break;
+        }
+        default:
+          ++cell;
+          break;
+      }
+    }
+    return true;
+  }
+
+  /* Reads the (offset,size) pair a span cell points at. Caller guarantees the
+   * 8 readable bytes (module_marshaling_cells_in_bounds). */
+  [[nodiscard]] inline bool read_module_span_cell(std::span<const std::byte> memory, std::uint32_t span_ptr, std::uint32_t& offset,
+                                                  std::uint32_t& size) noexcept {
+    if (static_cast<std::size_t>(span_ptr) + 8U > memory.size()) return false;
+    const auto* raw = reinterpret_cast<const unsigned char*>(memory.data() + span_ptr);
+    offset = static_cast<std::uint32_t>(raw[0]) | (static_cast<std::uint32_t>(raw[1]) << 8U) | (static_cast<std::uint32_t>(raw[2]) << 16U)
+             | (static_cast<std::uint32_t>(raw[3]) << 24U);
+    size = static_cast<std::uint32_t>(raw[4]) | (static_cast<std::uint32_t>(raw[5]) << 8U) | (static_cast<std::uint32_t>(raw[6]) << 16U)
+           | (static_cast<std::uint32_t>(raw[7]) << 24U);
+    return static_cast<std::size_t>(offset) + static_cast<std::size_t>(size) <= memory.size();
+  }
+
   enum class ModuleThreadsPolicy : std::uint8_t { None, Managed };
 
   struct ModuleManifestExport {
     std::string name;
     std::uint32_t signature_id{};
+
+    /*
+     * Decoded marshaling descriptor (todo 10) — pure data derived from
+     * signature_id; written by the serializer, validated by the parser, and
+     * walked mechanically by the dispatchers. Optional on input: parse keeps
+     * it in sync with signature_id when absent; a disagreement is a parse
+     * error so serialization stays canonical (byte-stable).
+     */
+    std::optional<ModuleExportMarshaling> marshaling;
   };
 
   struct ModuleManifestToolchain {

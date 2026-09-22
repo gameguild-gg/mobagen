@@ -2,6 +2,7 @@
 
 #include "../wasm_plugin_loader.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -59,6 +60,22 @@ namespace mobagen::plugins {
    */
   [[nodiscard]] int browser_wasm_call_named_export(PortableWasmInstance& instance, std::string_view export_name, std::uint32_t a,
                                                    std::uint32_t b, std::uint32_t* out_result) noexcept;
+
+  /*
+   * Generic descriptor-driven export invocation (todo 10): walks the decoded
+   * marshaling descriptor (from module.manifest / the annotation table) and
+   * marshals the raw u32 cells per its type codes — i32/i64/f32/f64 pass
+   * through, ptr/span are (offset[,size]) pairs bounds-checked against the
+   * guest linear memory before the call. One fixed dispatcher for every
+   * annotated export; no eval / new Function / generated JS.
+   *
+   * out_result_cells[0] (and [1] for i64/f64 returns) receives the result.
+   * Returns 0 ok; -1 missing export / foreign instance; -2 bad descriptor;
+   * -3 cells out of bounds; -4 mirror flush failed.
+   */
+  [[nodiscard]] int browser_wasm_invoke_typed_export(PortableWasmInstance& instance, std::string_view export_name,
+                                                     const modules::ModuleExportMarshaling& marshaling, std::span<const std::uint32_t> cells,
+                                                     std::array<std::uint32_t, 2>& out_result_cells) noexcept;
 #endif
 
 }  // namespace mobagen::plugins

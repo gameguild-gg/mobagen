@@ -111,8 +111,14 @@ if(EMSCRIPTEN)
   #                             bootable fallback for non-isolated contexts: Safari/static hosts)
   # A -sSHARED_MEMORY=1 engine constructs shared wasm memory at startup and FAILS TO BOOT in any
   # non-crossOriginIsolated browser context (no runtime toggle) — hence BOTH variants are shipped
-  # and a boot-time capability probe picks between them (todo 6). ASYNCIFY stays on in both: todo 9
-  # owns its verdict with evidence. PROXY_TO_PTHREAD is deliberately NOT set.
+  # and a boot-time capability probe picks between them (todo 6). ASYNCIFY: KEEP (decided with
+  # evidence 2026-09-22, todo 9) — the emdawnwebgpu port REQUIRES Asyncify (external/dawn.cmake
+  # links -sASYNCIFY alongside --use-port=emdawnwebgpu), and apps use emscripten_sleep
+  # (e.g. apps/dicom_viewer/sources/main.cpp:158) which unwinds via Asyncify. Pitfall with
+  # pthreads: code that sleeps asynchronously must not be invoked on a pthread while it holds a
+  # pthread mutex / the JS main thread must never block on that thread — ASYNCIFY unwind during a
+  # sleep leaves the wasm stack freeable, but a mutex held across the unwind deadlocks other
+  # threads (wake/sleep interplay). PROXY_TO_PTHREAD is deliberately NOT set.
   option(MOBAGEN_WEB_SHARED "Web build variant: shared memory + pthreads (vs isolated fallback)" ON)
   if(MOBAGEN_WEB_SHARED)
     set(MOBAGEN_WEB_VARIANT_FLAGS "-sUSE_PTHREADS=1 -sSHARED_MEMORY=1")

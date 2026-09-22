@@ -1,5 +1,6 @@
 #pragma once
 
+#include "modules/module_manifest.hpp"
 #include "wasm_host_imports.hpp"
 #include "wasm_runtime.hpp"
 
@@ -131,6 +132,14 @@ namespace mobagen::plugins {
     InvalidPackage,
     MissingPackageBinary,
     AotRejected,
+    MissingManifest,
+    ManifestInvalid,
+    ApiVersionMismatch,
+    AbiVersionMismatch,
+    ThreadsPolicyMismatch,
+    SharedMemoryMismatch,
+    MissingExport,
+    SignatureMismatch,
   };
 
   struct PortableWasmPluginLoadIssue {
@@ -154,6 +163,20 @@ namespace mobagen::plugins {
   };
 
   [[nodiscard]] std::string_view portable_wasm_aot_issue_name(PortableWasmAotIssueCode code) noexcept;
+
+  /* Contract a v2 package's module.manifest must satisfy at load time (todo 11).
+     An empty `signature` marks a pre-contract lockfile: manifest presence and
+     the export-table digest check are skipped, every other field still applies. */
+  struct PortableWasmModuleContract {
+    std::uint32_t api_version{};
+    std::uint32_t abi_version{};
+    modules::ModuleThreadsPolicy threads{modules::ModuleThreadsPolicy::None};
+    bool shared_memory{false};
+    std::string signature;
+  };
+
+  [[nodiscard]] PortableWasmPluginLoadResult verify_portable_wasm_module_contract(const std::filesystem::path& package,
+                                                                                  const PortableWasmModuleContract& contract);
 
   [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend,
                                                                               WasmHostServices host_services = {});

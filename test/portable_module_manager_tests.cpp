@@ -9,6 +9,8 @@
 
 #include <filesystem>
 #include <memory>
+#include <span>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <utility>
@@ -16,10 +18,71 @@
 
 namespace {
 
+  std::string module_manifest_yaml(std::uint32_t api = 1, std::uint32_t abi = 1, std::string_view threads = "none", bool shared_memory = false,
+                                   bool quiesce_export = false) {
+    auto text = "schema: 2\napi: " + std::to_string(api) + "\nabi: " + std::to_string(abi) + "\nentry: mobagen_module_entry_v1\nthreads: "
+                + std::string{threads} + "\nshared-memory: " + (shared_memory ? "true" : "false") + "\n";
+    text += quiesce_export ? "exports:\n  - name: mobagen_module_thread_quiesce_v1\n    signature: 1291845632\n" : "exports: []\n";
+    return text;
+  }
+
+  std::string module_manifest_signature_of(std::string_view manifest_text) {
+    const auto parsed = mobagen::modules::parse_module_manifest(manifest_text);
+    REQUIRE(parsed.ok());
+    const auto signature = mobagen::modules::module_manifest_signature(*parsed.manifest);
+    REQUIRE(!signature.empty());
+    return signature;
+  }
+
+  std::unique_ptr<mobagen::modules::LockedPluginActivationPlan> contract_plan(const std::filesystem::path& package, std::uint32_t api,
+                                                                              std::uint32_t abi, mobagen::modules::ModuleThreadsPolicy threads,
+                                                                              bool shared_memory, const std::string& signature) {
+    using namespace mobagen::modules;
+    LockfileDocument document;
+    document.metadata.plugins = {{
+        .provider = "mobagen.wasm-package",
+        .version = {1, 0, 0},
+        .abi_version = abi,
+        .api_version = api,
+        .threads = threads,
+        .shared_memory = shared_memory,
+        .signature = signature,
+        .package = "reference.plugin",
+    }};
+    document.resolved = {{
+        .capability = "runtime.package.v1",
+        .provider = "mobagen.wasm-package",
+        .version = {1, 0, 0},
+        .linkage = LinkageMode::Wasm,
+    }};
+    const std::vector plugins{VerifiedLockedPlugin{
+        .provider_id = "mobagen.wasm-package",
+        .version = {1, 0, 0},
+        .linkage = LinkageMode::Wasm,
+        .abi_version = abi,
+        .api_version = api,
+        .threads = threads,
+        .shared_memory = shared_memory,
+        .signature = signature,
+        .size = mobagen::test::valid_wasm_header.size(),
+        .package_path = package,
+        .binary_path = package / mobagen::plugins::portable_wasm_plugin_binary_filename(),
+    }};
+    auto planned = build_locked_plugin_activation_plan(document, plugins);
+    REQUIRE(planned.ok());
+    return std::move(planned.plan);
+  }
+
   std::filesystem::path add_portable_plugin(const mobagen::test::TemporaryWasmDirectory& directory, std::string_view name) {
     const auto package = directory.path() / name;
     REQUIRE(std::filesystem::create_directory(package));
     mobagen::test::write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), mobagen::test::valid_wasm_header);
+    return package;
+  }
+
+  std::filesystem::path add_manifest_plugin(const mobagen::test::TemporaryWasmDirectory& directory, std::string_view name, std::string_view manifest) {
+    const auto package = add_portable_plugin(directory, name);
+    mobagen::test::write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(), manifest);
     return package;
   }
 
@@ -302,6 +365,188 @@ TEST_CASE("Portable module manager: another thread cannot instantiate WASM") {
   CHECK_FALSE(activated.ok());
   REQUIRE(activated.issues.size() == 1);
   CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::WrongThread);
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: matching manifest contract activates normally") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto manifest = module_manifest_yaml();
+  const auto package = add_manifest_plugin(directory, "reference.plugin", manifest);
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::None, false,
+                    module_manifest_signature_of(manifest)),
+      backend);
+  REQUIRE(created.ok());
+
+  REQUIRE(created.manager->activate("runtime.package.v1").ok());
+
+  CHECK(created.manager->active_count() == 1);
+  CHECK(backend.calls == 1);
+  CHECK(created.manager->stop().ok());
+}
+
+TEST_CASE("Portable module manager: manifest api version mismatch is rejected before instantiation") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto package = add_manifest_plugin(directory, "reference.plugin", module_manifest_yaml(/*api=*/2));
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::None, false,
+                    module_manifest_signature_of(module_manifest_yaml(/*api=*/2))),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::ApiVersionMismatch);
+  CHECK(activated.issues.front().provider_id == "mobagen.wasm-package");
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: manifest abi version mismatch is rejected before instantiation") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto package = add_manifest_plugin(directory, "reference.plugin", module_manifest_yaml(/*api=*/1, /*abi=*/2));
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::None, false,
+                    module_manifest_signature_of(module_manifest_yaml(/*api=*/1, /*abi=*/2))),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::AbiVersionMismatch);
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: managed threads without the quiesce export is rejected") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto manifest = module_manifest_yaml(1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, "managed", false, /*quiesce_export=*/false);
+  const auto package = add_manifest_plugin(directory, "reference.plugin", manifest);
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::Managed, false,
+                    module_manifest_signature_of(manifest)),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::MissingExport);
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: managed threads policy mismatch is rejected") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto manifest = module_manifest_yaml(1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, "none", false, /*quiesce_export=*/true);
+  const auto package = add_manifest_plugin(directory, "reference.plugin", manifest);
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::Managed, false,
+                    module_manifest_signature_of(manifest)),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::ThreadsPolicyMismatch);
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: shared memory policy mismatch is rejected") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto manifest = module_manifest_yaml(1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, "none", /*shared_memory=*/false, /*quiesce_export=*/true);
+  const auto package = add_manifest_plugin(directory, "reference.plugin", manifest);
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::None, /*shared_memory=*/true,
+                    module_manifest_signature_of(manifest)),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::SharedMemoryMismatch);
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: export signature digest mismatch is rejected") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto manifest = module_manifest_yaml(1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, "none", false, /*quiesce_export=*/true);
+  const auto package = add_manifest_plugin(directory, "reference.plugin", manifest);
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::None, false,
+                    /*signature=*/module_manifest_signature_of(module_manifest_yaml(1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, "none", false, false))),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::SignatureMismatch);
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: contract lockfile without module manifest is rejected") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto package = add_portable_plugin(directory, "reference.plugin");
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::None, false, /*signature=*/"sha256:aa"),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::MissingManifest);
+  CHECK(created.manager->active_count() == 0);
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable module manager: invalid module manifest is rejected as a contract failure") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  test::FakeWasmBackend backend;
+  const auto package = add_manifest_plugin(directory, "reference.plugin", "schema: 2\napi: not-a-number\n");
+  auto created = compositions::create_portable_module_manager(
+      contract_plan(package, 1, MOBAGEN_WASM_PLUGIN_ABI_VERSION, modules::ModuleThreadsPolicy::None, false, /*signature=*/"sha256:aa"),
+      backend);
+  REQUIRE(created.ok());
+
+  const auto activated = created.manager->activate("runtime.package.v1");
+
+  CHECK_FALSE(activated.ok());
+  REQUIRE(activated.issues.size() == 1);
+  CHECK(activated.issues.front().code == compositions::PortableModuleManagerIssueCode::ManifestInvalid);
   CHECK(created.manager->active_count() == 0);
   CHECK(backend.calls == 0);
 }

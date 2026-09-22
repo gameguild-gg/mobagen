@@ -50,36 +50,45 @@ namespace mobagen::plugins {
      * Chromium's ~8 MiB main-thread budget this constructor THROWS
      * (RangeError); instantiate() pre-rejects those sizes and the JS catch
      * still maps any residual throw into a failure string.
+     *
+     * Todo 10: the guest's annotated exports are invoked through ONE generic
+     * descriptor-driven dispatcher — no eval, no new Function, no generated
+     * JS text. The JS side walks the marshaling type codes handed over as
+     * plain integers: 1=i32, 2=i64, 3=f32, 4=f64, 5=ptr, 6=span. i32/f32
+     * pass a single cell; i64/f64 read two cells and rebox via BigInt-free
+     * bit casts (i64 through the wasm BigInt boundary when present, else as
+     * a lo/hi pair — see call_typed_export_js); ptr and span marshal as
+     * bounds-checked (offset[,size]) pairs against the guest linear memory.
      */
     EM_JS(int, mobagen_browser_wasm_instantiate_js,
-          (unsigned int ptr, unsigned int len, char* error_out, int error_cap), {
-            try {
-              var pool = (globalThis.__mobagenBrowserWasm = globalThis.__mobagenBrowserWasm || []);
-              var module = new WebAssembly.Module(HEAPU8.subarray(ptr, ptr + len));
-              var instance = new WebAssembly.Instance(module, {
-                mobagen_v1: {
-                  log: function(level, messageOffset, messageSize) {
-                    return _mobagen_browser_wasm_dispatch_c(0, level, messageOffset, messageSize, 0);
-                  },
-                  find_capability: function(capabilityOffset, capabilitySize, capabilityVersion, outputHandleOffset) {
-                    return _mobagen_browser_wasm_dispatch_c(1, capabilityOffset, capabilitySize, capabilityVersion, outputHandleOffset);
-                  },
-                  submit_commands: function(inputBatchOffset, resultOffset) {
-                    return _mobagen_browser_wasm_dispatch_c(2, inputBatchOffset, resultOffset, 0, 0);
-                  }
-                }
-              });
-              pool.push({instance: instance});
-              return pool.length - 1;
-            } catch (e) {
-              try {
-                var message = "browser WASM instantiation failed: " + ((e && e.message) ? e.message : String(e));
-                if (error_out != 0 && error_cap > 0) stringToUTF8(message, error_out, error_cap);
-              } catch (ignored) {
-              }
-              return -1;
-            }
-          });
+           (unsigned int ptr, unsigned int len, char* error_out, int error_cap), {
+             try {
+               var pool = (globalThis.__mobagenBrowserWasm = globalThis.__mobagenBrowserWasm || []);
+               var module = new WebAssembly.Module(HEAPU8.subarray(ptr, ptr + len));
+               var instance = new WebAssembly.Instance(module, {
+                 mobagen_v1: {
+                   log: function(level, messageOffset, messageSize) {
+                     return _mobagen_browser_wasm_dispatch_c(0, level, messageOffset, messageSize, 0);
+                   },
+                   find_capability: function(capabilityOffset, capabilitySize, capabilityVersion, outputHandleOffset) {
+                     return _mobagen_browser_wasm_dispatch_c(1, capabilityOffset, capabilitySize, capabilityVersion, outputHandleOffset);
+                   },
+                   submit_commands: function(inputBatchOffset, resultOffset) {
+                     return _mobagen_browser_wasm_dispatch_c(2, inputBatchOffset, resultOffset, 0, 0);
+                   }
+                 }
+               });
+               pool.push({instance: instance});
+               return pool.length - 1;
+             } catch (e) {
+               try {
+                 var message = "browser WASM instantiation failed: " + ((e && e.message) ? e.message : String(e));
+                 if (error_out != 0 && error_cap > 0) stringToUTF8(message, error_out, error_cap);
+               } catch (ignored) {
+               }
+               return -1;
+             }
+           });
 
     EM_JS(void, mobagen_browser_wasm_drop_js, (int handle), {
       var pool = globalThis.__mobagenBrowserWasm;
@@ -118,10 +127,6 @@ namespace mobagen::plugins {
       return typeof exported === "function" ? 1 : 0;
     });
 
-    /* Invoke an i32 export with argc u32 arguments read from argv. Sets
-       *missing_out (engine-heap int) when the export is absent. i64-returning
-       exports are not part of the plugin ABI and are rejected by the guest
-       contract, not handled here. */
     EM_JS(int, mobagen_browser_wasm_call_export_js, (int handle, const char* name_ptr, unsigned int argv, int argc, int* missing_out), {
       var fn = globalThis.__mobagenBrowserWasm[handle].instance.exports[UTF8ToString(name_ptr)];
       if (typeof fn !== "function") {
@@ -133,6 +138,77 @@ namespace mobagen::plugins {
       for (var i = 0; i < argc; ++i) args.push(HEAPU32[(argv >> 2) + i]);
       return fn.apply(null, args) | 0;
     });
+
+    /*
+     * Generic descriptor-driven export invocation (todo 10). codes_ptr
+     * points at param_count marshaling type codes (1=i32,2=i64,3=f32,
+     * 4=f64,5=ptr,6=span; the numbering IS module_abi.h's) and cells_ptr at
+     * the raw u32 cell list. The JS walker mirrors the shared C++ decode
+     * helper exactly: i32/f32/ptr/span each take one cell and pass through
+     * (a span cell names a guest-memory (offset,size) pair — one i32 wasm
+     * argument); i64 reads two cells and reboxes as BigInt.
+     * No eval, no new Function: this body is fixed, only data varies.
+     * result_cells_out receives up to two u32 result cells (i64/f64 results
+     * arrive as lo/hi). Returns 0 ok, 1 missing export, 2 marshaling
+     * failure.
+     */
+    EM_JS(int, mobagen_browser_wasm_call_typed_export_js,
+           (int handle, const char* name_ptr, int param_count, unsigned int codes_ptr, unsigned int cells_ptr, int* missing_out,
+            unsigned int result_cells_out),
+           {
+             var fn = globalThis.__mobagenBrowserWasm[handle].instance.exports[UTF8ToString(name_ptr)];
+             if (typeof fn !== "function") {
+               HEAPU32[missing_out >> 2] = 1;
+               return 0;
+             }
+             HEAPU32[missing_out >> 2] = 0;
+             var args = [];
+             var cell = 0;
+             for (var i = 0; i < param_count; ++i) {
+               var code = HEAPU8[codes_ptr + i];
+               if (code === 1 || code === 3 || code === 5) {
+                 args.push(HEAPU32[(cells_ptr >> 2) + cell]);
+                 cell += 1;
+               } else if (code === 2) {
+                 var lo = HEAPU32[(cells_ptr >> 2) + cell];
+                 var hi = HEAPU32[(cells_ptr >> 2) + cell + 1];
+                 cell += 2;
+                 args.push((typeof BigInt === "function") ? (BigInt(hi >>> 0) << 32n) | BigInt(lo >>> 0) : lo);
+               } else if (code === 4) {
+                 var buf = new DataView(HEAPU8.buffer, ((cells_ptr >> 2) + cell) * 4, 8);
+                 args.push(buf.getFloat64(0, true));
+                 cell += 2;
+               } else if (code === 6) {
+                 /* span cell names the guest-memory (offset,size) pair; the
+                    wasm32 convention passes it as ONE i32 argument. */
+                 args.push(HEAPU32[(cells_ptr >> 2) + cell]);
+                 cell += 1;
+               } else {
+                 return 2;
+               }
+             }
+             var result = fn.apply(null, args);
+             if (result === undefined) {
+               HEAPU32[result_cells_out >> 2] = 0;
+               HEAPU32[(result_cells_out >> 2) + 1] = 0;
+             } else if (typeof result === "bigint") {
+               HEAPU32[result_cells_out >> 2] = Number(result & 0xffffffffn) >>> 0;
+               HEAPU32[(result_cells_out >> 2) + 1] = Number((result >> 32n) & 0xffffffffn) >>> 0;
+             } else if (typeof result === "number") {
+               /* i32/f32 returns land in cell 0 as their raw u32; a Number
+                 that is not integral must be an f64 (two cells, bit pattern). */
+               if (Number.isInteger(result) && result >= -2147483648 && result <= 4294967295) {
+                 HEAPU32[result_cells_out >> 2] = result >>> 0;
+                 HEAPU32[(result_cells_out >> 2) + 1] = 0;
+               } else {
+                 var view = new DataView(HEAPU8.buffer, result_cells_out, 8);
+                 view.setFloat64(0, result, true);
+               }
+             } else {
+               return 2;
+             }
+             return 0;
+           });
 
     /* The instance whose guest is currently executing (set around every
        invoke). Guest imports can only run inside an invoke frame, so this is
@@ -183,6 +259,14 @@ namespace mobagen::plugins {
       }
 
       [[nodiscard]] int handle() const noexcept { return handle_; }
+
+      /* Todo 10 descriptor-dispatch accessors: the typed invoke path
+         bounds-checks cells against the current mirror (host writes staged
+         through writable_memory are visible and must not be refreshed away)
+         and flushes pending mirror writes before entering the guest. */
+      [[nodiscard]] std::size_t mirror_bytes() const noexcept { return mirror_.size(); }
+      [[nodiscard]] bool has_unflushed_writes() const noexcept { return mirror_dirty_; }
+      [[nodiscard]] bool flush_mirror_for_invoke() const noexcept { return flush_mirror(); }
 
       [[nodiscard]] WasmInvocationResult invoke(WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
         if (arguments.size() > max_argument_cells) return WasmInvocationResult::failure("browser WASM invocation has too many argument cells");
@@ -264,12 +348,14 @@ namespace mobagen::plugins {
   }  // namespace
 
   /*
-   * Host-import dispatch seam (todo 10 retro-wires descriptor-driven
-   * marshalling here). Trivial direct dispatch today: view the mirror so the
-   * service reads the guest's current bytes, forward into the retained
-   * WasmHostImports exactly like the WAMR backend's shims, then flush the
-   * mirror back so writes (find_capability handle, submit_commands result)
-   * become visible to the running guest.
+   * Host-import dispatch seam, descriptor-driven since todo 10: the canonical
+   * WasmHostImportId table in wasm_host_imports.hpp describes each import's
+   * marshaling; the raw argument cells (up to four here — the widest canonical
+   * import, find_capability, is span+i32+ptr = 4 cells) are walked by the
+   * shared dispatch_wasm_host_import exactly like the WAMR native shims do,
+   * against the mirror view of the guest linear memory, then flushed back so
+   * writes (find_capability handle, submit_commands result) become visible to
+   * the running guest.
    */
   extern "C" EMSCRIPTEN_KEEPALIVE int mobagen_browser_wasm_dispatch_c(int function, unsigned int a, unsigned int b, unsigned int c,
                                                                       unsigned int d) {
@@ -278,23 +364,11 @@ namespace mobagen::plugins {
     const auto* const imports = instance->host_imports();
     if (imports == nullptr) return MOBAGEN_WASM_STATUS_FAILED;
 
+    const std::array<std::uint32_t, 4> cells{a, b, c, d};
     const auto memory = instance->writable_memory();
-    std::uint32_t status = MOBAGEN_WASM_STATUS_FAILED;
-    switch (function) {
-      case 0:
-        status = imports->log(memory, a, b, c);
-        break;
-      case 1:
-        status = imports->find_capability(memory, a, b, c, d);
-        break;
-      case 2:
-        status = imports->submit_commands(memory, a, b);
-        break;
-      default:
-        return MOBAGEN_WASM_STATUS_FAILED;
-    }
+    const auto status = dispatch_wasm_host_import(*imports, static_cast<WasmHostImportId>(function), memory, cells);
     instance->flush_mirror_for_dispatch();
-    return status;
+    return static_cast<int>(status);
   }
 
   BrowserWasmBackend::~BrowserWasmBackend() = default;
@@ -356,6 +430,44 @@ namespace mobagen::plugins {
     g_dispatch_instance = dispatched;
     if (missing != 0) return -1;
     *out_result = static_cast<std::uint32_t>(result);
+    return 0;
+  }
+
+  int browser_wasm_invoke_typed_export(PortableWasmInstance& instance, std::string_view export_name,
+                                       const modules::ModuleExportMarshaling& marshaling, std::span<const std::uint32_t> cells,
+                                       std::array<std::uint32_t, 2>& out_result_cells) noexcept {
+    auto* const self = registered_instance(&instance);
+    if (self == nullptr) return -1;
+    if (marshaling.param_count > modules::module_abi_max_export_params) return -2;
+    /* Bounds-check against the CURRENT mirror state: the caller may have
+     * staged span structs / ptr targets through writable_memory(), and a
+     * refresh here would overwrite those host writes before the flush. */
+    if (!modules::module_marshaling_cells_in_bounds(marshaling, cells, self->mirror_bytes())) return -3;
+
+    char name[128]{};
+    const auto length = std::min(export_name.size(), sizeof name - 1U);
+    std::memcpy(name, export_name.data(), length);
+
+    std::array<unsigned char, modules::module_abi_max_export_params> codes{};
+    for (std::uint32_t index = 0; index < marshaling.param_count; ++index) {
+      codes[index] = static_cast<unsigned char>(marshaling.params[index]);
+    }
+
+    if (self->has_unflushed_writes() && !self->flush_mirror_for_invoke()) return -4;
+
+    std::array<std::uint32_t, 8> cell_buffer{};
+    std::ranges::copy(cells, cell_buffer.begin());
+    out_result_cells = {};
+
+    int missing = 0;
+    const auto dispatched = g_dispatch_instance;
+    g_dispatch_instance = self;
+    const int status = mobagen_browser_wasm_call_typed_export_js(self->handle(), name, static_cast<int>(marshaling.param_count),
+                                                                 heap_pointer(codes.data()), heap_pointer(cell_buffer.data()), &missing,
+                                                                 heap_pointer(out_result_cells.data()));
+    g_dispatch_instance = dispatched;
+    if (status == 2) return -2;
+    if (missing != 0) return -1;
     return 0;
   }
 

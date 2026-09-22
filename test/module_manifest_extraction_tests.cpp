@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -108,6 +109,79 @@ TEST_CASE("Module extraction CLI: generated manifest reparses with the annotated
 
   const auto digest = mobagen::modules::module_manifest_signature(*parsed.manifest);
   CHECK(output.str().find("signature\t" + digest) != std::string::npos);
+}
+
+TEST_CASE("Module extraction CLI: golden manifest carries decodable marshaling descriptors") {
+  using namespace mobagen::modules;
+  const std::filesystem::path golden = MOBAGEN_MODULE_EXTRACTION_GOLDEN_MANIFEST;
+  REQUIRE(std::filesystem::exists(golden));
+
+  const auto parsed = parse_module_manifest(read_all(golden));
+  REQUIRE(parsed.ok());
+  REQUIRE(parsed.manifest->exports.size() == 3);
+
+  /* The descriptor emitted for the tagged guest must match the expected
+     signature table exactly: (i32,i32)->i32, (ptr)->i32, ()->void, and the
+     i32-arg count/cell-width conventions the dispatchers rely on. */
+  const auto& ping = parsed.manifest->exports[0];
+  REQUIRE(ping.marshaling.has_value());
+  CHECK(ping.marshaling->return_type == ModuleMarshalingType::I32);
+  CHECK(ping.marshaling->param_count == 2);
+  CHECK(ping.marshaling->params[0] == ModuleMarshalingType::I32);
+  CHECK(ping.marshaling->params[1] == ModuleMarshalingType::I32);
+  CHECK(module_marshaling_cell_count(*ping.marshaling) == 2);
+
+  const auto& span_bytes = parsed.manifest->exports[1];
+  REQUIRE(span_bytes.marshaling.has_value());
+  CHECK(span_bytes.marshaling->return_type == ModuleMarshalingType::I32);
+  CHECK(span_bytes.marshaling->param_count == 1);
+  CHECK(span_bytes.marshaling->params[0] == ModuleMarshalingType::Ptr);
+  CHECK(module_marshaling_cell_count(*span_bytes.marshaling) == 1);
+
+  const auto& health = parsed.manifest->exports[2];
+  REQUIRE(health.marshaling.has_value());
+  CHECK(health.marshaling->return_type == ModuleMarshalingType::Void);
+  CHECK(health.marshaling->param_count == 0);
+  CHECK(module_marshaling_cell_count(*health.marshaling) == 0);
+
+  /* Round-trip: a descriptor disagreeing with the signature id is a parse
+     error (canonical-serialization guarantee), and the golden text itself
+     reparses byte-stable. */
+  const auto roundtrip = serialize_module_manifest(*parsed.manifest);
+  CHECK(roundtrip == read_all(golden));
+  CHECK(parse_module_manifest(roundtrip).ok());
+}
+
+TEST_CASE("Module manifest: undecodable signature ids are rejected at parse time") {
+  using namespace mobagen::modules;
+  constexpr auto id = [](std::uint32_t signature) {
+    return "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports:\n  - name: f\n    signature: " + std::to_string(signature)
+           + "\n";
+  };
+
+  /* type code 7 does not exist in the ABI vocabulary — must fail at LOAD */
+  constexpr auto unknown_type_id = MOBAGEN_MODULE_SIG_2(MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32, UINT32_C(7));
+  const auto unknown_type = parse_module_manifest(id(unknown_type_id));
+  CHECK_FALSE(unknown_type.ok());
+  CHECK(std::ranges::any_of(unknown_type.errors, [](const auto& e) { return e.code == ModuleManifestErrorCode::InvalidValue; }));
+
+  /* param count 6 exceeds the ABI's 5-slot table */
+  constexpr auto over_arity_id = UINT32_C(0x4D600000) | MOBAGEN_MODULE_SIG_PACK(MOBAGEN_MODULE_T_I32, 17) | MOBAGEN_MODULE_SIG_PACK(MOBAGEN_MODULE_T_I32, 14);
+  const auto over_arity = parse_module_manifest(id(over_arity_id));
+  CHECK_FALSE(over_arity.ok());
+
+  /* reserved bits set */
+  const auto reserved = parse_module_manifest(id(MOBAGEN_MODULE_SIG_2(MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32) | 1U));
+  CHECK_FALSE(reserved.ok());
+
+  /* ptr/span cells outside guest memory are rejected by the walker, and the
+     decoded descriptor's return/params fields reject disagreement */
+  constexpr auto disagree = "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports:\n  - name: f\n    signature: 1294092288\n    return: i64\n";
+  const auto mismatch = parse_module_manifest(disagree);
+  CHECK_FALSE(mismatch.ok());
+  CHECK(std::ranges::any_of(mismatch.errors, [](const auto& e) {
+    return e.code == ModuleManifestErrorCode::InvalidValue && e.field.find("return") != std::string::npos;
+  }));
 }
 
 TEST_CASE("Module extraction CLI: entry-less wasm exits 3 naming the missing annotation table") {

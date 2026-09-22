@@ -35,7 +35,8 @@ add_custom_command(
           -Wl,--export=mobagen_wasm_plugin_query_v1 -Wl,--export=mobagen_wasm_plugin_configure_v1
           -Wl,--export=mobagen_wasm_plugin_start_v1 -Wl,--export=mobagen_wasm_plugin_quiesce_v1
           -Wl,--export=mobagen_wasm_plugin_stop_v1 -Wl,--export=mobagen_wasm_plugin_process_v1
-          -Wl,--export=mobagen_smoke_add -Wl,--export=mobagen_module_entry_v1
+          -Wl,--export=mobagen_smoke_add -Wl,--export=mobagen_smoke_mul -Wl,--export=mobagen_smoke_span_sum
+          -Wl,--export=mobagen_module_entry_v1
           -Wl,--export=mobagen_module_exports_v1
           -o "${MOBAGEN_BROWSER_GUEST_WASM}"
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_guest.c"

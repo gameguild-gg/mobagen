@@ -211,8 +211,12 @@ toolchain:
 exports:
   - name: mobagen_compute
     signature: 1294100480
+    return: i32
+    params: [i32, ptr]
   - name: mobagen_tick_count
     signature: 1292107776
+    return: i64
+    params: []
 payloads:
   - file: plugin.wasm
     hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
