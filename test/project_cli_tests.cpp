@@ -36,7 +36,7 @@ namespace {
                                          path_ / "plugins" / "alternative.plugin" / mobagen::plugins::native_plugin_binary_filename()));
       std::ofstream manifest(path_ / "mobagen.yaml", std::ios::binary);
       REQUIRE(manifest.is_open());
-      manifest << R"yaml(schema: 1
+      manifest << R"yaml(schema: 2
 name: project-cli-test
 modules:
   runtime:
@@ -149,7 +149,7 @@ profiles:
   void write_remote_project_manifest(const std::filesystem::path& path, std::string_view trailing = {}) {
     std::ofstream manifest_file(path, std::ios::binary | std::ios::trunc);
     REQUIRE(manifest_file.is_open());
-    manifest_file << R"yaml(schema: 1
+    manifest_file << R"yaml(schema: 2
 name: remote-project-cli-test
 sources:
   official:
@@ -191,7 +191,7 @@ TEST_CASE("Project CLI: init writes a self-contained recommended module template
   const auto manifest_path = project_path / "mobagen.yaml";
   REQUIRE(std::filesystem::is_regular_file(manifest_path));
   const auto manifest = mobagen::test::read_text(manifest_path);
-  CHECK(manifest == R"yaml(schema: 1
+  CHECK(manifest == R"yaml(schema: 2
 name: sample-game
 sources:
   official:
@@ -505,7 +505,7 @@ TEST_CASE("Project CLI: a wasm profile resolves through the injected portable ba
   const auto package = project.path() / "plugins/reference.plugin";
   REQUIRE(std::filesystem::create_directory(package));
   write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
-  write_text(project.path() / "mobagen.yaml", R"yaml(schema: 1
+  write_text(project.path() / "mobagen.yaml", R"yaml(schema: 2
 name: portable-project-cli-test
 modules:
   runtime:
@@ -551,7 +551,7 @@ TEST_CASE("Project CLI: a wasm profile fails clearly when no portable backend is
   using namespace mobagen;
   using namespace mobagen::test;
   TemporaryWasmDirectory project;
-  write_text(project.path() / "mobagen.yaml", R"yaml(schema: 1
+  write_text(project.path() / "mobagen.yaml", R"yaml(schema: 2
 name: unavailable-portable-project-cli-test
 modules: {}
 plugins: []

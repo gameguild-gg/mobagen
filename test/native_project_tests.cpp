@@ -115,7 +115,7 @@ namespace {
 #endif
   }
 
-  constexpr std::string_view valid_native_project_manifest = R"yaml(schema: 1
+  constexpr std::string_view valid_native_project_manifest = R"yaml(schema: 2
 name: native-project-test
 modules:
   runtime:
@@ -154,7 +154,7 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
   REQUIRE(lockfile.ok());
   CHECK_FALSE(lockfile.contents->contains("mobagen.lifecycle-failure"));
   CHECK(*lockfile.contents
-        == "schema: 1\n"
+        == "schema: 2\n"
            "sdk: 0.0.1\n"
                  "target: "
                + native_target_name()
@@ -175,13 +175,16 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
                  "    version: 1.0.0\n"
                  "    linkage: dynamic\n"
                  "dependencies: []\n"
-                 "plugins:\n"
-                 "  mobagen.reference:\n"
-                 "    version: 1.0.0\n"
-                 "    abi: 1\n"
-                 "    package: \"plugins/reference.plugin\"\n"
-                 "    hash: "
-               + reference_plugin_hash() + "\n");
+                  "plugins:\n"
+                  "  mobagen.reference:\n"
+                  "    version: 1.0.0\n"
+                  "    abi: 1\n"
+                  "    api: 1\n"
+                  "    threads: none\n"
+                  "    shared-memory: false\n"
+                  "    package: \"plugins/reference.plugin\"\n"
+                  "    hash: "
+                + reference_plugin_hash() + "\n");
   CHECK(loaded.runtime->stop().ok());
   CHECK(loaded.runtime->host().size() == 0);
 }
@@ -189,7 +192,7 @@ TEST_CASE("Native project: mobagen yaml default selects and activates a real dot
 TEST_CASE("Native project: denied plugin permissions fail before lifecycle activation") {
   using namespace mobagen::compositions;
   TemporaryNativeProject project;
-  project.write(R"yaml(schema: 1
+  project.write(R"yaml(schema: 2
 name: denied-plugin-permission
 modules:
   runtime:
@@ -217,7 +220,7 @@ profiles:
 TEST_CASE("Native project: plugin rejection of configuration rolls back before publication") {
   using namespace mobagen::compositions;
   TemporaryNativeProject project;
-  project.write(R"yaml(schema: 1
+  project.write(R"yaml(schema: 2
 name: rejected-plugin-configuration
 modules:
   runtime:
@@ -439,7 +442,7 @@ TEST_CASE("Native project: frozen mode rejects missing and changed lockfiles") {
   REQUIRE(missing.issues.front().lockfile_read_issue.has_value());
   CHECK(missing.issues.front().lockfile_read_issue->code == mobagen::modules::LockfileReadIssueCode::NotFound);
 
-  project.write_lockfile("schema: 1\n# changed\n");
+  project.write_lockfile("schema: 2\n# changed\n");
   const auto changed = load_native_project(project.path() / "mobagen.yaml", runtime_options(), {}, frozen_lock);
   CHECK_FALSE(changed.ok());
   REQUIRE(changed.issues.size() == 1);
@@ -470,7 +473,7 @@ TEST_CASE("Native project: failed lock update rolls back and unloads activated p
 TEST_CASE("Native project: lock resolution inspects plugins without activating them") {
   using namespace mobagen::compositions;
   TemporaryNativeProject project;
-  project.write(R"yaml(schema: 1
+  project.write(R"yaml(schema: 2
 name: resolve-only-project
 modules:
   runtime:

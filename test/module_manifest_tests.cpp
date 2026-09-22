@@ -17,7 +17,7 @@ namespace {
 TEST_CASE("Module manifest: canonical mobagen yaml parses into product intent") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: dicom-viewer
 sources:
   official:
@@ -49,7 +49,7 @@ profiles:
 
   REQUIRE(result.ok());
   REQUIRE(result.descriptor.has_value());
-  CHECK(result.descriptor->schema == 1);
+  CHECK(result.descriptor->schema == 2);
   CHECK(result.descriptor->name == "dicom-viewer");
   REQUIRE(result.descriptor->sources.size() == 1);
   CHECK(result.descriptor->sources[0].name == "official");
@@ -77,7 +77,7 @@ profiles:
 TEST_CASE("Module manifest: remote module sources require safe HTTPS URLs") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: source-policy
 sources:
   insecure:
@@ -103,7 +103,7 @@ modules: {}
 TEST_CASE("Module manifest: source mappings remain strict and names are unique") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: invalid-sources
 sources:
   official:
@@ -124,7 +124,7 @@ modules: {}
 TEST_CASE("Module manifest: duplicate keys are rejected with source coordinates") {
   using namespace mobagen::modules;
 
-  const auto result = parse_product_manifest("schema: 1\nname: duplicate\nname: duplicate-again\nmodules: {}\n", "mobagen.yaml");
+  const auto result = parse_product_manifest("schema: 2\nname: duplicate\nname: duplicate-again\nmodules: {}\n", "mobagen.yaml");
 
   REQUIRE_FALSE(result.ok());
   CHECK_FALSE(result.descriptor.has_value());
@@ -139,7 +139,7 @@ TEST_CASE("Module manifest: duplicate keys are rejected with source coordinates"
 TEST_CASE("Module manifest: nested duplicate keys are rejected") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: duplicate-module
 modules:
   render:
@@ -157,7 +157,7 @@ modules:
 TEST_CASE("Module manifest: unknown fields and custom tags are rejected") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: !execute forbidden
 unknown-root: true
 modules:
@@ -205,7 +205,7 @@ profiles:
 TEST_CASE("Module manifest: profile permissions must be unique lowercase slugs") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: invalid-permissions
 modules: {}
 profiles:
@@ -227,7 +227,7 @@ profiles:
 TEST_CASE("Module manifest: module configuration is a strict schema and data mapping") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: invalid-configuration
 modules:
   render:
@@ -248,7 +248,7 @@ profiles: {}
 TEST_CASE("Module manifest: missing required fields and invalid values fail transactionally") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 2
+  constexpr std::string_view source = R"yaml(schema: 3
 name: invalid-product
 modules:
   render:
