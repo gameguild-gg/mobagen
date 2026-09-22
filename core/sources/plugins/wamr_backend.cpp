@@ -12,6 +12,7 @@
 #include <limits>
 #include <mutex>
 #include <new>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -23,6 +24,9 @@ namespace mobagen::plugins {
 
     constexpr std::size_t export_count = static_cast<std::size_t>(WasmPluginExport::Process) + 1U;
     constexpr std::size_t max_argument_cells = 8U;
+
+    /* WAMR shared-heap library limits (core/config.h APP_HEAP_SIZE_MIN/MAX). */
+    constexpr std::uint32_t wamr_shared_heap_min_bytes = 256U;
 
     [[nodiscard]] bool read_u32_leb(std::span<const std::byte> bytes, std::size_t& cursor, std::uint32_t& value) noexcept {
       value = 0;
@@ -107,6 +111,14 @@ namespace mobagen::plugins {
       auto* base = static_cast<std::byte*>(wasm_memory_get_base_address(memory));
       if (base == nullptr && byte_count != 0U) return {};
       return {base, static_cast<std::size_t>(byte_count)};
+    }
+
+    /* AOT magic from WAMR's config.h (0x746f6100, little-endian "\0aot"); anything
+     * else reaching the AOT path is treated as corrupt. */
+    constexpr std::array aot_magic{std::byte{0x00}, std::byte{0x61}, std::byte{0x6f}, std::byte{0x74}};
+
+    [[nodiscard]] bool has_aot_magic(std::span<const std::byte> binary) noexcept {
+      return binary.size() >= aot_magic.size() && std::equal(aot_magic.begin(), aot_magic.end(), binary.begin());
     }
 
     [[nodiscard]] WasmHostImports* module_host_imports(wasm_module_inst_t module_instance) noexcept {
@@ -236,13 +248,15 @@ namespace mobagen::plugins {
     class WamrInstance final : public PortableWasmInstance {
     public:
       WamrInstance(std::vector<std::uint8_t> binary, wasm_module_t module, wasm_module_inst_t module_instance, wasm_exec_env_t execution_environment,
-                   std::shared_ptr<RuntimeLease> runtime, std::shared_ptr<WasmHostImports> host_imports) noexcept
+                    std::shared_ptr<RuntimeLease> runtime, std::shared_ptr<WasmHostImports> host_imports,
+                    std::shared_ptr<void> shared_heap_keepalive = {}) noexcept
           : PortableWasmInstance(std::move(host_imports)),
             binary_(std::move(binary)),
             module_(module),
             module_instance_(module_instance),
             execution_environment_(execution_environment),
             runtime_(std::move(runtime)),
+            shared_heap_keepalive_(std::move(shared_heap_keepalive)),
             owner_thread_(std::this_thread::get_id()) {
         wasm_runtime_set_custom_data(module_instance_, this->host_imports());
         for (std::size_t index = 0; index < exports_.size(); ++index) {
@@ -253,7 +267,10 @@ namespace mobagen::plugins {
       }
 
       ~WamrInstance() override {
-        if (module_instance_ != nullptr) wasm_runtime_set_custom_data(module_instance_, nullptr);
+        if (module_instance_ != nullptr) {
+          wasm_runtime_set_custom_data(module_instance_, nullptr);
+          wasm_runtime_detach_shared_heap(module_instance_);
+        }
         if (execution_environment_ != nullptr) wasm_runtime_destroy_exec_env(execution_environment_);
         if (module_instance_ != nullptr) wasm_runtime_deinstantiate(module_instance_);
         if (module_ != nullptr) wasm_runtime_unload(module_);
@@ -300,9 +317,66 @@ namespace mobagen::plugins {
       wasm_module_inst_t module_instance_{};
       wasm_exec_env_t execution_environment_{};
       std::shared_ptr<RuntimeLease> runtime_;
+      /* Holds the host-owned shared heap region alive while this instance is
+       * attached to it (type-erased shared_ptr into Impl's buffer). */
+      std::shared_ptr<void> shared_heap_keepalive_;
       std::thread::id owner_thread_;
       std::array<wasm_function_inst_t, export_count> exports_{};
     };
+
+  }  // namespace
+
+  std::string_view WamrBackend::runtime_wamr_version() noexcept {
+    static const std::string version = [] {
+      std::uint32_t major = 0;
+      std::uint32_t minor = 0;
+      std::uint32_t patch = 0;
+      wasm_runtime_get_version(&major, &minor, &patch);
+      return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+    }();
+    return version;
+  }
+
+  namespace {
+
+    /* One shared heap per backend: a page-aligned host-owned region registered
+     * with WAMR via SharedHeapInitArgs::pre_allocated_addr. WAMR owns the heap
+     * bookkeeping until wasm_runtime_destroy (instances hold the RuntimeLease,
+     * so the heap always outlives every attach); the region buffer is kept
+     * alive by the backend and by every attached instance. */
+    struct WamrSharedHeap {
+      std::shared_ptr<std::vector<std::byte>> buffer;
+      std::span<std::byte> region{};
+      wasm_shared_heap_t heap{};
+    };
+
+    std::optional<WamrSharedHeap> create_shared_heap(std::uint32_t size, std::string& error) {
+      /* 64 KiB granularity covers every supported page size (4 KiB x86, 16 KiB
+       * arm64 macOS/iOS and Android 16K-page devices); WAMR requires the size
+       * itself to be page-aligned, and the region address likewise. */
+      constexpr std::size_t page = 64U * 1024U;
+      const auto aligned_size = (static_cast<std::size_t>(size) + page - 1U) & ~(page - 1U);
+      std::shared_ptr<std::vector<std::byte>> buffer;
+      try {
+        buffer = std::make_shared<std::vector<std::byte>>(aligned_size + page, std::byte{0});
+      } catch (const std::bad_alloc&) {
+        error = "WAMR shared heap region allocation failed";
+        return std::nullopt;
+      }
+      const auto address = reinterpret_cast<std::uintptr_t>(buffer->data());
+      const auto aligned = (address + page - 1U) & ~(page - 1U);
+      auto* region = reinterpret_cast<std::byte*>(aligned);
+
+      SharedHeapInitArgs init{};
+      init.size = static_cast<std::uint32_t>(aligned_size);
+      init.pre_allocated_addr = region;
+      const auto heap = wasm_runtime_create_shared_heap(&init);
+      if (heap == nullptr) {
+        error = "WAMR shared heap creation failed";
+        return std::nullopt;
+      }
+      return WamrSharedHeap{std::move(buffer), std::span<std::byte>{region, aligned_size}, heap};
+    }
 
   }  // namespace
 
@@ -310,15 +384,24 @@ namespace mobagen::plugins {
   public:
     explicit Impl(WamrBackendOptions configured) : options(configured) {
       if (options.stack_size_bytes == 0U || options.stack_size_bytes > max_wamr_stack_size_bytes || options.max_memory_pages == 0U
-          || options.max_memory_pages > max_wamr_memory_pages) {
-        error = "WAMR backend options exceed the supported stack or memory budget";
+          || options.max_memory_pages > max_wamr_memory_pages
+          || (options.shared_heap_size_bytes != 0U
+              && (options.shared_heap_size_bytes < wamr_shared_heap_min_bytes
+                  || options.shared_heap_size_bytes > max_wamr_shared_heap_bytes))) {
+        error = "WAMR backend options exceed the supported stack, memory, or shared heap budget";
         return;
       }
       runtime = acquire_runtime(error);
+      if (runtime == nullptr) return;
+      if (options.shared_heap_size_bytes != 0U) {
+        auto heap = create_shared_heap(options.shared_heap_size_bytes, error);
+        if (heap.has_value()) shared_heap = std::move(*heap);
+      }
     }
 
     WamrBackendOptions options;
     std::shared_ptr<RuntimeLease> runtime;
+    WamrSharedHeap shared_heap;
     std::string error;
   };
 
@@ -328,14 +411,77 @@ namespace mobagen::plugins {
 
   bool WamrBackend::available() const noexcept { return impl_ != nullptr && impl_->runtime != nullptr; }
 
-  PortableWasmInstantiationResult WamrBackend::instantiate(std::span<const std::byte> binary, std::shared_ptr<WasmHostImports> host_imports) {
+  WamrSharedHeapRegion WamrBackend::shared_heap_region() const noexcept {
+    if (impl_ == nullptr || impl_->shared_heap.heap == nullptr) return {};
+    return {impl_->shared_heap.region.data(), impl_->shared_heap.region.size()};
+  }
+
+  PortableWasmInstantiationResult WamrBackend::instantiate(std::span<const std::byte> binary,
+                                                           std::shared_ptr<WasmHostImports> host_imports) {
     if (!available()) return PortableWasmInstantiationResult::failure(impl_ != nullptr ? impl_->error : "WAMR backend is unavailable");
+    return instantiate_loaded(std::move(host_imports), binary);
+  }
+
+  PortableWasmAotSelection WamrBackend::instantiate_prefer_aot(std::span<const std::byte> wasm_binary, std::span<const std::byte> aot_binary,
+                                                               std::string_view aot_toolchain_version,
+                                                               std::shared_ptr<WasmHostImports> host_imports) {
+    PortableWasmAotSelection selection;
+    if (!available()) {
+      selection.result = PortableWasmInstantiationResult::failure(impl_ != nullptr ? impl_->error : "WAMR backend is unavailable");
+      return selection;
+    }
+
+#if MOBAGEN_WAMR_AOT_BUILD
+    if (!aot_binary.empty()) {
+      if (aot_binary.size() < aot_magic.size() || !has_aot_magic(aot_binary)) {
+        selection.issue = PortableWasmAotIssueCode::AotInvalidBinary;
+        selection.result = PortableWasmInstantiationResult::failure("WAMR AOT payload has an invalid or truncated AOT header");
+        return selection;
+      }
+      /* wamrc does not embed its producer version in .aot files; the manifest
+       * toolchain field (per-file hashed, todo 2) is the version contract and
+       * is checked here, BEFORE any instantiation attempt. */
+      if (!aot_toolchain_version.empty() && aot_toolchain_version != runtime_wamr_version()) {
+        selection.issue = PortableWasmAotIssueCode::AotVersionMismatch;
+        selection.result = PortableWasmInstantiationResult::failure("WAMR AOT payload was produced by wamrc " + std::string{aot_toolchain_version}
+                                                                    + " but this runtime embeds WAMR " + std::string{runtime_wamr_version()});
+        return selection;
+      }
+      auto loaded = instantiate_loaded(host_imports, aot_binary);
+      if (loaded.ok()) {
+        selection.result = std::move(loaded);
+        selection.used_aot = true;
+        return selection;
+      }
+      /* A structurally valid header that WAMR still refuses to load or
+       * instantiate (wrong arch, wrong internal AOT version, truncated
+       * sections) is a corrupt/incompatible payload — loud, no silent
+       * interpreter fallback for a present-but-broken .aot. */
+      selection.issue = PortableWasmAotIssueCode::AotInvalidBinary;
+      selection.result = std::move(loaded);
+      return selection;
+    }
+#else
+    (void)aot_toolchain_version;
+    if (!aot_binary.empty()) {
+      selection.issue = PortableWasmAotIssueCode::AotUnsupportedPlatform;
+      selection.result = PortableWasmInstantiationResult::failure("WAMR AOT payloads are not supported on this platform (AOT is compiled out)");
+      return selection;
+    }
+#endif
+
+    selection.result = instantiate_loaded(std::move(host_imports), wasm_binary);
+    return selection;
+  }
+
+  PortableWasmInstantiationResult WamrBackend::instantiate_loaded(std::shared_ptr<WasmHostImports> host_imports,
+                                                                  std::span<const std::byte> binary) {
     if (binary.empty()) return PortableWasmInstantiationResult::failure("WAMR cannot instantiate an empty module");
     if (binary.size() > std::numeric_limits<std::uint32_t>::max()) {
       return PortableWasmInstantiationResult::failure("WAMR module exceeds the 32-bit binary size limit");
     }
     std::string memory_error;
-    if (!validate_binary_memory_budget(binary, impl_->options.max_memory_pages, memory_error)) {
+    if (!has_aot_magic(binary) && !validate_binary_memory_budget(binary, impl_->options.max_memory_pages, memory_error)) {
       return PortableWasmInstantiationResult::failure(std::move(memory_error));
     }
 
@@ -350,7 +496,12 @@ namespace mobagen::plugins {
     std::array<char, 512> error_buffer{};
     auto module = wasm_runtime_load(owned_binary.data(), static_cast<std::uint32_t>(owned_binary.size()), error_buffer.data(),
                                     static_cast<std::uint32_t>(error_buffer.size()));
-    if (module == nullptr) return PortableWasmInstantiationResult::failure(std::string{"WAMR module load failed: "} + error_buffer.data());
+    if (module == nullptr) {
+      if (has_aot_magic(binary)) {
+        return PortableWasmInstantiationResult::failure("WAMR AOT module load failed: " + std::string{error_buffer.data()});
+      }
+      return PortableWasmInstantiationResult::failure(std::string{"WAMR module load failed: "} + error_buffer.data());
+    }
 
     memory_error.clear();
     auto instantiation_memory_pages = impl_->options.max_memory_pages;
@@ -369,8 +520,15 @@ namespace mobagen::plugins {
       return PortableWasmInstantiationResult::failure(std::string{"WAMR module instantiation failed: "} + error_buffer.data());
     }
 
+    if (impl_->shared_heap.heap != nullptr && !wasm_runtime_attach_shared_heap(module_instance, impl_->shared_heap.heap)) {
+      wasm_runtime_deinstantiate(module_instance);
+      wasm_runtime_unload(module);
+      return PortableWasmInstantiationResult::failure("WAMR shared heap attach failed");
+    }
+
     auto execution_environment = wasm_runtime_create_exec_env(module_instance, impl_->options.stack_size_bytes);
     if (execution_environment == nullptr) {
+      if (impl_->shared_heap.heap != nullptr) wasm_runtime_detach_shared_heap(module_instance);
       wasm_runtime_deinstantiate(module_instance);
       wasm_runtime_unload(module);
       return PortableWasmInstantiationResult::failure("WAMR execution environment allocation failed");
@@ -378,9 +536,10 @@ namespace mobagen::plugins {
 
     try {
       auto instance = std::make_unique<WamrInstance>(std::move(owned_binary), module, module_instance, execution_environment, impl_->runtime,
-                                                     std::move(host_imports));
+                                                     std::move(host_imports), impl_->shared_heap.buffer);
       return PortableWasmInstantiationResult::success(std::move(instance));
     } catch (const std::bad_alloc&) {
+      if (impl_->shared_heap.heap != nullptr) wasm_runtime_detach_shared_heap(module_instance);
       wasm_runtime_destroy_exec_env(execution_environment);
       wasm_runtime_deinstantiate(module_instance);
       wasm_runtime_unload(module);
