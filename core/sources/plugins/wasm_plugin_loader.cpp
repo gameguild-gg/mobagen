@@ -144,6 +144,10 @@ namespace mobagen::plugins {
 
   std::filesystem::path portable_wasm_plugin_binary_filename() { return "plugin.wasm"; }
 
+  std::filesystem::path portable_wasm_plugin_aot_filename() { return "plugin.aot"; }
+
+  std::filesystem::path portable_wasm_plugin_manifest_filename() { return "module.manifest"; }
+
   PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend,
                                                                  WasmHostServices host_services) {
     PortableWasmPluginLoadResult result;
@@ -175,18 +179,20 @@ namespace mobagen::plugins {
       return result;
     }
 
-    std::size_t entry_count = 0;
-    bool contains_only_binary = true;
+    /* v2 package whitelist: plugin.wasm (required) plus optional plugin.aot and module.manifest. */
+    bool contains_unlisted_entry = false;
     std::filesystem::directory_iterator entry{absolute, error};
     const std::filesystem::directory_iterator end;
     while (!error && entry != end) {
-      ++entry_count;
-      contains_only_binary = contains_only_binary && entry->path().filename() == binary_filename;
+      const auto filename = entry->path().filename();
+      contains_unlisted_entry
+          = contains_unlisted_entry || (filename != binary_filename && filename != portable_wasm_plugin_aot_filename()
+                                        && filename != portable_wasm_plugin_manifest_filename());
       entry.increment(error);
     }
-    if (error || entry_count != 1 || !contains_only_binary) {
+    if (error || contains_unlisted_entry) {
       add_issue(result, PortableWasmPluginLoadIssueCode::InvalidPackage, absolute,
-                "portable plugin package must contain exactly one canonical plugin.wasm binary", error);
+                "portable plugin package may only contain plugin.wasm, plugin.aot, and module.manifest", error);
       return result;
     }
 

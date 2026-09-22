@@ -10,7 +10,7 @@
 TEST_CASE("Module composition: headless YAML resolves, ticks, locks, and stops end to end") {
   using namespace mobagen::modules;
 
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 name: minimal-headless
 modules:
   runtime:
@@ -45,7 +45,7 @@ profiles:
 #else
   constexpr std::string_view target = "linux";
 #endif
-  const std::string expected = "schema: 1\nsdk: 1.0.0\ntarget: " + std::string(target)
+  const std::string expected = "schema: 2\nsdk: 1.0.0\ntarget: " + std::string(target)
                                + "\nprofile: release\n"
                                  "manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
                                  "permissions: []\nconfigurations: {}\nresolved:\n"

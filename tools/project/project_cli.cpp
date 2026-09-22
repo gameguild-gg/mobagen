@@ -154,7 +154,7 @@ namespace mobagen::compositions::cli {
     }
 
     std::string recommended_manifest(const InitCommand& command) {
-      return "schema: 1\n"
+      return "schema: 2\n"
              "name: " + command.name + "\n"
              "sources:\n"
              "  official:\n"

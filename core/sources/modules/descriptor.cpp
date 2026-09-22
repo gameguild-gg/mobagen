@@ -187,7 +187,7 @@ namespace mobagen::modules {
   std::vector<DescriptorIssue> validate(const ProductDescriptor& descriptor) {
     std::vector<DescriptorIssue> issues;
     if (descriptor.schema != project_schema_version) {
-      add_issue(issues, DescriptorIssueCode::UnsupportedSchema, "schema", "only product schema version 1 is supported");
+      add_issue(issues, DescriptorIssueCode::UnsupportedSchema, "schema", "only product schema version 2 is supported");
     }
     if (!is_slug(descriptor.name)) {
       add_issue(issues, DescriptorIssueCode::InvalidIdentifier, "name", "expected a lowercase product slug");

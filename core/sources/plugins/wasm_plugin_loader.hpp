@@ -105,6 +105,8 @@ namespace mobagen::plugins {
   [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_binary(const std::filesystem::path& path, PortableWasmBackend& backend,
                                                                               WasmHostServices host_services = {});
   [[nodiscard]] std::filesystem::path portable_wasm_plugin_binary_filename();
+  [[nodiscard]] std::filesystem::path portable_wasm_plugin_aot_filename();
+  [[nodiscard]] std::filesystem::path portable_wasm_plugin_manifest_filename();
   [[nodiscard]] PortableWasmPluginLoadResult load_portable_wasm_plugin_package(const std::filesystem::path& package, PortableWasmBackend& backend,
                                                                                WasmHostServices host_services = {});
   [[nodiscard]] PortableWasmPluginActivationResult activate_loaded_portable_wasm_plugin(LoadedPortableWasmPlugin plugin,

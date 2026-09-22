@@ -76,7 +76,10 @@ namespace mobagen::compositions {
         return {.reason = "mobagen.lock is missing or unreadable"};
       }
       const auto parsed = modules::parse_lockfile(*source.contents, lockfile_path.generic_string());
-      if (!parsed.ok()) return {.reason = "mobagen.lock is invalid"};
+      if (!parsed.ok()) {
+        return {.reason = parsed.issues.empty() ? "mobagen.lock is invalid"
+                                                : "mobagen.lock is invalid: " + parsed.issues.front().message};
+      }
       const modules::LockfileVerificationContext context{
           .sdk = options.sdk_version,
           .target = options.resolver.target,
@@ -201,7 +204,9 @@ namespace mobagen::compositions {
 
     auto planned = modules::plan_module_sync(*parsed.descriptor, *http_client, options.resolver);
     if (!planned.ok()) {
-      fail(result, ProjectBootstrapIssueCode::SyncPlan, sync_plan_failure(planned));
+      auto message = sync_plan_failure(planned);
+      if (!stale_reason.empty()) message = stale_reason + ": " + message;
+      fail(result, ProjectBootstrapIssueCode::SyncPlan, std::move(message));
       return result;
     }
     result.selections.reserve(planned.resolution->lifecycle_order().size());

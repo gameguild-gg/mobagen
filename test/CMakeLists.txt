@@ -120,6 +120,7 @@ if(TARGET mobagen::module_manifest)
     native_module_manager_tests.cpp
     portable_module_manager_tests.cpp
     module_manifest_tests.cpp
+    module_manifest_schema_tests.cpp
     module_sync_plan_tests.cpp
     native_project_tests.cpp
   )

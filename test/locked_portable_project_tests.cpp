@@ -30,7 +30,7 @@ namespace {
       REQUIRE(std::filesystem::create_directory(package_));
       mobagen::test::write_binary(binary(), mobagen::test::valid_wasm_header);
       const auto permissions = grants_gpu ? "    permissions:\n      - gpu\n" : "";
-      mobagen::test::write_text(manifest(), std::string{"schema: 1\n"
+      mobagen::test::write_text(manifest(), std::string{"schema: 2\n"
                                                         "name: locked-portable-project\n"
                                                         "modules:\n"
                                                         "  runtime:\n"
@@ -198,7 +198,7 @@ TEST_CASE("Project startup: first run downloads portable modules without instant
   using namespace mobagen;
   test::TemporaryWasmDirectory project;
   test::write_text(project.path() / "mobagen.yaml",
-                   R"yaml(schema: 1
+                   R"yaml(schema: 2
 name: portable-first-run
 sources:
   official:
