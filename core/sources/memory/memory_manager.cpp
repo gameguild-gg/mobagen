@@ -182,6 +182,7 @@ namespace mobagen {
 
       for (;;) {
         std::uint32_t off = null_offset;
+        bool need_park = false;
         {
           std::lock_guard<std::mutex> lock(host_mu_);
           SizeClassInfo& info = classes_[size_class];
@@ -212,13 +213,17 @@ namespace mobagen {
               }
             }
             /* Leave the bracket: epoch went odd mid-bracket (park and retry)
-             * or the head emptied under us (retry the whole loop). */
+             * or the head emptied under us (retry the whole loop). Parking
+             * MUST happen OUTSIDE M: word_wait blocks, and the collector's
+             * mark phase takes M (handle_resolve) — parking under M was a
+             * host-mutex deadlock (todo 13 deviation, found by the TSan suite). */
             const bool epoch_odd = (shim_.atomic_load(epoch_word_) & 1U) != 0U;
             in_flight_leave();
-            if (epoch_odd && !park_until_epoch_even(out_issue)) return null_offset;
-            continue;
+            need_park = epoch_odd;
           }
         }
+        if (need_park && !park_until_epoch_even(out_issue)) return null_offset;
+        if (need_park) continue;
         /* Free list empty: allocation is itself a safe point, so run a
          * synchronous collect here — OUTSIDE the in-flight bracket (inside
          * would deadlock: the collector waits for OUR dec). */
@@ -443,8 +448,12 @@ namespace mobagen {
         epoch = shim_.atomic_load(epoch_word_);
       }
       /* odd epoch published; bump host_park once so parked allocators' word_wait
-       * predicates change; the release step bumps + notifies again. */
-      shim_.atomic_store(host_park_word_, shim_.atomic_load(host_park_word_) + 1U);
+       * predicates change; the release step bumps + notifies again. CAS loop:
+       * concurrent collectors must not lose the bump. */
+      for (;;) {
+        const std::uint32_t p = shim_.atomic_load(host_park_word_);
+        if (shim_.atomic_cas(host_park_word_, p, p + 1U)) break;
+      }
       shim_.atomic_fence();
 
       if (epoch != epoch_before) {
@@ -452,9 +461,14 @@ namespace mobagen {
          * re-quiesce before marking or we would sweep a live heap. */
         if (!quiesce_guest_threads(2000, out_stats, out_issue)) {
           release_guest_threads();
-          const std::uint32_t e = shim_.atomic_load(epoch_word_);
-          shim_.atomic_store(epoch_word_, e + 1U); /* back to even */
-          shim_.atomic_store(host_park_word_, shim_.atomic_load(host_park_word_) + 1U);
+          for (;;) {
+            const std::uint32_t e = shim_.atomic_load(epoch_word_);
+            if (shim_.atomic_cas(epoch_word_, e, e + 1U)) break; /* back to even */
+          }
+          for (;;) {
+            const std::uint32_t p = shim_.atomic_load(host_park_word_);
+            if (shim_.atomic_cas(host_park_word_, p, p + 1U)) break;
+          }
           shim_.word_notify_all(host_park_word_);
           return false;
         }
@@ -468,14 +482,26 @@ namespace mobagen {
       }
 
       /* Mark from registered roots only (handles in the table are the
-       * universe of reachable objects). */
+       * universe of reachable objects). Snapshot under M: unregister_root
+       * may run concurrently on another host thread. */
+      std::vector<Handle> roots_snapshot;
+      {
+        std::lock_guard<std::mutex> lock(host_mu_);
+        roots_snapshot = roots_;
+      }
       std::uint32_t marked = 0;
-      for (const Handle root : roots_) mark_handle(root, &marked);
+      for (const Handle root : roots_snapshot) mark_handle(root, &marked);
 
-      /* Sweep: every allocated-but-unmarked block goes back to its class
-       * free list and its handle slot is released (generation bumped). */
+      /* Sweep: every allocated-but-unmarked block goes back to its size-class
+       * free list and its handle slot is released (generation bumped). Under
+       * M: the free-list heads / roots_ are the same fields alloc/free/
+       * unregister_root mutate under M (todo 13 deviation — TSan-found race:
+       * the epoch protocol makes this logically safe but there is no
+       * happens-before edge, so plain unsynchronized access was UB). */
       std::uint32_t swept = 0;
-      for (std::uint32_t c = 0; c < size_class_count; ++c) {
+      {
+        std::lock_guard<std::mutex> lock(host_mu_);
+        for (std::uint32_t c = 0; c < size_class_count; ++c) {
         const SizeClassInfo& info = classes_[c];
         if (info.chunk_offset == null_offset) continue;
         const std::uint32_t block = size_class_block_bytes(c);
@@ -508,15 +534,24 @@ namespace mobagen {
           ++classes_[c].free_blocks;
           ++swept;
         }
+        }
       }
       wr32(control_live_offset, rd32(control_live_offset) >= swept ? rd32(control_live_offset) - swept : 0U);
 
       /* Release. Parked guest threads resume (order: unpark AFTER the heap
-       * is consistent again), then host parkers are notified. */
+       * is consistent again), then host parkers are notified. epoch/park
+       * bumps are CAS loops: concurrent collectors doing load+store lost
+       * updates (a lost park bump = a lost wakeup = a frozen allocator —
+       * TSan-found, todo 13 deviation). */
       release_guest_threads();
-      const std::uint32_t e = shim_.atomic_load(epoch_word_);
-      shim_.atomic_store(epoch_word_, e + 1U); /* even again */
-      shim_.atomic_store(host_park_word_, shim_.atomic_load(host_park_word_) + 1U);
+      for (;;) {
+        const std::uint32_t e = shim_.atomic_load(epoch_word_);
+        if (shim_.atomic_cas(epoch_word_, e, e + 1U)) break;
+      }
+      for (;;) {
+        const std::uint32_t p = shim_.atomic_load(host_park_word_);
+        if (shim_.atomic_cas(host_park_word_, p, p + 1U)) break;
+      }
       shim_.word_notify_all(host_park_word_);
       if (out_stats != nullptr) {
         out_stats->marked = marked;
@@ -528,7 +563,11 @@ namespace mobagen {
     std::size_t MemoryManager::region_size() const noexcept { return region_size_; }
 
     std::uint32_t MemoryManager::free_count(std::uint32_t size_class) const noexcept {
-      return size_class < size_class_count ? classes_[size_class].free_blocks : 0U;
+      /* under M: a concurrent (guest auto-)collect mutates free_blocks in
+       * sweep (todo 13 deviation — TSan-found unsynchronized read) */
+      if (size_class >= size_class_count) return 0U;
+      std::lock_guard<std::mutex> lock(host_mu_);
+      return classes_[size_class].free_blocks;
     }
 
     std::uint32_t MemoryManager::live_objects() const noexcept { return rd32(control_live_offset); }

@@ -188,6 +188,9 @@ if(MOBAGEN_WASM_BACKEND_WAMR)
   # gitignored external/wamrc-cache/ dir, or MOBAGEN_WAMRC_PATH at test time;
   # the suite skips loudly when neither is present.
   target_compile_definitions(FoundationTests PRIVATE MOBAGEN_TEST_WAMRC_CACHE_DIR="${CMAKE_SOURCE_DIR}/external/wamrc-cache")
+  # todo 13 (micro-task C): native shim foreign-region test over the real
+  # WAMR shared heap — same gate discipline as wamr_backend_tests above.
+  target_compile_definitions(FoundationTests PRIVATE MOBAGEN_TEST_WAMR_NATIVE_SHIM=1)
   if(FOUNDATION_TEST_EXTRA_DEFS)
     target_compile_definitions(FoundationTests PRIVATE ${FOUNDATION_TEST_EXTRA_DEFS})
     if(TARGET MobagenPortableAssetStorePluginWasi)
@@ -399,6 +402,34 @@ if(NOT EMSCRIPTEN AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
     "foundation;memory-asan"
   )
   add_dependencies(CoreTests MemoryCoreAsanTests)
+endif()
+
+# ---- Native memory shim TSan variant (todo 13, micro-task C) ----
+# Rebuilds the native shim + memory core directly under ThreadSanitizer so
+# the concurrency/guest scenarios run with real race detection. Mirrors the
+# MemoryCoreAsanTests stanza; links no other engine libs (the WAMR
+# foreign-region test is excluded: MOBAGEN_TEST_WAMR_NATIVE_SHIM stays
+# undefined for this binary).
+if(NOT EMSCRIPTEN AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+  add_executable(
+    NativeMemoryShimTsanTests Test.cpp native_memory_shim_tests.cpp
+    ../core/sources/memory/memory_manager.cpp ../core/sources/memory/memory_manager.hpp
+    ../core/sources/memory/native_shim.cpp ../core/sources/memory/native_shim.hpp
+    ../core/sources/memory/object_header.h ../core/sources/memory/shim.hpp
+  )
+  target_compile_features(NativeMemoryShimTsanTests PRIVATE cxx_std_20)
+  target_include_directories(NativeMemoryShimTsanTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources)
+  find_package(Threads REQUIRED)
+  target_link_libraries(NativeMemoryShimTsanTests PRIVATE doctest::doctest Threads::Threads)
+  target_compile_options(
+    NativeMemoryShimTsanTests PRIVATE -fsanitize=thread -fno-omit-frame-pointer -g
+  )
+  target_link_options(NativeMemoryShimTsanTests PRIVATE -fsanitize=thread)
+  doctest_discover_tests(
+    NativeMemoryShimTsanTests TEST_PREFIX "foundation::memory-tsan::" PROPERTIES LABELS
+    "foundation;memory-tsan"
+  )
+  add_dependencies(CoreTests NativeMemoryShimTsanTests)
 endif()
 
 if(TARGET mobagen::core_app)
