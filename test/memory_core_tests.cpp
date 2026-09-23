@@ -334,3 +334,91 @@ TEST_CASE("memory core: object header contract is shared and versioned") {
   CHECK(refs[0] == MOBAGEN_MEMORY_NULL_HANDLE);
   CHECK(refs[1] == MOBAGEN_MEMORY_NULL_HANDLE);
 }
+
+/* todo 13 B: control +16 u32 = in-flight bracket word. */
+namespace {
+  std::uint32_t read_u32_at(MemoryManager& mgr, std::uint32_t offset) {
+    std::uint32_t v;
+    std::memcpy(&v, mgr.region_base() + offset, sizeof(v));
+    return v;
+  }
+}  // namespace
+
+TEST_CASE("memory core: in-flight bracket returns to zero after each allocation") {
+  MockShim mock;
+  MemoryManager mgr(mock.shim());
+  REQUIRE(mgr.init(128U * 1024U));
+  CHECK(read_u32_at(mgr, 16U) == 0U); /* init: in_flight stored 0 */
+  for (int i = 0; i < 8; ++i) {
+    const std::uint32_t off = mgr.alloc(16, 0);
+    REQUIRE(off != mobagen::memory::null_offset);
+    CHECK(read_u32_at(mgr, 16U) == 0U); /* bracket fully left */
+    mgr.free(off);
+  }
+  CHECK(mgr.live_objects() == 0);
+}
+
+TEST_CASE("memory core: single-threaded collect parks and releases the guest around mark/sweep") {
+  MockShim mock;
+  MemoryManager mgr(mock.shim());
+  REQUIRE(mgr.init(128U * 1024U));
+
+  const std::uint32_t off = mgr.alloc(16, 0);
+  const Handle root = mgr.register_root(mgr.handle_for(off));
+  REQUIRE(root != mobagen::memory::null_handle);
+
+  FakeGuestThread guest;
+  guest.start();
+  GuestThread reg{};
+  reg.user_data = &guest;
+  reg.quiesce_fn = &FakeGuestThread::quiesce_cb;
+  reg.release_fn = &FakeGuestThread::release_cb;
+  REQUIRE(mgr.register_guest_thread(reg) != 0);
+
+  CollectStats stats;
+  MemoryIssue issue;
+  REQUIRE(mgr.collect(&stats, &issue));
+  /* park (=1) before mark, release (=2) after; bracket drained */
+  CHECK(guest.parked_at_order == 1);
+  CHECK(guest.released_at_order == 2);
+  CHECK(read_u32_at(mgr, 16U) == 0U);
+  CHECK_FALSE(mgr.gc_in_flight());
+  CHECK(mgr.handle_resolve(root) != mobagen::memory::null_offset);
+  CHECK(stats.quiesced_threads == 1);
+
+  mgr.unregister_guest_thread(1U);
+  guest.join();
+}
+
+TEST_CASE("memory core: alloc parks at the epoch barrier while collect runs, resumes after release") {
+  MockShim mock;
+  MemoryManager mgr(mock.shim());
+  REQUIRE(mgr.init(256U * 1024U));
+
+  const std::uint32_t off0 = mgr.alloc(16, 0);
+  REQUIRE(off0 != mobagen::memory::null_offset);
+  (void)mgr.register_root(mgr.handle_for(off0));
+
+  CollectStats stats;
+  MemoryIssue issue;
+  std::atomic<bool> collect_done{false};
+  std::thread collector([&] {
+    REQUIRE(mgr.collect(&stats, &issue));
+    collect_done = true;
+  });
+
+  /* wait for the flip (no guests registered -> quiesce passes fast); if the
+   * collect already completed the alloc simply runs under the even epoch */
+  while (!mgr.gc_in_flight() && !collect_done) std::this_thread::yield();
+
+  std::uint32_t allocated = mobagen::memory::null_offset;
+  MemoryIssue alloc_issue;
+  std::thread allocator([&] { allocated = mgr.alloc(16, 0, &alloc_issue); });
+
+  collector.join();
+  allocator.join();
+  REQUIRE(allocated != mobagen::memory::null_offset);
+  CHECK_FALSE(mgr.gc_in_flight());
+  CHECK(mgr.handle_resolve(mgr.handle_for(allocated)) != mobagen::memory::null_offset);
+  mgr.free(allocated);
+}

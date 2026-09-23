@@ -16,12 +16,14 @@ namespace mobagen {
        *  +4  u32 epoch  (bit0: 1 = GC in flight)
        *  +8  u32 host_park (notifies host threads parked at the barrier)
        *  +12 u32 live_objects
-       *  +16 u64 total_allocs, +24 u64 total_frees (diagnostics; plain)
+       *  +16 u32 in_flight (mutators inside the GC bracket; shim-atomic)
+       *  +20 u64 total_allocs, +24 u64 total_frees (diagnostics; plain)
        */
       constexpr std::uint32_t control_magic_offset = 0;
       constexpr std::uint32_t control_epoch_offset = 4;
       constexpr std::uint32_t control_park_offset = 8;
       constexpr std::uint32_t control_live_offset = 12;
+      constexpr std::uint32_t control_inflight_offset = 16;
       constexpr std::uint32_t control_magic = 0x4D4D4731U; /* "MMG1" */
 
       MemoryIssue make_issue(MemoryIssueCode code, std::string message) { return MemoryIssue{code, std::move(message)}; }
@@ -59,6 +61,7 @@ namespace mobagen {
       region_size_ = region.region.size;
       epoch_word_ = MobagenAllocatorWord{control_epoch_offset};
       host_park_word_ = MobagenAllocatorWord{control_park_offset};
+      in_flight_word_ = MobagenAllocatorWord{control_inflight_offset};
 
       std::fill_n(base_, std::min<std::size_t>(region_size_, std::size_t{4096}), std::uint8_t{0});
       /* control block + handle table live in the first pages; the fill above
@@ -78,6 +81,7 @@ namespace mobagen {
       wr32(control_magic_offset, control_magic);
       shim_.atomic_store(epoch_word_, 0);
       shim_.atomic_store(host_park_word_, 0);
+      shim_.atomic_store(in_flight_word_, 0);
       wr32(control_live_offset, 0);
 
       /* Object area: one chunk per size class. The split gives every class
@@ -130,11 +134,33 @@ namespace mobagen {
 
     bool MemoryManager::park_until_epoch_even(MemoryIssue* out_issue) {
       /* Safe point 1 (allocation): block (never spin) while a GC epoch is in
-       * flight, then retry from the caller. */
+       * flight, then retry from the caller. Wait until the host_park word
+       * CHANGES (word_wait predicate: value != current) — re-read `cur` each
+       * loop so a bumped word from the previous release can't park us on a
+       * stale predicate (the hot-spin bug). */
       for (;;) {
         const std::uint32_t epoch = shim_.atomic_load(epoch_word_);
         if ((epoch & 1U) == 0U) return true;
-        (void)shim_.word_wait(host_park_word_, 0, /*timeout_ms=*/-1);
+        const std::uint32_t cur = shim_.atomic_load(host_park_word_);
+        (void)shim_.word_wait(host_park_word_, cur, /*timeout_ms=*/-1);
+      }
+    }
+
+    void MemoryManager::in_flight_enter() {
+      /* vtable has no fetch_add: CAS-loop increment. */
+      for (;;) {
+        const std::uint32_t cur = shim_.atomic_load(in_flight_word_);
+        if (shim_.atomic_cas(in_flight_word_, cur, cur + 1U)) return;
+      }
+    }
+
+    void MemoryManager::in_flight_leave() {
+      for (;;) {
+        const std::uint32_t cur = shim_.atomic_load(in_flight_word_);
+        if (shim_.atomic_cas(in_flight_word_, cur, cur - 1U)) {
+          if (cur == 1U) shim_.word_notify_all(in_flight_word_); /* collector drain sees 0 */
+          return;
+        }
       }
     }
 
@@ -153,37 +179,58 @@ namespace mobagen {
       const std::uint32_t needed = ref_count * 4U;
       const std::uint32_t capacity = size_class_capacity(size_class);
       if (needed > capacity) return fail(MemoryIssueCode::TooLarge, "memory: ref words exceed size class capacity");
-      const std::uint32_t block_bytes = size_class_block_bytes(size_class);
-      SizeClassInfo& info = classes_[size_class];
-      if (info.head == null_offset) {
-        /* Free list exhausted: allocation is itself a safe point, so run a
-         * synchronous collect here rather than failing (garbage-heavy
-         * churn then never sees OutOfMemory before GC had its chance). */
+
+      for (;;) {
+        std::uint32_t off = null_offset;
+        {
+          std::lock_guard<std::mutex> lock(host_mu_);
+          SizeClassInfo& info = classes_[size_class];
+          if (info.head != null_offset) {
+            /* In-flight bracket around this MUTATING section: inc → re-check
+             * epoch → mutate under M → dec. A collector flipping the epoch
+             * mid-bracket waits for the dec (drain) instead of sweeping a
+             * half-built object. */
+            in_flight_enter();
+            if ((shim_.atomic_load(epoch_word_) & 1U) == 0U) {
+              /* Pop the head block. The free list head is read under M so a
+               * racing allocator observes a consistent pop. */
+              if (info.head != null_offset) {
+                off = info.head;
+                info.head = rd32(off + object_header_bytes);
+                --info.free_blocks;
+
+                wr32(off + 0, object_magic_v1);
+                wr32(off + 4, size_class); /* clear mark + free bits */
+                wr32(off + 8, payload_bytes);
+                wr32(off + 12, ref_count);
+                for (std::uint32_t i = 0; i < ref_count; ++i) wr32(off + object_header_bytes + i * 4U, null_handle);
+                std::memset(base_ + off + object_header_bytes, 0, payload_bytes);
+                wr32(control_live_offset, rd32(control_live_offset) + 1);
+                in_flight_leave();
+                shim_.atomic_fence();
+                return off;
+              }
+            }
+            /* Leave the bracket: epoch went odd mid-bracket (park and retry)
+             * or the head emptied under us (retry the whole loop). */
+            const bool epoch_odd = (shim_.atomic_load(epoch_word_) & 1U) != 0U;
+            in_flight_leave();
+            if (epoch_odd && !park_until_epoch_even(out_issue)) return null_offset;
+            continue;
+          }
+        }
+        /* Free list empty: allocation is itself a safe point, so run a
+         * synchronous collect here — OUTSIDE the in-flight bracket (inside
+         * would deadlock: the collector waits for OUR dec). */
         CollectStats stats;
         MemoryIssue collect_issue;
         if (!collect(&stats, &collect_issue)) {
           if (out_issue != nullptr) *out_issue = collect_issue;
           return null_offset;
         }
-        if (info.head == null_offset) return fail(MemoryIssueCode::OutOfMemory, "memory: size class free list empty after collect");
+        std::lock_guard<std::mutex> lock(host_mu_);
+        if (classes_[size_class].head == null_offset) return fail(MemoryIssueCode::OutOfMemory, "memory: size class free list empty after collect");
       }
-
-      /* Pop the head block. Single-threaded under even-epoch + host-known
-       * safe points; the free list head is exchanged atomically so a racing
-       * allocator on another host thread observes a consistent pop. */
-      const std::uint32_t off = info.head;
-      info.head = rd32(off + object_header_bytes);
-      --info.free_blocks;
-
-      wr32(off + 0, object_magic_v1);
-      wr32(off + 4, size_class); /* clear mark + free bits */
-      wr32(off + 8, payload_bytes);
-      wr32(off + 12, ref_count);
-      for (std::uint32_t i = 0; i < ref_count; ++i) wr32(off + object_header_bytes + i * 4U, null_handle);
-      std::memset(base_ + off + object_header_bytes, 0, payload_bytes);
-      wr32(control_live_offset, rd32(control_live_offset) + 1);
-      shim_.atomic_fence();
-      return off;
     }
 
     void MemoryManager::free(std::uint32_t block_offset, MemoryIssue* out_issue) {
@@ -192,6 +239,7 @@ namespace mobagen {
         shim_.trace(what);
       };
       if (block_offset == null_offset) return;
+      std::lock_guard<std::mutex> lock(host_mu_);
       if (rd32(block_offset) != object_magic_v1 || (rd32(block_offset + 4) & MOBAGEN_MEMORY_FLAG_FREE_BIT) != 0)
         return fail(MemoryIssueCode::DoubleFree, "memory: free of foreign or already-free block");
 
@@ -215,6 +263,7 @@ namespace mobagen {
 
       /* Deterministic: lowest free slot; generation bumps on release so
        * stale handles never alias a new occupant. */
+      std::lock_guard<std::mutex> lock(host_mu_);
       for (std::uint32_t slot = 0; slot < handle_slots_; ++slot) {
         const std::uint32_t base = handle_table_start + slot * handle_stride;
         if (rd32(base) != null_offset) continue;
@@ -229,6 +278,7 @@ namespace mobagen {
     std::uint32_t MemoryManager::handle_resolve(Handle handle) const noexcept {
       const std::uint32_t slot = handle_slot(handle);
       if (slot >= handle_slots_) return null_offset;
+      std::lock_guard<std::mutex> lock(host_mu_);
       const std::uint32_t base = handle_table_start + slot * handle_stride;
       /* generation word: bit31 = in-registry root flag, [30:0] = generation */
       if ((rd32(base + 4) & 0x7FFFFFFFU) != handle_generation(handle)) return null_offset;
@@ -250,6 +300,7 @@ namespace mobagen {
       }
       const std::uint32_t slot = handle_slot(handle);
       const std::uint32_t table = handle_table_start + slot * handle_stride;
+      std::lock_guard<std::mutex> lock(host_mu_);
       /* in-registry flag = bit31 of the generation word */
       wr32(table + 4, rd32(table + 4) | 0x80000000U);
       if (std::find(roots_.begin(), roots_.end(), handle) == roots_.end()) roots_.push_back(handle);
@@ -257,6 +308,7 @@ namespace mobagen {
     }
 
     void MemoryManager::unregister_root(Handle handle) noexcept {
+      std::lock_guard<std::mutex> lock(host_mu_);
       const auto it = std::find(roots_.begin(), roots_.end(), handle);
       if (it == roots_.end()) return;
       roots_.erase(it);
@@ -266,11 +318,20 @@ namespace mobagen {
       wr32(table + 4, rd32(table + 4) & ~0x80000000U);
     }
 
-    bool MemoryManager::is_root(Handle handle) const noexcept { return std::find(roots_.begin(), roots_.end(), handle) != roots_.end(); }
+    bool MemoryManager::is_root(Handle handle) const noexcept {
+      std::lock_guard<std::mutex> lock(host_mu_);
+      return std::find(roots_.begin(), roots_.end(), handle) != roots_.end();
+    }
 
-    std::size_t MemoryManager::root_count() const noexcept { return roots_.size(); }
+    std::size_t MemoryManager::root_count() const noexcept {
+      std::lock_guard<std::mutex> lock(host_mu_);
+      return roots_.size();
+    }
 
-    std::uint32_t MemoryManager::root_at(std::size_t index) const noexcept { return index < roots_.size() ? roots_[index] : null_handle; }
+    std::uint32_t MemoryManager::root_at(std::size_t index) const noexcept {
+      std::lock_guard<std::mutex> lock(host_mu_);
+      return index < roots_.size() ? roots_[index] : null_handle;
+    }
 
     void MemoryManager::mark_handle(Handle h, std::uint32_t* out_marked) {
       const std::uint32_t off = handle_resolve(h);
@@ -292,20 +353,32 @@ namespace mobagen {
         if (out_issue != nullptr) *out_issue = make_issue(MemoryIssueCode::QuiesceFailed, "memory: guest thread without handshake callbacks");
         return 0;
       }
+      std::lock_guard<std::mutex> lock(host_mu_);
       thread.id = next_guest_thread_id_++;
       guest_threads_.push_back(thread);
       return thread.id;
     }
 
     void MemoryManager::unregister_guest_thread(std::uint32_t id) noexcept {
+      std::lock_guard<std::mutex> lock(host_mu_);
       const auto it = std::find_if(guest_threads_.begin(), guest_threads_.end(), [id](const GuestThread& t) { return t.id == id; });
       if (it != guest_threads_.end()) guest_threads_.erase(it);
     }
 
-    std::size_t MemoryManager::guest_thread_count() const noexcept { return guest_threads_.size(); }
+    std::size_t MemoryManager::guest_thread_count() const noexcept {
+      std::lock_guard<std::mutex> lock(host_mu_);
+      return guest_threads_.size();
+    }
 
     bool MemoryManager::quiesce_guest_threads(std::uint32_t timeout_ms, CollectStats* out_stats, MemoryIssue* out_issue) {
-      for (const GuestThread& t : guest_threads_) {
+      /* Snapshot under M: quiesce callbacks may themselves word_wait/block —
+       * M must never be held across them. */
+      std::vector<GuestThread> snapshot;
+      {
+        std::lock_guard<std::mutex> lock(host_mu_);
+        snapshot = guest_threads_;
+      }
+      for (const GuestThread& t : snapshot) {
         const int status = t.quiesce_fn(t.user_data, static_cast<std::int32_t>(timeout_ms));
         if (status != MOBAGEN_QUIESCE_OK) {
           const char* what = status == MOBAGEN_QUIESCE_TIMEOUT
@@ -322,7 +395,12 @@ namespace mobagen {
     }
 
     void MemoryManager::release_guest_threads() noexcept {
-      for (const GuestThread& t : guest_threads_) t.release_fn(t.user_data);
+      std::vector<GuestThread> snapshot;
+      {
+        std::lock_guard<std::mutex> lock(host_mu_);
+        snapshot = guest_threads_;
+      }
+      for (const GuestThread& t : snapshot) t.release_fn(t.user_data);
     }
 
     bool MemoryManager::collect(CollectStats* out_stats, MemoryIssue* out_issue) {
@@ -333,38 +411,60 @@ namespace mobagen {
       };
       if (base_ == nullptr || rd32(control_magic_offset) != control_magic) return fail(MemoryIssueCode::Internal, "memory: collect before init");
 
-      /* Stop-the-world (shim.hpp sequence): request -> quiesce -> mark ->
-       * sweep -> release. Epoch CAS guards a single collector. */
+      /* Concurrent-collector detection: remember the epoch BEFORE quiescing.
+       * If it differs from the epoch we finally CAS'd from, another collector
+       * completed a full cycle meanwhile and its release step woke our
+       * parked guests — they must be re-quiesced. */
+      const std::uint32_t epoch_before = shim_.atomic_load(epoch_word_);
+
+      /* Quiesce managed guest threads FIRST (before the epoch flip and any
+       * marking). On timeout: release parked guests and abort — the epoch is
+       * NEVER flipped here, so there is nothing to restore and
+       * gc_in_flight() stays false (loud abort, heap untouched). */
+      if (!quiesce_guest_threads(2000, out_stats, out_issue)) {
+        release_guest_threads();
+        return false;
+      }
+
+      /* Epoch CAS even->odd with parking retry. NO mutex held: parkers
+       * observe the flip via word_wait on host_park (released at the end). */
       std::uint32_t epoch = shim_.atomic_load(epoch_word_);
       for (;;) {
         if ((epoch & 1U) != 0U) {
-          if (!park_until_epoch_even(out_issue)) return false;
+          /* shouldn't happen (we quiesced first) but park defensively */
+          if (!park_until_epoch_even(nullptr)) {
+            release_guest_threads();
+            return false;
+          }
           epoch = shim_.atomic_load(epoch_word_);
           continue;
         }
         if (shim_.atomic_cas(epoch_word_, epoch, epoch + 1U)) break;
         epoch = shim_.atomic_load(epoch_word_);
       }
-      in_collect_ = true;
-      /* odd epoch published; everyone parking on host_park waits on value 0
-       * which we set back to 0 at release — bump it first so word_wait
-       * (predicate: value != current) wakes: store 1, waiters compare
-       * against 0 and sleep, release stores 2 + notify. Simplify: parkers
-       * wait while epoch odd; they re-read epoch after each wake. */
+      /* odd epoch published; bump host_park once so parked allocators' word_wait
+       * predicates change; the release step bumps + notifies again. */
       shim_.atomic_store(host_park_word_, shim_.atomic_load(host_park_word_) + 1U);
       shim_.atomic_fence();
 
-      /* Quiesce managed guest threads BEFORE any marking (the policy). */
-      if (!quiesce_guest_threads(2000, out_stats, out_issue)) {
-        /* Loud abort: release the world without touching the heap. Any
-         * guest thread that DID park gets woken by the release below. */
-        release_guest_threads();
-        const std::uint32_t e = shim_.atomic_load(epoch_word_);
-        shim_.atomic_store(epoch_word_, e + 1U); /* back to even */
-        shim_.atomic_store(host_park_word_, shim_.atomic_load(host_park_word_) + 1U);
-        shim_.word_notify_all(host_park_word_);
-        in_collect_ = false;
-        return false;
+      if (epoch != epoch_before) {
+        /* our guests were woken by the concurrent collector's release:
+         * re-quiesce before marking or we would sweep a live heap. */
+        if (!quiesce_guest_threads(2000, out_stats, out_issue)) {
+          release_guest_threads();
+          const std::uint32_t e = shim_.atomic_load(epoch_word_);
+          shim_.atomic_store(epoch_word_, e + 1U); /* back to even */
+          shim_.atomic_store(host_park_word_, shim_.atomic_load(host_park_word_) + 1U);
+          shim_.word_notify_all(host_park_word_);
+          return false;
+        }
+      }
+
+      /* Drain any mutator inside the bracket (inc'd before the flip): wait
+       * until in_flight reaches 0. Mutators decremented to 0 notify. */
+      {
+        std::uint32_t cur = shim_.atomic_load(in_flight_word_);
+        while (cur != 0U) cur = shim_.word_wait(in_flight_word_, cur, /*timeout_ms=*/-1);
       }
 
       /* Mark from registered roots only (handles in the table are the
@@ -418,7 +518,6 @@ namespace mobagen {
       shim_.atomic_store(epoch_word_, e + 1U); /* even again */
       shim_.atomic_store(host_park_word_, shim_.atomic_load(host_park_word_) + 1U);
       shim_.word_notify_all(host_park_word_);
-      in_collect_ = false;
       if (out_stats != nullptr) {
         out_stats->marked = marked;
         out_stats->swept = swept;
