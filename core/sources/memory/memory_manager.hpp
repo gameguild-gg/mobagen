@@ -24,6 +24,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -178,13 +179,17 @@ namespace mobagen {
       std::size_t region_size_{0};
       MobagenAllocatorWord epoch_word_{};
       MobagenAllocatorWord host_park_word_{};
+      MobagenAllocatorWord in_flight_word_{}; /* control +16: mutators inside the bracket */
       std::uint32_t handle_slots_{0};
       std::uint32_t handles_in_use_{0};
       std::vector<SizeClassInfo> classes_{size_class_count};
       std::vector<Handle> roots_; /* deterministic registration order */
       std::vector<GuestThread> guest_threads_;
       std::uint32_t next_guest_thread_id_{1};
-      bool in_collect_{false};
+      /* Manager mutex: protects classes_, handle slots, roots_, guest_threads_
+       * vectors. NEVER held across parking, word_wait, quiesce callbacks,
+       * drain, or blocking collect steps. */
+      mutable std::mutex host_mu_;
 
       /* Raw u32 access inside the region (single-threaded setup / quiesced
        * phases); cross-thread fields go through shim atomics. */
@@ -192,6 +197,9 @@ namespace mobagen {
       void wr32(std::uint32_t offset, std::uint32_t v) noexcept;
       bool park_until_epoch_even(MemoryIssue* out_issue);
       void mark_handle(Handle h, std::uint32_t* out_marked);
+      /* in-flight bracket on the +16 word (vtable has no fetch_add: CAS loops). */
+      void in_flight_enter();
+      void in_flight_leave();
     };
 
   }  // namespace memory
