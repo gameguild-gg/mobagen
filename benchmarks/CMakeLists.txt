@@ -22,6 +22,17 @@ target_include_directories(
 target_link_libraries(MobagenModuleDispatchBenchmark PRIVATE mobagen::core_modules)
 
 if(NOT EMSCRIPTEN)
+  add_executable(MobagenMemoryAllocGCBenchmark memory_alloc_gc_benchmark.cpp)
+  target_compile_features(MobagenMemoryAllocGCBenchmark PRIVATE cxx_std_20)
+  target_include_directories(
+    MobagenMemoryAllocGCBenchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
+  )
+  target_link_libraries(
+    MobagenMemoryAllocGCBenchmark PRIVATE mobagen::memory_core mobagen::memory_native_shim
+  )
+endif()
+
+if(NOT EMSCRIPTEN)
   add_library(MobagenAbiDispatchBenchmarkPlugin MODULE plugin_abi_dispatch_plugin.c)
   target_link_libraries(MobagenAbiDispatchBenchmarkPlugin PRIVATE mobagen::plugin_sdk)
   target_compile_definitions(MobagenAbiDispatchBenchmarkPlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
@@ -83,8 +94,14 @@ if(BUILD_TESTING)
   endif()
   if(TARGET MobagenNativeModuleRuntimeBenchmark)
     add_test(NAME benchmark::native-module-runtime-smoke COMMAND MobagenNativeModuleRuntimeBenchmark
-                                                                 --warmup 1 --samples 2
+                                                                  --warmup 1 --samples 2
     )
     set_tests_properties(benchmark::native-module-runtime-smoke PROPERTIES LABELS benchmark)
+  endif()
+  if(TARGET MobagenMemoryAllocGCBenchmark)
+    add_test(NAME benchmark::memory-alloc-gc-smoke COMMAND MobagenMemoryAllocGCBenchmark --warmup 1
+                                                            --samples 2
+    )
+    set_tests_properties(benchmark::memory-alloc-gc-smoke PROPERTIES LABELS benchmark)
   endif()
 endif()
