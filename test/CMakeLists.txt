@@ -150,6 +150,12 @@ if(MOBAGEN_WASM_BACKEND_WAMR)
   if(TARGET MobagenPortableQuickJSPluginWasi)
     list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_QUICKJS_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.scripting.quickjs.plugin/plugin.wasm")
   endif()
+  # todo 17: the wasi-built Lua scripting guest — same loader path, plus the
+  # trap-recovery drain export.
+  if(TARGET MobagenPortableLuaPluginWasi)
+    list(APPEND FOUNDATION_TEST_SOURCES wasm_lua_tests.cpp)
+    list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_LUA_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.scripting.lua.plugin/plugin.wasm")
+  endif()
 endif()
 
 # todo 13 (micro-task A): native memory shim — pthreads + __atomic builtins

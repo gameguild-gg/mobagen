@@ -187,7 +187,18 @@ namespace mobagen::plugins {
                  return 2;
                }
              }
-             var result = fn.apply(null, args);
+             /* A guest trap (todo 17: Lua's error path) surfaces as a JS
+                RuntimeError — map it to the failure return (-5, trapped)
+                instead of an uncaught exception killing the worker. The
+                guest's own recovery protocol (drain export) collects the
+                error afterwards. */
+             var result;
+             try {
+               result = fn.apply(null, args);
+             } catch (e) {
+               if (e instanceof WebAssembly.RuntimeError) return -5;
+               throw e;
+             }
              if (result === undefined) {
                HEAPU32[result_cells_out >> 2] = 0;
                HEAPU32[(result_cells_out >> 2) + 1] = 0;
@@ -467,6 +478,7 @@ namespace mobagen::plugins {
                                                                  heap_pointer(out_result_cells.data()));
     g_dispatch_instance = dispatched;
     if (status == 2) return -2;
+    if (status == -5) return -5; /* guest trap (todo 17 recovery protocol) */
     if (missing != 0) return -1;
     return 0;
   }

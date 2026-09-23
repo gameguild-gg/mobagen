@@ -79,6 +79,24 @@ add_custom_command(
 )
 
 # ---------------------------------------------------------------------------
+# Todo 17: the emcc-built Lua scripting guest (modules/scripting_lua),
+# same embed pipeline as the QuickJS guest above.
+# ---------------------------------------------------------------------------
+set(MOBAGEN_BROWSER_LUA_GUEST_WASM "${CMAKE_BINARY_DIR}/plugins/mobagen.scripting.lua.plugin/plugin.wasm")
+set(MOBAGEN_BROWSER_LUA_GUEST_HEADER "${MOBAGEN_BROWSER_GUEST_HEADER_DIR}/mobagen_lua_guest_wasm.h")
+add_custom_command(
+  OUTPUT "${MOBAGEN_BROWSER_LUA_GUEST_HEADER}"
+  COMMAND ${CMAKE_COMMAND}
+          "-DINPUT=${MOBAGEN_BROWSER_LUA_GUEST_WASM}"
+          "-DOUTPUT=${MOBAGEN_BROWSER_LUA_GUEST_HEADER}"
+          "-DSYMBOL=mobagen_lua_guest_wasm"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/embed_wasm.cmake"
+  DEPENDS "${MOBAGEN_BROWSER_LUA_GUEST_WASM}"
+  VERBATIM
+  COMMENT "browser backend: embedding Lua scripting guest bytes"
+)
+
+# ---------------------------------------------------------------------------
 # Backend library + smoke executable.
 # ---------------------------------------------------------------------------
 add_library(mobagen_browser_wasm_backend STATIC browser_wasm_backend.cpp browser_wasm_backend.hpp)
@@ -90,11 +108,12 @@ target_link_libraries(mobagen_browser_wasm_backend PUBLIC mobagen::core_plugins)
 # Todo 14: links mobagen::memory_web_shim — the smoke runs the memory-manager
 # scenario over the web shim (SAB+Atomics in the shared variant, isolated
 # fallback otherwise) inside the SAME node worker boot the runner provides.
-add_executable(MobagenBrowserBackendSmoke smoke_main.cpp "${MOBAGEN_BROWSER_GUEST_HEADER}" "${MOBAGEN_BROWSER_QUICKJS_GUEST_HEADER}")
+add_executable(MobagenBrowserBackendSmoke smoke_main.cpp "${MOBAGEN_BROWSER_GUEST_HEADER}" "${MOBAGEN_BROWSER_QUICKJS_GUEST_HEADER}"
+                   "${MOBAGEN_BROWSER_LUA_GUEST_HEADER}")
 target_compile_features(MobagenBrowserBackendSmoke PRIVATE cxx_std_20)
 target_link_libraries(MobagenBrowserBackendSmoke PRIVATE mobagen::browser_wasm_backend mobagen::memory_web_shim mobagen::memory_core)
 target_include_directories(MobagenBrowserBackendSmoke PRIVATE "${MOBAGEN_BROWSER_GUEST_HEADER_DIR}")
-add_dependencies(MobagenBrowserBackendSmoke MobagenPortableQuickJSPlugin)
+add_dependencies(MobagenBrowserBackendSmoke MobagenPortableQuickJSPlugin MobagenPortableLuaPlugin)
 # Headless node bundle: no DOM, no fetch; the runner boots it directly (and
 # its boot worker installs the `window` SDL shim, so `web` must stay in the
 # environment list or the runtime aborts). Guests stage onto MEMFS.

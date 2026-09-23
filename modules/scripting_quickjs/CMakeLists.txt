@@ -1,12 +1,15 @@
 # QuickJS scripting guest (dynamic-loading-all-platforms todo 16).
 #
-# quickjs-ng v0.10.0 (MIT) lives ONLY inside the wasm guest — the engine is
-# never embedded natively in the core. Mirrors asset_store/CMakeLists.txt:
-# emcc standalone guest for the web trees, wasi-sdk guest for WAMR, manifest
-# via the extraction tool, AOT stage (todo 20 helper) on desktop/android,
-# and a HARD 8 MiB size assert (Chromium main-thread sync-compile budget —
-# the browser sync path throws BackendFailure at that limit; the build
-# fails earlier and louder).
+# quickjs-ng v0.10.0 (MIT) fetched via CPM (external/quickjs-ng.cmake) —
+# the engine lives ONLY inside the wasm guest, never embedded natively
+# in the core. Mirrors asset_store/CMakeLists.txt: emcc standalone guest
+# for the web trees, wasi-sdk guest for WAMR, manifest via the extraction
+# tool, AOT stage (todo 20 helper) on desktop/android, and a HARD 8 MiB
+# size assert (Chromium main-thread sync-compile budget — the browser
+# sync path throws BackendFailure at that limit; the build fails earlier
+# and louder).
+
+include(${CMAKE_SOURCE_DIR}/external/quickjs-ng.cmake)
 
 set(MOBAGEN_QUICKJS_GUEST_WASM_EXPORTS
     -Wl,--export=mobagen_wasm_plugin_allocate_v1
@@ -24,16 +27,16 @@ set(MOBAGEN_QUICKJS_GUEST_WASM_EXPORTS
 
 set(MOBAGEN_QUICKJS_FREESTANDING_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/freestanding_libc_shim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/quickjs/quickjs.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/quickjs/cutils.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/quickjs/libregexp.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/quickjs/libunicode.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/quickjs/xsum.c
+    ${quickjs_SOURCE_DIR}/quickjs.c
+    ${quickjs_SOURCE_DIR}/cutils.c
+    ${quickjs_SOURCE_DIR}/libregexp.c
+    ${quickjs_SOURCE_DIR}/libunicode.c
+    ${quickjs_SOURCE_DIR}/xsum.c
     ${CMAKE_CURRENT_SOURCE_DIR}/portable_quickjs_plugin.c)
 
 set(MOBAGEN_QUICKJS_FREESTANDING_INCLUDES
     -isystem ${CMAKE_CURRENT_SOURCE_DIR}/freestanding_headers
-    -I${CMAKE_CURRENT_SOURCE_DIR}/third_party/quickjs
+    -I${quickjs_SOURCE_DIR}
     -I${CMAKE_SOURCE_DIR}/sdk/include)
 
 # Chromium main-thread sync-compile budget (review rr-dlap-1). The 8MB limit
@@ -62,7 +65,7 @@ if(EMSCRIPTEN)
   # emcc links musl: NO shadow headers on this path — the freestanding shim
   # compiles down to its clock helper only (see freestanding_libc_shim.c).
   target_include_directories(MobagenPortableQuickJSPlugin PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/quickjs)
+    ${quickjs_SOURCE_DIR})
   # Capability, not thread usage (todo 18): =0 overrides come LAST because the
   # root CMakeLists appends the shared variant's USE_PTHREADS/SHARED_MEMORY
   # to every target (emcc last-flag-wins).

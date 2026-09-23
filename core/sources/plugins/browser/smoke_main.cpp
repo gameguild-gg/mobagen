@@ -52,6 +52,8 @@
 
 /* Todo 16: the emcc-built QuickJS scripting guest (same embed pipeline). */
 #include "mobagen_quickjs_guest_wasm.h"
+/* Todo 17: the emcc-built Lua scripting guest (same embed pipeline). */
+#include "mobagen_lua_guest_wasm.h"
 
 namespace {
 
@@ -506,6 +508,181 @@ int main() {
         auto quiesced = quickjs_activated.activation->quiesce();
         auto stopped = quiesced.ok() ? quickjs_activated.activation->stop() : quiesced;
         check(stopped.ok(), "QuickJS guest quiesced + stopped cleanly");
+      }
+    }
+  }
+
+  /* 4b. Todo 17: the Lua scripting guest through the same production loader
+     pipeline — load, direct typed eval `2*21` -> 42 through the descriptor
+     dispatcher, and a runtime error recovered through the trap + drain
+     export pair (the browser divergence from QuickJS's in-band errors:
+     a Lua error traps, then mobagen_scripting_error_v1 finishes the
+     unwind and writes the ok:false envelope). */
+  {
+    const std::span<const std::byte> lua{reinterpret_cast<const std::byte*>(mobagen_lua_guest_wasm), mobagen_lua_guest_wasm_bytes};
+    check(lua.size() < browser_wasm_sync_compile_budget_bytes, "Lua guest under the 8MB sync-compile budget");
+    const std::filesystem::path lua_path{"/mobagen-smoke/lua.plugin.wasm"};
+    check(stage_file(lua_path, lua), "Lua guest staged onto MEMFS");
+
+    auto lua_loaded = load_portable_wasm_plugin_binary(lua_path, backend);
+    check(lua_loaded.ok(), "Lua guest loaded through BrowserWasmBackend (sync instantiate + descriptor query)");
+    if (!lua_loaded.ok() && !lua_loaded.issues.empty()) {
+      std::printf("[browser-smoke]   load issue: %s\n", lua_loaded.issues.front().message.c_str());
+    }
+    if (lua_loaded.ok() && lua_loaded.plugin.has_value()) {
+      check(lua_loaded.plugin->provider().id == "mobagen.scripting.lua", "Lua provider id matches the guest descriptor");
+
+      auto lua_activated = activate_portable_wasm_plugin(lua_loaded.plugin->take_instance());
+      check(lua_activated.ok(), "Lua guest activated (host imports bound, configure + start)");
+      if (lua_activated.ok() && lua_activated.activation != nullptr) {
+        std::vector<mobagen::modules::ModuleManifestExport> lua_exports;
+        auto direct = backend.instantiate(lua, nullptr);
+        check(direct.ok(), "Lua direct instance instantiated for typed eval");
+        if (direct.ok()) {
+          auto direct_configured = direct.instance->invoke(WasmPluginExport::Configure, std::array<std::uint32_t, 2>{});
+          check(direct_configured.ok() && *direct_configured.value == MOBAGEN_WASM_STATUS_OK, "Lua direct instance configured");
+          auto direct_started = direct.instance->invoke(WasmPluginExport::Start, {});
+          check(direct_started.ok() && *direct_started.value == MOBAGEN_WASM_STATUS_OK, "Lua direct instance started");
+          if (direct_configured.ok() && direct_started.ok()) {
+            const auto memory = direct.instance->memory();
+            check(read_annotation_exports(memory.data(), memory.size(), lua_exports), "Lua annotation table read from live guest memory");
+            const mobagen::modules::ModuleManifestExport* eval_export = nullptr;
+            const mobagen::modules::ModuleManifestExport* error_export = nullptr;
+            for (const auto& entry : lua_exports) {
+              if (entry.name == "mobagen_scripting_eval_v1") eval_export = &entry;
+              if (entry.name == "mobagen_scripting_error_v1") error_export = &entry;
+            }
+            check(eval_export != nullptr && eval_export->marshaling.has_value(), "mobagen_scripting_eval_v1 descriptor decoded");
+            check(error_export != nullptr && error_export->marshaling.has_value(), "mobagen_scripting_error_v1 descriptor decoded");
+
+            if (eval_export != nullptr && eval_export->marshaling.has_value() && error_export != nullptr
+                && error_export->marshaling.has_value()) {
+              const std::array allocate_arguments{std::uint32_t{4096}, MOBAGEN_WASM_EXCHANGE_ALIGNMENT};
+              auto scratch_allocation = direct.instance->invoke(WasmPluginExport::Allocate, allocate_arguments);
+              const bool scratch_ok = scratch_allocation.ok() && *scratch_allocation.value != MOBAGEN_WASM_NULL_OFFSET;
+              check(scratch_ok, "Lua guest scratch allocated through the allocate export");
+              if (scratch_ok) {
+                const std::uint32_t scratch = *scratch_allocation.value;
+                /* Re-take writable_memory() AFTER the allocate invoke (view
+                   invalidation rule) and write full LE32 words. */
+                auto arena = direct.instance->writable_memory();
+                const std::uint32_t source_offset = scratch;
+                const std::uint32_t source_pair = scratch + 2048;
+                const std::uint32_t result_pair = source_pair + 8;
+                const std::uint32_t result_offset = scratch + 1024;
+                const std::string source = "return 2*21";
+                for (std::size_t index = 0; index < source.size(); ++index) {
+                  arena[source_offset + index] = std::byte{static_cast<std::uint8_t>(source[index])};
+                }
+                auto stage_pair = [&arena](std::uint32_t at, std::uint32_t offset, std::uint32_t size) {
+                  arena[at + 0] = std::byte{static_cast<std::uint8_t>(offset & 0xffU)};
+                  arena[at + 1] = std::byte{static_cast<std::uint8_t>((offset >> 8U) & 0xffU)};
+                  arena[at + 2] = std::byte{static_cast<std::uint8_t>((offset >> 16U) & 0xffU)};
+                  arena[at + 3] = std::byte{static_cast<std::uint8_t>((offset >> 24U) & 0xffU)};
+                  arena[at + 4] = std::byte{static_cast<std::uint8_t>(size & 0xffU)};
+                  arena[at + 5] = std::byte{static_cast<std::uint8_t>((size >> 8U) & 0xffU)};
+                  arena[at + 6] = std::byte{static_cast<std::uint8_t>((size >> 16U) & 0xffU)};
+                  arena[at + 7] = std::byte{static_cast<std::uint8_t>((size >> 24U) & 0xffU)};
+                };
+                stage_pair(source_pair, source_offset, static_cast<std::uint32_t>(source.size()));
+                stage_pair(result_pair, result_offset, 1024);
+
+                std::array<std::uint32_t, 2> result_cells{};
+                const std::array eval_cells{source_pair, result_pair};
+                const auto dispatched
+                    = browser_wasm_invoke_typed_export(*direct.instance, eval_export->name, *eval_export->marshaling, eval_cells, result_cells);
+                check(dispatched == 0, "Lua eval dispatched through the generic descriptor marshaller");
+                check(dispatched == 0 && result_cells[0] == MOBAGEN_WASM_STATUS_OK, "Lua eval(2*21) export returned OK");
+                if (dispatched == 0 && result_cells[0] == MOBAGEN_WASM_STATUS_OK) {
+                  const auto view = direct.instance->memory();
+                  const char* text = reinterpret_cast<const char*>(view.data() + result_offset);
+                  std::string envelope{text, strnlen(text, 64)};
+                  std::printf("[browser-smoke] lua-eval %s\n", envelope.c_str());
+                  check(envelope.find("\"ok\":true") != std::string::npos, "Lua eval(2*21) envelope reports ok:true");
+                  check(envelope.find("\"value\":\"42\"") != std::string::npos, "Lua eval(2*21) returned 42");
+                }
+
+                /* Failure path: a Lua runtime error TRAPS the guest (the
+                   trap-recovery divergence). The typed dispatch reports the
+                   failure; re-take the writable view, re-stage the result
+                   span, and drain through mobagen_scripting_error_v1. */
+                auto arena2 = direct.instance->writable_memory();
+                const std::string broken = "error('boom')";
+                for (std::size_t index = 0; index < broken.size(); ++index) {
+                  arena2[source_offset + index] = std::byte{static_cast<std::uint8_t>(broken[index])};
+                }
+                arena2[source_pair + 4] = std::byte{static_cast<std::uint8_t>(broken.size())};
+                std::array<std::uint32_t, 2> broken_cells{};
+                const std::array broken_eval_cells{source_pair, result_pair};
+                const auto broken_dispatched
+                    = browser_wasm_invoke_typed_export(*direct.instance, eval_export->name, *eval_export->marshaling, broken_eval_cells, broken_cells);
+                check(broken_dispatched != 0, "Lua runtime-error eval surfaced as a failed invoke (trap)");
+                if (broken_dispatched != 0) {
+                  /* Re-stage the result span (full LE32 words; the trap
+                     skipped the guest's own write of it). */
+                  auto arena3 = direct.instance->writable_memory();
+                  arena3[result_pair + 0] = std::byte{static_cast<std::uint8_t>(result_offset & 0xffU)};
+                  arena3[result_pair + 1] = std::byte{static_cast<std::uint8_t>((result_offset >> 8U) & 0xffU)};
+                  arena3[result_pair + 2] = std::byte{static_cast<std::uint8_t>((result_offset >> 16U) & 0xffU)};
+                  arena3[result_pair + 3] = std::byte{static_cast<std::uint8_t>((result_offset >> 24U) & 0xffU)};
+                  arena3[result_pair + 4] = std::byte{0};
+                  arena3[result_pair + 5] = std::byte{4};
+                  arena3[result_pair + 6] = std::byte{0};
+                  arena3[result_pair + 7] = std::byte{0};
+                  std::array<std::uint32_t, 2> error_cells{};
+                  const std::array drain_cells{result_pair};
+                  const auto drained
+                      = browser_wasm_invoke_typed_export(*direct.instance, error_export->name, *error_export->marshaling, drain_cells, error_cells);
+                  {
+                    const auto dbg_view = direct.instance->memory();
+                    std::printf("[browser-smoke] lua-drain dispatched=%d cells0=%u text=%s\n", drained, error_cells[0],
+                                reinterpret_cast<const char*>(dbg_view.data() + result_offset));
+                  }
+                  check(drained == 0 && error_cells[0] == MOBAGEN_WASM_STATUS_OK, "Lua trap drained through mobagen_scripting_error_v1");
+                  if (drained == 0 && error_cells[0] == MOBAGEN_WASM_STATUS_OK) {
+                    const auto view = direct.instance->memory();
+                    const char* text = reinterpret_cast<const char*>(view.data() + result_offset);
+                    std::string envelope{text, strnlen(text, 128)};
+                    std::printf("[browser-smoke] lua-trap-recovery %s\n", envelope.c_str());
+                    check(envelope.find("\"ok\":false") != std::string::npos, "Lua runtime error surfaced as ok:false in the envelope");
+                    check(envelope.find("boom") != std::string::npos, "Lua runtime error names the error() payload");
+                  }
+
+                  /* The guest still evaluates after the drain (recovered
+                     state) — the recovery contract's core assertion. */
+                  auto arena4 = direct.instance->writable_memory();
+                  const std::string again = "return 6*7";
+                  for (std::size_t index = 0; index < again.size(); ++index) {
+                    arena4[source_offset + index] = std::byte{static_cast<std::uint8_t>(again[index])};
+                  }
+                  arena4[source_pair + 4] = std::byte{static_cast<std::uint8_t>(again.size())};
+                  std::array<std::uint32_t, 2> again_cells{};
+                  const std::array again_eval_cells{source_pair, result_pair};
+                  const auto again_dispatched
+                      = browser_wasm_invoke_typed_export(*direct.instance, eval_export->name, *eval_export->marshaling, again_eval_cells, again_cells);
+                  check(again_dispatched == 0 && again_cells[0] == MOBAGEN_WASM_STATUS_OK, "Lua eval after trap recovery completed");
+                  if (again_dispatched == 0 && again_cells[0] == MOBAGEN_WASM_STATUS_OK) {
+                    const auto view = direct.instance->memory();
+                    const char* text = reinterpret_cast<const char*>(view.data() + result_offset);
+                    std::string envelope{text, strnlen(text, 64)};
+                    check(envelope.find("\"value\":\"42\"") != std::string::npos, "Lua eval after trap recovery returned 42");
+                  }
+                }
+
+                const std::array deallocate_arguments{scratch, std::uint32_t{4096}, MOBAGEN_WASM_EXCHANGE_ALIGNMENT};
+                (void)direct.instance->invoke(WasmPluginExport::Deallocate, deallocate_arguments);
+              }
+            }
+            auto direct_quiesced = direct.instance->invoke(WasmPluginExport::Quiesce, {});
+            auto direct_stopped = direct_quiesced.ok() ? direct.instance->invoke(WasmPluginExport::Stop, {}) : direct_quiesced;
+            check(direct_stopped.ok(), "Lua direct instance quiesced + stopped");
+            direct.instance.reset();
+          }
+        }
+
+        auto lua_quiesced = lua_activated.activation->quiesce();
+        auto lua_stopped = lua_quiesced.ok() ? lua_activated.activation->stop() : lua_quiesced;
+        check(lua_stopped.ok(), "Lua guest quiesced + stopped cleanly");
       }
     }
   }
