@@ -288,6 +288,58 @@ TEST_CASE("Portable WASM plugin loader: managed threads require the quiesce expo
   CHECK(quiesced.issues.empty());
 }
 
+TEST_CASE("Portable WASM plugin loader: shared-heap runtimes reject guests without the shared-memory capability") {
+  /* todo 18: the gate is a runtime REQUIREMENT (shared-heap runtimes demand the
+   * capability); distinct from SharedMemoryMismatch (manifest-vs-lock equality).
+   * Isolated-mode runtimes simply leave the requirement unset. */
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+  const auto package = directory.path() / "legacy.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\n");
+
+  mobagen::plugins::PortableWasmModuleContract shared_heap_contract;
+  shared_heap_contract.api_version = 1;
+  shared_heap_contract.abi_version = 1;
+  shared_heap_contract.shared_memory = true;
+  shared_heap_contract.requires_shared_memory_capability = true;
+
+  const auto rejected = mobagen::plugins::verify_portable_wasm_module_contract(package, shared_heap_contract);
+  CHECK_FALSE(rejected.ok());
+  REQUIRE(rejected.issues.size() == 1);
+  CHECK(rejected.issues.front().code == mobagen::plugins::PortableWasmPluginLoadIssueCode::SharedMemoryCapabilityMissing);
+  CHECK(backend.calls == 0);
+
+  /* The same package loads untouched when the runtime does not require the
+   * capability (isolated mode / non-shared-heap backend). */
+  mobagen::plugins::PortableWasmModuleContract isolated_contract;
+  isolated_contract.api_version = 1;
+  isolated_contract.abi_version = 1;
+  const auto isolated = mobagen::plugins::verify_portable_wasm_module_contract(package, isolated_contract);
+  CHECK(isolated.issues.empty());
+
+  /* A capable manifest passes the requirement. */
+  const auto capable = directory.path() / "capable.plugin";
+  REQUIRE(std::filesystem::create_directory(capable));
+  write_binary(capable / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(capable / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nshared-memory: true\nexports: []\n");
+  const auto accepted = mobagen::plugins::verify_portable_wasm_module_contract(capable, shared_heap_contract);
+  CHECK(accepted.issues.empty());
+
+  /* Manifest-less legacy packages are rejected loudly too: an old-style guest
+   * is exactly the corruption risk the gate exists for. */
+  const auto bare = directory.path() / "bare.plugin";
+  REQUIRE(std::filesystem::create_directory(bare));
+  write_binary(bare / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  const auto bare_rejected = mobagen::plugins::verify_portable_wasm_module_contract(bare, shared_heap_contract);
+  CHECK_FALSE(bare_rejected.ok());
+  REQUIRE(bare_rejected.issues.size() == 1);
+  CHECK(bare_rejected.issues.front().code == mobagen::plugins::PortableWasmPluginLoadIssueCode::SharedMemoryCapabilityMissing);
+}
+
 TEST_CASE("Portable WASM plugin catalog: manifest packages join builtins in one registry") {
   using namespace mobagen;
   TemporaryWasmDirectory directory;

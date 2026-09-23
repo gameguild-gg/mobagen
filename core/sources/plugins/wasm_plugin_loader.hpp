@@ -138,6 +138,7 @@ namespace mobagen::plugins {
     AbiVersionMismatch,
     ThreadsPolicyMismatch,
     SharedMemoryMismatch,
+    SharedMemoryCapabilityMissing,
     MissingExport,
     SignatureMismatch,
   };
@@ -166,12 +167,19 @@ namespace mobagen::plugins {
 
   /* Contract a v2 package's module.manifest must satisfy at load time (todo 11).
      An empty `signature` marks a pre-contract lockfile: manifest presence and
-     the export-table digest check are skipped, every other field still applies. */
+     the export-table digest check are skipped, every other field still applies.
+     `requires_shared_memory_capability` (todo 18) is set by shared-heap
+     runtimes: a package whose manifest does not declare `shared-memory: true`
+     (including manifest-less legacy packages) is then rejected with
+     SharedMemoryCapabilityMissing — a non-capable guest could corrupt the
+     shared region. It is a compile-capability requirement only and is
+     independent of `shared_memory` (the manifest-vs-lock equality check). */
   struct PortableWasmModuleContract {
     std::uint32_t api_version{};
     std::uint32_t abi_version{};
     modules::ModuleThreadsPolicy threads{modules::ModuleThreadsPolicy::None};
     bool shared_memory{false};
+    bool requires_shared_memory_capability{false};
     std::string signature;
   };
 

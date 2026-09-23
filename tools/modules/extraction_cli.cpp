@@ -21,7 +21,14 @@ namespace mobagen::modules::cli {
 
     constexpr std::string_view kUsage
         = "usage:\n"
-          "  MobagenModuleManifest manifest <plugin.wasm> <module.manifest>\n";
+          "  MobagenModuleManifest manifest [options] <plugin.wasm> <module.manifest>\n"
+          "options:\n"
+          "  --aot <plugin.aot>            hash the .aot payload into the manifest\n"
+          "  --toolchain-producer <name>   toolchain.producer stamp (e.g. wamrc)\n"
+          "  --toolchain-version <ver>     toolchain.version stamp (e.g. 2.4.5)\n"
+          "  --shared-memory               stamp shared-memory: true (todo 18; for\n"
+          "                                guests whose producer omits the\n"
+          "                                target_features section, e.g. emcc)\n";
 
     constexpr std::size_t kTableHeaderBytes = 16;
     constexpr std::size_t kTableEntryBytes = 16; /* MobagenModuleExportEntryV1 on wasm32 */
@@ -35,11 +42,15 @@ namespace mobagen::modules::cli {
       explicit WasmReader(const std::vector<unsigned char>& bytes) : bytes_(bytes) {}
 
       /* Positions at the payload of section `id`; false when absent or malformed. */
-      [[nodiscard]] bool seek_section(unsigned char id) {
+      [[nodiscard]] bool seek_section(unsigned char id) { return seek_section_after(id, 8); }
+
+      /* Same, but starts scanning after `from` (in bytes) — lets callers walk
+       * past earlier custom sections to a later same-id one. */
+      [[nodiscard]] bool seek_section_after(unsigned char id, std::size_t from) {
         if (bytes_.size() < 8) return false;
         static constexpr unsigned char kHeader[8] = {0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00};
         if (std::memcmp(bytes_.data(), kHeader, 8) != 0) return false;
-        offset_ = 8;
+        offset_ = from;
         limit_ = bytes_.size();
         while (offset_ < bytes_.size()) {
           const auto section_id = read_byte();
@@ -95,6 +106,8 @@ namespace mobagen::modules::cli {
       void skip(std::size_t count) { offset_ = std::min(offset_ + count, limit_); }
 
       [[nodiscard]] std::size_t offset() const { return offset_; }
+
+      [[nodiscard]] std::size_t limit() const { return limit_; }
 
       [[nodiscard]] std::size_t remaining() const { return limit_ - std::min(offset_, limit_); }
 
@@ -163,7 +176,10 @@ namespace mobagen::modules::cli {
     public:
       LinearMemory(const std::vector<unsigned char>& binary, std::vector<DataSegment> segments) : binary_(binary), segments_(std::move(segments)) {
         std::uint32_t end = 0;
-        for (const auto& segment : segments_) end = std::max(end, segment.offset + segment.size);
+        for (const auto& segment : segments_) {
+          if (segment.offset == UINT32_MAX) continue; /* passive: unknown offset */
+          end = std::max(end, segment.offset + segment.size);
+        }
         extent_ = end;
       }
 
@@ -178,6 +194,26 @@ namespace mobagen::modules::cli {
           return kZero;
         }
         return nullptr;
+      }
+
+      /* Byte-wise read across segment boundaries and inter-segment holes
+       * (todo 18): emcc's linker places the published-global storage at the
+       * very END of a data segment, so the 4-byte indirection spans real
+       * bytes, implicit zeros, or both — linear memory is zero-initialized
+       * everywhere below the data extent. */
+      [[nodiscard]] bool read_u32_spanning(std::uint32_t address, std::uint32_t& value) const {
+        value = 0;
+        for (std::uint32_t index = 0; index < 4; ++index) {
+          const auto at = address + index;
+          if (at >= extent_ + kTailSlack) return false;
+          const auto* byte = bytes(at, 1);
+          if (byte == nullptr) {
+            if (at >= extent_) return false;
+            continue;
+          }
+          value |= static_cast<std::uint32_t>(*byte) << (8U * index);
+        }
+        return true;
       }
 
     private:
@@ -229,7 +265,18 @@ namespace mobagen::modules::cli {
       const auto count = reader.read_varuint();
       for (std::uint32_t index = 0; index < count; ++index) {
         const auto flags = reader.read_varuint();
-        if (flags != 0) break; /* passive segments never carry the annotation table */
+        if (flags != 0) {
+          /* Passive segments never carry the annotation table at a statically
+           * known linear offset (they are copied by runtime memory.init) — but
+           * their bytes may still contain the table itself (todo 18: shared
+           * emcc guests emit every segment passive). Record them with an
+           * unknown offset; the magic-scan fallback reads their bytes only. */
+          const auto size = reader.read_varuint();
+          if (size > reader.remaining()) break;
+          segments.push_back({UINT32_MAX, size, reader.offset()});
+          reader.skip(size);
+          continue;
+        }
         const auto constant = scan_init_expr(reader);
         if (!constant.has_value()) break;
         const auto size = reader.read_varuint();
@@ -241,6 +288,34 @@ namespace mobagen::modules::cli {
     }
 
     /*
+     * Shared-memory capability detection (todo 18): wasm producers targeting
+     * shared memory emit a `target_features` custom section listing features
+     * as (disposition, name) pairs; `+atomics` marks a guest compiled with
+     * -matomics (wasi-sdk clang). emscripten emits no target_features section,
+     * so an emcc-built guest stamps false here — the web packaging path
+     * supplies the flag itself. Modules may carry several custom sections
+     * (name, producers, ...) before target_features, hence the full walk.
+     */
+    [[nodiscard]] bool declares_atomics_target_feature(const std::vector<unsigned char>& binary) {
+      WasmReader reader{binary};
+      std::size_t from = 8;
+      while (reader.seek_section_after(0, from)) {
+        const auto custom_name = reader.read_name();
+        if (custom_name == "target_features") {
+          const auto count = reader.read_varuint();
+          for (std::uint32_t index = 0; index < count && index <= kMaxTableEntries; ++index) {
+            const auto disposition = static_cast<char>(reader.read_byte());
+            const auto feature = reader.read_name();
+            if (disposition == '+' && feature == "atomics") return true;
+          }
+          return false;
+        }
+        from = reader.limit();
+      }
+      return false;
+    }
+
+    /*
      * The exported wasm global resolves either directly to the annotation table
      * (linker folded the address) or to the four storage bytes of the published
      * const global, whose value is the table offset. Follow one indirection at
@@ -248,9 +323,8 @@ namespace mobagen::modules::cli {
      */
     [[nodiscard]] std::optional<std::uint32_t> resolve_table_address(const LinearMemory& memory, std::uint32_t global_value) {
       if (looks_like_table_header(memory, global_value)) return global_value;
-      const auto* storage = memory.bytes(global_value, 4);
-      if (storage == nullptr) return std::nullopt;
-      const auto indirect = read_u32(storage);
+      std::uint32_t indirect = 0;
+      if (!memory.read_u32_spanning(global_value, indirect)) return std::nullopt;
       if (looks_like_table_header(memory, indirect)) return indirect;
       return std::nullopt;
     }
@@ -298,7 +372,6 @@ namespace mobagen::modules::cli {
         failure = "annotation export table is not present in wasm linear memory";
         return std::nullopt;
       }
-
       const auto* header = memory.bytes(*table_address, kTableHeaderBytes);
       std::uint32_t abi_version = read_u32(header + 4);
       std::uint32_t entry_count = read_u32(header + 8);
@@ -357,8 +430,50 @@ namespace mobagen::modules::cli {
       return bytes;
     }
 
-    int manifest(std::string_view wasm_text, std::string_view output_text, std::ostream& output, std::ostream& error) {
-      const auto wasm_path = std::filesystem::path{wasm_text};
+    int manifest(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error) {
+      /* AOT stamping (todo 20's CMake stage). With no options the output is
+       * byte-identical to the pre-todo-20 tool (golden-manifest stability).
+       * --shared-memory (todo 18) asserts the guest was compiled
+       * shared-memory-capable — the flag set is known to the build system
+       * (emcc emits no target_features section to detect). */
+      std::optional<std::string> aot_path;
+      std::optional<std::string> toolchain_producer;
+      std::optional<std::string> toolchain_version;
+      bool shared_memory_override = false;
+      std::size_t index = 0;
+      for (; index < arguments.size(); ++index) {
+        const auto& argument = arguments[index];
+        if (argument == "--aot" || argument == "--toolchain-producer" || argument == "--toolchain-version") {
+          if (index + 1 >= arguments.size()) {
+            error << kUsage << "option " << argument << " requires a value\n";
+            return 2;
+          }
+          if (argument == "--aot") {
+            aot_path = arguments[++index];
+          } else if (argument == "--toolchain-producer") {
+            toolchain_producer = arguments[++index];
+          } else {
+            toolchain_version = arguments[++index];
+          }
+          continue;
+        }
+        if (argument == "--shared-memory") {
+          shared_memory_override = true;
+          continue;
+        }
+        break;
+      }
+      const auto positional = arguments.subspan(index);
+      if (positional.size() != 2) {
+        error << kUsage;
+        return 2;
+      }
+      if (toolchain_producer.has_value() != toolchain_version.has_value()) {
+        error << "manifest failed: --toolchain-producer and --toolchain-version must be given together\n";
+        return 2;
+      }
+
+      const auto wasm_path = std::filesystem::path{std::string{positional[0]}};
       const auto binary = read_file_bytes(wasm_path);
       if (!binary.has_value()) {
         error << "manifest failed: wasm payload could not be read\n";
@@ -384,9 +499,25 @@ namespace mobagen::modules::cli {
       manifest.abi_version = table->abi_version;
       manifest.entry = std::string{module_entry_symbol_v1};
       manifest.threads = ModuleThreadsPolicy::None;
-      manifest.shared_memory = false;
+      manifest.shared_memory = shared_memory_override || declares_atomics_target_feature(*binary);
       manifest.exports = table->exports;
       manifest.payloads.push_back({std::string{module_wasm_payload_filename}, assets::to_string(*digest), binary->size()});
+      if (toolchain_producer.has_value()) {
+        manifest.toolchain = ModuleManifestToolchain{*toolchain_producer, *toolchain_version};
+      }
+      if (aot_path.has_value()) {
+        const auto aot = read_file_bytes(std::filesystem::path{*aot_path});
+        if (!aot.has_value()) {
+          error << "manifest failed: aot payload could not be read (" << *aot_path << ")\n";
+          return 3;
+        }
+        const auto aot_digest = assets::sha256(std::as_bytes(std::span{reinterpret_cast<const std::byte*>(aot->data()), aot->size()}));
+        if (!aot_digest.has_value()) {
+          error << "manifest failed: aot payload could not be hashed\n";
+          return 3;
+        }
+        manifest.payloads.push_back({std::string{module_aot_payload_filename}, assets::to_string(*aot_digest), aot->size()});
+      }
 
       const auto serialized = serialize_module_manifest(manifest);
       const auto parse_back = parse_module_manifest(serialized);
@@ -397,18 +528,18 @@ namespace mobagen::modules::cli {
         return 3;
       }
 
-      std::ofstream out{std::filesystem::path{output_text}, std::ios::binary | std::ios::trunc};
+      std::ofstream out{std::filesystem::path{std::string{positional[1]}}, std::ios::binary | std::ios::trunc};
       if (!out.good()) {
-        error << "manifest failed: cannot write " << output_text << '\n';
+        error << "manifest failed: cannot write " << positional[1] << '\n';
         return 3;
       }
       out << serialized;
       out.flush();
       if (!out.good()) {
-        error << "manifest failed: cannot write " << output_text << '\n';
+        error << "manifest failed: cannot write " << positional[1] << '\n';
         return 3;
       }
-      output << "manifest\t" << output_text << '\t' << table->exports.size() << " exports\n";
+      output << "manifest\t" << positional[1] << '\t' << table->exports.size() << " exports\n";
       output << "signature\t" << module_manifest_signature(manifest) << '\n';
       return 0;
     }
@@ -417,8 +548,8 @@ namespace mobagen::modules::cli {
 
   int run(std::span<const std::string_view> arguments, std::ostream& output, std::ostream& error) {
     try {
-      if (arguments.size() == 3 && arguments[0] == "manifest") {
-        return manifest(arguments[1], arguments[2], output, error);
+      if (!arguments.empty() && arguments[0] == "manifest") {
+        return manifest(arguments.subspan(1), output, error);
       }
       if (arguments.size() == 1 && (arguments[0] == "help" || arguments[0] == "--help")) {
         output << kUsage;

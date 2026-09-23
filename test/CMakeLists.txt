@@ -134,6 +134,13 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
 endif()
 if(MOBAGEN_WASM_BACKEND_WAMR)
   list(APPEND FOUNDATION_TEST_SOURCES wamr_backend_tests.cpp)
+  # todo 18: the wasi-built asset store guest (shared-memory-capable, stamped
+  # module.manifest) exercises the WAMR side with the same guest source as web.
+  # test/ configures AFTER modules/, so the target already exists here; the
+  # def itself is applied after add_executable below.
+  if(TARGET MobagenPortableAssetStorePluginWasi)
+    list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_ASSET_STORE_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.assets.default.plugin/plugin.wasm")
+  endif()
 endif()
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
@@ -172,6 +179,12 @@ if(MOBAGEN_WASM_BACKEND_WAMR)
   # gitignored external/wamrc-cache/ dir, or MOBAGEN_WAMRC_PATH at test time;
   # the suite skips loudly when neither is present.
   target_compile_definitions(FoundationTests PRIVATE MOBAGEN_TEST_WAMRC_CACHE_DIR="${CMAKE_SOURCE_DIR}/external/wamrc-cache")
+  if(FOUNDATION_TEST_EXTRA_DEFS)
+    target_compile_definitions(FoundationTests PRIVATE ${FOUNDATION_TEST_EXTRA_DEFS})
+    if(TARGET MobagenPortableAssetStorePluginWasi)
+      add_dependencies(FoundationTests MobagenPortableAssetStorePluginWasi)
+    endif()
+  endif()
 endif()
 target_include_directories(
   FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks

@@ -42,5 +42,29 @@ if(BUILD_TESTING)
       VERBATIM
     )
     add_custom_target(mobagen_module_reference_guests DEPENDS ${MOBAGEN_MODULE_REFERENCE_WASM} ${MOBAGEN_MODULE_ENTRYLESS_WASM})
+
+    # wamrc AOT stage proof (todo 20): reference guest wasm → plugin.aot
+    # (host arch + aarch64 cross) + module.manifest stamped with the wamrc
+    # toolchain version. Desktop/android only — the helper no-ops on iOS/web.
+    # T21 applies the same helper to modules/asset_store.
+    include(${CMAKE_SOURCE_DIR}/cmake/mobagen_module_aot.cmake)
+    mobagen_add_module_aot_stage(mobagen_module_reference_guests
+      WASM ${MOBAGEN_MODULE_REFERENCE_WASM}
+      MANIFEST_TOOL $<TARGET_FILE:MobagenModuleManifest>
+    )
+
+    # Platform-gate check (todo 20): the helper must no-op on iOS/web with a
+    # STATUS message and never produce .aot there. CMake script mode — no iOS
+    # toolchain configure needed. (enable_testing: root calls it only AFTER
+    # this subdirectory, which would discard the add_test; the name avoids
+    # spaces/colons — ctest mis-parses those in add_test script commands.)
+    enable_testing()
+    add_test(
+      NAME foundation::module-aot-stage-platform-gate
+      COMMAND ${CMAKE_COMMAND}
+        -DTEST_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DTEST_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${CMAKE_SOURCE_DIR}/cmake/module_aot_platform_gate_test.cmake
+    )
   endif()
 endif()

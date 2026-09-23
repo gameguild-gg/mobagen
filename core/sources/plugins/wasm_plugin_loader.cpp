@@ -258,10 +258,15 @@ namespace mobagen::plugins {
   }  // namespace
 
   PortableWasmPluginLoadResult verify_portable_wasm_module_contract(const std::filesystem::path& package,
-                                                                    const PortableWasmModuleContract& contract) {
+                                                                     const PortableWasmModuleContract& contract) {
     PortableWasmPluginLoadResult result;
     const auto check = validate_present_manifest(package, result);
     if (!check.present) {
+      if (contract.requires_shared_memory_capability) {
+        add_issue(result, PortableWasmPluginLoadIssueCode::SharedMemoryCapabilityMissing, package,
+                  "runtime owns a shared heap but the plugin package carries no module.manifest declaring the shared-memory capability");
+        return result;
+      }
       if (!contract.signature.empty()) {
         add_issue(result, PortableWasmPluginLoadIssueCode::MissingManifest, package / portable_wasm_plugin_manifest_filename(),
                   "contract lockfile requires a module.manifest in the plugin package");
@@ -270,6 +275,12 @@ namespace mobagen::plugins {
     }
     if (!check.manifest.has_value()) return result;
     const auto& actual = *check.manifest;
+    if (contract.requires_shared_memory_capability && !actual.shared_memory) {
+      add_issue(result, PortableWasmPluginLoadIssueCode::SharedMemoryCapabilityMissing, package,
+                "runtime owns a shared heap but module.manifest does not declare shared-memory: true (the guest was not compiled "
+                "shared-memory-capable)");
+      return result;
+    }
     if (actual.api_version != contract.api_version) {
       add_issue(result, PortableWasmPluginLoadIssueCode::ApiVersionMismatch, package,
                 "module.manifest api version " + std::to_string(actual.api_version) + " does not match the locked api version "
