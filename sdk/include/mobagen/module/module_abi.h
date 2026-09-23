@@ -229,11 +229,11 @@ MOBAGEN_MODULE_EXPORT MobagenModuleStatus MOBAGEN_MODULE_CALL mobagen_module_ent
    __VA_OPT__ on C++20/C23, GNU ## elision otherwise (clang/gcc default to
    gnu modes in this repo's CMake; MSVC's traditional preprocessor elides too). */
 #if (defined(__cplusplus) && __cplusplus >= 202002L) || (!defined(__cplusplus) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
-#  define MOBAGEN_MODULE_ENTRY_NARG(a1_, a2_, a3_, a4_, a5_, a6_, a7_, a8_, a9_, a10_, count_, ...) count_
-#  define MOBAGEN_MODULE_ENTRY_COUNT(...) MOBAGEN_MODULE_ENTRY_NARG(0 __VA_OPT__(, __VA_ARGS__), 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#  define MOBAGEN_MODULE_ENTRY_NARG(a1_, a2_, a3_, a4_, a5_, a6_, a7_, a8_, a9_, a10_, a11_, count_, ...) count_
+#  define MOBAGEN_MODULE_ENTRY_COUNT(...) MOBAGEN_MODULE_ENTRY_NARG(0 __VA_OPT__(, __VA_ARGS__), 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #else
-#  define MOBAGEN_MODULE_ENTRY_NARG(a1_, a2_, a3_, a4_, a5_, a6_, a7_, a8_, a9_, a10_, count_, ...) count_
-#  define MOBAGEN_MODULE_ENTRY_COUNT(...) MOBAGEN_MODULE_ENTRY_NARG(0, ##__VA_ARGS__, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#  define MOBAGEN_MODULE_ENTRY_NARG(a1_, a2_, a3_, a4_, a5_, a6_, a7_, a8_, a9_, a10_, a11_, count_, ...) count_
+#  define MOBAGEN_MODULE_ENTRY_COUNT(...) MOBAGEN_MODULE_ENTRY_NARG(0, ##__VA_ARGS__, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #endif
 #define MOBAGEN_MODULE_ENTRY_CAT2(a_, b_) a_##b_
 #define MOBAGEN_MODULE_ENTRY_CAT(a_, b_) MOBAGEN_MODULE_ENTRY_CAT2(a_, b_)
@@ -288,6 +288,9 @@ MOBAGEN_MODULE_EXPORT MobagenModuleStatus MOBAGEN_MODULE_CALL mobagen_module_ent
 #define MOBAGEN_MODULE_TABLE_LIST_9(table_, a_, b_, c_, d_, e_, f_, g_, h_, i_)                                    \
   { table_##_entry_##a_, table_##_entry_##b_, table_##_entry_##c_, table_##_entry_##d_, table_##_entry_##e_,        \
     table_##_entry_##f_, table_##_entry_##g_, table_##_entry_##h_, table_##_entry_##i_ }
+#define MOBAGEN_MODULE_TABLE_LIST_10(table_, a_, b_, c_, d_, e_, f_, g_, h_, i_, j_)                               \
+  { table_##_entry_##a_, table_##_entry_##b_, table_##_entry_##c_, table_##_entry_##d_, table_##_entry_##e_,        \
+    table_##_entry_##f_, table_##_entry_##g_, table_##_entry_##h_, table_##_entry_##i_, table_##_entry_##j_ }
 
 #define MOBAGEN_MODULE_EXPORT_TABLE_END(table_, ...)                                                                                     \
   static const table_##_type table_                                                                                                      \

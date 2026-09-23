@@ -14,7 +14,7 @@
  * <sys/time.h>/<time.h>/<math.h> are satisfied through the macros below so
  * cutils.c's js__gettimeofday_us/js__hrtime_ns compile against shim types.
  *
- * quickjs-ng pin: v0.10.0 (MIT, third_party/quickjs/LICENSE).
+ * quickjs-ng pin: v0.10.0 (MIT, fetched via CPM — external/quickjs-ng.cmake).
  */
 #ifndef MOBAGEN_QUICKJS_FREESTANDING_SHIM_H
 #define MOBAGEN_QUICKJS_FREESTANDING_SHIM_H

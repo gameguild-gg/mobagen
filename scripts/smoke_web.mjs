@@ -89,6 +89,12 @@ const MEMORY_SMOKE_EVIDENCE_ISOLATED = [
   "[browser-smoke] PASS: QuickJS guest loaded through BrowserWasmBackend (sync instantiate + descriptor query)",
   "[browser-smoke] PASS: QuickJS eval(1+1) returned 2",
   "[browser-smoke] PASS: QuickJS syntax error surfaced as ok:false in the envelope",
+  // Todo 17: Lua scripting guest — 2*21 == 42 plus the trap + drain recovery
+  // (a Lua error traps the guest; mobagen_scripting_error_v1 writes the
+  // ok:false envelope and the guest keeps evaluating afterwards).
+  "[browser-smoke] PASS: Lua guest loaded through BrowserWasmBackend (sync instantiate + descriptor query)",
+  "[browser-smoke] PASS: Lua eval(2*21) returned 42",
+  "[browser-smoke] PASS: Lua runtime error surfaced as ok:false in the envelope",
   "browser-backend-smoke-ok",
 ];
 
