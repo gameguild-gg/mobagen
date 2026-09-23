@@ -72,6 +72,7 @@ set(FOUNDATION_TEST_SOURCES
     wasm_command_channel_tests.cpp
     wasm_asset_store_tests.cpp
     wasm_host_imports_tests.cpp
+    wasm_quickjs_tests.cpp
 )
 
 set(PORTABLE_ASSET_STORE_PROVIDER_SOURCE
@@ -143,6 +144,11 @@ if(MOBAGEN_WASM_BACKEND_WAMR)
   # def itself is applied after add_executable below.
   if(TARGET MobagenPortableAssetStorePluginWasi)
     list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_ASSET_STORE_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.assets.default.plugin/plugin.wasm")
+  endif()
+  # todo 16: the wasi-built QuickJS scripting guest — eval through the full
+  # loader + WamrBackend path (same gate discipline as the asset store guest).
+  if(TARGET MobagenPortableQuickJSPluginWasi)
+    list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_QUICKJS_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.scripting.quickjs.plugin/plugin.wasm")
   endif()
 endif()
 

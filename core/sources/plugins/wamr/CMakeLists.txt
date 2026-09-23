@@ -35,7 +35,11 @@ set(WAMR_BUILD_SHARED_MEMORY 1)
 # backend shared heap and todo 13's memory shim consume it.
 set(WAMR_BUILD_SHARED_HEAP 1)
 set(WAMR_BUILD_SIMD 0)
-set(WAMR_BUILD_REF_TYPES 0)
+# Reference types ON (todo 16): modern LLVM/wasm-ld (wasi-sdk 34, emcc 6)
+# emit element segments in expression form (ref.func ...) even for plain
+# funcref tables — QuickJS-scale guests cannot link in MVP element form.
+# WAMR 2.4.5 supports WASM_ENABLE_REF_TYPES on every mobagen platform.
+set(WAMR_BUILD_REF_TYPES 1)
 set(WAMR_BUILD_BULK_MEMORY 1)
 set(WAMR_BUILD_MEMORY64 0)
 set(WAMR_DISABLE_HW_BOUND_CHECK 1)
