@@ -1,8 +1,14 @@
 #include "wasm_plugin_store.hpp"
 
+#include "assets/asset_id.hpp"
+#include "modules/module_manifest.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <fstream>
+#include <iterator>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -11,6 +17,43 @@ namespace mobagen::plugins {
   namespace {
 
     enum class StoreRootMode : std::uint8_t { Create, Existing };
+
+    /* v2 packages (todo 21): module.manifest carries per-payload SHA-256 +
+     * size. Install verifies every present payload against it before the
+     * staged package is published — the same hash semantics the lockfile
+     * chain uses, extended to the manifest's own vocabulary. An absent
+     * manifest keeps the legacy single-binary install path. */
+    [[nodiscard]] std::string staged_manifest_payload_issue(const std::filesystem::path& staging) {
+      const auto manifest_path = staging / portable_wasm_plugin_manifest_filename();
+      if (!std::filesystem::is_regular_file(manifest_path)) return {};
+      std::ifstream input(manifest_path, std::ios::binary);
+      if (!input.is_open()) return std::string{"module.manifest could not be opened"};
+      const std::string source{std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+      const auto parsed = modules::parse_module_manifest(source, manifest_path.string());
+      if (!parsed.ok()) {
+        auto message = std::string{"module.manifest is invalid"};
+        if (!parsed.errors.empty()) message += ": " + parsed.errors.front().message;
+        return message;
+      }
+      for (const auto& payload : parsed.manifest->payloads) {
+        const auto payload_path = staging / payload.filename;
+        std::error_code error;
+        const auto size = std::filesystem::is_regular_file(payload_path, error) && !error ? std::filesystem::file_size(payload_path, error) : 0;
+        if (error || size != payload.size) {
+          return payload.filename + " size does not match module.manifest (" + std::to_string(size) + " vs " + std::to_string(payload.size) + ")";
+        }
+        std::ifstream payload_input(payload_path, std::ios::binary);
+        if (!payload_input.is_open()) return payload.filename + " could not be opened for hashing";
+        const std::vector<char> bytes{std::istreambuf_iterator<char>{payload_input}, std::istreambuf_iterator<char>{}};
+        if (bytes.size() != payload.size) return payload.filename + " changed while it was hashed";
+        const auto digest = mobagen::assets::sha256(std::as_bytes(std::span{reinterpret_cast<const std::byte*>(bytes.data()), bytes.size()}));
+        if (!digest.has_value()) return payload.filename + " could not be hashed";
+        if (mobagen::assets::to_string(*digest) != payload.hash) {
+          return payload.filename + " SHA-256 does not match module.manifest";
+        }
+      }
+      return {};
+    }
 
     template <typename Result> void add_issue(Result& result, PortableWasmPluginStoreIssueCode code, const std::filesystem::path& path,
                                               std::string message, std::error_code system_error = {},
@@ -127,6 +170,32 @@ namespace mobagen::plugins {
     const auto staged_binary = staging / portable_wasm_plugin_binary_filename();
     if (!std::filesystem::copy_file(source_binary, staged_binary, std::filesystem::copy_options::none, error) || error) {
       add_issue(result, PortableWasmPluginStoreIssueCode::StageFailed, staged_binary, "could not copy plugin binary into staging", error);
+      cleanup_directory(staging, result);
+      return result;
+    }
+
+    /* v2 payloads ride along (todo 21): plugin.aot and module.manifest are
+     * copied when present; the staged manifest then gates publication. */
+    for (const auto& extra : {portable_wasm_plugin_aot_filename(), portable_wasm_plugin_manifest_filename()}) {
+      const auto source_extra = source / extra;
+      std::error_code extra_error;
+      const auto extra_status = std::filesystem::symlink_status(source_extra, extra_error);
+      if (extra_error && extra_status.type() != std::filesystem::file_type::not_found) {
+        add_issue(result, PortableWasmPluginStoreIssueCode::StageFailed, source_extra, "could not inspect v2 package payload", extra_error);
+        cleanup_directory(staging, result);
+        return result;
+      }
+      if (!std::filesystem::is_regular_file(extra_status) || std::filesystem::is_symlink(extra_status)) continue;
+      const auto staged_extra = staging / extra;
+      if (!std::filesystem::copy_file(source_extra, staged_extra, std::filesystem::copy_options::none, error) || error) {
+        add_issue(result, PortableWasmPluginStoreIssueCode::StageFailed, staged_extra, "could not copy v2 package payload into staging", error);
+        cleanup_directory(staging, result);
+        return result;
+      }
+    }
+    if (const auto payload_issue = staged_manifest_payload_issue(staging); !payload_issue.empty()) {
+      add_issue(result, PortableWasmPluginStoreIssueCode::StageFailed, staging / portable_wasm_plugin_manifest_filename(),
+                "staged v2 package failed manifest payload verification: " + payload_issue);
       cleanup_directory(staging, result);
       return result;
     }

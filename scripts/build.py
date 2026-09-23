@@ -168,6 +168,7 @@ class Platform(ABC):
         self.detect_toolchain()
         self._cmake_configure()
         self.build()
+        _deploy_desktop_module_packages(self)
         if self.cfg.run_after:
             self.run_target()
 
@@ -297,6 +298,9 @@ class WebPlatform(Platform):
             info(f"--- Web variant: {name} -> {build_dir} ---")
             self._configure_variant(build_dir, shared)
             self._build_variant(build_dir)
+            # wasm is data: bin/plugins/ is served alongside the bundles in
+            # both trees (never a jniLibs-style native lib placement).
+            _deploy_module_packages(build_dir, build_dir / "bin" / "plugins", allow_aot=False)
 
         if self.cfg.run_after:
             self.run_target()
@@ -362,6 +366,62 @@ def _serve_web_coop_coep(
             httpd.serve_forever()
         except KeyboardInterrupt:
             ok("Dev server stopped.")
+
+
+# ---------------------------------------------------------------------------
+# Module package delivery (.plugin v2, dynamic-loading-all-platforms todo 21)
+# ---------------------------------------------------------------------------
+def _deploy_module_packages(build_dir: Path, dest: Path, *, allow_aot: bool = True) -> None:
+    """Copy every built .plugin v2 package tree into a delivery location.
+
+    Package sources (whichever exist in the build tree):
+      <build>/plugins/<provider>.plugin          — emcc guests (web trees)
+      <build>/plugins-wasi/<provider>.plugin     — wasi guests (desktop/android)
+
+    Layout stays the strict package dir the loader whitelist expects:
+      <dest>/<provider>.plugin/{plugin.wasm[, plugin.aot], module.manifest}
+    plugin.aarch64.aot is never shipped (aux cross-compile artifact; a host
+    never loads it). allow_aot=False (iOS/web) drops plugin.aot so those
+    packages stay interpreter-only.
+    """
+    sources = []
+    for pattern in ("plugins", "plugins-wasi"):
+        root = build_dir / pattern
+        if not root.is_dir():
+            continue
+        for package in sorted(root.iterdir()):
+            if not package.is_dir() or package.suffix != ".plugin":
+                continue
+            if not (package / "plugin.wasm").is_file():
+                warn(f"Module packages: skipping {package} (no plugin.wasm — not a v2 package)")
+                continue
+            sources.append(package)
+    if not sources:
+        info(f"Module packages: none found under {build_dir}/plugins* — nothing to deploy.")
+        return
+
+    dest.mkdir(parents=True, exist_ok=True)
+    for package in sources:
+        target = dest / package.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(package, target)
+        # plugin.aarch64.aot is a wamrc cross-compile auxiliary — no host
+        # loads it, and the package whitelist rejects unknown files.
+        cross_aot = target / "plugin.aarch64.aot"
+        if cross_aot.exists():
+            cross_aot.unlink()
+        if not allow_aot:
+            aot = target / "plugin.aot"
+            if aot.exists():
+                aot.unlink()
+        extra = " + plugin.aot" if (target / "plugin.aot").exists() else ""
+        ok(f"Module package: {target} (plugin.wasm{extra} + module.manifest)")
+
+
+def _deploy_desktop_module_packages(platform_obj: "Platform") -> None:
+    # Desktop (linux/osx/windows): bin/plugins/ beside the binaries.
+    _deploy_module_packages(platform_obj.cfg.build_dir, platform_obj.cfg.build_dir / "bin" / "plugins")
 
 # ---------------------------------------------------------------------------
 # Linux
@@ -605,6 +665,10 @@ class IosPlatform(Platform):
             cmd += ["--target", self.cfg.target]
         cmd += ["--", "-sdk", sdk, "-allowProvisioningUpdates"]
         run(cmd)
+        # iOS ships module packages as bundle RESOURCES (interpreter-only —
+        # allow_aot=False; the todo 4/20 AOT guards keep iOS interpreter-only).
+        for app_bundle in sorted(self.cfg.build_dir.rglob("*.app")):
+            _deploy_module_packages(self.cfg.build_dir, app_bundle / "plugins", allow_aot=False)
 
     def _find_app_bundle(self) -> Path:
         app_bundles = sorted(self.cfg.build_dir.rglob("*.app"))
@@ -1052,6 +1116,14 @@ class AndroidPlatform(Platform):
             build_dir = self._configure_abi(abi)
             self._build_abi(build_dir)
             abi_dirs[abi] = build_dir
+
+        # Module packages ride the APK as app ASSETS (wasm is data — never
+        # jniLibs, which is for native libraries System.loadLibrary loads).
+        assets_plugins = REPO_ROOT / "platforms" / "android" / "app" / "src" / "main" / "assets" / "plugins"
+        if assets_plugins.exists():
+            shutil.rmtree(assets_plugins)
+        for build_dir in abi_dirs.values():
+            _deploy_module_packages(build_dir, assets_plugins)
 
         # Prepare android/ Gradle project
         self._write_local_properties()
