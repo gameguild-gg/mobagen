@@ -21,3 +21,15 @@ if(NOT EMSCRIPTEN)
   target_compile_features(mobagen_memory_native_shim PUBLIC cxx_std_20)
   target_link_libraries(mobagen_memory_native_shim PUBLIC Threads::Threads)
 endif()
+
+# Todo 14: web memory shim — MobagenMemoryShim over the emscripten heap (a
+# SharedArrayBuffer in the shared variant, plain ArrayBuffer in the isolated
+# one) + JS Atomics via EM_JS, with the isolated no-op-wait fallback.
+# Emscripten only, BOTH variants (same source; MOBAGEN_WEB_SHARED picks the
+# atomics path at compile time).
+if(EMSCRIPTEN)
+  add_library(mobagen_memory_web_shim STATIC web_shim.cpp web_shim.hpp)
+  add_library(mobagen::memory_web_shim ALIAS mobagen_memory_web_shim)
+  target_include_directories(mobagen_memory_web_shim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+  target_compile_features(mobagen_memory_web_shim PUBLIC cxx_std_20)
+endif()
