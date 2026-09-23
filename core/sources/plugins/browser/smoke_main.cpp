@@ -35,7 +35,9 @@
 #include <mobagen/module/module_abi.h>
 #include <mobagen/plugin/wasm_abi.h>
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -505,6 +507,64 @@ int main() {
         auto stopped = quiesced.ok() ? quickjs_activated.activation->stop() : quiesced;
         check(stopped.ok(), "QuickJS guest quiesced + stopped cleanly");
       }
+    }
+  }
+
+  /* 5. Todo 15: memory alloc/collect micro-benchmark — exercises the web shim
+   *    for throughput (ops/sec) on the same platform the smoke boots on.
+   *    Outputs exact-marker evidence lines for the runner to capture. */
+  {
+    constexpr std::uint32_t kPayload = 32;
+    constexpr std::uint32_t kAllocs = 10000;
+    constexpr std::uint32_t kCollects = 500;
+    constexpr std::uint32_t kWarmup = 3;
+    constexpr std::uint32_t kSamples = 10;
+
+    auto shim_owner = mobagen::memory::make_web_shim();
+    check(shim_owner != nullptr, "bench: web memory shim constructed for benchmark");
+    if (shim_owner != nullptr) {
+      /* --- alloc throughput --- */
+      std::vector<double> alloc_times;
+      for (std::uint32_t w = 0; w < kWarmup; ++w) {
+        mobagen::memory::MemoryManager mgr{shim_owner->shim()};
+        mgr.init(256U * 1024U);
+        for (std::uint32_t i = 0; i < kAllocs; ++i) mgr.alloc(kPayload, 0);
+      }
+      for (std::uint32_t s = 0; s < kSamples; ++s) {
+        mobagen::memory::MemoryManager mgr{shim_owner->shim()};
+        mgr.init(256U * 1024U);
+        const auto t0 = std::chrono::steady_clock::now();
+        for (std::uint32_t i = 0; i < kAllocs; ++i) mgr.alloc(kPayload, 0);
+        const auto t1 = std::chrono::steady_clock::now();
+        alloc_times.push_back(std::chrono::duration<double, std::nano>(t1 - t0).count());
+      }
+      std::sort(alloc_times.begin(), alloc_times.end());
+      const double alloc_med = alloc_times[alloc_times.size() / 2];
+      const double alloc_ops = static_cast<double>(kAllocs) / (alloc_med * 1e-9);
+      std::printf("[browser-smoke] mem-bench alloc-32B median=%.0f ns ops/sec=%.0f\n", alloc_med, alloc_ops);
+
+      /* --- collect throughput --- */
+      std::vector<double> collect_times;
+      for (std::uint32_t w = 0; w < kWarmup; ++w) {
+        mobagen::memory::MemoryManager mgr{shim_owner->shim()};
+        mgr.init(256U * 1024U);
+        for (std::uint32_t i = 0; i < kAllocs; ++i) mgr.alloc(kPayload, 0);
+        for (std::uint32_t i = 0; i < kCollects; ++i) mgr.collect();
+      }
+      for (std::uint32_t s = 0; s < kSamples; ++s) {
+        mobagen::memory::MemoryManager mgr{shim_owner->shim()};
+        mgr.init(256U * 1024U);
+        for (std::uint32_t i = 0; i < kAllocs; ++i) mgr.alloc(kPayload, 0);
+        const auto t0 = std::chrono::steady_clock::now();
+        for (std::uint32_t i = 0; i < kCollects; ++i) mgr.collect();
+        const auto t1 = std::chrono::steady_clock::now();
+        collect_times.push_back(std::chrono::duration<double, std::nano>(t1 - t0).count());
+      }
+      std::sort(collect_times.begin(), collect_times.end());
+      const double collect_med = collect_times[collect_times.size() / 2];
+      const double collect_ops = static_cast<double>(kCollects) / (collect_med * 1e-9);
+      std::printf("[browser-smoke] mem-bench collect-32B median=%.0f ns ops/sec=%.0f\n", collect_med, collect_ops);
+      std::printf("[browser-smoke] mem-bench-done variant=%s\n", mobagen::memory::WebShim::shared_variant() ? "shared" : "isolated");
     }
   }
 
