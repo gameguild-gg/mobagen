@@ -146,6 +146,12 @@ if(MOBAGEN_WASM_BACKEND_WAMR)
   endif()
 endif()
 
+# todo 13 (micro-task A): native memory shim — pthreads + __atomic builtins
+# are native-only; the web shim (todo 14) tests ride the emscripten path.
+if(NOT EMSCRIPTEN)
+  list(APPEND FOUNDATION_TEST_SOURCES native_memory_shim_tests.cpp)
+endif()
+
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
 add_dependencies(
   FoundationTests MobagenLifecycleFailurePlugin1 MobagenLifecycleFailurePlugin2
@@ -213,6 +219,10 @@ target_link_libraries(
           mobagen::asset_store_service
           mobagen::volume
 )
+if(NOT EMSCRIPTEN)
+  find_package(Threads REQUIRED)
+  target_link_libraries(FoundationTests PRIVATE mobagen::memory_native_shim Threads::Threads)
+endif()
 if(TARGET mobagen::asset_cli)
   target_link_libraries(FoundationTests PRIVATE mobagen::asset_cli)
 endif()
