@@ -40,6 +40,7 @@ set(FOUNDATION_TEST_SOURCES
     ecs_tests.cpp
     http_client_tests.cpp
     jobs_tests.cpp
+    memory_core_tests.cpp
     messaging_tests.cpp
     module_descriptor_tests.cpp
     module_execution_graph_tests.cpp
@@ -192,6 +193,7 @@ target_link_libraries(
           mobagen::core_render
           mobagen::core_resource
           mobagen::core_assets
+          mobagen::memory_core
           mobagen::asset_store_service
           mobagen::volume
 )
@@ -246,7 +248,7 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
 endif()
 
 set(FOUNDATION_COMPILED_TARGETS mobagen_asset_store_service mobagen_core_assets mobagen_core_jobs
-                                mobagen_core_modules mobagen_core_plugins
+                                mobagen_core_modules mobagen_core_plugins mobagen_memory_core
 )
 if(TARGET MobagenDefaultAssetStorePlugin)
   list(APPEND FOUNDATION_COMPILED_TARGETS MobagenDefaultAssetStorePlugin)
@@ -301,7 +303,8 @@ mobagen_enable_sanitizers(FoundationTests ${FOUNDATION_COMPILED_TARGETS})
 # target_compile_options(core PUBLIC /W4 /WX) target_compile_definitions(CoreTests PUBLIC
 # DOCTEST_CONFIG_USE_STD_HEADERS) endif() endif()
 
-# ---- Discover tests ----
+# Preserve the historical build target while keeping dependency boundaries explicit.
+add_custom_target(CoreTests DEPENDS FoundationTests)
 
 enable_testing()
 
@@ -346,8 +349,31 @@ add_test(
 )
 set_tests_properties(foundation::cpm-legacy-core-consumer PROPERTIES LABELS foundation)
 
-# Preserve the historical build target while keeping dependency boundaries explicit.
-add_custom_target(CoreTests DEPENDS FoundationTests)
+# ---- Memory core ASan variant (todo 12) ----
+# The GC core is the plan's riskiest component; run its full suite under
+# AddressSanitizer+UBSan independently of the MOBAGEN_ENABLE_SANITIZERS
+# option (which instruments everything and is off by default). The binary
+# recompiles the memory core sources directly so the allocator/GC code
+# itself is instrumented; it links no other engine libs.
+if(NOT EMSCRIPTEN AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+  add_executable(
+    MemoryCoreAsanTests Test.cpp memory_core_tests.cpp mock_memory_shim.hpp
+    ../core/sources/memory/memory_manager.cpp ../core/sources/memory/memory_manager.hpp
+    ../core/sources/memory/object_header.h ../core/sources/memory/shim.hpp
+  )
+  target_compile_features(MemoryCoreAsanTests PRIVATE cxx_std_20)
+  target_include_directories(MemoryCoreAsanTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources)
+  target_link_libraries(MemoryCoreAsanTests PRIVATE doctest::doctest)
+  target_compile_options(
+    MemoryCoreAsanTests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all
+  )
+  target_link_options(MemoryCoreAsanTests PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+  doctest_discover_tests(
+    MemoryCoreAsanTests TEST_PREFIX "foundation::memory-asan::" PROPERTIES LABELS
+    "foundation;memory-asan"
+  )
+  add_dependencies(CoreTests MemoryCoreAsanTests)
+endif()
 
 if(TARGET mobagen::core_app)
   add_executable(AppHostTests Test.cpp app_host_tests.cpp module_graphics_composition_tests.cpp)
