@@ -56,13 +56,39 @@ const BOOT_EVIDENCE = [
 // Todo 10 extends the same smoke with the descriptor-driven dispatcher:
 // mobagen_smoke_mul(6,7) must return 42 through the generic marshaller, and
 // a span-taking export must marshal its (offset,size) pair correctly.
-const MODULE_SMOKE_EVIDENCE = [
+//
+// Todo 14 adds the memory-shim evidence (variant-aware): the smoke's section
+// 3 drives MemoryManager over the WebShim — shared variant = SAB+Atomics
+// path inside the worker agent (with the main-thread rule proven by the
+// counter line), isolated variant = the single-context fallback (counters
+// show zero waits; the degradation trace line is printed).
+const MEMORY_SMOKE_EVIDENCE_SHARED = [
+  "[browser-smoke] PASS: memory manager initialized over the web shim",
+  "[browser-smoke] PASS: web shim: stop-the-world collect ran through the shim",
+  "[browser-smoke] PASS: web shim: main-thread Atomics.wait NEVER called (threading rule, counter==0)",
+  "[browser-smoke] PASS: web shim: main-thread wait took the bounded-poll fallback path",
+  "[browser-smoke] memory-shim-counters variant=shared",
+];
+
+const MEMORY_SMOKE_EVIDENCE_ISOLATED = [
+  "[browser-smoke] PASS: memory manager initialized over the web shim",
+  "[browser-smoke] PASS: web shim: stop-the-world collect ran through the shim",
+  "[browser-smoke] PASS: web shim: main-thread Atomics.wait NEVER called (threading rule, counter==0)",
+  "[browser-smoke] PASS: web shim: isolated fallback never calls Atomics.wait (degraded no-op-yield path)",
+  "[browser-smoke] PASS: web shim: isolated degradation note traced exactly once (loud)",
+  "[browser-smoke] memory-shim-counters variant=isolated",
+];const MODULE_SMOKE_EVIDENCE = [
   "[browser-smoke] PASS: reference guest loaded through BrowserWasmBackend (sync instantiate + descriptor query)",
   "[browser-smoke] PASS: mobagen_smoke_add(20, 22) returned 42",
   "[browser-smoke] PASS: mobagen_smoke_mul(6, 7) returned 42 through the descriptor path",
   "[browser-smoke] PASS: mobagen_smoke_span_sum({2,2,2,2,2}) returned 10 through the descriptor path",
   "[browser-smoke] PASS: out-of-bounds span cells rejected before the call",
   "[browser-smoke] PASS: invalid wasm bytes mapped to the BackendFailure issue code",
+  // Todo 16: QuickJS scripting guest through the same backend — 1+1 == 2
+  // through the typed descriptor dispatcher, plus the syntax-error envelope.
+  "[browser-smoke] PASS: QuickJS guest loaded through BrowserWasmBackend (sync instantiate + descriptor query)",
+  "[browser-smoke] PASS: QuickJS eval(1+1) returned 2",
+  "[browser-smoke] PASS: QuickJS syntax error surfaced as ok:false in the envelope",
   "browser-backend-smoke-ok",
 ];
 
@@ -226,7 +252,10 @@ async function main() {
     console.error(`[smoke_web] FAIL: ${moduleSmokePath} not found — run 'python3 scripts/build.py web' first`);
     process.exit(1);
   }
-  const moduleSmokeResult = await boot(moduleSmokePath, BOOT_TIMEOUT_MS, MODULE_SMOKE_EVIDENCE);
+  const moduleSmokeResult = await boot(moduleSmokePath, BOOT_TIMEOUT_MS, [
+    ...MODULE_SMOKE_EVIDENCE,
+    ...(args.variant === "shared" ? MEMORY_SMOKE_EVIDENCE_SHARED : MEMORY_SMOKE_EVIDENCE_ISOLATED),
+  ]);
   if (moduleSmokeResult.ok) {
     console.log(`[smoke_web] PASS: ${args.variant} variant browser-backend module load (evidence: ${moduleSmokeResult.seen.join(" | ")})`);
     process.exit(0);
