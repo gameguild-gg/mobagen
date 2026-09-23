@@ -45,6 +45,11 @@ add_library(mobagen::core_plugins ALIAS mobagen_core_plugins)
 target_compile_features(mobagen_core_plugins PUBLIC c_std_11 cxx_std_20)
 target_include_directories(mobagen_core_plugins PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(mobagen_core_plugins PUBLIC mobagen::core_modules mobagen::plugin_sdk)
+# v2 store install verifies module.manifest payload hashes (todo 21); both
+# libs are behind MOBAGEN_BUILD_MANIFEST_TOOLS like the loader's use.
+if(TARGET mobagen::module_manifest)
+  target_link_libraries(mobagen_core_plugins PRIVATE mobagen::module_manifest)
+endif()
 target_link_libraries(mobagen_core_plugins PRIVATE ${CMAKE_DL_LIBS})
 
 if(MOBAGEN_WASM_BACKEND_WAMR)
@@ -53,10 +58,6 @@ if(MOBAGEN_WASM_BACKEND_WAMR)
   # PUBLIC: consumers of the static lib must link the WAMR runtime and see its
   # MOBAGEN_WAMR_AOT_BUILD compile definition (tests gate AOT cases on it).
   target_link_libraries(mobagen_core_plugins PUBLIC mobagen::wamr_vm)
-  # v2 package AOT path reads module.manifest's toolchain version (todo 7).
-  if(TARGET mobagen::module_manifest)
-    target_link_libraries(mobagen_core_plugins PRIVATE mobagen::module_manifest)
-  endif()
 endif()
 
 # Browser backend (todo 8): delegates plugin compilation to the browser's own

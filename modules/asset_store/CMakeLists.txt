@@ -141,17 +141,63 @@ else()
       endif()
     endif()
     if(MOBAGEN_ASSET_STORE_WASI_MANIFEST_TOOL)
-      add_custom_command(
-        TARGET MobagenPortableAssetStorePluginWasi
-        POST_BUILD
-        COMMAND
-          ${CMAKE_COMMAND} -E echo "module manifest extraction (best-effort): ${MOBAGEN_ASSET_STORE_WASI_GUEST}"
-        COMMAND
-          ${MOBAGEN_ASSET_STORE_WASI_MANIFEST_TOOL} manifest "${MOBAGEN_ASSET_STORE_WASI_GUEST}"
-          "${MOBAGEN_ASSET_STORE_WASI_GUEST_DIR}/module.manifest" || cmake -E true
-        VERBATIM
-        COMMENT "generating module.manifest for the wasi asset store guest"
+      # .plugin v2 packaging (todo 21): when the pinned wamrc cache resolves,
+      # the todo 20 AOT stage compiles plugin.aot and stamps module.manifest
+      # (toolchain stanza + payload hashes) — REQUIRED there, because an
+      # AOT-flagged package must never silently degrade to interpreter-only.
+      # iOS/web configure the stage away entirely (platform gate); machines
+      # without the cache skip loudly and the best-effort manifest-only
+      # POST_BUILD below still produces the v2 layout without plugin.aot.
+      include(${CMAKE_SOURCE_DIR}/cmake/mobagen_module_aot.cmake)
+      set(_MOBAGEN_ASSET_STORE_AOT_ARGS "")
+      if(EXISTS "${CMAKE_SOURCE_DIR}/external/wamrc-cache/wamrc/wamrc" OR MOBAGEN_WAMRC_EXECUTABLE)
+        set(_MOBAGEN_ASSET_STORE_AOT_ARGS REQUIRED)
+      endif()
+      mobagen_add_module_aot_stage(
+        MobagenPortableAssetStorePluginWasi
+        WASM ${MOBAGEN_ASSET_STORE_WASI_GUEST}
+        MANIFEST_TOOL ${MOBAGEN_ASSET_STORE_WASI_MANIFEST_TOOL}
+        ${_MOBAGEN_ASSET_STORE_AOT_ARGS}
       )
+      # The stage's cross-compile output (plugin.aarch64.aot, android
+      # arm64-v8a packaging input) lives INSIDE the package dir, but the
+      # loader whitelist only accepts {plugin.wasm, plugin.aot,
+      # module.manifest}. Relocate it one level up so the package dir stays
+      # a loadable .plugin v2 tree; build.py's deploy step consumes it from
+      # the relocation target for android arm64 packaging.
+      if(TARGET MobagenPortableAssetStorePluginWasi_aot_stage)
+        set(MOBAGEN_ASSET_STORE_AARCH64_CROSS_DIR "${CMAKE_BINARY_DIR}/plugins-wasi-aarch64-cross")
+        add_custom_command(
+          TARGET MobagenPortableAssetStorePluginWasi_aot_stage
+          POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E make_directory ${MOBAGEN_ASSET_STORE_AARCH64_CROSS_DIR}
+          COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${MOBAGEN_ASSET_STORE_WASI_GUEST_DIR}/plugin.aarch64.aot"
+            "${MOBAGEN_ASSET_STORE_AARCH64_CROSS_DIR}/plugin.aarch64.aot"
+          COMMAND
+            ${CMAKE_COMMAND} -E remove "${MOBAGEN_ASSET_STORE_WASI_GUEST_DIR}/plugin.aarch64.aot"
+          VERBATIM
+          COMMENT "relocating aarch64 cross AOT out of the package dir"
+        )
+      endif()
+      # Best-effort manifest-only fallback ONLY when the AOT stage did not
+      # activate (no pinned wamrc): the stage's OUTPUT-driven manifest
+      # generation (toolchain + plugin.aot payload hash) is authoritative, and
+      # a POST_BUILD step would race and overwrite it with the plain variant.
+      if(NOT TARGET MobagenPortableAssetStorePluginWasi_aot_stage)
+        add_custom_command(
+          TARGET MobagenPortableAssetStorePluginWasi
+          POST_BUILD
+          COMMAND
+            ${CMAKE_COMMAND} -E echo "module manifest extraction (best-effort): ${MOBAGEN_ASSET_STORE_WASI_GUEST}"
+          COMMAND
+            ${MOBAGEN_ASSET_STORE_WASI_MANIFEST_TOOL} manifest "${MOBAGEN_ASSET_STORE_WASI_GUEST}"
+            "${MOBAGEN_ASSET_STORE_WASI_GUEST_DIR}/module.manifest" || cmake -E true
+          VERBATIM
+          COMMENT "generating module.manifest for the wasi asset store guest"
+        )
+      endif()
     else()
       message(STATUS "asset_store guest: module manifest tool not found; skipping wasi manifest POST_BUILD step")
     endif()

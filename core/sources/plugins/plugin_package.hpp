@@ -5,7 +5,6 @@
 #include <optional>
 #include <string>
 #include <system_error>
-
 namespace mobagen::plugins {
 
   enum class PluginPackageKind : std::uint8_t { Native, PortableWasm };
