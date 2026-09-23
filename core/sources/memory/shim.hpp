@@ -65,6 +65,80 @@
  *
  * Signal-based suspension is never used. Spin-waiting is never used (the
  * shim's word_wait must block).
+ *
+ * ---- Control block (region bytes 0..64; todo 13 final contract) ----
+ *
+ *   +0  u32 magic "MMG1"
+ *   +4  u32 epoch (bit0 = GC in flight; shim-atomic, CAS-guarded)
+ *   +8  u32 host_park (wakes host allocators parked at the barrier)
+ *   +12 u32 live_objects
+ *   +16 u32 in_flight (shim-atomic): the mutator bracket — incremented
+ *       (CAS loop; the vtable has no fetch_add) by alloc() around its
+ *       mutating section, decremented on exit; the collector drains it to
+ *       0 (word_wait on the word; the 1->0 transition notifies) before
+ *       marking so it never sweeps a half-built object.
+ *   +20 u32 total_allocs, +24 u32 total_frees (diagnostics)
+ *
+ * ---- Collect sequence (todo 13, micro-task B: quiesce-first) ----
+ *
+ *   1. quiesce managed guest threads FIRST (before ANY epoch flip). On
+ *      timeout/failed handshake: release already-parked guests, abort
+ *      loudly (QuiesceTimeout/QuiesceFailed issue + trace). The epoch was
+ *      never flipped, so the heap is untouched and gc_in_flight() stays
+ *      false — never mark a live heap.
+ *   2. CAS the epoch even->odd (park-and-retry defensively if odd). Bump
+ *      host_park once so parked allocators' word_wait predicates change.
+ *      If the epoch moved since step 1 (a concurrent collector completed
+ *      and its release woke our guests), re-quiesce before marking.
+ *   3. Drain the in_flight bracket (+16) to zero.
+ *   4. Mark from registered roots (handle-table in-registry slots).
+ *   5. Sweep unmarked blocks back to their size-class free lists; release
+ *      handle slots with a generation bump.
+ *   6. Release: wake parked guest threads (release_fn), then epoch -> even
+ *      + host_park bump + word_notify_all for host parkers.
+ *
+ * ---- Managed guest loop protocol + self-quiesce rule (todo 13) ----
+ *
+ * A threads:managed module's guest thread runs:
+ *
+ *   check request flag -> park on OWN word -> release -> alloc -> ...
+ *
+ * The parking word is a region-resident u32 the guest owns (typically
+ * payload word 0 of a rooted block); park = word_wait(own_word, cur, -1),
+ * release (host-side release_fn) = value bump + word_notify_all. The
+ * C-callable {quiesce_fn, release_fn} pair registered via
+ * register_guest_thread is what the platform layer wraps around the
+ * module's mobagen_module_thread_quiesce_v1 export. quiesce_fn sets the
+ * request flag and waits (bounded, via shim now_ns()) for the parked
+ * state; its budget must be SMALLER than the manager's so the guest's
+ * deadline surfaces as the abort reason.
+ *
+ * SELF-QUIESCE RULE: allocation is itself a safe point, so a guest whose
+ * OWN alloc() triggers the synchronous auto-collect would deadlock waiting
+ * for itself to park. quiesce_fn must recognize this case (caller thread
+ * id == the guest's thread id) and return MOBAGEN_QUIESCE_OK immediately:
+ * the thread is inside alloc(), which is a safe point by construction.
+ *
+ * ---- T14 mirror notes (web shim over SAB + Atomics) ----
+ *
+ * - Bucket design (native shim): 16 mutex/condvar buckets keyed by
+ *   (word_offset >> 2) & 15. word_wait re-checks the word under the bucket
+ *   mutex before sleeping (predicate: value != current_value) so a notify
+ *   that lands between check and sleep is never lost; word_notify_all
+ *   broadcasts under the same bucket mutex. The web mirror is one Waiter
+ *   list per word index with Atomics.wait/notify — same predicate shape,
+ *   index = opaque >> 2 of the Int32Array view.
+ * - in_flight drain: the collector word_waits on the in_flight word (not a
+ *   timed spin); the 1->0 transition word_notify_alls. Web mirror:
+ *   Atomics.wait on the in_flight element with the same notify-on-zero
+ *   from the decrementing side (CAS loops both sides — no fetch_add in the
+ *   vtable, and Atomics.add could not be expressed through it either).
+ * - Park predicate re-read: park_until_epoch_even re-reads `cur` (the
+ *   host_park value) every loop iteration before word_wait — a bumped
+ *   value from a PREVIOUS release must not park a thread on a stale
+ *   predicate (hot-spin bug class). The guest loop protocol mirrors this:
+ *   the guest re-reads its request sequence each iteration and consumes
+ *   bumps only through release_fn.
  */
 
 #include "object_header.h"
