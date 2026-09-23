@@ -26,6 +26,7 @@ endif()
 # implementation is omitted.
 # ---------------------------------------------------------------------------
 add_subdirectory(sources/http)
+add_subdirectory(sources/memory)
 add_subdirectory(sources/modules)
 add_subdirectory(sources/resource)
 add_subdirectory(sources/assets)
@@ -95,7 +96,7 @@ add_library(mobagen::core ALIAS core)
 
 target_link_libraries(
   core INTERFACE mobagen::core_http mobagen::core_modules mobagen::core_plugins
-                 mobagen::core_resource mobagen::core_assets
+                 mobagen::core_resource mobagen::core_assets mobagen::memory_core
 )
 
 if(MOBAGEN_BUILD_BUILTIN_SUBSYSTEMS)

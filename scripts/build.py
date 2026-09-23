@@ -202,19 +202,18 @@ class WebPlatform(Platform):
             return {}
 
     def _install_emsdk(self) -> None:
-        if not self.EMSDK_DIR.exists():
-            info("Cloning emsdk into external/emsdk/ ...")
-            run(["git", "clone",
-                 "https://github.com/emscripten-core/emsdk.git",
-                 str(self.EMSDK_DIR)])
-        else:
-            info("emsdk directory already exists, skipping clone.")
-
-        emsdk = self._emsdk_bin()
-        info("Installing latest emsdk toolchain ...")
-        run([str(emsdk), "install", "latest"], cwd=self.EMSDK_DIR)
-        run([str(emsdk), "activate", "latest"], cwd=self.EMSDK_DIR)
-        ok("emsdk installed and activated.")
+        # Shared helper (scripts/toolchains.py uses the same one); kept here to
+        # preserve the plan's emsdk quarantine: "latest" pin, not a versioned
+        # one, so it must follow the same behavior as before the extraction.
+        try:
+            from emsdk_toolchain import install_emsdk
+        except ImportError:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from emsdk_toolchain import install_emsdk
+        info("Cloning emsdk into external/emsdk/ ..."
+             if not self.EMSDK_DIR.exists()
+             else "emsdk directory already exists, skipping clone.")
+        install_emsdk(self.EMSDK_DIR)
 
     def detect_toolchain(self) -> None:
         if shutil.which("emcmake"):
