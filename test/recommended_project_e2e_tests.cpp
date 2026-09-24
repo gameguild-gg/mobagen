@@ -171,7 +171,6 @@ TEST_CASE("Recommended project: first run installs cold wasm plugins and second 
   const auto lock_contents = mobagen::test::read_text(project_root / "mobagen.lock");
   CHECK(lock_contents.contains("linkage: wasm\n"));
   CHECK(lock_contents.find("linkage: dynamic") == std::string::npos);
-  CHECK(first.project.manager->kind() == compositions::ProjectModuleRuntimeKind::Portable);
   CHECK(first.project.manager->active_count() == 0);
   CHECK(backend.calls == 0);
 

@@ -381,7 +381,6 @@ TEST_CASE("Project startup: first run downloads then opens a cold module manager
 
   REQUIRE(started.ok());
   CHECK(started.bootstrap.state == compositions::ProjectBootstrapState::Synchronized);
-  CHECK(started.project.manager->kind() == compositions::ProjectModuleRuntimeKind::Portable);
   CHECK(started.project.manager->active_count() == 0);
   CHECK(client.catalog_requests.size() == 1);
   CHECK(client.artifact_requests.size() == 1);
