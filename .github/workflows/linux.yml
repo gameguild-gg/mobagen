@@ -25,6 +25,14 @@ jobs:
           path: "**/cpm_modules"
           key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
+      # wasi-sdk builds the native-runtime (wasi) guests the WAMR module suites
+      # load. Fetched before the build so find_program sees it at configure
+      # time; cached to avoid a ~300MB re-download every run.
+      - uses: actions/cache@v4
+        with:
+          path: external/wasi-sdk-34
+          key: ${{ github.workflow }}-wasi-sdk-34-${{ runner.arch }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -36,9 +44,30 @@ jobs:
             mesa-common-dev libgl1-mesa-dev libx11-dev mesa-utils libgl-dev \
             libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxext-dev libxfixes-dev libxkbcommon-dev libxcb1-dev libx11-xcb-dev
           pip install jsonschema jinja2
+          python scripts/toolchains.py fetch wasi-sdk
 
       - name: Build (linux)
         run: python scripts/build.py linux
+
+      # The wasi guest targets are add_custom_target (not part of `all`), so
+      # they must be built explicitly — FoundationTests only depends on the
+      # asset_store guest. Building them realizes the WAMR module suites
+      # (backend, memory-shim, scripted Lua/QuickJS guests).
+      - name: Build wasm module guests
+        run: >-
+          cmake --build build-linux --parallel 2
+          --target MobagenPortableAssetStorePluginWasi
+                  MobagenPortableQuickJSPluginWasi
+                  MobagenPortableLuaPluginWasi
+
+      - name: Run doctest suites
+        run: ctest --test-dir build-linux --output-on-failure
+
+      - name: Upload module package trees
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-modules
+          path: build-linux/bin/plugins/
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3

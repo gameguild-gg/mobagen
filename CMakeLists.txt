@@ -165,7 +165,11 @@ option(BUILD_VOLUME_DEMOS "Build volume smoke tests under apps/volume_demos" ON)
 option(BUILD_DICOM_VIEWER "Build the DICOM viewer app" ON)
 option(BUILD_PROTOTYPES "Build learning prototypes (dawn_probe, fibers)" OFF)
 option(MOBAGEN_BUILD_MANIFEST_TOOLS "Build the mobagen.yaml parser and composition tooling" ON)
-option(MOBAGEN_WASM_BACKEND_WAMR "Build the optional WAMR portable plugin backend" OFF)
+# WAMR is the portable plugin backend and the host for the memory-shim/module
+# guest suites — the architecture makes it core, not optional (todo 22). Set
+# -DMOBAGEN_WASM_BACKEND_WAMR=OFF only for resource-constrained lean builds
+# (e.g. the CI module-host/performance/ASan jobs, which keep it OFF explicitly).
+option(MOBAGEN_WASM_BACKEND_WAMR "Build the WAMR portable plugin backend" ON)
 option(BUILD_TESTING "Build Mobagen tests" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 

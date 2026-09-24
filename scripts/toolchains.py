@@ -50,7 +50,9 @@ WASI_ASSETS: dict[str, dict[str, str]] = {
     },
     "x86_64-linux": {
         "file": f"wasi-sdk-{WASI_SDK_VER}-x86_64-linux.tar.gz",
-        "sha256": "",  # fill when a pin is needed for this host
+        # Filled in for CI (todo 22): ubuntu runners fetch wasi-sdk to build the
+        # native-runtime (wasi) guests so the WAMR module suites run in CI.
+        "sha256": "b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4",
     },
 }
 

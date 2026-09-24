@@ -25,15 +25,43 @@ jobs:
           path: "**/cpm_modules"
           key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
+      # wasi-sdk builds the native-runtime (wasi) guests the WAMR module suites
+      # load. Fetched before the build so find_program sees it at configure
+      # time; cached to avoid a re-download every run.
+      - uses: actions/cache@v4
+        with:
+          path: external/wasi-sdk-34
+          key: ${{ github.workflow }}-wasi-sdk-34-${{ runner.arch }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install jsonschema jinja2
+        run: |
+          pip install jsonschema jinja2
+          python scripts/toolchains.py fetch wasi-sdk
 
       - name: Build (osx)
         run: python scripts/build.py osx
+
+      # wasi guest targets are add_custom_target (not in `all`) — build them so
+      # the WAMR module suites (memory-shim, scripted Lua/QuickJS guests) run.
+      - name: Build wasm module guests
+        run: >-
+          cmake --build build-osx --parallel 2
+          --target MobagenPortableAssetStorePluginWasi
+                  MobagenPortableQuickJSPluginWasi
+                  MobagenPortableLuaPluginWasi
+
+      - name: Run doctest suites
+        run: ctest --test-dir build-osx --output-on-failure
+
+      - name: Upload module package trees
+        uses: actions/upload-artifact@v4
+        with:
+          name: osx-modules
+          path: build-osx/bin/plugins/
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3
