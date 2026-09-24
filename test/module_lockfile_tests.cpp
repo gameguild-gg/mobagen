@@ -302,6 +302,34 @@ plugins: {}
   CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "resolved.runtime.tick.v1.linkage"));
 }
 
+TEST_CASE("Module lockfile: dynamic linkage vocabulary is rejected by schema 2") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 2
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+permissions: []
+configurations: {}
+resolved:
+  runtime.tick.v1:
+    provider: customer.remote
+    version: 1.0.0
+    linkage: dynamic
+dependencies: []
+plugins: {}
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  CHECK_FALSE(parsed.ok());
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "resolved.runtime.tick.v1.linkage"));
+  const auto* issue = parsed.issues.empty() ? nullptr : &parsed.issues.front();
+  REQUIRE(issue != nullptr);
+  CHECK(issue->message.find("schema version 2") != std::string::npos);
+}
+
 TEST_CASE("Module lockfile: plugin threads shared-memory and signature fields are validated") {
   using namespace mobagen::modules;
 

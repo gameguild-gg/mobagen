@@ -259,16 +259,17 @@ namespace mobagen::modules {
       bool read_linkage(const YAML::Node& node, const std::string& field, LinkageMode& output) {
         std::string value;
         if (!read_string(node, field, value)) return false;
-        /* Lockfile schema v2 drops the "process" vocabulary; "dynamic" survives until the
-           native tier retires (todo 23 completes the cutover by also removing "dynamic"). */
+        /* Lockfile schema v2 (todo 23) drops the "dynamic" and "process" linkage
+           vocabulary — only "static" and "wasm" remain. Unknown values fail loudly
+           and name the schema so the verifier and resolver never disagree. */
         static const std::map<std::string, LinkageMode, std::less<>> values{
-            {"dynamic", LinkageMode::Dynamic},
             {"static", LinkageMode::Static},
             {"wasm", LinkageMode::Wasm},
         };
         const auto found = values.find(value);
         if (found == values.end()) {
-          add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), field, "expected static, dynamic, or wasm");
+          add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), field,
+                    "linkage vocabulary '" + value + "' is not supported by lockfile schema version 2; expected static or wasm");
           return false;
         }
         output = found->second;

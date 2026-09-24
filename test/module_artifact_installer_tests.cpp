@@ -45,7 +45,7 @@ namespace {
   }
 
   mobagen::modules::CachedModuleArtifact cache_artifact(const mobagen::assets::AssetCache& cache, std::string provider_id, std::string_view contents,
-                                                        mobagen::modules::LinkageMode linkage = mobagen::modules::LinkageMode::Dynamic) {
+                                                        mobagen::modules::LinkageMode linkage = mobagen::modules::LinkageMode::Wasm) {
     const auto bytes = artifact_bytes(contents);
     const auto stored = cache.store(bytes);
     REQUIRE(stored.ok());
@@ -110,7 +110,7 @@ TEST_CASE("Module artifact installer: cached native plugins materialize without 
   CHECK(installed.artifacts.front().installed);
   CHECK(installed.artifacts.front().abi_version == 1);
   const auto package = root.path() / "plugins" / "mobagen.runtime.remote.plugin";
-  const auto binary = package / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
+  const auto binary = package / modules::module_plugin_binary_filename(modules::LinkageMode::Wasm);
   CHECK(installed.artifacts.front().package_path == package);
   CHECK(installed.artifacts.front().binary_path == binary);
   CHECK(std::filesystem::is_regular_file(binary));
@@ -148,7 +148,7 @@ TEST_CASE("Module artifact installer: a failed batch preserves every active pack
   CHECK_FALSE(rejected.ok());
   CHECK(rejected.artifacts.empty());
   const auto active_binary
-      = root.path() / "plugins" / "mobagen.runtime.first.plugin" / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
+      = root.path() / "plugins" / "mobagen.runtime.first.plugin" / modules::module_plugin_binary_filename(modules::LinkageMode::Wasm);
   const auto active = cache.store_file(active_binary);
   REQUIRE(active.id.has_value());
   CHECK(*active.id == original.id);
@@ -199,9 +199,9 @@ TEST_CASE("Module lock verifier: installed packages validate offline without loa
   REQUIRE(verified.ok());
   REQUIRE(verified.plugins.size() == 1);
   CHECK(verified.plugins.front().provider_id == cached.provider_id);
-  CHECK(verified.plugins.front().linkage == modules::LinkageMode::Dynamic);
+  CHECK(verified.plugins.front().linkage == modules::LinkageMode::Wasm);
   CHECK(verified.plugins.front().size == std::string_view{"not-an-executable"}.size());
-  CHECK(verified.plugins.front().binary_path.filename() == modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic));
+  CHECK(verified.plugins.front().binary_path.filename() == modules::module_plugin_binary_filename(modules::LinkageMode::Wasm));
 }
 
 TEST_CASE("Module lock verifier: metadata, resolution, and package tampering fail closed") {
@@ -224,7 +224,7 @@ TEST_CASE("Module lock verifier: metadata, resolution, and package tampering fai
   CHECK(rejected.issues.front().code == modules::LockfileVerificationIssueCode::InvalidResolution);
 
   document.resolved.front().version = cached.version;
-  const auto binary = root.path() / document.metadata.plugins.front().package / modules::module_plugin_binary_filename(modules::LinkageMode::Dynamic);
+  const auto binary = root.path() / document.metadata.plugins.front().package / modules::module_plugin_binary_filename(modules::LinkageMode::Wasm);
   std::ofstream(binary, std::ios::binary | std::ios::app) << "tampered";
   rejected = modules::verify_locked_project(document, root.path(), locked_context());
   REQUIRE_FALSE(rejected.ok());

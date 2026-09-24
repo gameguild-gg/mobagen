@@ -96,12 +96,11 @@ namespace mobagen::modules {
       switch (linkage) {
         case LinkageMode::Static:
           return "static";
-        case LinkageMode::Dynamic:
-          return "dynamic";
         case LinkageMode::Wasm:
           return "wasm";
+        case LinkageMode::Dynamic:
         case LinkageMode::Process:
-          return "process";
+          break;
       }
       return {};
     }

@@ -247,7 +247,7 @@ namespace mobagen::compositions {
 #else
       result.issues.push_back({
           .code = LockedProjectIssueCode::UnsupportedLinkage,
-          .message = "dynamic profiles are unavailable on this platform",
+          .message = "dynamic profile linkage is not supported by project schema version 2",
       });
       return result;
 #endif
