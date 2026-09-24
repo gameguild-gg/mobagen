@@ -163,7 +163,6 @@ jobs:
           -DMOBAGEN_BUILD_PROJECT_TOOLS=OFF
           -DMOBAGEN_BUILD_ASSET_TOOLS=OFF
           -DMOBAGEN_BUILD_PLUGIN_TOOLS=OFF
-          -DMOBAGEN_BUILD_CATALOG_TOOLS=OFF
           -DMOBAGEN_HTTP_BACKEND_CURL=OFF
           -DMOBAGEN_BUILD_BENCHMARKS=ON
           -DBUILD_EXAMPLES=OFF
@@ -175,7 +174,11 @@ jobs:
       - name: Build and enforce performance budget
         run: >-
           cmake --build build-performance --config Release --parallel 2
-          --target MobagenPerformanceGate
+          --target MobagenModuleDispatchBenchmark
+
+      - name: Enforce module dispatch budget
+        run: >-
+          ./build-performance/MobagenModuleDispatchBenchmark --warmup 5 --samples 31
 
   sanitizers:
     name: ASan + UBSan (Ubuntu)

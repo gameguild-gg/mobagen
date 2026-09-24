@@ -2,20 +2,8 @@ add_library(
   mobagen_core_plugins STATIC
   asset_store_v1.h
   fixed_issue_list.hpp
-  plugin_activation.cpp
-  plugin_activation.hpp
-  plugin_activation_set.cpp
-  plugin_activation_set.hpp
-  plugin_catalog.cpp
-  plugin_catalog.hpp
-  plugin_contract.cpp
-  plugin_contract.hpp
-  plugin_loader.cpp
-  plugin_loader.hpp
   plugin_package.cpp
   plugin_package.hpp
-  plugin_store.cpp
-  plugin_store.hpp
   plugin_host.cpp
   plugin_host.hpp
   plugin_abi.h
@@ -50,7 +38,6 @@ target_link_libraries(mobagen_core_plugins PUBLIC mobagen::core_modules mobagen:
 if(TARGET mobagen::module_manifest)
   target_link_libraries(mobagen_core_plugins PRIVATE mobagen::module_manifest)
 endif()
-target_link_libraries(mobagen_core_plugins PRIVATE ${CMAKE_DL_LIBS})
 
 if(MOBAGEN_WASM_BACKEND_WAMR)
   add_subdirectory(wamr)

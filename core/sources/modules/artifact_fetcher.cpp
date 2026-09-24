@@ -53,8 +53,6 @@ namespace mobagen::modules {
       case LinkageMode::Wasm:
         return MOBAGEN_WASM_PLUGIN_ABI_VERSION;
       case LinkageMode::Static:
-      case LinkageMode::Dynamic:
-      case LinkageMode::Process:
         return 0;
     }
     return 0;

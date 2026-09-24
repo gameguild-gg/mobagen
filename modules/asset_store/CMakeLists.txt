@@ -208,12 +208,4 @@ else()
         "run `python3 scripts/toolchains.py fetch wasi-sdk` to enable the native wasm guest. Skipping."
     )
   endif()
-
-  add_library(MobagenDefaultAssetStorePlugin MODULE default_asset_store_plugin.cpp)
-  target_compile_features(MobagenDefaultAssetStorePlugin PRIVATE cxx_std_20)
-  target_compile_definitions(MobagenDefaultAssetStorePlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
-  target_link_libraries(
-    MobagenDefaultAssetStorePlugin PRIVATE mobagen::asset_store_service mobagen::plugin_sdk
-  )
-  set_target_properties(MobagenDefaultAssetStorePlugin PROPERTIES PREFIX "")
 endif()

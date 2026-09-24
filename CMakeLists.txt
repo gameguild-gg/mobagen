@@ -253,16 +253,6 @@ if(MOBAGEN_BUILD_MODULE_TOOLS AND MOBAGEN_BUILD_MANIFEST_TOOLS AND NOT EMSCRIPTE
   add_subdirectory(tools/modules)
 endif()
 
-option(MOBAGEN_BUILD_CATALOG_TOOLS "Build native first-party module catalog tooling"
-       ${MOBAGEN_BUILD_MANIFEST_TOOLS}
-)
-if(MOBAGEN_BUILD_CATALOG_TOOLS
-   AND MOBAGEN_BUILD_MANIFEST_TOOLS
-   AND NOT EMSCRIPTEN
-)
-  add_subdirectory(tools/catalog)
-endif()
-
 option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"
        ${BUILD_EXAMPLES}
 )

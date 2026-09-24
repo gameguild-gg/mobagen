@@ -1,9 +1,6 @@
 #include "plugin_cli.hpp"
 
-#include "plugins/plugin_host.hpp"
-#include "plugins/plugin_loader.hpp"
 #include "plugins/plugin_package.hpp"
-#include "plugins/plugin_store.hpp"
 #include "plugins/wasm_plugin_loader.hpp"
 #include "plugins/wasm_plugin_store.hpp"
 #if defined(MOBAGEN_PLUGIN_CLI_HAS_WAMR)
@@ -80,28 +77,17 @@ namespace mobagen::plugins::cli {
         print_inspection_failure("verify", inspection, error);
         return 3;
       }
-      if (*inspection.kind == PluginPackageKind::PortableWasm) {
-        auto* backend = backend_provider();
-        if (backend == nullptr) {
-          print_backend_unavailable("verify", error);
-          return 3;
-        }
-        const auto loaded = load_portable_wasm_plugin_package(package, *backend);
-        if (!loaded.plugin.has_value()) {
-          print_load_failure("verify", loaded, error);
-          return 3;
-        }
-        const auto& provider = loaded.plugin->provider();
-        output << "verified\t" << provider.id << '\t' << version_string(provider.version) << '\n';
-        return 0;
+      auto* backend = backend_provider();
+      if (backend == nullptr) {
+        print_backend_unavailable("verify", error);
+        return 3;
       }
-      PluginHost host;
-      const auto loaded = load_native_plugin_package(package, host.api());
+      const auto loaded = load_portable_wasm_plugin_package(package, *backend);
       if (!loaded.plugin.has_value()) {
         print_load_failure("verify", loaded, error);
         return 3;
       }
-      const auto& provider = loaded.plugin->contract().provider;
+      const auto& provider = loaded.plugin->provider();
       output << "verified\t" << provider.id << '\t' << version_string(provider.version) << '\n';
       return 0;
     }
@@ -114,25 +100,13 @@ namespace mobagen::plugins::cli {
         print_inspection_failure("install", inspection, error);
         return 3;
       }
-      if (*inspection.kind == PluginPackageKind::PortableWasm) {
-        auto* backend = backend_provider();
-        if (backend == nullptr) {
-          print_backend_unavailable("install", error);
-          return 3;
-        }
-        const PortableWasmPluginStore store{std::filesystem::path{store_text}};
-        const auto installed = store.install(package, *backend);
-        if (!installed.ok()) {
-          print_store_failure("install", installed, error);
-          return 3;
-        }
-        output << "installed\t" << installed.provider_id << '\t' << version_string(installed.version) << '\t' << installed.package.generic_string()
-               << '\n';
-        return 0;
+      auto* backend = backend_provider();
+      if (backend == nullptr) {
+        print_backend_unavailable("install", error);
+        return 3;
       }
-      PluginHost host;
-      const NativePluginStore store{std::filesystem::path{store_text}};
-      const auto installed = store.install(package, host);
+      const PortableWasmPluginStore store{std::filesystem::path{store_text}};
+      const auto installed = store.install(package, *backend);
       if (!installed.ok()) {
         print_store_failure("install", installed, error);
         return 3;
@@ -143,7 +117,7 @@ namespace mobagen::plugins::cli {
     }
 
     int remove(std::string_view store_text, std::string_view provider_id, std::ostream& output, std::ostream& error) {
-      const NativePluginStore store{std::filesystem::path{store_text}};
+      const PortableWasmPluginStore store{std::filesystem::path{store_text}};
       const auto removed = store.remove(provider_id);
       if (!removed.ok()) {
         print_store_failure("remove", removed, error);
@@ -152,14 +126,6 @@ namespace mobagen::plugins::cli {
       output << "removed\t" << removed.provider_id << '\t' << removed.package.generic_string() << '\n';
       return 0;
     }
-
-    struct ListedPlugin {
-      modules::ProviderDescriptor provider;
-      std::filesystem::path package;
-      PluginPackageKind kind{};
-    };
-
-    std::string_view package_kind_name(PluginPackageKind kind) noexcept { return kind == PluginPackageKind::Native ? "native" : "wasm"; }
 
     template <typename BackendProvider>
     int list(std::string_view store_text, std::ostream& output, std::ostream& error, BackendProvider&& backend_provider) {
@@ -191,7 +157,7 @@ namespace mobagen::plugins::cli {
       while (iterator != end) {
         const auto filename = iterator->path().filename().string();
         if (!filename.starts_with('.') && iterator->path().extension() == ".plugin") {
-          if (packages.size() == max_native_plugin_store_packages) {
+          if (packages.size() == max_portable_wasm_plugin_store_packages) {
             error << "list failed: installed plugin package count exceeds limit\n";
             return 3;
           }
@@ -205,48 +171,22 @@ namespace mobagen::plugins::cli {
       }
       std::ranges::sort(packages, [](const auto& left, const auto& right) { return left.generic_string() < right.generic_string(); });
 
-      PluginHost host;
-      std::vector<ListedPlugin> entries;
-      entries.reserve(packages.size());
-      for (const auto& package : packages) {
-        const auto inspection = inspect_plugin_package(package);
-        if (!inspection.ok()) {
-          print_inspection_failure("list", inspection, error);
-          return 3;
-        }
-
-        modules::ProviderDescriptor provider;
-        if (*inspection.kind == PluginPackageKind::Native) {
-          const auto loaded = load_native_plugin_package(package, host.api());
-          if (!loaded.plugin.has_value()) {
-            print_load_failure("list", loaded, error);
-            return 3;
-          }
-          provider = loaded.plugin->contract().provider;
-        } else {
-          auto* backend = backend_provider();
-          if (backend == nullptr) {
-            print_backend_unavailable("list", error);
-            return 3;
-          }
-          const auto loaded = load_portable_wasm_plugin_package(package, *backend);
-          if (!loaded.plugin.has_value()) {
-            print_load_failure("list", loaded, error);
-            return 3;
-          }
-          provider = loaded.plugin->provider();
-        }
-        if (package.filename() != std::filesystem::path{provider.id + ".plugin"}) {
-          error << "list failed: installed plugin package filename does not match its provider ID\n";
-          return 3;
-        }
-        entries.push_back({std::move(provider), package, *inspection.kind});
+      auto* backend = backend_provider();
+      if (backend == nullptr) {
+        print_backend_unavailable("list", error);
+        return 3;
       }
-      for (const auto& entry : entries) {
-        output << "plugin\t" << entry.provider.id << '\t' << version_string(entry.provider.version) << '\t' << package_kind_name(entry.kind) << '\t'
-               << entry.package.generic_string() << '\n';
+      const PortableWasmPluginStore store{root};
+      const auto inventory = store.list(*backend);
+      if (!inventory.ok()) {
+        print_store_failure("list", inventory, error);
+        return 3;
       }
-      output << "plugins\t" << entries.size() << '\n';
+      for (const auto& entry : inventory.entries) {
+        output << "plugin\t" << entry.provider.id << '\t' << version_string(entry.provider.version) << "\twasm\t" << entry.package.generic_string()
+               << '\n';
+      }
+      output << "plugins\t" << inventory.entries.size() << '\n';
       return 0;
     }
 

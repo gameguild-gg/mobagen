@@ -165,7 +165,6 @@ TEST_CASE("Project module manager: manifest profile routes to lazy portable modu
   REQUIRE(opened.ok());
   CHECK(opened.product->name == "locked-portable-project");
   CHECK(opened.manager->kind() == compositions::ProjectModuleRuntimeKind::Portable);
-  CHECK(opened.manager->native() == nullptr);
   CHECK(opened.manager->portable() != nullptr);
   CHECK(opened.manager->active_count() == 0);
   CHECK(backend.calls == 0);
@@ -174,7 +173,6 @@ TEST_CASE("Project module manager: manifest profile routes to lazy portable modu
   REQUIRE(acquired.ok());
   REQUIRE(acquired.endpoint.has_value());
   CHECK(acquired.endpoint->kind == compositions::ProjectModuleRuntimeKind::Portable);
-  CHECK_FALSE(acquired.endpoint->native.has_value());
   REQUIRE(acquired.endpoint->portable != nullptr);
   CHECK(acquired.endpoint->portable->provider().id == "mobagen.wasm-package");
   CHECK(opened.manager->active_count() == 1);

@@ -4,8 +4,8 @@ target_compile_features(mobagen_project_cli PUBLIC cxx_std_20)
 target_include_directories(mobagen_project_cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(
   mobagen_project_cli
-  PUBLIC mobagen::native_project
-  PRIVATE mobagen::module_distribution mobagen::module_lockfile mobagen::portable_project
+  PUBLIC mobagen::portable_project
+  PRIVATE mobagen::module_distribution mobagen::module_lockfile
           mobagen::project_bootstrap mobagen::project_support
 )
 if(MOBAGEN_WASM_BACKEND_WAMR)

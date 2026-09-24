@@ -23,7 +23,6 @@ namespace mobagen::plugins {
 }  // namespace mobagen::plugins
 
 namespace mobagen::compositions {
-  class NativeModuleManager;
   class PortableModuleManager;
 
   enum class ProjectModuleRuntimeKind : std::uint8_t { Native, Portable };
@@ -69,7 +68,6 @@ namespace mobagen::compositions {
 
   struct ProjectModuleCapabilityEndpoint {
     ProjectModuleRuntimeKind kind{};
-    std::optional<plugins::NativeCapabilityBindingView> native;
     plugins::PortableWasmPluginActivation* portable{};
   };
 
@@ -101,8 +99,6 @@ namespace mobagen::compositions {
                                                                      std::uint32_t minimum_native_abi_version = 1) const noexcept;
     [[nodiscard]] ProjectModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept;
-    [[nodiscard]] NativeModuleManager* native() noexcept;
-    [[nodiscard]] const NativeModuleManager* native() const noexcept;
     [[nodiscard]] PortableModuleManager* portable() noexcept;
     [[nodiscard]] const PortableModuleManager* portable() const noexcept;
 

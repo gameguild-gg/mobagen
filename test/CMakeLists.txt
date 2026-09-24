@@ -1,25 +1,5 @@
 option(TEST_INSTALLED_VERSION "Test the version found by find_package" OFF)
 
-add_library(MobagenReferencePlugin MODULE plugins/reference_plugin.c)
-target_link_libraries(MobagenReferencePlugin PRIVATE mobagen::plugin_sdk)
-target_compile_definitions(MobagenReferencePlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
-set_target_properties(MobagenReferencePlugin PROPERTIES PREFIX "")
-
-add_library(MobagenMissingEntryPlugin MODULE plugins/missing_entry_plugin.c)
-set_target_properties(MobagenMissingEntryPlugin PROPERTIES PREFIX "")
-
-foreach(FAILURE_MODE IN ITEMS 1 2 3)
-  add_library(
-    MobagenLifecycleFailurePlugin${FAILURE_MODE} MODULE plugins/lifecycle_failure_plugin.c
-  )
-  target_link_libraries(MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE mobagen::plugin_sdk)
-  target_compile_definitions(
-    MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE MOBAGEN_PLUGIN_BUILD
-                                                         MOBAGEN_TEST_FAILURE_MODE=${FAILURE_MODE}
-  )
-  set_target_properties(MobagenLifecycleFailurePlugin${FAILURE_MODE} PROPERTIES PREFIX "")
-endforeach()
-
 # --- Import tools ----
 
 include(../cmake/tools.cmake)
@@ -51,14 +31,7 @@ set(FOUNDATION_TEST_SOURCES
     module_resolver_tests.cpp
     plugin_abi_c_test.c
     plugin_abi_tests.cpp
-    plugin_contract_tests.cpp
-    plugin_activation_tests.cpp
-    plugin_catalog_tests.cpp
     plugin_host_tests.cpp
-    plugin_loader_tests.cpp
-    plugin_package_tests.cpp
-    plugin_resolution_activation_tests.cpp
-    plugin_store_tests.cpp
     portable_plugin_store_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
@@ -87,14 +60,8 @@ list(APPEND FOUNDATION_TEST_SOURCES ${PORTABLE_ASSET_STORE_PROVIDER_SOURCE})
 if(TARGET mobagen::asset_cli)
   list(APPEND FOUNDATION_TEST_SOURCES asset_cli_tests.cpp)
 endif()
-if(TARGET MobagenDefaultAssetStorePlugin)
-  list(APPEND FOUNDATION_TEST_SOURCES asset_store_plugin_tests.cpp)
-endif()
-if(TARGET MobagenWindowSdl3Plugin AND TARGET MobagenRenderWebgpuPlugin)
-  list(APPEND FOUNDATION_TEST_SOURCES runtime_plugin_adapter_tests.cpp)
-  if(TARGET mobagen::catalog_publisher AND TARGET mobagen::project_cli)
-    list(APPEND FOUNDATION_TEST_SOURCES recommended_project_e2e_tests.cpp)
-  endif()
+if(TARGET mobagen::project_cli)
+  list(APPEND FOUNDATION_TEST_SOURCES recommended_project_e2e_tests.cpp)
 endif()
 if(TARGET mobagen::plugin_cli)
   list(APPEND FOUNDATION_TEST_SOURCES plugin_cli_tests.cpp)
@@ -107,9 +74,6 @@ if(TARGET mobagen::module_extraction)
 endif()
 if(TARGET mobagen::project_cli)
   list(APPEND FOUNDATION_TEST_SOURCES project_cli_tests.cpp)
-endif()
-if(TARGET mobagen::catalog_publisher)
-  list(APPEND FOUNDATION_TEST_SOURCES module_catalog_publisher_tests.cpp)
 endif()
 if(TARGET mobagen::http_curl)
   list(APPEND FOUNDATION_TEST_SOURCES curl_http_tests.cpp)
@@ -125,12 +89,10 @@ if(TARGET mobagen::module_manifest)
     module_artifact_fetcher_tests.cpp
     locked_activation_plan_tests.cpp
     locked_portable_project_tests.cpp
-    native_module_manager_tests.cpp
     portable_module_manager_tests.cpp
     module_manifest_tests.cpp
     module_manifest_schema_tests.cpp
     module_sync_plan_tests.cpp
-    native_project_tests.cpp
   )
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
@@ -165,36 +127,7 @@ if(NOT EMSCRIPTEN)
 endif()
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
-add_dependencies(
-  FoundationTests MobagenLifecycleFailurePlugin1 MobagenLifecycleFailurePlugin2
-  MobagenLifecycleFailurePlugin3 MobagenMissingEntryPlugin MobagenReferencePlugin
-)
-if(TARGET MobagenDefaultAssetStorePlugin)
-  add_dependencies(FoundationTests MobagenDefaultAssetStorePlugin)
-endif()
-if(TARGET MobagenWindowSdl3Plugin AND TARGET MobagenRenderWebgpuPlugin)
-  add_dependencies(FoundationTests MobagenWindowSdl3Plugin MobagenRenderWebgpuPlugin)
-  target_compile_definitions(
-    FoundationTests
-    PRIVATE MOBAGEN_WINDOW_SDL3_PLUGIN_PATH="$<TARGET_FILE:MobagenWindowSdl3Plugin>"
-            MOBAGEN_RENDER_WEBGPU_PLUGIN_PATH="$<TARGET_FILE:MobagenRenderWebgpuPlugin>"
-  )
-endif()
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
-target_compile_definitions(
-  FoundationTests
-  PRIVATE MOBAGEN_CONFIGURE_FAILURE_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin1>"
-          MOBAGEN_START_FAILURE_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin2>"
-          MOBAGEN_CAPABILITY_MISMATCH_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin3>"
-          MOBAGEN_MISSING_ENTRY_PLUGIN_PATH="$<TARGET_FILE:MobagenMissingEntryPlugin>"
-          MOBAGEN_REFERENCE_PLUGIN_PATH="$<TARGET_FILE:MobagenReferencePlugin>"
-)
-if(TARGET MobagenDefaultAssetStorePlugin)
-  target_compile_definitions(
-    FoundationTests
-    PRIVATE MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH="$<TARGET_FILE:MobagenDefaultAssetStorePlugin>"
-  )
-endif()
 if(MOBAGEN_WASM_BACKEND_WAMR)
   # Real-AOT fixture path (todo 7): wamrc fetched out-of-band into the
   # gitignored external/wamrc-cache/ dir, or MOBAGEN_WAMRC_PATH at test time;
@@ -260,9 +193,6 @@ endif()
 if(TARGET mobagen::project_cli)
   target_link_libraries(FoundationTests PRIVATE mobagen::project_cli)
 endif()
-if(TARGET mobagen::catalog_publisher)
-  target_link_libraries(FoundationTests PRIVATE mobagen::catalog_publisher)
-endif()
 if(TARGET mobagen::http_curl)
   target_link_libraries(FoundationTests PRIVATE mobagen::http_curl)
 endif()
@@ -274,7 +204,6 @@ if(TARGET mobagen::module_manifest)
     FoundationTests
     PRIVATE mobagen::headless_composition
             mobagen::module_manifest
-            mobagen::native_project
             mobagen::portable_project
             mobagen::project_bootstrap
             mobagen::project_module_manager
@@ -291,9 +220,6 @@ endif()
 set(FOUNDATION_COMPILED_TARGETS mobagen_asset_store_service mobagen_core_assets mobagen_core_jobs
                                 mobagen_core_modules mobagen_core_plugins mobagen_memory_core
 )
-if(TARGET MobagenDefaultAssetStorePlugin)
-  list(APPEND FOUNDATION_COMPILED_TARGETS MobagenDefaultAssetStorePlugin)
-endif()
 if(TARGET mobagen_asset_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_asset_cli)
 endif()
@@ -308,9 +234,6 @@ if(TARGET mobagen_project_cli)
 endif()
 if(TARGET mobagen_headless_composition)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_headless_composition)
-endif()
-if(TARGET mobagen_native_project)
-  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_native_project)
 endif()
 if(TARGET mobagen_portable_project)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_portable_project)
