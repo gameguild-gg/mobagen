@@ -29,8 +29,36 @@ jobs:
         with:
           python-version: '3.12'
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Build (web)
         run: python scripts/build.py web --install-deps
+
+      # todo 5/8/10/14/16/17 runtime module smoke: both variants boot headless
+      # and drive the BrowserWasmBackend module-load pipeline (incl. the
+      # SAB/Atomics memory shim + QuickJS/Lua scripting guests).
+      - name: Node smoke (isolated variant)
+        run: node scripts/smoke_web.mjs --variant isolated
+
+      - name: Node smoke (shared variant)
+        run: node scripts/smoke_web.mjs --variant shared
+
+      # todo 6 COOP/COEP header assertion: the served tree must send
+      # Cross-Origin-Opener-Policy: same-origin + Cross-Origin-Embedder-Policy:
+      # require-corp so browsers treat the context as crossOriginIsolated
+      # (required for the shared-variant SAB/pthreads memory).
+      - name: Assert COOP/COEP headers
+        run: |
+          python3 scripts/serve.py 8090 build-web/bin &
+          SERVE_PID=$!
+          trap 'kill $SERVE_PID 2>/dev/null || true' EXIT
+          sleep 2
+          HDRS="$(curl -sSI http://127.0.0.1:8090/)"
+          echo "$HDRS"
+          echo "$HDRS" | grep -qi 'Cross-Origin-Opener-Policy: same-origin'
+          echo "$HDRS" | grep -qi 'Cross-Origin-Embedder-Policy: require-corp'
 
       - name: Release
         uses: fnkr/github-action-ghr@v1.3

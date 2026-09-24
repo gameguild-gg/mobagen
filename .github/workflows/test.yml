@@ -41,6 +41,18 @@ jobs:
           path: "**/cpm_modules"
           key: foundation-${{ matrix.os }}-${{ github.workflow }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
+      # wasi-sdk builds the native-runtime (wasi) guests the WAMR module
+      # suites load. No Windows distribution — guest targets skip there.
+      - uses: actions/cache@v6
+        if: matrix.os != 'windows-2022'
+        with:
+          path: external/wasi-sdk-34
+          key: foundation-wasi-sdk-34-${{ runner.arch }}
+
+      - name: Fetch wasm guest toolchain (wasi-sdk)
+        if: matrix.os != 'windows-2022'
+        run: python scripts/toolchains.py fetch wasi-sdk
+
       - name: Configure foundation
         run: >-
           cmake -S . -B build-foundation
@@ -53,6 +65,18 @@ jobs:
 
       - name: Build foundation
         run: cmake --build build-foundation --config Debug --parallel 2 --target FoundationTests
+
+      # The wasi guest targets are add_custom_target (not in `all`) and only the
+      # asset_store guest is a FoundationTests dependency — build them explicitly
+      # so the Lua/QuickJS wasi module tests run (todo 22). Windows has no
+      # wasi-sdk, so those targets never exist there.
+      - name: Build wasm module guests
+        if: matrix.os != 'windows-2022'
+        run: >-
+          cmake --build build-foundation --config Debug --parallel 2
+          --target MobagenPortableAssetStorePluginWasi
+                  MobagenPortableQuickJSPluginWasi
+                  MobagenPortableLuaPluginWasi
 
       - name: Test foundation
         run: ctest --test-dir build-foundation -C Debug -L foundation --output-on-failure
@@ -85,6 +109,7 @@ jobs:
         run: >-
           cmake -S . -B build-module-host
           -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DMOBAGEN_WASM_BACKEND_WAMR=OFF
           -DMOBAGEN_BUILD_BUILTIN_SUBSYSTEMS=OFF
           -DMOBAGEN_BUILD_BUNDLED_MODULES=OFF
           -DMOBAGEN_BUILD_MODULE_COMPOSITIONS=ON
@@ -130,6 +155,7 @@ jobs:
         run: >-
           cmake -S . -B build-performance
           -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DMOBAGEN_WASM_BACKEND_WAMR=OFF
           -DMOBAGEN_BUILD_BUILTIN_SUBSYSTEMS=OFF
           -DMOBAGEN_BUILD_BUNDLED_MODULES=OFF
           -DMOBAGEN_BUILD_MANIFEST_TOOLS=ON
@@ -173,6 +199,7 @@ jobs:
         run: >-
           cmake -S . -B build-sanitizers
           -DMOBAGEN_BUILD_RUNTIME=OFF
+          -DMOBAGEN_WASM_BACKEND_WAMR=OFF
           -DBUILD_EXAMPLES=OFF
           -DBUILD_TESTING=ON
           -DENABLE_DOCUMENTATION=OFF
