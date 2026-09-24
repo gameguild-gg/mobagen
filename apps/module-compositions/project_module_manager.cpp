@@ -2,9 +2,6 @@
 
 #include "portable/locked_project.hpp"
 #include "project_support.hpp"
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-#  include "native/locked_project.hpp"
-#endif
 #if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_BROWSER)
 #  include "plugins/browser/browser_wasm_backend.hpp"
 #endif
@@ -17,9 +14,6 @@ namespace mobagen::compositions {
 
   struct ProjectModuleManager::Storage {
     ProjectModuleRuntimeKind kind{};
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-    std::unique_ptr<NativeModuleManager> native;
-#endif
     std::unique_ptr<PortableModuleManager> portable;
     std::map<std::string, ProjectModuleCapabilityEndpoint, std::less<>> endpoints;
   };
@@ -65,40 +59,17 @@ namespace mobagen::compositions {
   ProjectModuleRuntimeKind ProjectModuleManager::kind() const noexcept { return storage_->kind; }
 
   ProjectModuleManagerActionResult ProjectModuleManager::activate(std::string_view capability) {
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-    if (storage_->native != nullptr) {
-      auto activated = storage_->native->activate(capability);
-      return simplify_action(std::move(activated.issues));
-    }
-#endif
     auto activated = storage_->portable->activate(capability);
     return simplify_action(std::move(activated.issues));
   }
 
   ProjectModuleCapabilityResult ProjectModuleManager::acquire(std::string_view capability, std::uint32_t minimum_native_abi_version) {
+    static_cast<void>(minimum_native_abi_version);
     ProjectModuleCapabilityResult result;
     if (const auto* endpoint = find_active(capability, minimum_native_abi_version)) {
       result.endpoint = *endpoint;
       return result;
     }
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-    if (storage_->native != nullptr) {
-      auto acquired = storage_->native->acquire(capability, minimum_native_abi_version);
-      result.issues = simplify_issues(std::move(acquired.issues));
-      if (acquired.binding.has_value()) {
-        auto endpoint = ProjectModuleCapabilityEndpoint{
-            .kind = ProjectModuleRuntimeKind::Native,
-            .native = *acquired.binding,
-        };
-        const auto [stored, inserted] = storage_->endpoints.try_emplace(std::string{capability}, endpoint);
-        static_cast<void>(inserted);
-        result.endpoint = stored->second;
-      }
-      return result;
-    }
-#else
-    static_cast<void>(minimum_native_abi_version);
-#endif
     auto acquired = storage_->portable->acquire(capability);
     result.issues = simplify_issues(std::move(acquired.issues));
     if (acquired.plugin != nullptr) {
@@ -115,50 +86,19 @@ namespace mobagen::compositions {
 
   const ProjectModuleCapabilityEndpoint* ProjectModuleManager::find_active(std::string_view capability,
                                                                            std::uint32_t minimum_native_abi_version) const noexcept {
+    static_cast<void>(minimum_native_abi_version);
     const auto found = storage_->endpoints.find(capability);
     if (found == storage_->endpoints.end()) return nullptr;
-    const auto& endpoint = found->second;
-    if (endpoint.kind == ProjectModuleRuntimeKind::Native
-        && (!endpoint.native.has_value() || endpoint.native->abi_version < minimum_native_abi_version)) {
-      return nullptr;
-    }
-    return &endpoint;
+    return &found->second;
   }
 
   ProjectModuleManagerActionResult ProjectModuleManager::stop() {
     storage_->endpoints.clear();
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-    if (storage_->native != nullptr) {
-      auto stopped = storage_->native->stop();
-      return simplify_action(std::move(stopped.issues));
-    }
-#endif
     auto stopped = storage_->portable->stop();
     return simplify_action(std::move(stopped.issues));
   }
 
-  std::size_t ProjectModuleManager::active_count() const noexcept {
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-    if (storage_->native != nullptr) return storage_->native->active_count();
-#endif
-    return storage_->portable->active_count();
-  }
-
-  NativeModuleManager* ProjectModuleManager::native() noexcept {
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-    return storage_->native.get();
-#else
-    return nullptr;
-#endif
-  }
-
-  const NativeModuleManager* ProjectModuleManager::native() const noexcept {
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-    return storage_->native.get();
-#else
-    return nullptr;
-#endif
-  }
+  std::size_t ProjectModuleManager::active_count() const noexcept { return storage_->portable->active_count(); }
 
   PortableModuleManager* ProjectModuleManager::portable() noexcept { return storage_->portable.get(); }
 
@@ -225,32 +165,6 @@ namespace mobagen::compositions {
       result.manager = std::unique_ptr<ProjectModuleManager>(new ProjectModuleManager(std::move(storage)));
       result.product = std::move(opened.product);
       return result;
-    }
-
-    if (profile->linkage == modules::LinkageMode::Dynamic) {
-#if defined(MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE)
-      auto opened = open_locked_native_project(source.absolute_path, {
-                                                                         .sdk_version = options.sdk_version,
-                                                                         .target = options.target,
-                                                                         .profile = std::move(options.profile),
-                                                                     });
-      if (!opened.ok()) {
-        append_open_issues(result, LockedProjectIssueCode::NativeProject, std::move(opened.issues));
-        return result;
-      }
-      auto storage = std::make_unique<ProjectModuleManager::Storage>();
-      storage->kind = ProjectModuleRuntimeKind::Native;
-      storage->native = std::move(opened.manager);
-      result.manager = std::unique_ptr<ProjectModuleManager>(new ProjectModuleManager(std::move(storage)));
-      result.product = std::move(opened.product);
-      return result;
-#else
-      result.issues.push_back({
-          .code = LockedProjectIssueCode::UnsupportedLinkage,
-          .message = "dynamic profile linkage is not supported by project schema version 2",
-      });
-      return result;
-#endif
     }
 
     result.issues.push_back({

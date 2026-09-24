@@ -12,9 +12,6 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
   )
 
   add_subdirectory(portable)
-  if(NOT EMSCRIPTEN)
-    add_subdirectory(native)
-  endif()
 
   add_library(mobagen_project_bootstrap STATIC project_bootstrap.cpp project_bootstrap.hpp)
   add_library(mobagen::project_bootstrap ALIAS mobagen_project_bootstrap)
@@ -37,12 +34,6 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
     PUBLIC mobagen::portable_project
     PRIVATE mobagen::project_support
   )
-  if(TARGET mobagen::native_project)
-    target_compile_definitions(
-      mobagen_project_module_manager PRIVATE MOBAGEN_PROJECT_MODULE_MANAGER_HAS_NATIVE=1
-    )
-    target_link_libraries(mobagen_project_module_manager PUBLIC mobagen::native_project)
-  endif()
   # Browser backend as the default portable backend on web (todo 8): a wasm
   # profile with no explicit services.portable_backend opens through the
   # browser engine. Minimal wiring — full backend unification is todo 26.

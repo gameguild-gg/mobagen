@@ -98,9 +98,6 @@ namespace mobagen::modules {
           return "static";
         case LinkageMode::Wasm:
           return "wasm";
-        case LinkageMode::Dynamic:
-        case LinkageMode::Process:
-          break;
       }
       return {};
     }

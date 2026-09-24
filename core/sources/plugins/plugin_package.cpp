@@ -1,6 +1,5 @@
 #include "plugin_package.hpp"
 
-#include "plugin_loader.hpp"
 #include "wasm_plugin_loader.hpp"
 
 #include <array>
@@ -50,12 +49,11 @@ namespace mobagen::plugins {
       return failure(PluginPackageInspectionIssueCode::InvalidContents, absolute, "plugin package must contain a canonical plugin binary");
     }
 
-    /* v2 (todo 21): a portable WASM package is plugin.wasm (required) plus
-     * the optional plugin.aot and module.manifest payloads — the same
-     * whitelist the package loader enforces. Native packages stay
-     * single-binary (the native tier narrows; todo 24 removes it). */
+    /* v2 (todo 21, todo 24): a package is portable WASM only — plugin.wasm
+     * (required) plus the optional plugin.aot and module.manifest payloads,
+     * the same whitelist the package loader enforces. The native plugin tier
+     * is gone; native-shaped packages are rejected loudly. */
     bool has_wasm = false;
-    std::optional<std::filesystem::path> native_binary;
     for (; iterator != end; iterator.increment(error)) {
       if (error) {
         return failure(PluginPackageInspectionIssueCode::InspectionFailure, absolute, "plugin package enumeration failed", error);
@@ -70,23 +68,14 @@ namespace mobagen::plugins {
         has_wasm = has_wasm || filename == portable_wasm_plugin_binary_filename();
         continue;
       }
-      if (filename == native_plugin_binary_filename()) {
-        const auto status = std::filesystem::symlink_status(iterator->path(), error);
-        if (error || !std::filesystem::is_regular_file(status) || std::filesystem::is_symlink(status)) {
-          return failure(PluginPackageInspectionIssueCode::InvalidContents, iterator->path(),
-                         "plugin package binary must be a real regular file, not a symbolic link", error);
-        }
-        native_binary = iterator->path();
-        continue;
-      }
       return failure(PluginPackageInspectionIssueCode::InvalidContents, iterator->path(),
-                     "plugin package contains a file outside the canonical package contents");
+                     "plugin package contains a file outside the canonical package contents (the native plugin tier was removed; "
+                     "portable wasm packages ship plugin.wasm)");
     }
 
     if (has_wasm) return {.kind = PluginPackageKind::PortableWasm};
-    if (native_binary.has_value()) return {.kind = PluginPackageKind::Native};
     return failure(PluginPackageInspectionIssueCode::InvalidContents, absolute,
-                   "plugin package does not contain a canonical native or portable WASM binary");
+                   "plugin package does not contain its canonical portable WASM binary (plugin.wasm)");
   }
 
 }  // namespace mobagen::plugins

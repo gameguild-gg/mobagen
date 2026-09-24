@@ -23,10 +23,9 @@ namespace mobagen::modules {
       return result;
     }
 
-    /* Native-tier consumer (deleted with the native loader in todo 24): lockfile
-       vocabulary is static/wasm only, but programmatic documents may still carry
-       the Dynamic enum until the native tier retires. */
-    bool is_plugin_linkage(LinkageMode linkage) { return linkage == LinkageMode::Dynamic || linkage == LinkageMode::Wasm; }
+    /* Lockfile vocabulary is static/wasm only (todo 23/24): wasm is the one
+       loadable runtime plugin linkage. */
+    bool is_plugin_linkage(LinkageMode linkage) { return linkage == LinkageMode::Wasm; }
 
   }  // namespace
 

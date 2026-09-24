@@ -1,7 +1,6 @@
 #include "project_cli.hpp"
 
 #include "modules/lockfile.hpp"
-#include "native/project_runtime.hpp"
 #include "portable/project_runtime.hpp"
 #include "project_bootstrap.hpp"
 #include "project_support.hpp"
@@ -133,9 +132,6 @@ namespace mobagen::compositions::cli {
           return "static";
         case modules::LinkageMode::Wasm:
           return "wasm";
-        case modules::LinkageMode::Dynamic:
-        case modules::LinkageMode::Process:
-          break;
       }
       return "unknown";
     }

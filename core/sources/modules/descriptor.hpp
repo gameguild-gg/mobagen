@@ -21,7 +21,7 @@ namespace mobagen::modules {
     friend bool operator==(const SemanticVersion&, const SemanticVersion&) = default;
   };
 
-  enum class LinkageMode : std::uint8_t { Static, Dynamic, Wasm, Process };
+  enum class LinkageMode : std::uint8_t { Static, Wasm };
 
   enum class TargetPlatform : std::uint8_t { Windows, Linux, MacOS, Web, Android, IOS };
 
