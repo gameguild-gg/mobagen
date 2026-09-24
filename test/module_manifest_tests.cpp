@@ -36,7 +36,7 @@ plugins:
   - ./plugins/custom-transfer.plugin
 profiles:
   editor:
-    linkage: dynamic
+    linkage: wasm
     permissions:
       - filesystem-read
       - gpu
@@ -66,7 +66,7 @@ profiles:
   CHECK_FALSE(result.descriptor->modules[1].configuration.has_value());
   CHECK(result.descriptor->plugins == std::vector<std::string>{"./plugins/custom-transfer.plugin"});
   REQUIRE(result.descriptor->profiles.size() == 2);
-  CHECK(result.descriptor->profiles[0].linkage == LinkageMode::Dynamic);
+  CHECK(result.descriptor->profiles[0].linkage == LinkageMode::Wasm);
   CHECK(result.descriptor->profiles[0].editor);
   CHECK(result.descriptor->profiles[0].permissions == std::vector<std::string>{"filesystem-read", "gpu"});
   CHECK(result.descriptor->profiles[1].linkage == LinkageMode::Static);

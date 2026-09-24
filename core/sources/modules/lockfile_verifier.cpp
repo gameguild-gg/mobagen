@@ -48,7 +48,7 @@ namespace mobagen::modules {
       std::optional<LinkageMode> linkage;
       for (const auto& selection : document.resolved) {
         if (selection.provider != plugin.provider) continue;
-        if (selection.version != plugin.version || (selection.linkage != LinkageMode::Dynamic && selection.linkage != LinkageMode::Wasm)
+        if (selection.version != plugin.version || selection.linkage != LinkageMode::Wasm
             || (linkage.has_value() && *linkage != selection.linkage)) {
           return std::nullopt;
         }
@@ -200,7 +200,7 @@ namespace mobagen::modules {
                                   inspected.issue.has_value() ? inspected.issue->message : "locked plugin package is invalid",
                                   inspected.issue.has_value() ? inspected.issue->system_error : std::error_code{});
       }
-      const auto expected_kind = *linkage == LinkageMode::Wasm ? plugins::PluginPackageKind::PortableWasm : plugins::PluginPackageKind::Native;
+      const auto expected_kind = plugins::PluginPackageKind::PortableWasm;
       if (*inspected.kind != expected_kind) {
         return inspection_failure(LockfileVerificationIssueCode::InvalidPackage, plugin.provider, package,
                                   "locked plugin package kind does not match its resolved linkage");

@@ -25,7 +25,7 @@ TEST_CASE("Module descriptor: canonical product intent is valid") {
       .name = "dicom-viewer",
       .modules = {{.alias = "render", .provider = "default"}, {.alias = "volume-importer", .provider = "mobagen.import.dicom"}},
       .plugins = {"./plugins/custom-transfer.plugin"},
-      .profiles = {{.name = "editor", .linkage = LinkageMode::Dynamic}, {.name = "web", .linkage = LinkageMode::Static, .editor = false}},
+      .profiles = {{.name = "editor", .linkage = LinkageMode::Wasm}, {.name = "web", .linkage = LinkageMode::Static, .editor = false}},
   };
 
   CHECK(validate(descriptor).empty());
@@ -52,7 +52,7 @@ TEST_CASE("Module descriptor: invalid product intent reports every structural pr
       .name = "Invalid Product Name",
       .modules = {{.alias = "render", .provider = "not a provider"}, {.alias = "render", .provider = "default"}},
       .plugins = {"./plugins/a.plugin", "./plugins/a.plugin", "./plugins/not-a-plugin.zip"},
-      .profiles = {{.name = "release", .linkage = LinkageMode::Static}, {.name = "release", .linkage = LinkageMode::Dynamic}},
+      .profiles = {{.name = "release", .linkage = LinkageMode::Static}, {.name = "release", .linkage = LinkageMode::Wasm}},
   };
 
   const auto issues = validate(descriptor);
@@ -77,7 +77,7 @@ TEST_CASE("Module descriptor: provider contract validates capabilities and deplo
       .optional = {"debug.markers.v1"},
       .conflicts = {"mobagen.render.vulkan"},
       .targets = {TargetPlatform::Windows, TargetPlatform::Linux, TargetPlatform::MacOS, TargetPlatform::Web},
-      .linkages = {LinkageMode::Static, LinkageMode::Dynamic, LinkageMode::Wasm},
+      .linkages = {LinkageMode::Static, LinkageMode::Wasm},
       .reload = ReloadPolicy::Restart,
       .configuration_schema = "render.webgpu.v1",
       .permissions = {"gpu"},

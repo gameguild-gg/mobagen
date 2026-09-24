@@ -138,7 +138,7 @@ namespace mobagen::tools {
         output << "    artifacts:\n";
         for (const auto& artifact : published.artifacts) {
           output << "      - target: " << target_name(artifact.target) << '\n'
-                 << "        linkage: dynamic\n"
+                 << "        linkage: wasm\n"
                  << "        abi: " << artifact.abi_version << '\n'
                  << "        url: " << yaml_quote(artifact.url) << '\n'
                  << "        size: " << artifact.size << '\n'
@@ -251,7 +251,7 @@ namespace mobagen::tools {
               .provider = std::move(provider),
               .artifacts = {{
                   .target = options.target,
-                  .linkage = modules::LinkageMode::Dynamic,
+                  .linkage = modules::LinkageMode::Wasm,
                   .abi_version = MOBAGEN_PLUGIN_ABI_VERSION,
                   .url = url,
                   .size = hashed->size,

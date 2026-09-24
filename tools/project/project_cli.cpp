@@ -131,12 +131,11 @@ namespace mobagen::compositions::cli {
       switch (linkage) {
         case modules::LinkageMode::Static:
           return "static";
-        case modules::LinkageMode::Dynamic:
-          return "dynamic";
         case modules::LinkageMode::Wasm:
           return "wasm";
+        case modules::LinkageMode::Dynamic:
         case modules::LinkageMode::Process:
-          return "process";
+          break;
       }
       return "unknown";
     }
@@ -172,14 +171,14 @@ namespace mobagen::compositions::cli {
              "plugins: []\n"
              "profiles:\n"
              "  development:\n"
-             "    linkage: dynamic\n"
+             "    linkage: wasm\n"
              "    editor: true\n"
              "    permissions:\n"
              "      - filesystem-read\n"
              "      - gpu\n"
              "      - windowing\n"
              "  release:\n"
-             "    linkage: dynamic\n"
+             "    linkage: wasm\n"
              "    editor: false\n"
              "    permissions:\n"
              "      - filesystem-read\n"
@@ -647,7 +646,7 @@ namespace mobagen::compositions::cli {
           const auto bootstrapped = bootstrap_project(parsed.command->manifest, std::move(options));
           return print_bootstrap(arguments.front(), bootstrapped, output, error);
         }
-        if (*route.linkage == modules::LinkageMode::Wasm) {
+        if (*route.linkage == modules::LinkageMode::Wasm || *route.linkage == modules::LinkageMode::Static) {
 #if defined(MOBAGEN_PROJECT_CLI_HAS_WAMR)
           std::optional<plugins::WamrBackend> bundled_backend;
           if (services.portable_backend == nullptr && use_bundled_backends) {
@@ -665,12 +664,8 @@ namespace mobagen::compositions::cli {
                                                          parsed.command->sdk_version);
           return execute(*parsed.command, std::move(generated), output, error);
         }
-        if (*route.linkage == modules::LinkageMode::Process) {
-          error << arguments.front() << " failed: process plugin linkage is not implemented\n";
-          return 3;
-        }
-        auto generated = resolve_native_project_lock(parsed.command->manifest, parsed.command->resolver, parsed.command->sdk_version);
-        return execute(*parsed.command, std::move(generated), output, error);
+        error << arguments.front() << " failed: profile linkage '" << linkage_name(*route.linkage) << "' is not supported by project schema version 2; expected wasm\n";
+        return 3;
       } catch (const std::exception& exception) {
         error << "project command failed: " << exception.what() << '\n';
         return 3;

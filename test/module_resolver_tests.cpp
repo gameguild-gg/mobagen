@@ -20,7 +20,7 @@ namespace {
         .version = {1, 0, 0},
         .provides = std::move(capabilities),
         .targets = {TargetPlatform::Windows},
-        .linkages = {LinkageMode::Static, LinkageMode::Dynamic},
+        .linkages = {LinkageMode::Static, LinkageMode::Wasm},
     };
   }
 
@@ -414,7 +414,7 @@ TEST_CASE("Module resolver: invalid selection contracts return structured errors
 
   SUBCASE("unsupported linkage") {
     auto dynamic_renderer = renderer;
-    dynamic_renderer.linkages = {LinkageMode::Dynamic};
+    dynamic_renderer.linkages = {LinkageMode::Wasm};
     const auto registry = build_resolver_registry({dynamic_renderer});
     const auto result = resolve_modules(resolver_product("default"), registry, resolver_options());
     CHECK(has_resolution_issue(result, ResolutionIssueCode::UnsupportedLinkage));

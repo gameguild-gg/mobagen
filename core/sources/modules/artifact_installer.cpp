@@ -138,14 +138,7 @@ namespace mobagen::modules {
 
   std::filesystem::path module_plugin_binary_filename(LinkageMode linkage) {
     if (linkage == LinkageMode::Wasm) return "plugin.wasm";
-    if (linkage != LinkageMode::Dynamic) return {};
-#ifdef _WIN32
-    return "plugin.dll";
-#elif defined(__APPLE__)
-    return "plugin.dylib";
-#else
-    return "plugin.so";
-#endif
+    return {};
   }
 
   ArtifactInstallResult materialize_module_plugins(std::span<const CachedModuleArtifact> artifacts, const std::filesystem::path& install_root) {

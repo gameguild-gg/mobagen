@@ -50,11 +50,10 @@ namespace mobagen::modules {
 
   std::uint32_t runtime_plugin_abi_version(LinkageMode linkage) noexcept {
     switch (linkage) {
-      case LinkageMode::Dynamic:
-        return MOBAGEN_PLUGIN_ABI_VERSION;
       case LinkageMode::Wasm:
         return MOBAGEN_WASM_PLUGIN_ABI_VERSION;
       case LinkageMode::Static:
+      case LinkageMode::Dynamic:
       case LinkageMode::Process:
         return 0;
     }

@@ -38,7 +38,7 @@ providers:
       - gpu
     artifacts:
       - target: windows
-        linkage: dynamic
+        linkage: wasm
         abi: 1
         url: https://plugins.mobagen.dev/mobagen.render.webgpu/1.4.2/windows.plugin
         size: 1048576
@@ -67,10 +67,10 @@ providers:
   CHECK(published.provider.configuration_schema == "mobagen.render.config.v1");
   CHECK(published.provider.permissions == std::vector<std::string>{"gpu"});
   CHECK(published.provider.targets == std::vector<TargetPlatform>{TargetPlatform::Windows, TargetPlatform::Web});
-  CHECK(published.provider.linkages == std::vector<LinkageMode>{LinkageMode::Dynamic, LinkageMode::Wasm});
+  CHECK(published.provider.linkages == std::vector<LinkageMode>{LinkageMode::Wasm});
   REQUIRE(published.artifacts.size() == 2);
   CHECK(published.artifacts[0].target == TargetPlatform::Windows);
-  CHECK(published.artifacts[0].linkage == LinkageMode::Dynamic);
+  CHECK(published.artifacts[0].linkage == LinkageMode::Wasm);
   CHECK(published.artifacts[0].abi_version == 1);
   CHECK(published.artifacts[0].size == 1048576);
 }
@@ -85,19 +85,19 @@ providers:
     provides: [render.backend.v1]
     artifacts:
       - target: windows
-        linkage: dynamic
+        linkage: wasm
         abi: 0
         url: http://plugins.mobagen.dev/invalid.plugin
         size: 0
         hash: sha256:not-a-hash
       - target: windows
-        linkage: dynamic
+        linkage: wasm
         abi: 1
         url: https://plugins.mobagen.dev/duplicate.plugin
         size: 1
         hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       - target: linux
-        linkage: dynamic
+        linkage: wasm
         abi: 1
         url: https://plugins.mobagen.dev/not-a-plugin.bin?release=1
         size: 1
@@ -125,7 +125,7 @@ providers:
     provides: [runtime.tick.v1]
     artifacts:
       - target: windows
-        linkage: dynamic
+        linkage: wasm
         abi: 1
         url: !include https://plugins.mobagen.dev/runtime.plugin
         size: 1
@@ -154,14 +154,14 @@ TEST_CASE("Module catalog: capability resolution selects metadata before the art
       .version = {1, 4, 2},
       .provides = {"render.backend.v1"},
       .targets = {TargetPlatform::Windows, TargetPlatform::Web},
-      .linkages = {LinkageMode::Dynamic, LinkageMode::Wasm},
+      .linkages = {LinkageMode::Wasm},
   };
   ModuleCatalogDescriptor catalog{
       .providers = {{
           .provider = provider,
           .artifacts = {
               {.target = TargetPlatform::Windows,
-               .linkage = LinkageMode::Dynamic,
+               .linkage = LinkageMode::Wasm,
                .abi_version = 1,
                .url = "https://plugins.mobagen.dev/render/windows.plugin",
                .size = 128,
@@ -176,7 +176,7 @@ TEST_CASE("Module catalog: capability resolution selects metadata before the art
       }},
   };
 
-  auto indexed = build_module_catalog_index(std::span(&catalog, 1), TargetPlatform::Windows, LinkageMode::Dynamic);
+  auto indexed = build_module_catalog_index(std::span(&catalog, 1), TargetPlatform::Windows, LinkageMode::Wasm);
   REQUIRE(indexed.ok());
   const auto provider_index = indexed.index->registry().find_provider("mobagen.render.webgpu");
   REQUIRE(provider_index.has_value());
@@ -187,7 +187,7 @@ TEST_CASE("Module catalog: capability resolution selects metadata before the art
   ProductDescriptor product{
       .name = "catalog-resolution",
       .modules = {{.alias = "render", .provider = "default"}},
-      .profiles = {{.name = "editor", .linkage = LinkageMode::Dynamic, .editor = true}},
+      .profiles = {{.name = "editor", .linkage = LinkageMode::Wasm, .editor = true}},
   };
   ResolverOptions options{
       .target = TargetPlatform::Windows,
@@ -200,7 +200,7 @@ TEST_CASE("Module catalog: capability resolution selects metadata before the art
   REQUIRE(resolved.resolution->lifecycle_order().size() == 1);
   CHECK(resolved.resolution->lifecycle_order().front() == *provider_index);
 
-  const auto unsupported = build_module_catalog_index(std::span(&catalog, 1), TargetPlatform::Web, LinkageMode::Dynamic);
+  const auto unsupported = build_module_catalog_index(std::span(&catalog, 1), TargetPlatform::Web, LinkageMode::Static);
   REQUIRE(unsupported.ok());
   CHECK(unsupported.index->registry().provider_count() == 0);
 }
@@ -214,11 +214,11 @@ TEST_CASE("Module catalog: duplicate providers across sources fail deterministic
           .version = {1, 0, 0},
           .provides = {"runtime.tick.v1"},
           .targets = {TargetPlatform::Windows},
-          .linkages = {LinkageMode::Dynamic},
+          .linkages = {LinkageMode::Wasm},
       },
       .artifacts = {{
           .target = TargetPlatform::Windows,
-          .linkage = LinkageMode::Dynamic,
+          .linkage = LinkageMode::Wasm,
           .abi_version = 1,
           .url = "https://plugins.mobagen.dev/runtime.plugin",
           .size = 1,
@@ -227,7 +227,7 @@ TEST_CASE("Module catalog: duplicate providers across sources fail deterministic
   };
   const std::array catalogs{ModuleCatalogDescriptor{.providers = {published}}, ModuleCatalogDescriptor{.providers = {published}}};
 
-  const auto result = build_module_catalog_index(catalogs, TargetPlatform::Windows, LinkageMode::Dynamic);
+  const auto result = build_module_catalog_index(catalogs, TargetPlatform::Windows, LinkageMode::Wasm);
 
   CHECK_FALSE(result.ok());
   CHECK(std::ranges::any_of(result.issues, [](const CatalogIndexIssue& issue) {
