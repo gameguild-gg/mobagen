@@ -132,6 +132,59 @@ namespace {
 
 }  // namespace
 
+TEST_CASE("Portable project resolve: lock entry carries shared-memory and signature from module.manifest") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/quickjs.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  mobagen::test::write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), mobagen::test::valid_wasm_header);
+  const auto manifest_text = std::string{"schema: 2\n"
+                                         "api: 1\n"
+                                         "abi: 1\n"
+                                         "entry: mobagen_module_entry_v1\n"
+                                         "threads: none\n"
+                                         "shared-memory: true\n"
+                                         "exports:\n"
+                                         "  - name: mobagen_module_eval_v1\n"
+                                         "    signature: 1291845632\n"};
+  mobagen::test::write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(), manifest_text);
+  const auto parsed = mobagen::modules::parse_module_manifest(manifest_text);
+  REQUIRE(parsed.ok());
+  const auto expected_signature = mobagen::modules::module_manifest_signature(*parsed.manifest);
+  REQUIRE(!expected_signature.empty());
+
+  mobagen::test::write_text(directory.path() / "mobagen.yaml",
+                            std::string{"schema: 2\n"
+                                        "name: resolve-manifest-metadata\n"
+                                        "modules:\n"
+                                        "  runtime:\n"
+                                        "    use: mobagen.wasm-package\n"
+                                        "    capability: runtime.package.v1\n"
+                                        "plugins:\n"
+                                        "  - ./plugins/quickjs.plugin\n"
+                                        "profiles:\n"
+                                        "  release:\n"
+                                        "    linkage: wasm\n"
+                                        "    editor: false\n"});
+  test::FakeWasmBackend backend;
+  const modules::ResolverOptions options{
+      .target = test::portable_target(),
+      .profile = "release",
+  };
+
+  auto resolved = compositions::resolve_portable_project_lock(directory.path() / "mobagen.yaml", options, backend);
+
+  REQUIRE(resolved.ok());
+  const auto lock = mobagen::modules::parse_lockfile(*resolved.contents);
+  REQUIRE(lock.ok());
+  REQUIRE(lock.document->metadata.plugins.size() == 1);
+  const auto& plugin = lock.document->metadata.plugins.front();
+  CHECK(plugin.threads == mobagen::modules::ModuleThreadsPolicy::None);
+  CHECK(plugin.shared_memory);
+  CHECK(plugin.signature == expected_signature);
+}
+
 TEST_CASE("Locked portable project: offline open performs zero WASM instantiations") {
   using namespace mobagen;
   LockedPortableProjectFixture project;
