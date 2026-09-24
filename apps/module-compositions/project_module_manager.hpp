@@ -25,8 +25,6 @@ namespace mobagen::plugins {
 namespace mobagen::compositions {
   class PortableModuleManager;
 
-  enum class ProjectModuleRuntimeKind : std::uint8_t { Native, Portable };
-
   struct LockedProjectOptions {
     modules::SemanticVersion sdk_version{MOBAGEN_SDK_VERSION_MAJOR, MOBAGEN_SDK_VERSION_MINOR, MOBAGEN_SDK_VERSION_PATCH};
     modules::TargetPlatform target{};
@@ -45,7 +43,6 @@ namespace mobagen::compositions {
     ProfileUnavailable,
     UnsupportedLinkage,
     PortableBackendUnavailable,
-    NativeProject,
     PortableProject,
   };
 
@@ -67,7 +64,6 @@ namespace mobagen::compositions {
   };
 
   struct ProjectModuleCapabilityEndpoint {
-    ProjectModuleRuntimeKind kind{};
     plugins::PortableWasmPluginActivation* portable{};
   };
 
@@ -88,15 +84,13 @@ namespace mobagen::compositions {
     ProjectModuleManager& operator=(ProjectModuleManager&&) noexcept;
     ~ProjectModuleManager();
 
-    [[nodiscard]] ProjectModuleRuntimeKind kind() const noexcept;
     [[nodiscard]] ProjectModuleManagerActionResult activate(std::string_view capability);
-    /* Acquires the backend endpoint while preserving lazy activation. Native
-       function tables and portable activation pointers remain valid until
-       stop() or manager destruction. Hot paths should retain this endpoint. */
-    [[nodiscard]] ProjectModuleCapabilityResult acquire(std::string_view capability, std::uint32_t minimum_native_abi_version = 1);
+    /* Acquires the backend endpoint while preserving lazy activation. Portable
+       activation pointers remain valid until stop() or manager destruction.
+       Hot paths should retain this endpoint. */
+    [[nodiscard]] ProjectModuleCapabilityResult acquire(std::string_view capability);
     /* Allocation-free lookup for endpoints previously returned by acquire(). */
-    [[nodiscard]] const ProjectModuleCapabilityEndpoint* find_active(std::string_view capability,
-                                                                     std::uint32_t minimum_native_abi_version = 1) const noexcept;
+    [[nodiscard]] const ProjectModuleCapabilityEndpoint* find_active(std::string_view capability) const noexcept;
     [[nodiscard]] ProjectModuleManagerActionResult stop();
     [[nodiscard]] std::size_t active_count() const noexcept;
     [[nodiscard]] PortableModuleManager* portable() noexcept;

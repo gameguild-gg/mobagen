@@ -29,3 +29,28 @@ resource=V["Mesh","Audio","Video","Image","Text","Font","Binary","Prefab"] with 
 editor=V[editor1] with label "Editor"
 editor1=H["Simulator","Visual Scripting","Scene Editor","Animator"]
 ```
+
+## Module runtime (composition)
+
+MoBaGEn products are assembled from portable **wasm modules** (`.plugin`
+packages). There is **no native dynamic-loading (`dlopen`) tier**.
+
+- **Guest modules** are authored against the module ABI (see
+  [Modules.md](Modules.md)), compiled to wasm, and packaged as a `.plugin`
+  directory with a schema-v2 `module.manifest`. Modules expose coarse-grained
+  *capabilities* (init/configure/start/stop/process); the per-frame hot path stays
+  host-side.
+- **Manager** — `compositions::ProjectModuleManager` is **single-kind**: it owns a
+  `compositions::PortableModuleManager`. `open_locked_project` reads the selected
+  manifest profile and, for a `wasm` linkage profile, opens the portable manager.
+  There is no native/portable kind switch and no native function-table endpoint.
+- **Backends** (compile/instantiate wasm):
+  - **Native targets** (linux/osx/windows/android/ios) — **WAMR**:
+    `plugins::WamrBackend` (wasm interpreter + `wamrc` AOT).
+  - **Web / browser engine** — `plugins::BrowserWasmBackend`: the browser
+    compiles and instantiates the plugin module; a shared-memory (SAB) host
+    services shim bridges the guest.
+- **Memory** — `MemoryManager` behind the `MobagenMemoryShim` vtable:
+  `native_shim` (WAMR shared-heap + pthread) or `web_shim` (SAB + Atomics, or an
+  isolated fallback).
+

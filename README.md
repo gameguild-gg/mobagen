@@ -58,7 +58,10 @@ It is the best all-around solution to:
 - Best package manager to import and use third party libs from source code with low maintenance code.
 
 # Architecture
-- Please refer to [this doc.](documentation/Architecture.md)
+- Refer to [documentation/Architecture.md](documentation/Architecture.md).
+- Modules are portable **wasm** packages (`.plugin`) run by a single-kind module manager:
+  WAMR native backend on desktop/mobile, browser-engine backend on web — no native
+  `dlopen` tier. Author a module with [documentation/Modules.md](documentation/Modules.md).
 - [C++ core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
 
 # Restrictions

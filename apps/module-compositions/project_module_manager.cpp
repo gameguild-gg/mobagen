@@ -13,7 +13,6 @@
 namespace mobagen::compositions {
 
   struct ProjectModuleManager::Storage {
-    ProjectModuleRuntimeKind kind{};
     std::unique_ptr<PortableModuleManager> portable;
     std::map<std::string, ProjectModuleCapabilityEndpoint, std::less<>> endpoints;
   };
@@ -56,17 +55,14 @@ namespace mobagen::compositions {
   ProjectModuleManager& ProjectModuleManager::operator=(ProjectModuleManager&&) noexcept = default;
   ProjectModuleManager::~ProjectModuleManager() = default;
 
-  ProjectModuleRuntimeKind ProjectModuleManager::kind() const noexcept { return storage_->kind; }
-
   ProjectModuleManagerActionResult ProjectModuleManager::activate(std::string_view capability) {
     auto activated = storage_->portable->activate(capability);
     return simplify_action(std::move(activated.issues));
   }
 
-  ProjectModuleCapabilityResult ProjectModuleManager::acquire(std::string_view capability, std::uint32_t minimum_native_abi_version) {
-    static_cast<void>(minimum_native_abi_version);
+  ProjectModuleCapabilityResult ProjectModuleManager::acquire(std::string_view capability) {
     ProjectModuleCapabilityResult result;
-    if (const auto* endpoint = find_active(capability, minimum_native_abi_version)) {
+    if (const auto* endpoint = find_active(capability)) {
       result.endpoint = *endpoint;
       return result;
     }
@@ -74,7 +70,6 @@ namespace mobagen::compositions {
     result.issues = simplify_issues(std::move(acquired.issues));
     if (acquired.plugin != nullptr) {
       auto endpoint = ProjectModuleCapabilityEndpoint{
-          .kind = ProjectModuleRuntimeKind::Portable,
           .portable = acquired.plugin,
       };
       const auto [stored, inserted] = storage_->endpoints.try_emplace(std::string{capability}, endpoint);
@@ -84,9 +79,7 @@ namespace mobagen::compositions {
     return result;
   }
 
-  const ProjectModuleCapabilityEndpoint* ProjectModuleManager::find_active(std::string_view capability,
-                                                                           std::uint32_t minimum_native_abi_version) const noexcept {
-    static_cast<void>(minimum_native_abi_version);
+  const ProjectModuleCapabilityEndpoint* ProjectModuleManager::find_active(std::string_view capability) const noexcept {
     const auto found = storage_->endpoints.find(capability);
     if (found == storage_->endpoints.end()) return nullptr;
     return &found->second;
@@ -160,7 +153,6 @@ namespace mobagen::compositions {
         return result;
       }
       auto storage = std::make_unique<ProjectModuleManager::Storage>();
-      storage->kind = ProjectModuleRuntimeKind::Portable;
       storage->portable = std::move(opened.manager);
       result.manager = std::unique_ptr<ProjectModuleManager>(new ProjectModuleManager(std::move(storage)));
       result.product = std::move(opened.product);
