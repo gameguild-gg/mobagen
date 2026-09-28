@@ -20,7 +20,7 @@ namespace {
         .version = {1, 0, 0},
         .provides = std::move(capabilities),
         .targets = {TargetPlatform::Windows, TargetPlatform::Linux},
-        .linkages = {LinkageMode::Static, LinkageMode::Dynamic},
+        .linkages = {LinkageMode::Static, LinkageMode::Wasm},
     };
   }
 

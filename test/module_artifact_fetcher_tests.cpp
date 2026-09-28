@@ -85,12 +85,12 @@ namespace {
                 .version = {2, 1, 0},
                 .provides = {"runtime.tick.v1"},
                 .targets = {TargetPlatform::Windows},
-                .linkages = {LinkageMode::Dynamic},
+                .linkages = {LinkageMode::Wasm},
                 .reload = ReloadPolicy::Restart,
             },
             .artifacts = {{
                 .target = TargetPlatform::Windows,
-                .linkage = LinkageMode::Dynamic,
+                .linkage = LinkageMode::Wasm,
                 .abi_version = abi_version,
                 .url = "https://plugins.mobagen.dev/mobagen.runtime.remote/2.1.0/windows.plugin",
                 .size = size,
@@ -98,12 +98,12 @@ namespace {
             }},
         }},
     };
-    auto indexed = build_module_catalog_index(std::span{&catalog, 1}, TargetPlatform::Windows, LinkageMode::Dynamic);
+    auto indexed = build_module_catalog_index(std::span{&catalog, 1}, TargetPlatform::Windows, LinkageMode::Wasm);
     REQUIRE(indexed.ok());
     ProductDescriptor product{
         .name = "artifact-fetch",
         .modules = {{.alias = "runtime", .provider = "default"}},
-        .profiles = {{.name = "release", .linkage = LinkageMode::Dynamic, .editor = false}},
+        .profiles = {{.name = "release", .linkage = LinkageMode::Wasm, .editor = false}},
     };
     ResolverOptions options{
         .target = TargetPlatform::Windows,
@@ -217,7 +217,6 @@ TEST_CASE("Module artifact fetcher: incompatible plugin ABI fails before artifac
   REQUIRE(rejected.issues.size() == 1);
   CHECK(rejected.issues.front().code == modules::ArtifactFetchIssueCode::UnsupportedAbi);
   CHECK(client.stream_calls == 0);
-  CHECK(modules::runtime_plugin_abi_version(modules::LinkageMode::Dynamic) == 1);
   CHECK(modules::runtime_plugin_abi_version(modules::LinkageMode::Wasm) == 1);
   CHECK(modules::runtime_plugin_abi_version(modules::LinkageMode::Static) == 0);
 }

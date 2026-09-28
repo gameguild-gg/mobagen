@@ -117,3 +117,5 @@ apps/dicom_viewer/assets/*.raw
 apps/dicom_viewer/assets/*.mvol
 !apps/dicom_viewer/assets/assets.json
 !apps/dicom_viewer/assets/README.md
+
+imgui.ini

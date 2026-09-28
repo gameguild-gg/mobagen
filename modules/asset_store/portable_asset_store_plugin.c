@@ -1,3 +1,4 @@
+#include <mobagen/module/module_abi.h>
 #include <mobagen/plugin/wasm_asset_store_v1.h>
 
 #include <stddef.h>
@@ -450,3 +451,39 @@ void mobagen_wasm_asset_store_test_reset_v1(void) {
   started = 0;
 }
 #endif
+
+/* Module ABI v1 export annotation table (todo 18): makes the guest's exports
+ * discoverable by the signature-extraction tool. Threads policy stays none —
+ * shared-memory CAPABILITY (compile flags) is independent of thread usage. */
+MOBAGEN_MODULE_EXPORT_TABLE_BEGIN(mobagen_asset_store_table, 9)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_allocate_v1, MOBAGEN_MODULE_T_I32,
+                            MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_deallocate_v1, MOBAGEN_MODULE_T_I32,
+                            MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_query_v1, MOBAGEN_MODULE_T_I32,
+                            MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_configure_v1, MOBAGEN_MODULE_T_I32,
+                            MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_start_v1, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_quiesce_v1, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_stop_v1, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_wasm_plugin_process_v1, MOBAGEN_MODULE_T_I32,
+                            MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32)
+MOBAGEN_MODULE_EXPORT_ENTRY(mobagen_asset_store_table, mobagen_module_entry_v1, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_PTR,
+                            MOBAGEN_MODULE_T_PTR)
+MOBAGEN_MODULE_EXPORT_TABLE_END(mobagen_asset_store_table, mobagen_wasm_plugin_allocate_v1, mobagen_wasm_plugin_deallocate_v1,
+                                mobagen_wasm_plugin_query_v1, mobagen_wasm_plugin_configure_v1, mobagen_wasm_plugin_start_v1,
+                                mobagen_wasm_plugin_quiesce_v1, mobagen_wasm_plugin_stop_v1, mobagen_wasm_plugin_process_v1,
+                                mobagen_module_entry_v1);
+MOBAGEN_MODULE_EXPORT_PUBLISH_TABLE(mobagen_asset_store_table)
+
+/* Minimal module ABI v1 entry: fills the descriptor and returns ok. The host
+ * drives the plugin lifecycle through the wasm_plugin exports above; this
+ * entry only publishes the module ABI descriptor (threads policy none). */
+MOBAGEN_MODULE_EXPORT MobagenModuleStatus MOBAGEN_MODULE_CALL mobagen_module_entry_v1(const MobagenModuleHostApiV1* host,
+                                                                                      MobagenModuleDescriptorV1* descriptor) {
+  (void)host;
+  if (descriptor == NULL || descriptor->struct_size < MOBAGEN_MODULE_DESCRIPTOR_V1_SIZE) return MOBAGEN_MODULE_STATUS_INVALID_ARGUMENT;
+  descriptor->threads_policy = MOBAGEN_MODULE_THREADS_NONE;
+  return MOBAGEN_MODULE_STATUS_OK;
+}

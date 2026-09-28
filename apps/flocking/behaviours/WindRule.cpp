@@ -2,7 +2,7 @@
 #include "imgui.h"
 #include <cmath>
 
-glm::vec2 WindRule::computeForce(const std::vector<BoidView>& neighborhood, const BoidView& boid) {
+glm::vec2 WindRule::computeForce(const std::vector<BoidView>& boids, int selfIndex) {
   // std::cos and std::sin return the cosine and sine of an angle in radians, respectively.
   // windAngle is the angle of the wind direction in degrees, so we need to convert it to radians by multiplying it by (pi / 180).
 

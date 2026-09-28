@@ -17,7 +17,7 @@ providers:
     reload: restart
     artifacts:
       - target: windows
-        linkage: dynamic
+        linkage: wasm
         abi: 1
         url: https://plugins.mobagen.dev/mobagen.runtime.tick/1.0.0/windows.plugin
         size: 4096
@@ -42,7 +42,7 @@ providers:
         .name = "remote-runtime",
         .sources = {{"official", "https://plugins.mobagen.dev/v1/catalog.yaml"}},
         .modules = {{.alias = "runtime", .provider = "default"}},
-        .profiles = {{.name = "release", .linkage = LinkageMode::Dynamic, .editor = false}},
+        .profiles = {{.name = "release", .linkage = LinkageMode::Wasm, .editor = false}},
     };
   }
 

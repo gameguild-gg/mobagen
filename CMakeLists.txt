@@ -103,12 +103,39 @@ if(EMSCRIPTEN)
   # with current emsdk crashes (SIGABRT) at link time. Every WebGPU-capable browser supports WASM,
   # so the JS fallback served no purpose here. -pthread: the emdawnwebgpu port links with shared
   # memory, which requires all objects to be compiled with atomics + bulk-memory features.
+  #
+  # Web build variants (dual-variant policy, dynamic-loading-all-platforms todo 5):
+  #   MOBAGEN_WEB_SHARED=ON  -> shared variant: -sUSE_PTHREADS=1 -sSHARED_MEMORY=1 (SAB-capable,
+  #                             needs crossOriginIsolated; emdawnwebgpu already links shared memory)
+  #   MOBAGEN_WEB_SHARED=OFF -> isolated variant: -sUSE_PTHREADS=0 -sSHARED_MEMORY=0 (always
+  #                             bootable fallback for non-isolated contexts: Safari/static hosts)
+  # A -sSHARED_MEMORY=1 engine constructs shared wasm memory at startup and FAILS TO BOOT in any
+  # non-crossOriginIsolated browser context (no runtime toggle) — hence BOTH variants are shipped
+  # and a boot-time capability probe picks between them (todo 6). ASYNCIFY: KEEP (decided with
+  # evidence 2026-09-22, todo 9) — the emdawnwebgpu port REQUIRES Asyncify (external/dawn.cmake
+  # links -sASYNCIFY alongside --use-port=emdawnwebgpu), and apps use emscripten_sleep
+  # (e.g. apps/dicom_viewer/sources/main.cpp:158) which unwinds via Asyncify. Pitfall with
+  # pthreads: code that sleeps asynchronously must not be invoked on a pthread while it holds a
+  # pthread mutex / the JS main thread must never block on that thread — ASYNCIFY unwind during a
+  # sleep leaves the wasm stack freeable, but a mutex held across the unwind deadlocks other
+  # threads (wake/sleep interplay). PROXY_TO_PTHREAD is deliberately NOT set.
+  option(MOBAGEN_WEB_SHARED "Web build variant: shared memory + pthreads (vs isolated fallback)" ON)
+  if(MOBAGEN_WEB_SHARED)
+    set(MOBAGEN_WEB_VARIANT_FLAGS "-sUSE_PTHREADS=1 -sSHARED_MEMORY=1")
+    set(MOBAGEN_WEB_VARIANT_NAME "shared")
+  else()
+    set(MOBAGEN_WEB_VARIANT_FLAGS "-sUSE_PTHREADS=0 -sSHARED_MEMORY=0")
+    set(MOBAGEN_WEB_VARIANT_NAME "isolated")
+  endif()
+  message(STATUS "emscripten variant: ${MOBAGEN_WEB_VARIANT_NAME} (${MOBAGEN_WEB_VARIANT_FLAGS})")
   set(CMAKE_CXX_FLAGS
-      "${CMAKE_CXX_FLAGS} -Oz -s USE_PTHREADS=0 -sSHARED_MEMORY=0 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_CXX_FLAGS} -Oz ${MOBAGEN_WEB_VARIANT_FLAGS} -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
   set(CMAKE_C_FLAGS
-      "${CMAKE_C_FLAGS} -Oz -s USE_PTHREADS=0 -sSHARED_MEMORY=0 -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
+      "${CMAKE_C_FLAGS} -Oz ${MOBAGEN_WEB_VARIANT_FLAGS} -s USE_SDL=0 -s ASYNCIFY -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"
   )
+  # C++ variant visibility (todos 6/8/14 read it): 1 in the shared variant, undefined otherwise.
+  add_compile_definitions($<$<BOOL:${MOBAGEN_WEB_SHARED}>:MOBAGEN_WEB_SHARED=1>)
 
   file(GLOB HTML "${CMAKE_CURRENT_SOURCE_DIR}/htmls/*")
   file(COPY ${HTML} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
@@ -138,7 +165,11 @@ option(BUILD_VOLUME_DEMOS "Build volume smoke tests under apps/volume_demos" ON)
 option(BUILD_DICOM_VIEWER "Build the DICOM viewer app" ON)
 option(BUILD_PROTOTYPES "Build learning prototypes (dawn_probe, fibers)" OFF)
 option(MOBAGEN_BUILD_MANIFEST_TOOLS "Build the mobagen.yaml parser and composition tooling" ON)
-option(MOBAGEN_WASM_BACKEND_WAMR "Build the optional WAMR portable plugin backend" OFF)
+# WAMR is the portable plugin backend and the host for the memory-shim/module
+# guest suites — the architecture makes it core, not optional (todo 22). Set
+# -DMOBAGEN_WASM_BACKEND_WAMR=OFF only for resource-constrained lean builds
+# (e.g. the CI module-host/performance/ASan jobs, which keep it OFF explicitly).
+option(MOBAGEN_WASM_BACKEND_WAMR "Build the WAMR portable plugin backend" ON)
 option(BUILD_TESTING "Build Mobagen tests" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 
@@ -217,14 +248,9 @@ if(MOBAGEN_BUILD_PLUGIN_TOOLS AND NOT EMSCRIPTEN)
   add_subdirectory(tools/plugins)
 endif()
 
-option(MOBAGEN_BUILD_CATALOG_TOOLS "Build native first-party module catalog tooling"
-       ${MOBAGEN_BUILD_MANIFEST_TOOLS}
-)
-if(MOBAGEN_BUILD_CATALOG_TOOLS
-   AND MOBAGEN_BUILD_MANIFEST_TOOLS
-   AND NOT EMSCRIPTEN
-)
-  add_subdirectory(tools/catalog)
+option(MOBAGEN_BUILD_MODULE_TOOLS "Build the native Mobagen module manifest command-line tools" ON)
+if(MOBAGEN_BUILD_MODULE_TOOLS AND MOBAGEN_BUILD_MANIFEST_TOOLS AND NOT EMSCRIPTEN)
+  add_subdirectory(tools/modules)
 endif()
 
 option(MOBAGEN_BUILD_MODULE_COMPOSITIONS "Build the modular composition example executables"

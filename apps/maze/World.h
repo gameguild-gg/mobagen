@@ -6,11 +6,13 @@
 #include "MazeGeneratorBase.h"
 #include "Node.h"
 #include "math/Point2D.h"
+#include <cassert>
 #include <vector>
 
 class World {
 private:
-  int sideSize;
+  int width;
+  int height;
 
   std::vector<MazeGeneratorBase*> generators;
   int generatorId = 0;
@@ -27,11 +29,13 @@ private:
   std::vector<bool> data;
   // the boxes colors
   std::vector<Color32> colors;
-  // convert a point into the index of the left vertex of the node
+  // convert a point into the index of the left vertex of the node.
+  // points are in grid units: (0, 0) is the top-left cell, x grows right,
+  // y grows down; valid while 0 <= x < width and 0 <= y < height.
   inline int Point2DtoIndex(const Point2D& point) {
     // todo: test. unstable interface
-    auto sizeOver2 = sideSize / 2;
-    return (point.y + sizeOver2) * (sideSize + 1) * 2 + (point.x + sizeOver2) * 2;
+    assert(0 <= point.x && point.x < width && 0 <= point.y && point.y < height);
+    return point.y * (width + 1) * 2 + point.x * 2;
   }
 
 public:
@@ -50,6 +54,9 @@ public:
   void SetSouth(const Point2D& point, const bool& state);
   void SetWest(const Point2D& point, const bool& state);
 
+  // All points are in grid units: (0, 0) is the top-left cell, x grows right,
+  // y grows down; valid while 0 <= x < width and 0 <= y < height.
+
   void Start();
   void OnGui();
   void OnDraw();
@@ -60,7 +67,13 @@ public:
   void SetNodeColor(const Point2D& node, const Color32& color);
   Color32 GetNodeColor(const Point2D& node);
 
-  int GetSize() const;
+  int GetWidth() const;
+  int GetHeight() const;
+
+  // square grids (interactive app)
+  void Resize(int size);
+  // rectangular grids (formal tests): width x height
+  void Resize(int width, int height);
 
 private:
   void step();

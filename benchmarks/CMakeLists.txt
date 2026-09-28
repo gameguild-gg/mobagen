@@ -22,46 +22,14 @@ target_include_directories(
 target_link_libraries(MobagenModuleDispatchBenchmark PRIVATE mobagen::core_modules)
 
 if(NOT EMSCRIPTEN)
-  add_library(MobagenAbiDispatchBenchmarkPlugin MODULE plugin_abi_dispatch_plugin.c)
-  target_link_libraries(MobagenAbiDispatchBenchmarkPlugin PRIVATE mobagen::plugin_sdk)
-  target_compile_definitions(MobagenAbiDispatchBenchmarkPlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
-  set_target_properties(MobagenAbiDispatchBenchmarkPlugin PROPERTIES PREFIX "")
-
-  add_executable(MobagenPluginAbiDispatchBenchmark plugin_abi_dispatch.cpp)
-  add_dependencies(MobagenPluginAbiDispatchBenchmark MobagenAbiDispatchBenchmarkPlugin)
-  target_compile_features(MobagenPluginAbiDispatchBenchmark PRIVATE cxx_std_20)
-  target_compile_definitions(
-    MobagenPluginAbiDispatchBenchmark
-    PRIVATE MOBAGEN_ABI_DISPATCH_PLUGIN_PATH="$<TARGET_FILE:MobagenAbiDispatchBenchmarkPlugin>"
-  )
+  add_executable(MobagenMemoryAllocGCBenchmark memory_alloc_gc_benchmark.cpp)
+  target_compile_features(MobagenMemoryAllocGCBenchmark PRIVATE cxx_std_20)
   target_include_directories(
-    MobagenPluginAbiDispatchBenchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
+    MobagenMemoryAllocGCBenchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
   )
-  target_link_libraries(MobagenPluginAbiDispatchBenchmark PRIVATE mobagen::core_plugins)
-
-  if(TARGET mobagen::native_project)
-    add_executable(MobagenNativeModuleRuntimeBenchmark native_module_runtime.cpp)
-    add_dependencies(MobagenNativeModuleRuntimeBenchmark MobagenAbiDispatchBenchmarkPlugin)
-    target_compile_features(MobagenNativeModuleRuntimeBenchmark PRIVATE cxx_std_20)
-    target_compile_definitions(
-      MobagenNativeModuleRuntimeBenchmark
-      PRIVATE MOBAGEN_ABI_DISPATCH_PLUGIN_PATH="$<TARGET_FILE:MobagenAbiDispatchBenchmarkPlugin>"
-    )
-    target_include_directories(
-      MobagenNativeModuleRuntimeBenchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources
-    )
-    target_link_libraries(MobagenNativeModuleRuntimeBenchmark PRIVATE mobagen::native_project)
-
-    add_custom_target(
-      MobagenPerformanceGate
-      COMMAND $<TARGET_FILE:MobagenPluginAbiDispatchBenchmark> --warmup 5 --samples 31
-              --max-dispatch-overhead-ns 1
-      COMMAND $<TARGET_FILE:MobagenNativeModuleRuntimeBenchmark> --warmup 5 --samples 31
-              --max-dispatch-overhead-ns 1 --max-overhead-percent 1
-      DEPENDS MobagenPluginAbiDispatchBenchmark MobagenNativeModuleRuntimeBenchmark
-      USES_TERMINAL VERBATIM
-    )
-  endif()
+  target_link_libraries(
+    MobagenMemoryAllocGCBenchmark PRIVATE mobagen::memory_core mobagen::memory_native_shim
+  )
 endif()
 
 if(BUILD_TESTING)
@@ -75,16 +43,10 @@ if(BUILD_TESTING)
                                                          --samples 2
   )
   set_tests_properties(benchmark::module-dispatch-smoke PROPERTIES LABELS benchmark)
-  if(TARGET MobagenPluginAbiDispatchBenchmark)
-    add_test(NAME benchmark::plugin-abi-dispatch-smoke COMMAND MobagenPluginAbiDispatchBenchmark
-                                                               --warmup 1 --samples 2
+  if(TARGET MobagenMemoryAllocGCBenchmark)
+    add_test(NAME benchmark::memory-alloc-gc-smoke COMMAND MobagenMemoryAllocGCBenchmark --warmup 1
+                                                            --samples 2
     )
-    set_tests_properties(benchmark::plugin-abi-dispatch-smoke PROPERTIES LABELS benchmark)
-  endif()
-  if(TARGET MobagenNativeModuleRuntimeBenchmark)
-    add_test(NAME benchmark::native-module-runtime-smoke COMMAND MobagenNativeModuleRuntimeBenchmark
-                                                                 --warmup 1 --samples 2
-    )
-    set_tests_properties(benchmark::native-module-runtime-smoke PROPERTIES LABELS benchmark)
+    set_tests_properties(benchmark::memory-alloc-gc-smoke PROPERTIES LABELS benchmark)
   endif()
 endif()

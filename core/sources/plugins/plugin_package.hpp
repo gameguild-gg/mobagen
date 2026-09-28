@@ -5,10 +5,9 @@
 #include <optional>
 #include <string>
 #include <system_error>
-
 namespace mobagen::plugins {
 
-  enum class PluginPackageKind : std::uint8_t { Native, PortableWasm };
+  enum class PluginPackageKind : std::uint8_t { PortableWasm };
 
   enum class PluginPackageInspectionIssueCode : std::uint8_t { InvalidPath, InvalidContents, InspectionFailure };
 

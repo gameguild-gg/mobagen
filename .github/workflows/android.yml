@@ -1,0 +1,75 @@
+name: Android
+
+# Android is the first CI gate for the Android platform (dynamic-loading-all-
+# platforms todo 22). Scope is deliberately CONFIGURE+BUILD+PACKAGE only:
+# no emulator run, no signing secrets. build.py's Android flow
+# (scripts/build.py::AndroidPlatform) configures per-ABI via the NDK toolchain,
+# builds the native lib, copies the shared libs into jniLibs, and packages the
+# .plugin v2 module trees as app ASSETS (wasm is data), then runs `gradlew
+# assembleDebug` with -PANDROID_MAIN_TARGET.
+#
+# NOTE (todo 22): this job is shipped `continue-on-error: true` because the
+# Android toolchain + Gradle packaging path has NOT yet been validated against a
+# clean hosted runner in-sandbox. It records build evidence without blocking a
+# push. First-run validation is pending — see .omo/notepads learnings.
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
+
+jobs:
+  android-native:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v4
+        with:
+          path: "**/cpm_modules"
+          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      # Android Gradle Plugin 8.x requires Java 17.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Cache the wasi-sdk + SDK/NDK so guest builds and the toolchain install
+      # are not re-downloaded every run.
+      - name: Fetch wasm guest toolchain (wasi-sdk)
+        run: python scripts/toolchains.py fetch wasi-sdk
+
+      # build.py --install-deps installs the Android SDK cmdline-tools + NDK +
+      # platform-tools into ~/Android/Sdk if ANDROID_SDK_ROOT is unset.
+      - name: Build + package (android)
+        run: python scripts/build.py android --apk-target headless --install-deps
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: platforms/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload module package trees
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-modules
+          path: platforms/android/app/src/main/assets/plugins/

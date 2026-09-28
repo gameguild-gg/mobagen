@@ -442,7 +442,13 @@ namespace app {
 
   bool WebGPUContext::present() {
     if (!operational() || surface_ == nullptr || !surface_configured_) return false;
+#ifdef __EMSCRIPTEN__
+    // emdawnwebgpu aborts on wgpuSurfacePresent (the browser composites the
+    // canvas itself after the submitted frame — pre-port apps skipped present
+    // under the same guard). Submit alone presents on web.
+#else
     wgpuSurfacePresent(surface_);
+#endif
     return operational();
   }
 

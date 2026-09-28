@@ -9,17 +9,22 @@
 #include <system_error>
 #include <vector>
 
+#include "module_manifest.hpp"
 #include "resolver.hpp"
 
 namespace mobagen::modules {
 
-  inline constexpr std::uint32_t lockfile_schema_version = 1;
+  inline constexpr std::uint32_t lockfile_schema_version = 2;
   inline constexpr std::size_t max_lockfile_bytes = 1024 * 1024;
 
   struct PluginLockEntry {
     std::string provider;
     SemanticVersion version;
     std::uint32_t abi_version{};
+    std::uint32_t api_version{1};
+    ModuleThreadsPolicy threads{ModuleThreadsPolicy::None};
+    bool shared_memory{false};
+    std::string signature;  /* module.manifest export-table digest */
     std::string package;
     std::string hash;
   };

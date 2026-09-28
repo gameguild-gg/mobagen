@@ -1,7 +1,6 @@
 #include "plugin_host.hpp"
 
 #include "modules/descriptor.hpp"
-#include "plugin_contract.hpp"
 
 #include <algorithm>
 #include <cstring>

@@ -2,7 +2,11 @@
 
 #include "project_support.hpp"
 
+#include "plugins/wasm_plugin_loader.hpp"
+
 #include <cstddef>
+#include <fstream>
+#include <iterator>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -42,9 +46,40 @@ namespace mobagen::compositions {
                              .message = "could not fingerprint selected portable WASM plugin " + provider->id + ": " + hash.error});
           return false;
         }
+        /* Mirror wasm_plugin_loader's manifest handling so resolve and load agree on
+         * threads/shared_memory/signature: present+valid manifest populates the contract
+         * fields from module.manifest; absent leaves legacy defaults; present+invalid fails
+         * resolve because the loader rejects it at verify/load too. */
+        auto threads = modules::ModuleThreadsPolicy::None;
+        bool shared_memory = false;
+        std::string signature;
+        const auto manifest_path = plugin->path().parent_path() / plugins::portable_wasm_plugin_manifest_filename();
+        std::error_code manifest_error;
+        if (std::filesystem::is_regular_file(manifest_path, manifest_error) && !manifest_error) {
+          std::ifstream input(manifest_path, std::ios::binary);
+          if (!input.is_open()) {
+            add_issue(result, {.code = PortableProjectIssueCode::LockMetadata,
+                               .message = "module.manifest in plugin " + provider->id + " could not be opened"});
+            return false;
+          }
+          std::string source{std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+          auto parsed = modules::parse_module_manifest(source, manifest_path.string());
+          if (!parsed.ok()) {
+            add_issue(result, {.code = PortableProjectIssueCode::LockMetadata,
+                               .message = "module.manifest in plugin " + provider->id + " is invalid"});
+            return false;
+          }
+          threads = parsed.manifest->threads;
+          shared_memory = parsed.manifest->shared_memory;
+          signature = modules::module_manifest_signature(*parsed.manifest);
+        }
         metadata.plugins.push_back({.provider = provider->id,
                                     .version = provider->version,
                                     .abi_version = MOBAGEN_WASM_PLUGIN_ABI_VERSION,
+                                    .api_version = 1,
+                                    .threads = threads,
+                                    .shared_memory = shared_memory,
+                                    .signature = std::move(signature),
                                     .package = package,
                                     .hash = std::move(*hash.hash)});
       }
