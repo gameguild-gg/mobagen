@@ -1,25 +1,5 @@
 option(TEST_INSTALLED_VERSION "Test the version found by find_package" OFF)
 
-add_library(MobagenReferencePlugin MODULE plugins/reference_plugin.c)
-target_link_libraries(MobagenReferencePlugin PRIVATE mobagen::plugin_sdk)
-target_compile_definitions(MobagenReferencePlugin PRIVATE MOBAGEN_PLUGIN_BUILD)
-set_target_properties(MobagenReferencePlugin PROPERTIES PREFIX "")
-
-add_library(MobagenMissingEntryPlugin MODULE plugins/missing_entry_plugin.c)
-set_target_properties(MobagenMissingEntryPlugin PROPERTIES PREFIX "")
-
-foreach(FAILURE_MODE IN ITEMS 1 2 3)
-  add_library(
-    MobagenLifecycleFailurePlugin${FAILURE_MODE} MODULE plugins/lifecycle_failure_plugin.c
-  )
-  target_link_libraries(MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE mobagen::plugin_sdk)
-  target_compile_definitions(
-    MobagenLifecycleFailurePlugin${FAILURE_MODE} PRIVATE MOBAGEN_PLUGIN_BUILD
-                                                         MOBAGEN_TEST_FAILURE_MODE=${FAILURE_MODE}
-  )
-  set_target_properties(MobagenLifecycleFailurePlugin${FAILURE_MODE} PROPERTIES PREFIX "")
-endforeach()
-
 # --- Import tools ----
 
 include(../cmake/tools.cmake)
@@ -40,22 +20,18 @@ set(FOUNDATION_TEST_SOURCES
     ecs_tests.cpp
     http_client_tests.cpp
     jobs_tests.cpp
+    memory_core_tests.cpp
     messaging_tests.cpp
     module_descriptor_tests.cpp
     module_execution_graph_tests.cpp
     module_lifecycle_tests.cpp
+    module_abi_c_test.c
+    module_abi_tests.cpp
     module_registry_tests.cpp
     module_resolver_tests.cpp
     plugin_abi_c_test.c
     plugin_abi_tests.cpp
-    plugin_contract_tests.cpp
-    plugin_activation_tests.cpp
-    plugin_catalog_tests.cpp
     plugin_host_tests.cpp
-    plugin_loader_tests.cpp
-    plugin_package_tests.cpp
-    plugin_resolution_activation_tests.cpp
-    plugin_store_tests.cpp
     portable_plugin_store_tests.cpp
     reactive_tests.cpp
     scene_serialize_tests.cpp
@@ -69,6 +45,7 @@ set(FOUNDATION_TEST_SOURCES
     wasm_command_channel_tests.cpp
     wasm_asset_store_tests.cpp
     wasm_host_imports_tests.cpp
+    wasm_quickjs_tests.cpp
 )
 
 set(PORTABLE_ASSET_STORE_PROVIDER_SOURCE
@@ -83,23 +60,20 @@ list(APPEND FOUNDATION_TEST_SOURCES ${PORTABLE_ASSET_STORE_PROVIDER_SOURCE})
 if(TARGET mobagen::asset_cli)
   list(APPEND FOUNDATION_TEST_SOURCES asset_cli_tests.cpp)
 endif()
-if(TARGET MobagenDefaultAssetStorePlugin)
-  list(APPEND FOUNDATION_TEST_SOURCES asset_store_plugin_tests.cpp)
-endif()
-if(TARGET MobagenWindowSdl3Plugin AND TARGET MobagenRenderWebgpuPlugin)
-  list(APPEND FOUNDATION_TEST_SOURCES runtime_plugin_adapter_tests.cpp)
-  if(TARGET mobagen::catalog_publisher AND TARGET mobagen::project_cli)
-    list(APPEND FOUNDATION_TEST_SOURCES recommended_project_e2e_tests.cpp)
-  endif()
+if(TARGET mobagen::project_cli)
+  list(APPEND FOUNDATION_TEST_SOURCES recommended_project_e2e_tests.cpp)
 endif()
 if(TARGET mobagen::plugin_cli)
   list(APPEND FOUNDATION_TEST_SOURCES plugin_cli_tests.cpp)
 endif()
+if(TARGET mobagen::module_manifest AND TARGET mobagen::plugin_cli)
+  list(APPEND FOUNDATION_TEST_SOURCES portable_plugin_v2_tests.cpp)
+endif()
+if(TARGET mobagen::module_extraction)
+  list(APPEND FOUNDATION_TEST_SOURCES module_manifest_extraction_tests.cpp)
+endif()
 if(TARGET mobagen::project_cli)
   list(APPEND FOUNDATION_TEST_SOURCES project_cli_tests.cpp)
-endif()
-if(TARGET mobagen::catalog_publisher)
-  list(APPEND FOUNDATION_TEST_SOURCES module_catalog_publisher_tests.cpp)
 endif()
 if(TARGET mobagen::http_curl)
   list(APPEND FOUNDATION_TEST_SOURCES curl_http_tests.cpp)
@@ -115,11 +89,10 @@ if(TARGET mobagen::module_manifest)
     module_artifact_fetcher_tests.cpp
     locked_activation_plan_tests.cpp
     locked_portable_project_tests.cpp
-    native_module_manager_tests.cpp
     portable_module_manager_tests.cpp
     module_manifest_tests.cpp
+    module_manifest_schema_tests.cpp
     module_sync_plan_tests.cpp
-    native_project_tests.cpp
   )
 endif()
 if(MOBAGEN_BUILD_MANIFEST_TOOLS)
@@ -127,38 +100,48 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
 endif()
 if(MOBAGEN_WASM_BACKEND_WAMR)
   list(APPEND FOUNDATION_TEST_SOURCES wamr_backend_tests.cpp)
+  # todo 18: the wasi-built asset store guest (shared-memory-capable, stamped
+  # module.manifest) exercises the WAMR side with the same guest source as web.
+  # test/ configures AFTER modules/, so the target already exists here; the
+  # def itself is applied after add_executable below.
+  if(TARGET MobagenPortableAssetStorePluginWasi)
+    list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_ASSET_STORE_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.assets.default.plugin/plugin.wasm")
+  endif()
+  # todo 16: the wasi-built QuickJS scripting guest — eval through the full
+  # loader + WamrBackend path (same gate discipline as the asset store guest).
+  if(TARGET MobagenPortableQuickJSPluginWasi)
+    list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_QUICKJS_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.scripting.quickjs.plugin/plugin.wasm")
+  endif()
+  # todo 17: the wasi-built Lua scripting guest — same loader path, plus the
+  # trap-recovery drain export.
+  if(TARGET MobagenPortableLuaPluginWasi)
+    list(APPEND FOUNDATION_TEST_SOURCES wasm_lua_tests.cpp)
+    list(APPEND FOUNDATION_TEST_EXTRA_DEFS MOBAGEN_TEST_WASI_LUA_GUEST="${CMAKE_BINARY_DIR}/plugins-wasi/mobagen.scripting.lua.plugin/plugin.wasm")
+  endif()
+endif()
+
+# todo 13 (micro-task A): native memory shim — pthreads + __atomic builtins
+# are native-only; the web shim (todo 14) tests ride the emscripten path.
+if(NOT EMSCRIPTEN)
+  list(APPEND FOUNDATION_TEST_SOURCES native_memory_shim_tests.cpp)
 endif()
 
 add_executable(FoundationTests ${FOUNDATION_TEST_SOURCES})
-add_dependencies(
-  FoundationTests MobagenLifecycleFailurePlugin1 MobagenLifecycleFailurePlugin2
-  MobagenLifecycleFailurePlugin3 MobagenMissingEntryPlugin MobagenReferencePlugin
-)
-if(TARGET MobagenDefaultAssetStorePlugin)
-  add_dependencies(FoundationTests MobagenDefaultAssetStorePlugin)
-endif()
-if(TARGET MobagenWindowSdl3Plugin AND TARGET MobagenRenderWebgpuPlugin)
-  add_dependencies(FoundationTests MobagenWindowSdl3Plugin MobagenRenderWebgpuPlugin)
-  target_compile_definitions(
-    FoundationTests
-    PRIVATE MOBAGEN_WINDOW_SDL3_PLUGIN_PATH="$<TARGET_FILE:MobagenWindowSdl3Plugin>"
-            MOBAGEN_RENDER_WEBGPU_PLUGIN_PATH="$<TARGET_FILE:MobagenRenderWebgpuPlugin>"
-  )
-endif()
 target_compile_features(FoundationTests PRIVATE cxx_std_20)
-target_compile_definitions(
-  FoundationTests
-  PRIVATE MOBAGEN_CONFIGURE_FAILURE_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin1>"
-          MOBAGEN_START_FAILURE_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin2>"
-          MOBAGEN_CAPABILITY_MISMATCH_PLUGIN_PATH="$<TARGET_FILE:MobagenLifecycleFailurePlugin3>"
-          MOBAGEN_MISSING_ENTRY_PLUGIN_PATH="$<TARGET_FILE:MobagenMissingEntryPlugin>"
-          MOBAGEN_REFERENCE_PLUGIN_PATH="$<TARGET_FILE:MobagenReferencePlugin>"
-)
-if(TARGET MobagenDefaultAssetStorePlugin)
-  target_compile_definitions(
-    FoundationTests
-    PRIVATE MOBAGEN_DEFAULT_ASSET_STORE_PLUGIN_PATH="$<TARGET_FILE:MobagenDefaultAssetStorePlugin>"
-  )
+if(MOBAGEN_WASM_BACKEND_WAMR)
+  # Real-AOT fixture path (todo 7): wamrc fetched out-of-band into the
+  # gitignored external/wamrc-cache/ dir, or MOBAGEN_WAMRC_PATH at test time;
+  # the suite skips loudly when neither is present.
+  target_compile_definitions(FoundationTests PRIVATE MOBAGEN_TEST_WAMRC_CACHE_DIR="${CMAKE_SOURCE_DIR}/external/wamrc-cache")
+  # todo 13 (micro-task C): native shim foreign-region test over the real
+  # WAMR shared heap — same gate discipline as wamr_backend_tests above.
+  target_compile_definitions(FoundationTests PRIVATE MOBAGEN_TEST_WAMR_NATIVE_SHIM=1)
+  if(FOUNDATION_TEST_EXTRA_DEFS)
+    target_compile_definitions(FoundationTests PRIVATE ${FOUNDATION_TEST_EXTRA_DEFS})
+    if(TARGET MobagenPortableAssetStorePluginWasi)
+      add_dependencies(FoundationTests MobagenPortableAssetStorePluginWasi)
+    endif()
+  endif()
 endif()
 target_include_directories(
   FoundationTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks
@@ -180,20 +163,35 @@ target_link_libraries(
           mobagen::core_render
           mobagen::core_resource
           mobagen::core_assets
+          mobagen::memory_core
           mobagen::asset_store_service
           mobagen::volume
 )
+if(NOT EMSCRIPTEN)
+  find_package(Threads REQUIRED)
+  target_link_libraries(FoundationTests PRIVATE mobagen::memory_native_shim Threads::Threads)
+endif()
 if(TARGET mobagen::asset_cli)
   target_link_libraries(FoundationTests PRIVATE mobagen::asset_cli)
 endif()
 if(TARGET mobagen::plugin_cli)
   target_link_libraries(FoundationTests PRIVATE mobagen::plugin_cli)
 endif()
+if(TARGET mobagen::module_extraction)
+  target_link_libraries(FoundationTests PRIVATE mobagen::module_extraction)
+  if(TARGET mobagen_module_reference_guests)
+    add_dependencies(FoundationTests mobagen_module_reference_guests)
+    target_compile_definitions(
+      FoundationTests
+      PRIVATE
+        MOBAGEN_MODULE_EXTRACTION_REFERENCE_GUEST="${CMAKE_BINARY_DIR}/tools/modules/reference_guest/plugin.wasm"
+        MOBAGEN_MODULE_EXTRACTION_ENTRYLESS_GUEST="${CMAKE_BINARY_DIR}/tools/modules/entryless_guest/plugin.wasm"
+        MOBAGEN_MODULE_EXTRACTION_GOLDEN_MANIFEST="${CMAKE_SOURCE_DIR}/tools/modules/golden_manifest.yaml"
+    )
+  endif()
+endif()
 if(TARGET mobagen::project_cli)
   target_link_libraries(FoundationTests PRIVATE mobagen::project_cli)
-endif()
-if(TARGET mobagen::catalog_publisher)
-  target_link_libraries(FoundationTests PRIVATE mobagen::catalog_publisher)
 endif()
 if(TARGET mobagen::http_curl)
   target_link_libraries(FoundationTests PRIVATE mobagen::http_curl)
@@ -206,7 +204,6 @@ if(TARGET mobagen::module_manifest)
     FoundationTests
     PRIVATE mobagen::headless_composition
             mobagen::module_manifest
-            mobagen::native_project
             mobagen::portable_project
             mobagen::project_bootstrap
             mobagen::project_module_manager
@@ -221,25 +218,22 @@ if(MOBAGEN_BUILD_MANIFEST_TOOLS)
 endif()
 
 set(FOUNDATION_COMPILED_TARGETS mobagen_asset_store_service mobagen_core_assets mobagen_core_jobs
-                                mobagen_core_modules mobagen_core_plugins
+                                mobagen_core_modules mobagen_core_plugins mobagen_memory_core
 )
-if(TARGET MobagenDefaultAssetStorePlugin)
-  list(APPEND FOUNDATION_COMPILED_TARGETS MobagenDefaultAssetStorePlugin)
-endif()
 if(TARGET mobagen_asset_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_asset_cli)
 endif()
 if(TARGET mobagen_plugin_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_plugin_cli)
 endif()
+if(TARGET mobagen_module_extraction)
+  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_module_extraction)
+endif()
 if(TARGET mobagen_project_cli)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_project_cli)
 endif()
 if(TARGET mobagen_headless_composition)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_headless_composition)
-endif()
-if(TARGET mobagen_native_project)
-  list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_native_project)
 endif()
 if(TARGET mobagen_portable_project)
   list(APPEND FOUNDATION_COMPILED_TARGETS mobagen_portable_project)
@@ -273,7 +267,8 @@ mobagen_enable_sanitizers(FoundationTests ${FOUNDATION_COMPILED_TARGETS})
 # target_compile_options(core PUBLIC /W4 /WX) target_compile_definitions(CoreTests PUBLIC
 # DOCTEST_CONFIG_USE_STD_HEADERS) endif() endif()
 
-# ---- Discover tests ----
+# Preserve the historical build target while keeping dependency boundaries explicit.
+add_custom_target(CoreTests DEPENDS FoundationTests)
 
 enable_testing()
 
@@ -318,8 +313,59 @@ add_test(
 )
 set_tests_properties(foundation::cpm-legacy-core-consumer PROPERTIES LABELS foundation)
 
-# Preserve the historical build target while keeping dependency boundaries explicit.
-add_custom_target(CoreTests DEPENDS FoundationTests)
+# ---- Memory core ASan variant (todo 12) ----
+# The GC core is the plan's riskiest component; run its full suite under
+# AddressSanitizer+UBSan independently of the MOBAGEN_ENABLE_SANITIZERS
+# option (which instruments everything and is off by default). The binary
+# recompiles the memory core sources directly so the allocator/GC code
+# itself is instrumented; it links no other engine libs.
+if(NOT EMSCRIPTEN AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+  add_executable(
+    MemoryCoreAsanTests Test.cpp memory_core_tests.cpp mock_memory_shim.hpp
+    ../core/sources/memory/memory_manager.cpp ../core/sources/memory/memory_manager.hpp
+    ../core/sources/memory/object_header.h ../core/sources/memory/shim.hpp
+  )
+  target_compile_features(MemoryCoreAsanTests PRIVATE cxx_std_20)
+  target_include_directories(MemoryCoreAsanTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources)
+  target_link_libraries(MemoryCoreAsanTests PRIVATE doctest::doctest)
+  target_compile_options(
+    MemoryCoreAsanTests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all
+  )
+  target_link_options(MemoryCoreAsanTests PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+  doctest_discover_tests(
+    MemoryCoreAsanTests TEST_PREFIX "foundation::memory-asan::" PROPERTIES LABELS
+    "foundation;memory-asan"
+  )
+  add_dependencies(CoreTests MemoryCoreAsanTests)
+endif()
+
+# ---- Native memory shim TSan variant (todo 13, micro-task C) ----
+# Rebuilds the native shim + memory core directly under ThreadSanitizer so
+# the concurrency/guest scenarios run with real race detection. Mirrors the
+# MemoryCoreAsanTests stanza; links no other engine libs (the WAMR
+# foreign-region test is excluded: MOBAGEN_TEST_WAMR_NATIVE_SHIM stays
+# undefined for this binary).
+if(NOT EMSCRIPTEN AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+  add_executable(
+    NativeMemoryShimTsanTests Test.cpp native_memory_shim_tests.cpp
+    ../core/sources/memory/memory_manager.cpp ../core/sources/memory/memory_manager.hpp
+    ../core/sources/memory/native_shim.cpp ../core/sources/memory/native_shim.hpp
+    ../core/sources/memory/object_header.h ../core/sources/memory/shim.hpp
+  )
+  target_compile_features(NativeMemoryShimTsanTests PRIVATE cxx_std_20)
+  target_include_directories(NativeMemoryShimTsanTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core/sources)
+  find_package(Threads REQUIRED)
+  target_link_libraries(NativeMemoryShimTsanTests PRIVATE doctest::doctest Threads::Threads)
+  target_compile_options(
+    NativeMemoryShimTsanTests PRIVATE -fsanitize=thread -fno-omit-frame-pointer -g
+  )
+  target_link_options(NativeMemoryShimTsanTests PRIVATE -fsanitize=thread)
+  doctest_discover_tests(
+    NativeMemoryShimTsanTests TEST_PREFIX "foundation::memory-tsan::" PROPERTIES LABELS
+    "foundation;memory-tsan"
+  )
+  add_dependencies(CoreTests NativeMemoryShimTsanTests)
+endif()
 
 if(TARGET mobagen::core_app)
   add_executable(AppHostTests Test.cpp app_host_tests.cpp module_graphics_composition_tests.cpp)

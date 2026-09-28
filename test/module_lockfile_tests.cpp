@@ -150,7 +150,7 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
   const auto reversed = serialize_lockfile(fixture.registry, fixture.resolution, metadata);
 
   constexpr std::string_view expected
-      = "schema: 1\n"
+      = "schema: 2\n"
         "sdk: 1.2.3\n"
         "target: windows\n"
         "profile: release\n"
@@ -180,11 +180,17 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
         "  customer.color:\n"
         "    version: 1.5.0\n"
         "    abi: 1\n"
+        "    api: 1\n"
+        "    threads: none\n"
+        "    shared-memory: false\n"
         "    package: \"plugins/customer color.plugin\"\n"
         "    hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
         "  customer.transfer:\n"
         "    version: 2.0.1\n"
         "    abi: 1\n"
+        "    api: 1\n"
+        "    threads: none\n"
+        "    shared-memory: false\n"
         "    package: \"plugins/customer-transfer.plugin\"\n"
         "    hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n";
 
@@ -201,9 +207,160 @@ TEST_CASE("Module lockfile: serialization is canonical and independent of plugin
   CHECK(parsed.document->metadata.manifest_hash == first_hash);
   REQUIRE(parsed.document->metadata.plugins.size() == 2);
   CHECK(parsed.document->metadata.plugins.front().provider == "customer.color");
+  CHECK(parsed.document->metadata.plugins.front().api_version == 1);
+  CHECK(parsed.document->metadata.plugins.front().threads == ModuleThreadsPolicy::None);
+  CHECK_FALSE(parsed.document->metadata.plugins.front().shared_memory);
   CHECK(parsed.document->permissions == std::vector<std::string>{"filesystem-read", "gpu", "windowing"});
   CHECK(parsed.document->resolved.size() == 2);
   CHECK(parsed.document->dependencies.size() == 1);
+}
+
+TEST_CASE("Module lockfile: v2 plugin contract fields round-trip through parse") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 2
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+permissions: []
+configurations: {}
+resolved:
+  runtime.tick.v1:
+    provider: customer.wasm-runtime
+    version: 1.0.0
+    linkage: wasm
+dependencies: []
+plugins:
+  customer.wasm-runtime:
+    version: 1.0.0
+    abi: 1
+    api: 1
+    threads: managed
+    shared-memory: true
+    signature: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    package: "plugins/wasm-runtime.plugin"
+    hash: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  REQUIRE(parsed.ok());
+  REQUIRE(parsed.document->metadata.plugins.size() == 1);
+  const auto& plugin = parsed.document->metadata.plugins.front();
+  CHECK(plugin.provider == "customer.wasm-runtime");
+  CHECK(plugin.api_version == 1);
+  CHECK(plugin.threads == ModuleThreadsPolicy::Managed);
+  CHECK(plugin.shared_memory);
+  CHECK(plugin.signature == "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+}
+
+TEST_CASE("Module lockfile: schema version 1 lockfiles are rejected with UnsupportedSchema") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 1
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+permissions: []
+configurations: {}
+resolved: {}
+dependencies: []
+plugins: {}
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  CHECK_FALSE(parsed.ok());
+  CHECK_FALSE(parsed.document.has_value());
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::UnsupportedSchema, "schema"));
+}
+
+TEST_CASE("Module lockfile: process linkage vocabulary is rejected by schema 2") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 2
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+permissions: []
+configurations: {}
+resolved:
+  runtime.tick.v1:
+    provider: customer.remote
+    version: 1.0.0
+    linkage: process
+dependencies: []
+plugins: {}
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  CHECK_FALSE(parsed.ok());
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "resolved.runtime.tick.v1.linkage"));
+}
+
+TEST_CASE("Module lockfile: dynamic linkage vocabulary is rejected by schema 2") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 2
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+permissions: []
+configurations: {}
+resolved:
+  runtime.tick.v1:
+    provider: customer.remote
+    version: 1.0.0
+    linkage: dynamic
+dependencies: []
+plugins: {}
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  CHECK_FALSE(parsed.ok());
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "resolved.runtime.tick.v1.linkage"));
+  const auto* issue = parsed.issues.empty() ? nullptr : &parsed.issues.front();
+  REQUIRE(issue != nullptr);
+  CHECK(issue->message.find("schema version 2") != std::string::npos);
+}
+
+TEST_CASE("Module lockfile: plugin threads shared-memory and signature fields are validated") {
+  using namespace mobagen::modules;
+
+  constexpr std::string_view source = R"yaml(schema: 2
+sdk: 1.0.0
+target: windows
+profile: release
+manifest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+permissions: []
+configurations: {}
+resolved: {}
+dependencies: []
+plugins:
+  customer.color:
+    version: 1.0.0
+    abi: 1
+    api: 0
+    threads: shared
+    shared-memory: maybe
+    signature: not-sha256
+    package: "plugins/customer.plugin"
+    hash: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+)yaml";
+
+  const auto parsed = parse_lockfile(source, "mobagen.lock");
+
+  CHECK_FALSE(parsed.ok());
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "plugins.customer.color.api"));
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "plugins.customer.color.threads"));
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidValue, "plugins.customer.color.shared-memory"));
+  CHECK(has_parse_issue(parsed, LockfileParseIssueCode::InvalidHash, "plugins.customer.color.signature"));
 }
 
 TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML") {
@@ -244,7 +401,7 @@ TEST_CASE("Module lockfile: invalid metadata returns issues without partial YAML
 
 TEST_CASE("Module lockfile: strict parsing rejects duplicate, unknown, and tagged fields") {
   using namespace mobagen::modules;
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 sdk: 1.0.0
 target: windows
 profile: release
@@ -268,7 +425,7 @@ extra: forbidden
 
 TEST_CASE("Module lockfile: strict parsing rejects control characters in package paths") {
   using namespace mobagen::modules;
-  constexpr std::string_view source = R"yaml(schema: 1
+  constexpr std::string_view source = R"yaml(schema: 2
 sdk: 1.0.0
 target: windows
 profile: release
@@ -298,17 +455,17 @@ TEST_CASE("Module lockfile: atomic write replaces the complete destination") {
   const auto destination = directory.path() / "mobagen.lock";
   write_text(destination, "old lockfile\n");
 
-  const auto result = write_lockfile_atomic(destination, "schema: 1\nprofile: release\n");
+  const auto result = write_lockfile_atomic(destination, "schema: 2\nprofile: release\n");
 
   REQUIRE(result.ok());
-  CHECK(read_text(destination) == "schema: 1\nprofile: release\n");
+  CHECK(read_text(destination) == "schema: 2\nprofile: release\n");
   CHECK_FALSE(has_lockfile_temporary_file(directory.path()));
 }
 
 TEST_CASE("Module lockfile: atomic write rejects a destination without a filename") {
   using namespace mobagen::modules;
 
-  const auto result = write_lockfile_atomic({}, "schema: 1\n");
+  const auto result = write_lockfile_atomic({}, "schema: 2\n");
 
   CHECK_FALSE(result.ok());
   CHECK(result.issue.has_value());
@@ -324,7 +481,7 @@ TEST_CASE("Module lockfile: failed atomic commit preserves the destination and r
   const auto marker = destination / "keep.txt";
   write_text(marker, "preserve me");
 
-  const auto result = write_lockfile_atomic(destination, "schema: 1\n");
+  const auto result = write_lockfile_atomic(destination, "schema: 2\n");
 
   CHECK_FALSE(result.ok());
   CHECK(result.issue.has_value());
@@ -339,12 +496,12 @@ TEST_CASE("Module lockfile: bounded read returns exact canonical bytes") {
 
   TemporaryLockDirectory directory;
   const auto source = directory.path() / "mobagen.lock";
-  write_text(source, "schema: 1\nprofile: release\n");
+  write_text(source, "schema: 2\nprofile: release\n");
 
   const auto result = read_lockfile_bounded(source);
 
   REQUIRE(result.ok());
-  CHECK(*result.contents == "schema: 1\nprofile: release\n");
+  CHECK(*result.contents == "schema: 2\nprofile: release\n");
 }
 
 TEST_CASE("Module lockfile: bounded read rejects missing directories and oversized inputs") {

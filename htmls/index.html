@@ -1,5 +1,14 @@
 <html>
 <head>
+<!-- Cross-origin isolation (dynamic-loading-all-platforms todo 6):
+     coi-serviceworker registers SYNCHRONOUSLY before any app script to gain
+     COOP/COEP on static hosts (GitHub Pages). Chromium/Firefox: isolated after
+     one automatic reload. Safari + first load pre-reload: NOT isolated, ever —
+     the variant picker below then boots the isolated (SAB-less) engine bundle,
+     so the page always boots. Deployment layout: / -> isolated tree,
+     /shared/ -> shared tree (see mobagen_variant.js header comment). -->
+<script src="coi-serviceworker.js"></script>
+<script src="mobagen_variant.js"></script>
 </head>
 <body>
 <a href="editor.html">Editor demo</a> <br>

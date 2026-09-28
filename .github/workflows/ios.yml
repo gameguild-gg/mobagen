@@ -1,0 +1,65 @@
+name: iOS
+
+# First CI gate for the iOS platform (dynamic-loading-all-platforms todo 22).
+# Scope is CONFIGURE+BUILD+PACKAGE only: `build.py ios --simulator` drives an
+# unsigned iphonesimulator build (CMAKE_OSX_SYSROOT=iphonesimulator,
+# CODE_SIGNING_REQUIRED=NO, deployment target 15.0 per IosPlatform default) —
+# no device build, no signing secrets. Module packages are deployed into the
+# .app bundle RESOURCES (interpreter-only; allow_aot=False honors the todo
+# 4/20 iOS AOT guards).
+#
+# NOTE (todo 22): shipped `continue-on-error: true` — the iOS/Xcode simulator
+# compile path has NOT yet been validated against a clean hosted runner in-
+# sandbox. Records build evidence without blocking; first-run validation
+# pending — see .omo/notepads learnings.
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
+
+jobs:
+  ios-simulator:
+    runs-on: macos-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v4
+        with:
+          path: "**/cpm_modules"
+          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # wasi-sdk builds the native-runtime (wasi) guests that ship into the
+      # .app bundle resources. Fetched before configure so the find_program
+      # that gates the guest targets sees it.
+      - name: Fetch wasm guest toolchain (wasi-sdk)
+        run: python scripts/toolchains.py fetch wasi-sdk
+
+      # Simulator build, no signing. Deployment target 15.0 (build.py default).
+      - name: Build + package (ios simulator)
+        run: python scripts/build.py ios --simulator
+
+      - name: Upload app bundle + module trees
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app
+          path: |
+            build-ios/**/*.app
+            !**/_deps/**

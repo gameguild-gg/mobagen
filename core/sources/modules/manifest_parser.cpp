@@ -150,7 +150,7 @@ namespace mobagen::modules {
             add_error(ManifestErrorCode::DuplicateKey, pair.first.Mark(), nested_field, "mapping keys must be unique");
           }
           if (!is_allowed(key, allowed_fields)) {
-            add_error(ManifestErrorCode::UnknownField, pair.first.Mark(), nested_field, "field is not part of schema version 1");
+            add_error(ManifestErrorCode::UnknownField, pair.first.Mark(), nested_field, "field is not part of schema version 2");
           }
           entries.push_back({std::move(key), pair.second});
         }
@@ -220,14 +220,12 @@ namespace mobagen::modules {
         if (!read_string(node, field, value)) return false;
 
         static const std::map<std::string, LinkageMode, std::less<>> linkages{
-            {"dynamic", LinkageMode::Dynamic},
-            {"process", LinkageMode::Process},
             {"static", LinkageMode::Static},
             {"wasm", LinkageMode::Wasm},
         };
         const auto linkage = linkages.find(value);
         if (linkage == linkages.end()) {
-          add_error(ManifestErrorCode::InvalidValue, node.Mark(), field, "expected static, dynamic, wasm, or process");
+          add_error(ManifestErrorCode::InvalidValue, node.Mark(), field, "linkage vocabulary '" + value + "' is not supported by project schema version 2; expected static or wasm");
           return false;
         }
         output = linkage->second;

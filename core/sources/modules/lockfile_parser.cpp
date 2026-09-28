@@ -147,7 +147,7 @@ namespace mobagen::modules {
             add_issue(LockfileParseIssueCode::DuplicateKey, pair.first.Mark(), nested, "mapping keys must be unique");
           }
           if (allowed.size() != 0 && !is_allowed(key, allowed)) {
-            add_issue(LockfileParseIssueCode::UnknownField, pair.first.Mark(), nested, "field is not part of lockfile schema version 1");
+            add_issue(LockfileParseIssueCode::UnknownField, pair.first.Mark(), nested, "field is not part of lockfile schema version 2");
           }
           entries.push_back({std::move(key), pair.second});
         }
@@ -188,6 +188,38 @@ namespace mobagen::modules {
         return true;
       }
 
+      bool read_bool(const YAML::Node& node, const std::string& field, bool& output) {
+        if (!node.IsScalar() || node.Tag() != "?") {
+          add_issue(LockfileParseIssueCode::WrongType, node.Mark(), field, "expected an unquoted boolean");
+          return false;
+        }
+        if (node.Scalar() == "true") {
+          output = true;
+          return true;
+        }
+        if (node.Scalar() == "false") {
+          output = false;
+          return true;
+        }
+        add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), field, "expected true or false");
+        return false;
+      }
+
+      bool read_threads(const YAML::Node& node, const std::string& field, ModuleThreadsPolicy& output) {
+        std::string value;
+        if (!read_string(node, field, value)) return false;
+        if (value == "none") {
+          output = ModuleThreadsPolicy::None;
+          return true;
+        }
+        if (value == "managed") {
+          output = ModuleThreadsPolicy::Managed;
+          return true;
+        }
+        add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), field, "expected none or managed");
+        return false;
+      }
+
       bool read_version(const YAML::Node& node, const std::string& field, SemanticVersion& output) {
         std::string value;
         if (!read_string(node, field, value)) return false;
@@ -217,7 +249,7 @@ namespace mobagen::modules {
         };
         const auto found = values.find(value);
         if (found == values.end()) {
-          add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), "target", "target is not supported by lockfile schema version 1");
+          add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), "target", "target is not supported by lockfile schema version 2");
           return false;
         }
         output = found->second;
@@ -227,15 +259,17 @@ namespace mobagen::modules {
       bool read_linkage(const YAML::Node& node, const std::string& field, LinkageMode& output) {
         std::string value;
         if (!read_string(node, field, value)) return false;
+        /* Lockfile schema v2 (todo 23) drops the "dynamic" and "process" linkage
+           vocabulary — only "static" and "wasm" remain. Unknown values fail loudly
+           and name the schema so the verifier and resolver never disagree. */
         static const std::map<std::string, LinkageMode, std::less<>> values{
-            {"dynamic", LinkageMode::Dynamic},
-            {"process", LinkageMode::Process},
             {"static", LinkageMode::Static},
             {"wasm", LinkageMode::Wasm},
         };
         const auto found = values.find(value);
         if (found == values.end()) {
-          add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), field, "expected static, dynamic, wasm, or process");
+          add_issue(LockfileParseIssueCode::InvalidValue, node.Mark(), field,
+                    "linkage vocabulary '" + value + "' is not supported by lockfile schema version 2; expected static or wasm");
           return false;
         }
         output = found->second;
@@ -259,7 +293,7 @@ namespace mobagen::modules {
         std::uint64_t schema_value = 0;
         if (schema && read_unsigned(*schema, "schema", schema_value)) {
           if (schema_value != lockfile_schema_version) {
-            add_issue(LockfileParseIssueCode::UnsupportedSchema, schema->Mark(), "schema", "only lockfile schema version 1 is supported");
+            add_issue(LockfileParseIssueCode::UnsupportedSchema, schema->Mark(), "schema", "only lockfile schema version 2 is supported");
           } else {
             document_.metadata.schema = static_cast<std::uint32_t>(schema_value);
           }
@@ -377,7 +411,7 @@ namespace mobagen::modules {
         const auto providers = read_map(node, "plugins");
         for (const auto& provider : providers) {
           const auto field = "plugins." + provider.key;
-          const auto entries = read_map(provider.value, field, {"version", "abi", "package", "hash"});
+          const auto entries = read_map(provider.value, field, {"version", "abi", "api", "threads", "shared-memory", "signature", "package", "hash"});
           const auto* version = require_entry(entries, "version", field, provider.value.Mark());
           const auto* abi = require_entry(entries, "abi", field, provider.value.Mark());
           const auto* package = require_entry(entries, "package", field, provider.value.Mark());
@@ -393,6 +427,29 @@ namespace mobagen::modules {
               add_issue(LockfileParseIssueCode::InvalidValue, abi->Mark(), field + ".abi", "plugin ABI version must be positive and fit in 32 bits");
             } else {
               plugin.abi_version = static_cast<std::uint32_t>(abi_version);
+            }
+          }
+          if (const auto* api = find_entry(entries, "api")) {
+            std::uint64_t api_version = 0;
+            if (read_unsigned(*api, field + ".api", api_version)) {
+              if (api_version == 0 || api_version > UINT32_MAX) {
+                add_issue(LockfileParseIssueCode::InvalidValue, api->Mark(), field + ".api",
+                          "plugin API version must be positive and fit in 32 bits");
+              } else {
+                plugin.api_version = static_cast<std::uint32_t>(api_version);
+              }
+            }
+          }
+          if (const auto* threads = find_entry(entries, "threads")) {
+            read_threads(*threads, field + ".threads", plugin.threads);
+          }
+          if (const auto* shared = find_entry(entries, "shared-memory")) {
+            read_bool(*shared, field + ".shared-memory", plugin.shared_memory);
+          }
+          if (const auto* signature = find_entry(entries, "signature")) {
+            if (read_string(*signature, field + ".signature", plugin.signature) && !is_hash(plugin.signature)) {
+              add_issue(LockfileParseIssueCode::InvalidHash, signature->Mark(), field + ".signature",
+                        "plugin signature is not canonical SHA-256");
             }
           }
           if (package && read_string(*package, field + ".package", plugin.package) && !is_portable_package_path(plugin.package)) {

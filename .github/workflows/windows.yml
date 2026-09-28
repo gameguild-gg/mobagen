@@ -32,6 +32,18 @@ jobs:
       - name: Build (windows)
         run: python scripts/build.py windows
 
+      # Windows has no wasi-sdk distribution, so the native-runtime (wasi)
+      # guests are skipped by the module CMake gates; the WAMR backend core +
+      # memory-shim suites still build and run here.
+      - name: Run doctest suites
+        run: ctest --test-dir build-windows -C MinSizeRel --output-on-failure
+
+      - name: Upload module package trees
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-modules
+          path: build-windows/bin/plugins/
+
       - name: Release
         uses: fnkr/github-action-ghr@v1.3
         if: startsWith(github.ref, 'refs/tags/')

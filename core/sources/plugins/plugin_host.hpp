@@ -14,6 +14,9 @@
 
 namespace mobagen::plugins {
 
+  inline constexpr std::uint32_t max_plugin_capabilities = 1024;
+  inline constexpr std::size_t max_plugin_string_bytes = 512;
+
   using PluginLogSink = void (*)(void* context, MobagenLogLevel level, std::string_view message) noexcept;
 
   struct NativeCapabilityBindingView {

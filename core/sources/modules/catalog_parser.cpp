@@ -249,14 +249,12 @@ namespace mobagen::modules {
         std::string value;
         if (!read_string(node, field, value)) return false;
         static const std::map<std::string, LinkageMode, std::less<>> linkages{
-            {"dynamic", LinkageMode::Dynamic},
-            {"process", LinkageMode::Process},
             {"static", LinkageMode::Static},
             {"wasm", LinkageMode::Wasm},
         };
         const auto linkage = linkages.find(value);
         if (linkage == linkages.end()) {
-          add_error(CatalogErrorCode::InvalidValue, node.Mark(), field, "expected static, dynamic, wasm, or process");
+          add_error(CatalogErrorCode::InvalidValue, node.Mark(), field, "linkage vocabulary '" + value + "' is not supported by catalog schema version 2; expected static or wasm");
           return false;
         }
         output = linkage->second;

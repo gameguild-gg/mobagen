@@ -20,8 +20,8 @@ namespace {
         {.provider = "mobagen.platform", .version = version(), .abi_version = 1, .package = ".mobagen/plugins/platform.plugin"},
     };
     document.resolved = {
-        {.capability = "render.backend.v1", .provider = "mobagen.render", .version = version(), .linkage = LinkageMode::Dynamic},
-        {.capability = "window.surface.v1", .provider = "mobagen.platform", .version = version(), .linkage = LinkageMode::Dynamic},
+        {.capability = "render.backend.v1", .provider = "mobagen.render", .version = version(), .linkage = LinkageMode::Wasm},
+        {.capability = "window.surface.v1", .provider = "mobagen.platform", .version = version(), .linkage = LinkageMode::Wasm},
     };
     document.dependencies = {
         {.capability = "window.surface.v1", .provider = "mobagen.platform", .required_by = "mobagen.render"},
@@ -34,7 +34,7 @@ namespace {
     return {
         .provider_id = std::move(provider),
         .version = version(),
-        .linkage = LinkageMode::Dynamic,
+        .linkage = LinkageMode::Wasm,
         .abi_version = 1,
         .size = 4096,
         .package_path = std::filesystem::path{std::move(package)},

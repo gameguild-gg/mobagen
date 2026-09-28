@@ -96,12 +96,8 @@ namespace mobagen::modules {
       switch (linkage) {
         case LinkageMode::Static:
           return "static";
-        case LinkageMode::Dynamic:
-          return "dynamic";
         case LinkageMode::Wasm:
           return "wasm";
-        case LinkageMode::Process:
-          return "process";
       }
       return {};
     }
@@ -110,12 +106,12 @@ namespace mobagen::modules {
 
   }  // namespace
 
-  LockfileSerializeResult serialize_lockfile(const CapabilityRegistry& registry, const ModuleResolution& resolution,
-                                             const LockfileMetadata& metadata) {
-    LockfileSerializeResult result;
-    if (metadata.schema != lockfile_schema_version) {
-      add_issue(result, LockfileIssueCode::UnsupportedSchema, "schema", "only lockfile schema version 1 is supported");
-    }
+    LockfileSerializeResult serialize_lockfile(const CapabilityRegistry& registry, const ModuleResolution& resolution,
+                                               const LockfileMetadata& metadata) {
+      LockfileSerializeResult result;
+      if (metadata.schema != lockfile_schema_version) {
+        add_issue(result, LockfileIssueCode::UnsupportedSchema, "schema", "only lockfile schema version 2 is supported");
+      }
     if (!is_slug(metadata.profile)) {
       add_issue(result, LockfileIssueCode::InvalidValue, "profile", "expected a lowercase profile slug");
     }
@@ -128,8 +124,10 @@ namespace mobagen::modules {
 
     auto plugins = metadata.plugins;
     std::ranges::sort(plugins, [](const PluginLockEntry& left, const PluginLockEntry& right) {
-      return std::tie(left.provider, left.version.major, left.version.minor, left.version.patch, left.abi_version, left.package, left.hash)
-             < std::tie(right.provider, right.version.major, right.version.minor, right.version.patch, right.abi_version, right.package, right.hash);
+      return std::tie(left.provider, left.version.major, left.version.minor, left.version.patch, left.abi_version, left.api_version,
+                      left.threads, left.shared_memory, left.signature, left.package, left.hash)
+             < std::tie(right.provider, right.version.major, right.version.minor, right.version.patch, right.abi_version, right.api_version,
+                        right.threads, right.shared_memory, right.signature, right.package, right.hash);
     });
     for (std::size_t index = 0; index < plugins.size(); ++index) {
       const auto& plugin = plugins[index];
@@ -140,11 +138,18 @@ namespace mobagen::modules {
       if (plugin.abi_version == 0) {
         add_issue(result, LockfileIssueCode::InvalidValue, field + ".abi", "plugin ABI version must be positive");
       }
+      if (plugin.api_version == 0) {
+        add_issue(result, LockfileIssueCode::InvalidValue, field + ".api", "plugin API version must be positive");
+      }
       if (!is_portable_package_path(plugin.package)) {
         add_issue(result, LockfileIssueCode::InvalidValue, field + ".package", "plugin package must be a portable relative path ending in .plugin");
       }
       if (!is_sha256(plugin.hash)) {
         add_issue(result, LockfileIssueCode::InvalidHash, field + ".hash", "expected sha256 followed by 64 lowercase hexadecimal digits");
+      }
+      if (!plugin.signature.empty() && !is_sha256(plugin.signature)) {
+        add_issue(result, LockfileIssueCode::InvalidHash, field + ".signature",
+                  "expected sha256 followed by 64 lowercase hexadecimal digits");
       }
       if (index > 0 && plugins[index - 1].provider == plugin.provider) {
         add_issue(result, LockfileIssueCode::DuplicateEntry, field, "plugin provider IDs must be unique");
@@ -286,6 +291,12 @@ namespace mobagen::modules {
         write_version(output, plugin.version);
         output << '\n';
         output << "    abi: " << plugin.abi_version << '\n';
+        output << "    api: " << plugin.api_version << '\n';
+        output << "    threads: " << module_threads_policy_name(plugin.threads) << '\n';
+        output << "    shared-memory: " << (plugin.shared_memory ? "true" : "false") << '\n';
+        if (!plugin.signature.empty()) {
+          output << "    signature: " << plugin.signature << '\n';
+        }
         output << "    package: ";
         write_yaml_string(output, plugin.package);
         output << '\n';

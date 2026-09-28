@@ -23,7 +23,9 @@ namespace mobagen::modules {
       return result;
     }
 
-    bool is_plugin_linkage(LinkageMode linkage) { return linkage == LinkageMode::Dynamic || linkage == LinkageMode::Wasm; }
+    /* Lockfile vocabulary is static/wasm only (todo 23/24): wasm is the one
+       loadable runtime plugin linkage. */
+    bool is_plugin_linkage(LinkageMode linkage) { return linkage == LinkageMode::Wasm; }
 
   }  // namespace
 
@@ -166,6 +168,10 @@ namespace mobagen::modules {
           .version = candidate.version,
           .linkage = candidate.linkage,
           .abi_version = candidate.abi_version,
+          .api_version = candidate.api_version,
+          .threads = candidate.threads,
+          .shared_memory = candidate.shared_memory,
+          .signature = candidate.signature,
           .size = candidate.size,
           .package_path = candidate.package_path,
           .binary_path = candidate.binary_path,
@@ -195,6 +201,10 @@ namespace mobagen::modules {
           .version = plugin.version,
           .linkage = plugin.linkage,
           .abi_version = plugin.abi_version,
+          .api_version = plugin.api_version,
+          .threads = plugin.threads,
+          .shared_memory = plugin.shared_memory,
+          .signature = plugin.signature,
           .package_path = plugin.package_path,
           .binary_path = plugin.binary_path,
       });

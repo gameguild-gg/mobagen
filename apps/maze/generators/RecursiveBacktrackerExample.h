@@ -9,10 +9,11 @@
 
 class RecursiveBacktrackerExample : public MazeGeneratorBase {
 private:
+  // the path is tracked in grid units: (0, 0) is the top-left cell,
+  // x grows right and y grows down — the same units as the World API.
   std::vector<Point2D> stack;
   std::map<int, std::map<int, bool>> visited;  // naive. not optimal
-  Point2D randomStartPoint(World* world);
-  std::vector<Point2D> getVisitables(World* w, const Point2D& p);
+  std::vector<Point2D> getVisitables(World* w, const Point2D& point);
 
 public:
   RecursiveBacktrackerExample() = default;

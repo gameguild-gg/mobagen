@@ -19,7 +19,7 @@ Day 1:
 Day 2:
 
 - Explain in depth common problems the students may have, such as:
-    - Forgetting to normalize the force,
+    - Normalizing the cohesion force and losing the distance information (it becomes a flat force),
     - The separation force should be inverse proportional to the distance,
     - The alignment force should be proportional to the velocity,
     - When a force should include itself or not.
@@ -98,7 +98,7 @@ Apply a force towards the center of mass of the group.
 
 1. The $ n $ neighbors of an agent are all the other agents that are within a certain radius $ r_c $( `<=` operation, boundary-inclusive, verified against the fixtures ) of the agent. It doesn't include the agent itself;
 2. Compute the location of the center of mass of the group ($ P_{CM} $);
-3. Compute the force that moves the agent towards the center of mass ($ \overrightarrow{F_c} $): it is the direction from the agent to the center of mass, normalized.
+3. Compute the force that moves the agent towards the center of mass ($ \overrightarrow{F_c} $): the vector from the agent to the center of mass, divided by the radius.
 
 ![cohesion](https://i.imgur.com/sWs6IiN.png)
 
@@ -108,18 +108,18 @@ $$
 
 $$
 \overrightarrow{F_{c}} = \begin{cases}
-\widehat{P_{agent}P_{CM}} & \text{if } n > 0 \land |\overrightarrow{P_{agent}P_{CM}}| > 0 \\
+\frac{\overrightarrow{P_{agent}P_{CM}}}{r_c} & \text{if } n > 0 \\
 \vec{0} & \text{otherwise}
 \end{cases}
 $$
 
 ::: tip
 
-Note that the magnitude of $ \overrightarrow{F_c} $ is always at most 1. This value can be multiplied by a constant $ K_c $ to increase or decrease the cohesion force to look more appealing.
+Note that the magnitude of $ \overrightarrow{F_c} $ grows with the distance to the center of mass: it is $ 0 $ when the agent sits exactly on the center of mass, and approaches $ 1 $ when the center of mass is on the edge of the neighborhood. A boid far from its group is pulled harder than one already centered. This value can be multiplied by a constant $ K_c $ to increase or decrease the cohesion force to look more appealing.
 
 :::
 
-In order for you to pass the formal assignment tests, normalize the force. The multiplication by the cohesion constant $ K_c $ happens in the weighted sum (see [Behavior composition](#behavior-composition)). No need to divide by the radius here.
+In order for you to pass the formal assignment tests, the force must be proportional to the distance to the center of mass: divide the vector to the center of mass by the radius $ r_c $. Do not normalize it first — normalizing throws the distance away and gives a flat force that pulls every agent equally hard no matter how far it is. The multiplication by the cohesion constant $ K_c $ happens in the weighted sum (see [Behavior composition](#behavior-composition)).
 
 [![cohesionflow](https://app.code2flow.com/LjRYWNnhilPO.code.png)](https://app.code2flow.com/LjRYWNnhilPO)
 
@@ -181,7 +181,7 @@ It will move the agent away from other agents when they get too close.
 
 $$
 \overrightarrow{F_s} = \sum_{i=0}^{n-1} \begin{cases}
-\frac{\widehat{P_aP_i}}{|\overrightarrow{P_aP_i}|} & \text{if } \varepsilon < |\overrightarrow{P_aP_i}| \leq r_s \\
+\frac{\widehat{P_iP_a}}{|\overrightarrow{P_aP_i}|} & \text{if } \varepsilon < |\overrightarrow{P_aP_i}| \leq r_s \\
 0 & \text{if } |\overrightarrow{P_aP_i}| \leq \varepsilon \lor |\overrightarrow{P_aP_i}| > r_s
 \end{cases}
 $$
@@ -214,7 +214,7 @@ $$
 
 :::
 
-In order for the formal tests to pass, you have to accumulate the forces $ \frac{\widehat{P_aP_i}}{|\overrightarrow{P_aP_i}|} $ for each neighbor (exactly as in the formula above) and then clamp the total to $ F_{Smax} $. The multiplication by the separation constant $ K_s $ happens in the weighted sum (see [Behavior composition](#behavior-composition)), not here.
+In order for the formal tests to pass, you have to accumulate the forces $ \frac{\widehat{P_iP_a}}{|\overrightarrow{P_aP_i}|} $ for each neighbor (exactly as in the formula above) and then clamp the total to $ F_{Smax} $. The multiplication by the separation constant $ K_s $ happens in the weighted sum (see [Behavior composition](#behavior-composition)), not here.
 
 [![separationFlow](https://app.code2flow.com/EkvGThGW36SH.code.png)](https://app.code2flow.com/EkvGThGW36SH)
 
@@ -331,11 +331,3 @@ The expected output is the position and velocity for each agent after the simula
 0.000 0.484 0.000 -0.125
 0.000 -0.484 0.000 0.125
 ```
-
-## Grading
-
-10 points total:
-
-- 3 Points – by following standards;
-- 2 Points – properly submitted in Canvas;
-- 5 Points – passed on test cases;

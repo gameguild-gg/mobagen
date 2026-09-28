@@ -48,7 +48,7 @@ namespace mobagen::modules {
       std::optional<LinkageMode> linkage;
       for (const auto& selection : document.resolved) {
         if (selection.provider != plugin.provider) continue;
-        if (selection.version != plugin.version || (selection.linkage != LinkageMode::Dynamic && selection.linkage != LinkageMode::Wasm)
+        if (selection.version != plugin.version || selection.linkage != LinkageMode::Wasm
             || (linkage.has_value() && *linkage != selection.linkage)) {
           return std::nullopt;
         }
@@ -200,7 +200,7 @@ namespace mobagen::modules {
                                   inspected.issue.has_value() ? inspected.issue->message : "locked plugin package is invalid",
                                   inspected.issue.has_value() ? inspected.issue->system_error : std::error_code{});
       }
-      const auto expected_kind = *linkage == LinkageMode::Wasm ? plugins::PluginPackageKind::PortableWasm : plugins::PluginPackageKind::Native;
+      const auto expected_kind = plugins::PluginPackageKind::PortableWasm;
       if (*inspected.kind != expected_kind) {
         return inspection_failure(LockfileVerificationIssueCode::InvalidPackage, plugin.provider, package,
                                   "locked plugin package kind does not match its resolved linkage");
@@ -212,6 +212,10 @@ namespace mobagen::modules {
           .version = plugin.version,
           .linkage = *linkage,
           .abi_version = plugin.abi_version,
+          .api_version = plugin.api_version,
+          .threads = plugin.threads,
+          .shared_memory = plugin.shared_memory,
+          .signature = plugin.signature,
           .expected_hash = plugin.hash,
           .package_path = std::move(package),
           .binary_path = binary,
@@ -246,6 +250,10 @@ namespace mobagen::modules {
           .version = plugin.version,
           .linkage = plugin.linkage,
           .abi_version = plugin.abi_version,
+          .api_version = plugin.api_version,
+          .threads = plugin.threads,
+          .shared_memory = plugin.shared_memory,
+          .signature = std::move(plugin.signature),
           .size = size,
           .package_path = std::move(plugin.package_path),
           .binary_path = std::move(plugin.binary_path),

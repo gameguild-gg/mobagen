@@ -128,6 +128,8 @@ namespace mobagen::test {
           permission_id_(std::move(permission_id)),
           start_status_(start_status) {}
 
+    void set_configuration_schema(std::string_view schema) { configuration_schema_ = std::string{schema}; }
+
     plugins::WasmInvocationResult invoke(plugins::WasmPluginExport function, std::span<const std::uint32_t> arguments) override {
       invocations_->push_back(function);
       if (function == plugins::WasmPluginExport::Allocate) {
@@ -160,12 +162,21 @@ namespace mobagen::test {
       constexpr std::uint32_t id_offset = 96;
       constexpr std::uint32_t capability_offset = 128;
       constexpr std::uint32_t provides_offset = 152;
-      constexpr std::uint32_t permission_offset = 184;
-      constexpr std::uint32_t permissions_offset = 216;
+      constexpr std::uint32_t configuration_offset = 176;
+      constexpr std::uint32_t permission_offset = 208;
+      constexpr std::uint32_t permissions_offset = 240;
       write_string(linear_memory, id_offset, provider_id_);
       write_string(linear_memory, capability_offset, capability_id_);
       write_u32(linear_memory, provides_offset, capability_offset);
       write_u32(linear_memory, provides_offset + 4, static_cast<std::uint32_t>(capability_id_.size()));
+      if (!configuration_schema_.empty()) {
+        write_string(linear_memory, configuration_offset, configuration_schema_);
+        write_u32(linear_memory, descriptor_offset + 64, configuration_offset);
+        write_u32(linear_memory, descriptor_offset + 68, static_cast<std::uint32_t>(configuration_schema_.size()));
+      } else {
+        write_u32(linear_memory, descriptor_offset + 64, 0);
+        write_u32(linear_memory, descriptor_offset + 68, 0);
+      }
       write_u32(linear_memory, descriptor_offset, malformed ? 0 : MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
       write_u32(linear_memory, descriptor_offset + 4, MOBAGEN_WASM_PLUGIN_ABI_VERSION);
       write_u32(linear_memory, descriptor_offset + 8, id_offset);
@@ -177,6 +188,7 @@ namespace mobagen::test {
       write_u32(linear_memory, descriptor_offset + 32, provides_offset);
       write_u32(linear_memory, descriptor_offset + 36, 1);
       for (std::uint32_t field = 40; field < MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE; field += 4) {
+        if (field == 64 || field == 68) continue;
         write_u32(linear_memory, descriptor_offset + field, 0);
       }
       if (!permission_id_.empty()) {
@@ -192,6 +204,7 @@ namespace mobagen::test {
     std::string provider_id_;
     std::string capability_id_;
     std::string permission_id_;
+    std::string configuration_schema_;
     std::uint32_t start_status_;
     std::vector<std::byte> linear_memory = std::vector<std::byte>(256);
   };
@@ -199,20 +212,30 @@ namespace mobagen::test {
   class FakeWasmBackend final : public plugins::PortableWasmBackend {
   public:
     plugins::PortableWasmInstantiationResult instantiate(std::span<const std::byte> binary,
-                                                         std::shared_ptr<plugins::WasmHostImports> imports) override {
+                                                          std::shared_ptr<plugins::WasmHostImports> imports) override {
       ++calls;
       observed.assign(binary.begin(), binary.end());
       host_imports.push_back(imports.get());
       if (throws) throw std::runtime_error{"backend trapped"};
       if (fails) return plugins::PortableWasmInstantiationResult::failure("backend rejected module");
       const auto index = calls - 1;
-      const auto provider_id = provider_ids.empty() ? std::string{"mobagen.wasm-package"} : provider_ids.at(index);
-      const auto capability_id = capability_ids.empty() ? std::string{"runtime.package.v1"} : capability_ids.at(index);
-      const auto permission_id = permission_ids.empty() ? std::string{} : permission_ids.at(index);
-      const auto start_status = start_statuses.empty() ? MOBAGEN_WASM_STATUS_OK : start_statuses.at(index);
+      const auto pick = [&index](const std::vector<std::string>& values, const std::string& fallback) -> std::string {
+        if (values.empty()) return fallback;
+        return values[index % values.size()];
+      };
+      const auto pick_u32 = [&index](const std::vector<std::uint32_t>& values, std::uint32_t fallback) -> std::uint32_t {
+        if (values.empty()) return fallback;
+        return values[index % values.size()];
+      };
+      const auto provider_id = pick(provider_ids, std::string{"mobagen.wasm-package"});
+      const auto capability_id = pick(capability_ids, std::string{"runtime.package.v1"});
+      const auto permission_id = pick(permission_ids, std::string{});
+      const auto configuration_schema = pick(configuration_schemas, std::string{});
+      const auto start_status = pick_u32(start_statuses, MOBAGEN_WASM_STATUS_OK);
       auto instance = std::make_unique<DescriptorInstance>(invocations, provider_id, capability_id, permission_id, start_status,
                                                            drops_host_imports ? std::shared_ptr<plugins::WasmHostImports>{} : std::move(imports));
       instance->malformed = malformed_descriptor;
+      instance->set_configuration_schema(configuration_schema);
       return plugins::PortableWasmInstantiationResult::success(std::move(instance));
     }
 
@@ -223,6 +246,7 @@ namespace mobagen::test {
     std::vector<std::string> provider_ids;
     std::vector<std::string> capability_ids;
     std::vector<std::string> permission_ids;
+    std::vector<std::string> configuration_schemas;
     std::vector<std::uint32_t> start_statuses;
     bool fails{};
     bool throws{};

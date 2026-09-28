@@ -9,7 +9,7 @@
 
 namespace mobagen::modules {
 
-  inline constexpr std::uint32_t project_schema_version = 1;
+  inline constexpr std::uint32_t project_schema_version = 2;
   inline constexpr std::size_t max_module_configuration_bytes = 1024 * 1024;
   inline constexpr std::size_t max_module_source_url_bytes = 2048;
 
@@ -21,7 +21,7 @@ namespace mobagen::modules {
     friend bool operator==(const SemanticVersion&, const SemanticVersion&) = default;
   };
 
-  enum class LinkageMode : std::uint8_t { Static, Dynamic, Wasm, Process };
+  enum class LinkageMode : std::uint8_t { Static, Wasm };
 
   enum class TargetPlatform : std::uint8_t { Windows, Linux, MacOS, Web, Android, IOS };
 
