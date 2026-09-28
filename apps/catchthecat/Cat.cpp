@@ -1,11 +1,26 @@
 #include "Cat.h"
 #include "World.h"
+
+#include <queue>
 #include <stdexcept>
 
 Point2D Cat::Move(CatWorld* world) {
-  auto rand = Random::Range(0, 5);
+  //auto rand = Random::Range(0, 5);
   auto pos = world->getCat();
-  switch (rand) {
+
+  //Heuristics
+  //Dodge areas with many blocked tiles
+
+  //Dijikstra
+  std::priority_queue<
+    std::pair<float, int>,
+    std::vector<std::pair<float, int>>,
+    std::greater<std::pair<float, int>>
+  > pq;
+
+  std::unordered_map<int, std::pair<int, float>> cameFromMap;
+
+  /*switch (rand) {
     case 0:
       return CatWorld::NE(pos);
     case 1:
@@ -21,4 +36,5 @@ Point2D Cat::Move(CatWorld* world) {
     default:
       throw std::runtime_error("random out of range");
   }
+  */
 }
