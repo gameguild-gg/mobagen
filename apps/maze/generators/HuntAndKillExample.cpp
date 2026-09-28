@@ -2,8 +2,10 @@
 #include "../World.h"
 #include "Random.h"
 #include <climits>
+
 bool HuntAndKillExample::Step(World* w) {
   // todo: code this
+
   return false;
 }
 void HuntAndKillExample::Clear(World* world) {
