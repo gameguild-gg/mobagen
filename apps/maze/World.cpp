@@ -27,10 +27,6 @@ void World::Resize(int newWidth, int newHeight) {
   Clear();
 }
 
-Point2D World::ToWorldCoords(const Point2D& formalPoint) const { return {formalPoint.x - width / 2, formalPoint.y - height / 2}; }
-
-Point2D World::ToFormalCoords(const Point2D& worldPoint) const { return {worldPoint.x + width / 2, worldPoint.y + height / 2}; }
-
 Node World::GetNode(const Point2D& point) {
   auto index = Point2DtoIndex(point);
   // todo: not tested!!
@@ -197,9 +193,9 @@ void World::step() {
   totalTime += moveDuration;
 }
 
-void World::SetNodeColor(const Point2D& node, const Color32& color) { colors[(node.y + height / 2) * width + node.x + width / 2] = color; }
+void World::SetNodeColor(const Point2D& node, const Color32& color) { colors[node.y * width + node.x] = color; }
 
-Color32 World::GetNodeColor(const Point2D& node) { return colors[(node.y + height / 2) * width + node.x + width / 2]; }
+Color32 World::GetNodeColor(const Point2D& node) { return colors[node.y * width + node.x]; }
 
 int World::GetWidth() const { return width; }
 
