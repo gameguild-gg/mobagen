@@ -1,3 +1,29 @@
+# [1.26.0](https://github.com/InfiniBrains/mobagen/compare/v1.25.2...v1.26.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **memory:** quiesce-first collect, in-flight bracket, manager mutex + 3 tests (todo 13 micro-task B) ([0a8b009](https://github.com/InfiniBrains/mobagen/commit/0a8b00965125ad2274f566a20a8557363c8603b2))
+* **modules:** resolve populates threads/shared_memory/signature from module.manifest so loader contract check agrees (final-wave F3 defect) ([5a9bac1](https://github.com/InfiniBrains/mobagen/commit/5a9bac1ec929fa4e6b8fa955fccefd2eca18f55b))
+
+
+### Features
+
+* **delivery:** .plugin v2 manifest-aware store + per-platform packaging + aot stage on asset_store (todo 21) ([17340cd](https://github.com/InfiniBrains/mobagen/commit/17340cd9748e4df1a9c571cf296a6a8c9e84dbaf))
+* **memory:** native shim concurrency tests + TSan binary + manager race fixes (todo 13 complete) ([2f7ee17](https://github.com/InfiniBrains/mobagen/commit/2f7ee17754d1b794049a60e5e55e058d42fd6a8a))
+* **memory:** native shim vtable impl (WAMR heap/standalone, pthread buckets) + 8 tests (todo 13 micro-task A) ([04df933](https://github.com/InfiniBrains/mobagen/commit/04df933770cc722ad1307acf7f583f0e17bb7c33))
+* **memory:** SAB/Atomics web shim with isolated fallback (todo 14) ([9168fd8](https://github.com/InfiniBrains/mobagen/commit/9168fd8873566ffa0f697620b4d1c1965960f17a))
+* **memory:** shared-region allocator + tracing GC core with guest-thread quiesce policy; toolchain fetch skeleton (todos 12,19) ([a7b2ab5](https://github.com/InfiniBrains/mobagen/commit/a7b2ab5f5a4a5c9d84ea8818341f95c7636cb168))
+* **modules:** descriptor marshaller both backends + load-time contract enforcement + ASYNCIFY verdict (todos 9,10,11) ([e2b8e93](https://github.com/InfiniBrains/mobagen/commit/e2b8e93413ce4a240fe63646b80431e295431493))
+* **modules:** module ABI v1 header, WAMR feature flip, dual web variants (todos 1,4,5) ([1b9826a](https://github.com/InfiniBrains/mobagen/commit/1b9826a453de6fd79729cd17548fee99156850eb))
+* **modules:** module manifest + lockfile schema v2 with fixture migration ([4ae4653](https://github.com/InfiniBrains/mobagen/commit/4ae465309824d6cf52e5f77ec63450c0edc21e80))
+* **modules:** QuickJS wasm scripting module (<8MB, v2 package, AOT) (todo 16) ([ec887e1](https://github.com/InfiniBrains/mobagen/commit/ec887e1b8e79fb07cf91696a74c1c6ccedc574a4))
+* **modules:** shared-memory guest toolchain + capability gate; wamrc AOT stage with platform gates (todos 18,20) ([5961709](https://github.com/InfiniBrains/mobagen/commit/59617096494a121a06909f44052547d1c134c742))
+* **plugins:** browser wasm backend over sync Module/Instance ([9cf99ef](https://github.com/InfiniBrains/mobagen/commit/9cf99ef420ab1874a204445e27cb0a65cc3f14f2))
+* **tools:** module signature extraction tool ([4119a16](https://github.com/InfiniBrains/mobagen/commit/4119a169687c27440d33994d46ab9eb21acda9df))
+* **wamr:** AOT loading (desktop/android, loud version gate) + shared-heap attach (todo 7) ([3c939eb](https://github.com/InfiniBrains/mobagen/commit/3c939eb1592a1910feb495cdad039a8031f54d3f))
+* **web:** coi-serviceworker + variant picker + COOP/COEP dev server (todo 6) ([63c2273](https://github.com/InfiniBrains/mobagen/commit/63c22736d2fe1dae6460c1db6150da200005d626))
+
 ## [1.25.2](https://github.com/InfiniBrains/mobagen/compare/v1.25.1...v1.25.2) (2026-09-21)
 
 
