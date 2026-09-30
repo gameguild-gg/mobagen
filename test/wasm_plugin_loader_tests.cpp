@@ -217,6 +217,129 @@ TEST_CASE("Portable WASM plugin loader: dot-plugin package shape is strict") {
   CHECK(has_issue(missing, mobagen::plugins::PortableWasmPluginLoadIssueCode::MissingPackageBinary));
 }
 
+TEST_CASE("Portable WASM plugin loader: v2 packages allow plugin.aot and module.manifest beside plugin.wasm") {
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+
+  const auto aot_only_extra = directory.path() / "aot.plugin";
+  REQUIRE(std::filesystem::create_directory(aot_only_extra));
+  write_binary(aot_only_extra / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  std::ofstream(aot_only_extra / mobagen::plugins::portable_wasm_plugin_aot_filename()) << "aot-bytes";
+  const auto with_aot = mobagen::plugins::load_portable_wasm_plugin_package(aot_only_extra, backend);
+  CHECK(with_aot.plugin.has_value());
+
+  const auto full_v2 = directory.path() / "full.plugin";
+  REQUIRE(std::filesystem::create_directory(full_v2));
+  write_binary(full_v2 / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  std::ofstream(full_v2 / mobagen::plugins::portable_wasm_plugin_aot_filename()) << "aot-bytes";
+  std::ofstream(full_v2 / mobagen::plugins::portable_wasm_plugin_manifest_filename()) << "schema: 2\napi: 1\nabi: 1\nentry: "
+                                                                                             "mobagen_module_entry_v1\nexports: []\n";
+  const auto complete = mobagen::plugins::load_portable_wasm_plugin_package(full_v2, backend);
+  CHECK(complete.plugin.has_value());
+  CHECK(complete.issues.empty());
+
+  const auto stray = directory.path() / "stray.plugin";
+  REQUIRE(std::filesystem::create_directory(stray));
+  write_binary(stray / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  std::ofstream(stray / "plugin.aot.tmp") << "near-miss";
+  const auto near_miss = mobagen::plugins::load_portable_wasm_plugin_package(stray, backend);
+  CHECK(has_issue(near_miss, mobagen::plugins::PortableWasmPluginLoadIssueCode::InvalidPackage));
+  CHECK(backend.calls == 2);
+}
+
+TEST_CASE("Portable WASM plugin loader: a present module.manifest must parse") {
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+  const auto package = directory.path() / "broken.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(), "schema: 2\napi: not-a-number\n");
+
+  const auto loaded = mobagen::plugins::load_portable_wasm_plugin_package(package, backend);
+
+  CHECK_FALSE(loaded.ok());
+  CHECK(has_issue(loaded, mobagen::plugins::PortableWasmPluginLoadIssueCode::ManifestInvalid));
+  CHECK(backend.calls == 0);
+}
+
+TEST_CASE("Portable WASM plugin loader: managed threads require the quiesce export") {
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+  const auto package = directory.path() / "managed.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nthreads: managed\nexports: []\n");
+
+  const auto loaded = mobagen::plugins::load_portable_wasm_plugin_package(package, backend);
+
+  CHECK_FALSE(loaded.ok());
+  CHECK(has_issue(loaded, mobagen::plugins::PortableWasmPluginLoadIssueCode::MissingExport));
+  CHECK(backend.calls == 0);
+
+  const auto compliant = directory.path() / "quiesced.plugin";
+  REQUIRE(std::filesystem::create_directory(compliant));
+  write_binary(compliant / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(compliant / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nthreads: managed\nexports:\n  - name: "
+             "mobagen_module_thread_quiesce_v1\n    signature: 1291845632\n");
+  const auto quiesced = mobagen::plugins::load_portable_wasm_plugin_package(compliant, backend);
+  CHECK(quiesced.plugin.has_value());
+  CHECK(quiesced.issues.empty());
+}
+
+TEST_CASE("Portable WASM plugin loader: shared-heap runtimes reject guests without the shared-memory capability") {
+  /* todo 18: the gate is a runtime REQUIREMENT (shared-heap runtimes demand the
+   * capability); distinct from SharedMemoryMismatch (manifest-vs-lock equality).
+   * Isolated-mode runtimes simply leave the requirement unset. */
+  TemporaryWasmDirectory directory;
+  FakeWasmBackend backend;
+  const auto package = directory.path() / "legacy.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\n");
+
+  mobagen::plugins::PortableWasmModuleContract shared_heap_contract;
+  shared_heap_contract.api_version = 1;
+  shared_heap_contract.abi_version = 1;
+  shared_heap_contract.shared_memory = true;
+  shared_heap_contract.requires_shared_memory_capability = true;
+
+  const auto rejected = mobagen::plugins::verify_portable_wasm_module_contract(package, shared_heap_contract);
+  CHECK_FALSE(rejected.ok());
+  REQUIRE(rejected.issues.size() == 1);
+  CHECK(rejected.issues.front().code == mobagen::plugins::PortableWasmPluginLoadIssueCode::SharedMemoryCapabilityMissing);
+  CHECK(backend.calls == 0);
+
+  /* The same package loads untouched when the runtime does not require the
+   * capability (isolated mode / non-shared-heap backend). */
+  mobagen::plugins::PortableWasmModuleContract isolated_contract;
+  isolated_contract.api_version = 1;
+  isolated_contract.abi_version = 1;
+  const auto isolated = mobagen::plugins::verify_portable_wasm_module_contract(package, isolated_contract);
+  CHECK(isolated.issues.empty());
+
+  /* A capable manifest passes the requirement. */
+  const auto capable = directory.path() / "capable.plugin";
+  REQUIRE(std::filesystem::create_directory(capable));
+  write_binary(capable / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  write_text(capable / mobagen::plugins::portable_wasm_plugin_manifest_filename(),
+             "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nshared-memory: true\nexports: []\n");
+  const auto accepted = mobagen::plugins::verify_portable_wasm_module_contract(capable, shared_heap_contract);
+  CHECK(accepted.issues.empty());
+
+  /* Manifest-less legacy packages are rejected loudly too: an old-style guest
+   * is exactly the corruption risk the gate exists for. */
+  const auto bare = directory.path() / "bare.plugin";
+  REQUIRE(std::filesystem::create_directory(bare));
+  write_binary(bare / mobagen::plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
+  const auto bare_rejected = mobagen::plugins::verify_portable_wasm_module_contract(bare, shared_heap_contract);
+  CHECK_FALSE(bare_rejected.ok());
+  REQUIRE(bare_rejected.issues.size() == 1);
+  CHECK(bare_rejected.issues.front().code == mobagen::plugins::PortableWasmPluginLoadIssueCode::SharedMemoryCapabilityMissing);
+}
+
 TEST_CASE("Portable WASM plugin catalog: manifest packages join builtins in one registry") {
   using namespace mobagen;
   TemporaryWasmDirectory directory;
@@ -529,7 +652,7 @@ TEST_CASE("Portable project: mobagen yaml resolves and activates a dot-plugin en
   const auto package = directory.path() / "plugins/reference.plugin";
   REQUIRE(std::filesystem::create_directory(package));
   write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
-  constexpr std::string_view manifest = R"yaml(schema: 1
+  constexpr std::string_view manifest = R"yaml(schema: 2
 name: portable-project-test
 modules:
   runtime:
@@ -571,7 +694,7 @@ profiles:
   const auto lockfile = loaded.runtime->lockfile({0, 0, 1});
   REQUIRE(lockfile.ok());
   CHECK(*lockfile.contents
-        == "schema: 1\n"
+        == "schema: 2\n"
            "sdk: 0.0.1\n"
            "target: "
                + portable_target_name()
@@ -587,14 +710,17 @@ profiles:
                  "    provider: mobagen.wasm-package\n"
                  "    version: 1.0.0\n"
                  "    linkage: wasm\n"
-                 "dependencies: []\n"
-                 "plugins:\n"
-                 "  mobagen.wasm-package:\n"
-                 "    version: 1.0.0\n"
-                 "    abi: 1\n"
-                 "    package: \"plugins/reference.plugin\"\n"
-                 "    hash: "
-               + valid_wasm_hash() + "\n");
+                  "dependencies: []\n"
+                  "plugins:\n"
+                  "  mobagen.wasm-package:\n"
+                  "    version: 1.0.0\n"
+                  "    abi: 1\n"
+                  "    api: 1\n"
+                  "    threads: none\n"
+                  "    shared-memory: false\n"
+                  "    package: \"plugins/reference.plugin\"\n"
+                  "    hash: "
+                + valid_wasm_hash() + "\n");
   CHECK(loaded.runtime->stop().ok());
 }
 
@@ -632,7 +758,7 @@ TEST_CASE("Portable project: input and activation failures never publish a parti
   const auto package = directory.path() / "plugins/reference.plugin";
   REQUIRE(std::filesystem::create_directory(package));
   write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
-  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 2
 name: rejected-portable-project
 modules:
   runtime:
@@ -663,7 +789,7 @@ TEST_CASE("Portable project: update writes a canonical lock that frozen mode enf
   REQUIRE(std::filesystem::create_directory(package));
   const auto binary = package / plugins::portable_wasm_plugin_binary_filename();
   write_binary(binary, valid_wasm_header);
-  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 2
 name: portable-lock-test
 modules:
   runtime:
@@ -721,7 +847,7 @@ TEST_CASE("Portable project: lock preview does not activate plugins") {
   const auto package = directory.path() / "plugins/reference.plugin";
   REQUIRE(std::filesystem::create_directory(package));
   write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
-  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 2
 name: portable-preview-test
 modules:
   runtime:
@@ -760,7 +886,7 @@ TEST_CASE("Portable project: failed lock update rolls back activated plugins") {
   const auto package = directory.path() / "plugins/reference.plugin";
   REQUIRE(std::filesystem::create_directory(package));
   write_binary(package / plugins::portable_wasm_plugin_binary_filename(), valid_wasm_header);
-  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 1
+  write_text(directory.path() / "mobagen.yaml", R"yaml(schema: 2
 name: portable-lock-write-failure
 modules:
   runtime:

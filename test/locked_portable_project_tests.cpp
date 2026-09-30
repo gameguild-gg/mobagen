@@ -30,7 +30,7 @@ namespace {
       REQUIRE(std::filesystem::create_directory(package_));
       mobagen::test::write_binary(binary(), mobagen::test::valid_wasm_header);
       const auto permissions = grants_gpu ? "    permissions:\n      - gpu\n" : "";
-      mobagen::test::write_text(manifest(), std::string{"schema: 1\n"
+      mobagen::test::write_text(manifest(), std::string{"schema: 2\n"
                                                         "name: locked-portable-project\n"
                                                         "modules:\n"
                                                         "  runtime:\n"
@@ -132,6 +132,59 @@ namespace {
 
 }  // namespace
 
+TEST_CASE("Portable project resolve: lock entry carries shared-memory and signature from module.manifest") {
+  using namespace mobagen;
+  test::TemporaryWasmDirectory directory;
+  REQUIRE(std::filesystem::create_directory(directory.path() / "plugins"));
+  const auto package = directory.path() / "plugins/quickjs.plugin";
+  REQUIRE(std::filesystem::create_directory(package));
+  mobagen::test::write_binary(package / mobagen::plugins::portable_wasm_plugin_binary_filename(), mobagen::test::valid_wasm_header);
+  const auto manifest_text = std::string{"schema: 2\n"
+                                         "api: 1\n"
+                                         "abi: 1\n"
+                                         "entry: mobagen_module_entry_v1\n"
+                                         "threads: none\n"
+                                         "shared-memory: true\n"
+                                         "exports:\n"
+                                         "  - name: mobagen_module_eval_v1\n"
+                                         "    signature: 1291845632\n"};
+  mobagen::test::write_text(package / mobagen::plugins::portable_wasm_plugin_manifest_filename(), manifest_text);
+  const auto parsed = mobagen::modules::parse_module_manifest(manifest_text);
+  REQUIRE(parsed.ok());
+  const auto expected_signature = mobagen::modules::module_manifest_signature(*parsed.manifest);
+  REQUIRE(!expected_signature.empty());
+
+  mobagen::test::write_text(directory.path() / "mobagen.yaml",
+                            std::string{"schema: 2\n"
+                                        "name: resolve-manifest-metadata\n"
+                                        "modules:\n"
+                                        "  runtime:\n"
+                                        "    use: mobagen.wasm-package\n"
+                                        "    capability: runtime.package.v1\n"
+                                        "plugins:\n"
+                                        "  - ./plugins/quickjs.plugin\n"
+                                        "profiles:\n"
+                                        "  release:\n"
+                                        "    linkage: wasm\n"
+                                        "    editor: false\n"});
+  test::FakeWasmBackend backend;
+  const modules::ResolverOptions options{
+      .target = test::portable_target(),
+      .profile = "release",
+  };
+
+  auto resolved = compositions::resolve_portable_project_lock(directory.path() / "mobagen.yaml", options, backend);
+
+  REQUIRE(resolved.ok());
+  const auto lock = mobagen::modules::parse_lockfile(*resolved.contents);
+  REQUIRE(lock.ok());
+  REQUIRE(lock.document->metadata.plugins.size() == 1);
+  const auto& plugin = lock.document->metadata.plugins.front();
+  CHECK(plugin.threads == mobagen::modules::ModuleThreadsPolicy::None);
+  CHECK(plugin.shared_memory);
+  CHECK(plugin.signature == expected_signature);
+}
+
 TEST_CASE("Locked portable project: offline open performs zero WASM instantiations") {
   using namespace mobagen;
   LockedPortableProjectFixture project;
@@ -164,8 +217,6 @@ TEST_CASE("Project module manager: manifest profile routes to lazy portable modu
 
   REQUIRE(opened.ok());
   CHECK(opened.product->name == "locked-portable-project");
-  CHECK(opened.manager->kind() == compositions::ProjectModuleRuntimeKind::Portable);
-  CHECK(opened.manager->native() == nullptr);
   CHECK(opened.manager->portable() != nullptr);
   CHECK(opened.manager->active_count() == 0);
   CHECK(backend.calls == 0);
@@ -173,8 +224,6 @@ TEST_CASE("Project module manager: manifest profile routes to lazy portable modu
   const auto acquired = opened.manager->acquire("runtime.package.v1");
   REQUIRE(acquired.ok());
   REQUIRE(acquired.endpoint.has_value());
-  CHECK(acquired.endpoint->kind == compositions::ProjectModuleRuntimeKind::Portable);
-  CHECK_FALSE(acquired.endpoint->native.has_value());
   REQUIRE(acquired.endpoint->portable != nullptr);
   CHECK(acquired.endpoint->portable->provider().id == "mobagen.wasm-package");
   CHECK(opened.manager->active_count() == 1);
@@ -198,7 +247,7 @@ TEST_CASE("Project startup: first run downloads portable modules without instant
   using namespace mobagen;
   test::TemporaryWasmDirectory project;
   test::write_text(project.path() / "mobagen.yaml",
-                   R"yaml(schema: 1
+                   R"yaml(schema: 2
 name: portable-first-run
 sources:
   official:
@@ -233,7 +282,6 @@ profiles:
 
   REQUIRE(started.ok());
   CHECK(started.bootstrap.state == compositions::ProjectBootstrapState::Synchronized);
-  CHECK(started.project.manager->kind() == compositions::ProjectModuleRuntimeKind::Portable);
   CHECK(started.project.manager->active_count() == 0);
   CHECK(client.catalog_requests == 1);
   CHECK(client.artifact_requests == 1);

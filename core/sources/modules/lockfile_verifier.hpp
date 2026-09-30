@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lockfile.hpp"
+#include "module_manifest.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -44,6 +45,10 @@ namespace mobagen::modules {
     SemanticVersion version;
     LinkageMode linkage{};
     std::uint32_t abi_version{};
+    std::uint32_t api_version{1};
+    ModuleThreadsPolicy threads{ModuleThreadsPolicy::None};
+    bool shared_memory{false};
+    std::string signature;
     std::uint64_t size{};
     std::filesystem::path package_path;
     std::filesystem::path binary_path;
@@ -54,6 +59,10 @@ namespace mobagen::modules {
     SemanticVersion version;
     LinkageMode linkage{};
     std::uint32_t abi_version{};
+    std::uint32_t api_version{1};
+    ModuleThreadsPolicy threads{ModuleThreadsPolicy::None};
+    bool shared_memory{false};
+    std::string signature;
     std::string expected_hash;
     std::filesystem::path package_path;
     std::filesystem::path binary_path;

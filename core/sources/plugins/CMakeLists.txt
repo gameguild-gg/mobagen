@@ -2,20 +2,8 @@ add_library(
   mobagen_core_plugins STATIC
   asset_store_v1.h
   fixed_issue_list.hpp
-  plugin_activation.cpp
-  plugin_activation.hpp
-  plugin_activation_set.cpp
-  plugin_activation_set.hpp
-  plugin_catalog.cpp
-  plugin_catalog.hpp
-  plugin_contract.cpp
-  plugin_contract.hpp
-  plugin_loader.cpp
-  plugin_loader.hpp
   plugin_package.cpp
   plugin_package.hpp
-  plugin_store.cpp
-  plugin_store.hpp
   plugin_host.cpp
   plugin_host.hpp
   plugin_abi.h
@@ -45,10 +33,23 @@ add_library(mobagen::core_plugins ALIAS mobagen_core_plugins)
 target_compile_features(mobagen_core_plugins PUBLIC c_std_11 cxx_std_20)
 target_include_directories(mobagen_core_plugins PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(mobagen_core_plugins PUBLIC mobagen::core_modules mobagen::plugin_sdk)
-target_link_libraries(mobagen_core_plugins PRIVATE ${CMAKE_DL_LIBS})
+# v2 store install verifies module.manifest payload hashes (todo 21); both
+# libs are behind MOBAGEN_BUILD_MANIFEST_TOOLS like the loader's use.
+if(TARGET mobagen::module_manifest)
+  target_link_libraries(mobagen_core_plugins PRIVATE mobagen::module_manifest)
+endif()
 
 if(MOBAGEN_WASM_BACKEND_WAMR)
   add_subdirectory(wamr)
   target_sources(mobagen_core_plugins PRIVATE wamr_backend.cpp wamr_backend.hpp)
-  target_link_libraries(mobagen_core_plugins PRIVATE mobagen::wamr_vm)
+  # PUBLIC: consumers of the static lib must link the WAMR runtime and see its
+  # MOBAGEN_WAMR_AOT_BUILD compile definition (tests gate AOT cases on it).
+  target_link_libraries(mobagen_core_plugins PUBLIC mobagen::wamr_vm)
+endif()
+
+# Browser backend (todo 8): delegates plugin compilation to the browser's own
+# wasm engine via the synchronous WebAssembly.Module/Instance constructors.
+# Emscripten-only; also builds the MobagenBrowserBackendSmoke node bundle.
+if(EMSCRIPTEN)
+  add_subdirectory(browser)
 endif()

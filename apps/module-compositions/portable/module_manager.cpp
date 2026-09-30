@@ -41,6 +41,30 @@ namespace mobagen::compositions {
       });
     }
 
+    PortableModuleManagerIssueCode contract_issue_code(plugins::PortableWasmPluginLoadIssueCode code) {
+      using plugins::PortableWasmPluginLoadIssueCode;
+      switch (code) {
+        case PortableWasmPluginLoadIssueCode::MissingManifest:
+          return PortableModuleManagerIssueCode::MissingManifest;
+        case PortableWasmPluginLoadIssueCode::ManifestInvalid:
+          return PortableModuleManagerIssueCode::ManifestInvalid;
+        case PortableWasmPluginLoadIssueCode::ApiVersionMismatch:
+          return PortableModuleManagerIssueCode::ApiVersionMismatch;
+        case PortableWasmPluginLoadIssueCode::AbiVersionMismatch:
+          return PortableModuleManagerIssueCode::AbiVersionMismatch;
+        case PortableWasmPluginLoadIssueCode::ThreadsPolicyMismatch:
+          return PortableModuleManagerIssueCode::ThreadsPolicyMismatch;
+        case PortableWasmPluginLoadIssueCode::SharedMemoryMismatch:
+          return PortableModuleManagerIssueCode::SharedMemoryMismatch;
+        case PortableWasmPluginLoadIssueCode::MissingExport:
+          return PortableModuleManagerIssueCode::MissingExport;
+        case PortableWasmPluginLoadIssueCode::SignatureMismatch:
+          return PortableModuleManagerIssueCode::SignatureMismatch;
+        default:
+          return PortableModuleManagerIssueCode::LoadFailed;
+      }
+    }
+
   }  // namespace
 
   PortableModuleManager::PortableModuleManager(std::unique_ptr<modules::LockedPluginActivationPlan> plan, plugins::PortableWasmBackend& backend,
@@ -162,6 +186,18 @@ namespace mobagen::compositions {
           });
           return result;
         }
+      }
+      auto contract = plugins::verify_portable_wasm_module_contract(
+          entry.package_path, {.api_version = entry.api_version, .abi_version = entry.abi_version, .threads = entry.threads,
+                               .shared_memory = entry.shared_memory, .signature = entry.signature});
+      if (!contract.issues.empty()) {
+        result.issues.push_back({
+            .code = contract_issue_code(contract.issues.front().code),
+            .provider_id = entry.provider_id,
+            .message = contract.issues.front().message,
+            .load_issues = std::move(contract.issues),
+        });
+        return result;
       }
       auto candidate = plugins::load_portable_wasm_plugin_binary(entry.binary_path, *backend_, host_services_);
       if (!candidate.plugin.has_value()) {

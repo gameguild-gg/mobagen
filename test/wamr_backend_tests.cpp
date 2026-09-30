@@ -4,6 +4,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <span>
 #include <string>
@@ -11,15 +15,97 @@
 #include <thread>
 #include <vector>
 
+#include <mobagen/module/module_abi.h>
 #include <mobagen/plugin/wasm_abi.h>
 
 #include "modules/capability_registry.hpp"
+#include "modules/module_manifest.hpp"
 #include "plugins/wamr_backend.hpp"
 #include "plugins/wasm_plugin_activation_set.hpp"
 #include "plugins/wasm_runtime.hpp"
 #include "support/wasm_plugin_test_support.hpp"
 
 namespace {
+
+  /* WAMR AOT magic (config.h 0x746f6100, little-endian "\0aot") + the current
+   * AOT package version — synthesized "fake .aot" bytes for the always-run
+   * rejection tests (never a real wamrc artifact). */
+  constexpr std::array aot_magic_bytes{std::byte{0x00}, std::byte{0x61}, std::byte{0x6f}, std::byte{0x74}};
+
+  std::vector<std::byte> make_fake_aot(std::size_t size) {
+    std::vector<std::byte> bytes(size, std::byte{0});
+    if (size >= aot_magic_bytes.size()) {
+      std::ranges::copy(aot_magic_bytes, bytes.begin());
+      if (size >= 8) {
+        bytes[4] = std::byte{0x05};  // AOT_CURRENT_VERSION 5 for WAMR 2.4.5
+        bytes[5] = std::byte{0x00};
+        bytes[6] = std::byte{0x00};
+        bytes[7] = std::byte{0x00};
+      }
+    }
+    return bytes;
+  }
+
+#if !defined(MOBAGEN_TEST_WAMRC_CACHE_DIR)
+#define MOBAGEN_TEST_WAMRC_CACHE_DIR ""
+#endif
+
+#if !defined(MOBAGEN_TEST_WAMR_SOURCE_DIR)
+#define MOBAGEN_TEST_WAMR_SOURCE_DIR ""
+#endif
+
+  /* Runs wamrc (WAMR-2.4.5 prebuilt fetched into external/wamrc-cache/, or any
+   * wamrc on PATH built from the same pinned source) over a reference wasm to
+   * produce a real .aot fixture at test time. Returns empty when unavailable —
+   * callers must SKIP loudly then. */
+  std::vector<std::byte> compile_aot_fixture(const std::filesystem::path& wasm_path, const std::filesystem::path& output_path) {
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    if (const char* cache = std::getenv("MOBAGEN_WAMRC_PATH"); cache != nullptr && *cache != '\0') candidates.emplace_back(cache);
+    if constexpr (std::string_view{MOBAGEN_TEST_WAMRC_CACHE_DIR} != "") {
+      candidates.emplace_back(fs::path{MOBAGEN_TEST_WAMRC_CACHE_DIR} / "wamrc" / "wamrc");
+      candidates.emplace_back(fs::path{MOBAGEN_TEST_WAMRC_CACHE_DIR} / "wamrc");
+    }
+    candidates.emplace_back("wamrc");
+
+    fs::path wamrc;
+    std::string attempted;
+    for (const auto& candidate : candidates) {
+      std::error_code ignored;
+      if (fs::is_regular_file(candidate, ignored) || candidate == "wamrc") {
+        wamrc = candidate;
+        break;
+      }
+      attempted += " " + candidate.string();
+    }
+    if (wamrc.empty()) {
+      std::fprintf(stderr, "SKIP: no wamrc available (tried:%s); set MOBAGEN_WAMRC_PATH or populate external/wamrc-cache/ to enable the real-AOT fixture\n",
+                   attempted.c_str());
+      return {};
+    }
+
+#if defined(__aarch64__) || defined(_M_ARM64)
+    constexpr const char* target = "aarch64";
+#elif defined(__x86_64__) || defined(_M_X64)
+    constexpr const char* target = "x86_64";
+#else
+    std::fprintf(stderr, "SKIP: real-AOT fixture has no target mapping on this CPU\n");
+    return {};
+#endif
+
+    const auto command = wamrc.string() + " --target=" + target + " -o " + output_path.string() + " " + wasm_path.string() + " 2>&1";
+    const auto status = std::system(command.c_str());
+    std::error_code ignored;
+    if (status != 0 || !fs::is_regular_file(output_path, ignored) || fs::file_size(output_path, ignored) == 0) {
+      std::fprintf(stderr, "SKIP: wamrc failed to produce the .aot fixture (exit %d)\n", status);
+      fs::remove(output_path, ignored);
+      return {};
+    }
+
+    std::ifstream input(output_path, std::ios::binary);
+    std::string bytes{std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+    return {reinterpret_cast<const std::byte*>(bytes.data()), reinterpret_cast<const std::byte*>(bytes.data() + bytes.size())};
+  }
 
   void append_u32_leb(std::vector<std::byte>& output, std::uint32_t value) {
     do {
@@ -587,4 +673,474 @@ TEST_CASE("WAMR backend: a dot-plugin package resolves and activates end to end"
 
   CHECK(activated.activation->stop().ok());
   CHECK(active->state() == plugins::PortableWasmPluginState::Stopped);
+}
+
+#if MOBAGEN_WAMR_AOT_BUILD
+
+TEST_CASE("WAMR backend: AOT payload selection prefers .aot and falls back to the interpreter") {
+  using namespace mobagen::plugins;
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  CHECK(WamrBackend::runtime_wamr_version() == std::string_view{"2.4.5"});
+  const auto wasm = make_module(wasm_plugin_export_name(WasmPluginExport::Start));
+
+  SUBCASE("no .aot payload: interpreter fallback") {
+    const auto selection = backend.instantiate_prefer_aot(wasm, {}, "2.4.5", nullptr);
+    REQUIRE_MESSAGE(selection.result.ok(), selection.result.error.value_or("unknown WAMR error"));
+    CHECK_FALSE(selection.used_aot);
+    CHECK_FALSE(selection.issue.has_value());
+    const auto started = selection.result.instance->invoke(WasmPluginExport::Start, {});
+    REQUIRE(started.ok());
+    CHECK(*started.value == 0U);
+  }
+
+  SUBCASE("truncated .aot payload: loud AotInvalidBinary, no fallback") {
+    const auto truncated = make_fake_aot(3);
+    const auto selection = backend.instantiate_prefer_aot(wasm, truncated, "", nullptr);
+    CHECK_FALSE(selection.result.ok());
+    CHECK_FALSE(selection.used_aot);
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotInvalidBinary);
+    CHECK(selection.result.error->find("AOT") != std::string::npos);
+  }
+
+  SUBCASE("corrupted .aot payload with valid magic: loud AotInvalidBinary") {
+    auto corrupted = make_fake_aot(256);
+    for (std::size_t index = 8; index < corrupted.size(); ++index) corrupted[index] = std::byte{0xc3};
+    const auto selection = backend.instantiate_prefer_aot(wasm, corrupted, "", nullptr);
+    CHECK_FALSE(selection.result.ok());
+    CHECK_FALSE(selection.used_aot);
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotInvalidBinary);
+  }
+
+  SUBCASE("version-mismatched manifest toolchain: loud AotVersionMismatch before instantiation") {
+    const auto fake = make_fake_aot(64);
+    const auto selection = backend.instantiate_prefer_aot(wasm, fake, "2.4.4", nullptr);
+    CHECK_FALSE(selection.result.ok());
+    CHECK_FALSE(selection.used_aot);
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotVersionMismatch);
+    CHECK(selection.result.error->find("2.4.4") != std::string::npos);
+    CHECK(selection.result.error->find(WamrBackend::runtime_wamr_version()) != std::string::npos);
+  }
+
+  SUBCASE("matching manifest toolchain version is accepted") {
+    const auto fake = make_fake_aot(64);
+    const auto selection = backend.instantiate_prefer_aot(wasm, fake, std::string{WamrBackend::runtime_wamr_version()}, nullptr);
+    REQUIRE_FALSE(selection.result.ok());  // fake bytes cannot actually load
+    REQUIRE(selection.issue.has_value());
+    CHECK(*selection.issue == PortableWasmAotIssueCode::AotInvalidBinary);  // version check passed; payload itself is fake
+  }
+}
+
+TEST_CASE("WAMR backend: a real wamrc fixture loads and invokes through the AOT path") {
+  using namespace mobagen::plugins;
+  namespace fs = std::filesystem;
+
+  const mobagen::test::TemporaryWasmDirectory directory;
+  const auto wasm_path = directory.path() / "reference.wasm";
+  const auto aot_path = directory.path() / "reference.aot";
+  mobagen::test::write_binary(wasm_path, make_module(wasm_plugin_export_name(WasmPluginExport::Start)));
+
+  const auto aot = compile_aot_fixture(wasm_path, aot_path);
+  if (aot.empty()) return;  // SKIP already reported by compile_aot_fixture
+
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  const auto selection = backend.instantiate_prefer_aot(make_module(wasm_plugin_export_name(WasmPluginExport::Start)), aot,
+                                                        WamrBackend::runtime_wamr_version(), nullptr);
+  REQUIRE_MESSAGE(selection.result.ok(), selection.result.error.value_or("unknown WAMR error"));
+  CHECK(selection.used_aot);
+
+  const auto started = selection.result.instance->invoke(WasmPluginExport::Start, {});
+  REQUIRE(started.ok());
+  CHECK(*started.value == 0U);
+  REQUIRE(selection.result.instance->memory().size() == 64U * 1024U);
+}
+
+#if MOBAGEN_WAMR_AOT_BUILD
+
+TEST_CASE("WAMR backend: the todo 20 AOT build stage output loads through the preferential path") {
+  using namespace mobagen::plugins;
+  namespace fs = std::filesystem;
+
+  /* Proof of the full chain: the reference guest's build tree carries the
+   * stage-produced plugin.aot + module.manifest (wamrc toolchain stamped).
+   * The .wasm side of the selection is synthesized (annotation exports, no
+   * plugin-ABI exports) so the check targets payload selection, not the
+   * plugin descriptor query. Absent stage outputs = loud SKIP (machines
+   * without the wamrc cache still configure; see mobagen_module_aot.cmake). */
+#if !defined(MOBAGEN_MODULE_EXTRACTION_REFERENCE_GUEST)
+  std::fprintf(stderr, "SKIP: reference guest path not compiled in\n");
+  return;
+#else
+  const fs::path guest_wasm = MOBAGEN_MODULE_EXTRACTION_REFERENCE_GUEST;
+  const fs::path stage_dir = guest_wasm.parent_path();
+  const fs::path stage_aot = stage_dir / "plugin.aot";
+  const fs::path stage_manifest = stage_dir / "module.manifest";
+  if (!fs::is_regular_file(stage_aot) || !fs::is_regular_file(stage_manifest)) {
+    std::fprintf(stderr, "SKIP: AOT stage outputs absent under %s (no pinned wamrc at configure time)\n", stage_dir.string().c_str());
+    return;
+  }
+
+  std::error_code ignored;
+  const auto aot_size = fs::file_size(stage_aot, ignored);
+  REQUIRE(aot_size > 4);
+  {
+    std::ifstream aot_input(stage_aot, std::ios::binary);
+    char magic[4] = {};
+    aot_input.read(magic, 4);
+    REQUIRE(aot_input.gcount() == 4);
+    CHECK(magic[0] == '\x00');
+    CHECK(magic[1] == 'a');
+    CHECK(magic[2] == 'o');
+    CHECK(magic[3] == 't');
+  }
+
+  /* Manifest stamp: toolchain producer/version + plugin.aot payload hash. */
+  std::ifstream manifest_input(stage_manifest, std::ios::binary);
+  const std::string manifest_text{std::istreambuf_iterator<char>{manifest_input}, std::istreambuf_iterator<char>{}};
+  const auto parsed = mobagen::modules::parse_module_manifest(manifest_text, stage_manifest.string());
+  const std::string parse_failure = parsed.ok() ? std::string{} : "manifest parse failed: " + parsed.errors.front().message;
+  REQUIRE_MESSAGE(parsed.ok(), parse_failure.c_str());
+  REQUIRE(parsed.manifest->toolchain.has_value());
+  CHECK(parsed.manifest->toolchain->producer == "wamrc");
+  CHECK(parsed.manifest->toolchain->version == WamrBackend::runtime_wamr_version());
+  const auto aot_payload = std::ranges::find(parsed.manifest->payloads, std::string{"plugin.aot"},
+                                             &mobagen::modules::ModuleManifestPayload::filename);
+  REQUIRE(aot_payload != parsed.manifest->payloads.end());
+  CHECK(aot_payload->size == aot_size);
+  CHECK(aot_payload->hash.starts_with("sha256:"));
+
+  /* Preferential load: the stage-produced .aot + the stamped toolchain
+   * version must select and instantiate AOT, exactly as the package loader
+   * (wasm_plugin_loader) does for .plugin v2 dirs. */
+  std::ifstream aot_bytes_input(stage_aot, std::ios::binary);
+  std::string aot_text{std::istreambuf_iterator<char>{aot_bytes_input}, std::istreambuf_iterator<char>{}};
+  const std::vector<std::byte> aot_bytes{reinterpret_cast<const std::byte*>(aot_text.data()),
+                                         reinterpret_cast<const std::byte*>(aot_text.data() + aot_text.size())};
+
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  const auto selection = backend.instantiate_prefer_aot(aot_bytes, aot_bytes, parsed.manifest->toolchain->version, nullptr);
+  REQUIRE_MESSAGE(selection.result.ok(), selection.result.error.value_or("unknown WAMR error"));
+  CHECK(selection.used_aot);
+#endif
+}
+
+#endif
+
+#else
+
+TEST_CASE("WAMR backend: AOT payloads are rejected on interpreter-only platforms") {
+  using namespace mobagen::plugins;
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  const auto wasm = make_module(wasm_plugin_export_name(WasmPluginExport::Start));
+  const auto selection = backend.instantiate_prefer_aot(wasm, make_fake_aot(64), "2.4.5", nullptr);
+  CHECK_FALSE(selection.result.ok());
+  REQUIRE(selection.issue.has_value());
+  CHECK(*selection.issue == PortableWasmAotIssueCode::AotUnsupportedPlatform);
+
+  const auto fallback = backend.instantiate_prefer_aot(wasm, {}, "2.4.5", nullptr);
+  REQUIRE_MESSAGE(fallback.result.ok(), fallback.result.error.value_or("unknown WAMR error"));
+  CHECK_FALSE(fallback.used_aot);
+}
+
+#endif
+
+TEST_CASE("WAMR backend: a shared heap region is exposed, attached, and reused") {
+  using namespace mobagen::plugins;
+  constexpr std::uint32_t heap_bytes = 8U * 1024U;
+
+  WamrBackend plain;
+  REQUIRE(plain.available());
+  CHECK(plain.shared_heap_region().data == nullptr);
+  CHECK(plain.shared_heap_region().size == 0U);
+
+  WamrBackend shared({.shared_heap_size_bytes = heap_bytes});
+  REQUIRE(shared.available());
+  const auto region = shared.shared_heap_region();
+  REQUIRE(region.data != nullptr);
+  CHECK(region.size >= heap_bytes);  // WAMR requires page-aligned sizes; the region may be rounded up
+  const auto region_size = region.size;
+  CHECK((reinterpret_cast<std::uintptr_t>(region.data) % (64U * 1024U)) == 0U);
+  region.data[0] = std::byte{0x7f};
+  region.data[region_size - 1] = std::byte{0x5a};
+
+  const auto wasm = make_module(wasm_plugin_export_name(WasmPluginExport::Start));
+  {
+    auto first = shared.instantiate(wasm, nullptr);
+    REQUIRE_MESSAGE(first.ok(), first.error.value_or("unknown WAMR error"));
+    CHECK(first.instance->writable_memory().size() == 64U * 1024U);
+    auto second = shared.instantiate(wasm, nullptr);
+    REQUIRE_MESSAGE(second.ok(), second.error.value_or("unknown WAMR error"));
+    CHECK(first.instance->invoke(WasmPluginExport::Start, {}).ok());
+    CHECK(second.instance->invoke(WasmPluginExport::Start, {}).ok());
+  }
+  CHECK(shared.shared_heap_region().data[0] == std::byte{0x7f});
+  CHECK(shared.shared_heap_region().data[region_size - 1] == std::byte{0x5a});
+
+  WamrBackend bad_heap({.shared_heap_size_bytes = 8U});
+  CHECK_FALSE(bad_heap.available());
+}
+
+TEST_CASE("WAMR backend: descriptor-driven marshal invokes a two-i32 export with correct values") {
+  using namespace mobagen::plugins;
+  using mobagen::modules::ModuleMarshalingType;
+  using mobagen::modules::ModuleExportMarshaling;
+
+  /* (add: (i32,i32)->i32 via local.get 0; local.get 1; i32.add) plus the
+     required memory export; type section also declares ()->void for a void
+     probe. */
+  std::vector<std::byte> module{
+      std::byte{0x00}, std::byte{0x61}, std::byte{0x73}, std::byte{0x6d}, std::byte{0x01}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+  };
+  std::vector<std::byte> types;
+  append_u32_leb(types, 2);
+  for (const std::uint32_t parameter_count : {2U, 0U}) {
+    types.push_back(std::byte{0x60});
+    append_u32_leb(types, parameter_count);
+    for (std::uint32_t parameter = 0; parameter < parameter_count; ++parameter) types.push_back(std::byte{0x7f});
+    if (parameter_count != 0U) {
+      types.push_back(std::byte{0x01});
+      types.push_back(std::byte{0x7f});
+    } else {
+      types.push_back(std::byte{0x00});
+    }
+  }
+  append_section(module, 1, types);
+
+  const std::array function_section{std::byte{0x02}, std::byte{0x00}, std::byte{0x01}};
+  append_section(module, 3, function_section);
+  const std::array memory_section{std::byte{0x01}, std::byte{0x00}, std::byte{0x01}};
+  append_section(module, 5, memory_section);
+
+  std::vector<std::byte> exports;
+  append_u32_leb(exports, 2);
+  append_name(exports, MOBAGEN_WASM_MEMORY_EXPORT_V1);
+  exports.insert(exports.end(), {std::byte{0x02}, std::byte{0x00}});
+  append_name(exports, "mobagen_add");
+  exports.push_back(std::byte{0x00});
+  append_u32_leb(exports, 0);
+  append_section(module, 7, exports);
+
+  std::vector<std::byte> code;
+  append_u32_leb(code, 2);
+  std::vector<std::byte> add_body{std::byte{0x00}, std::byte{0x20}, std::byte{0x00}, std::byte{0x20}, std::byte{0x01}, std::byte{0x6a},
+                                  std::byte{0x0b}};
+  append_function_body(code, add_body);
+  std::vector<std::byte> void_body{std::byte{0x00}, std::byte{0x0b}};
+  append_function_body(code, void_body);
+  append_section(module, 10, code);
+
+  WamrBackend backend;
+  REQUIRE(backend.available());
+  auto instantiated = backend.instantiate(module, nullptr);
+  REQUIRE_MESSAGE(instantiated.ok(), instantiated.error.value_or("unknown WAMR error"));
+
+  const ModuleExportMarshaling add_marshal{ModuleMarshalingType::I32, 2, {ModuleMarshalingType::I32, ModuleMarshalingType::I32}};
+  std::array<std::uint32_t, 2> result_cells{};
+  const std::array arguments{std::uint32_t{20}, std::uint32_t{22}};
+  const auto status = WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", add_marshal, arguments, result_cells);
+  REQUIRE(status == 0);
+  CHECK(result_cells[0] == 42);
+
+  /* Wrong cell count for the descriptor = loud rejection before the call. */
+  const std::array one_argument{std::uint32_t{20}};
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", add_marshal, one_argument, result_cells) == -3);
+
+  /* Unknown export name = missing-export rejection. */
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_missing", add_marshal, arguments, result_cells) == -1);
+
+  /* ptr cell beyond guest memory = bounds rejection before the call. */
+  const ModuleExportMarshaling ptr_marshal{ModuleMarshalingType::I32, 1, {ModuleMarshalingType::Ptr}};
+  const std::array out_of_bounds{std::uint32_t{0x7fffffff}};
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", ptr_marshal, out_of_bounds, result_cells) == -3);
+
+  /* Same descriptor decodes from a manifest round-trip: the descriptor the
+     dispatcher walks is exactly the manifest's derived data. */
+  const auto signature = MOBAGEN_MODULE_SIG_2(MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32, MOBAGEN_MODULE_T_I32);
+  mobagen::modules::ModuleManifest manifest;
+  manifest.api_version = 1;
+  manifest.abi_version = 1;
+  manifest.entry = "mobagen_module_entry_v1";
+  manifest.exports = {{"mobagen_add", signature, {}}};
+  const auto parsed = mobagen::modules::parse_module_manifest(mobagen::modules::serialize_module_manifest(manifest));
+  REQUIRE(parsed.ok());
+  REQUIRE(parsed.manifest->exports[0].marshaling.has_value());
+  CHECK(parsed.manifest->exports[0].marshaling->return_type == add_marshal.return_type);
+  CHECK(parsed.manifest->exports[0].marshaling->param_count == add_marshal.param_count);
+  CHECK(parsed.manifest->exports[0].marshaling->params == add_marshal.params);
+  CHECK(WamrBackend::wamr_invoke_typed_export(*instantiated.instance, "mobagen_add", *parsed.manifest->exports[0].marshaling, arguments,
+                                              result_cells)
+        == 0);
+  CHECK(result_cells[0] == 42);
+}
+
+TEST_CASE("WAMR backend: a dot-plugin package with a plugin.aot payload resolves through the loader") {
+  using namespace mobagen;
+  namespace fs = std::filesystem;
+
+  const test::TemporaryWasmDirectory directory;
+  HostCapture capture;
+  const plugins::WasmHostServices services{.state = &capture, .submit_commands = capture_commands};
+
+  const auto write_package = [&](const std::string& name) {
+    const auto package = directory.path() / name;
+    REQUIRE(fs::create_directory(package));
+    test::write_binary(package / plugins::portable_wasm_plugin_binary_filename(),
+                       make_module(plugins::wasm_plugin_export_name(plugins::WasmPluginExport::Start)));
+    return package;
+  };
+
+  plugins::WamrBackend backend;
+  REQUIRE(backend.available());
+
+#if MOBAGEN_WAMR_AOT_BUILD
+  const auto rejected = write_package("corrupt.plugin");
+  test::write_binary(rejected / plugins::portable_wasm_plugin_aot_filename(), make_fake_aot(3));
+  test::write_text(rejected / plugins::portable_wasm_plugin_manifest_filename(),
+                   "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\ntoolchain:\n  producer: wamrc\n  version: "
+                       + std::string{plugins::WamrBackend::runtime_wamr_version()} + "\n");
+  const auto corrupt = plugins::load_portable_wasm_plugin_package(rejected, backend, services);
+  CHECK_FALSE(corrupt.ok());
+  REQUIRE_FALSE(corrupt.issues.empty());
+  CHECK(corrupt.issues.front().code == plugins::PortableWasmPluginLoadIssueCode::AotRejected);
+  REQUIRE(corrupt.issues.front().aot_issue.has_value());
+  CHECK(*corrupt.issues.front().aot_issue == plugins::PortableWasmAotIssueCode::AotInvalidBinary);
+  CHECK(corrupt.issues.front().message.find("aot-invalid-binary") != std::string::npos);
+
+  const auto mismatched = write_package("mismatch.plugin");
+  test::write_binary(mismatched / plugins::portable_wasm_plugin_aot_filename(), make_fake_aot(64));
+  test::write_text(mismatched / plugins::portable_wasm_plugin_manifest_filename(),
+                   "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\ntoolchain:\n  producer: wamrc\n  version: 2.4.4\n");
+  const auto mismatch = plugins::load_portable_wasm_plugin_package(mismatched, backend, services);
+  CHECK_FALSE(mismatch.ok());
+  REQUIRE_FALSE(mismatch.issues.empty());
+  CHECK(mismatch.issues.front().code == plugins::PortableWasmPluginLoadIssueCode::AotRejected);
+  REQUIRE(mismatch.issues.front().aot_issue.has_value());
+  CHECK(*mismatch.issues.front().aot_issue == plugins::PortableWasmAotIssueCode::AotVersionMismatch);
+  CHECK(mismatch.issues.front().message.find("aot-version-mismatch") != std::string::npos);
+
+  const auto real_aot_package = directory.path() / "real.plugin";
+  REQUIRE(fs::create_directory(real_aot_package));
+  const auto reference = make_reference_plugin_module();
+  test::write_binary(real_aot_package / plugins::portable_wasm_plugin_binary_filename(), reference);
+  test::write_binary(directory.path() / "reference.wasm", reference);
+  const auto aot = compile_aot_fixture(directory.path() / "reference.wasm", directory.path() / "reference.aot");
+  if (!aot.empty()) {
+    CHECK(aot.size() > aot_magic_bytes.size());
+    test::write_binary(real_aot_package / plugins::portable_wasm_plugin_aot_filename(), aot);
+    test::write_text(real_aot_package / plugins::portable_wasm_plugin_manifest_filename(),
+                     "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\ntoolchain:\n  producer: wamrc\n  version: "
+                         + std::string{plugins::WamrBackend::runtime_wamr_version()} + "\n");
+    const auto loaded = plugins::load_portable_wasm_plugin_package(real_aot_package, backend, services);
+    std::string error = "unknown load error";
+    if (!loaded.issues.empty()) error = loaded.issues.front().message;
+    REQUIRE_MESSAGE(loaded.ok(), error);
+    CHECK(loaded.plugin->provider().id == "mobagen.wamr-reference");
+  }
+#endif
+
+  const auto fallback = directory.path() / "fallback.plugin";
+  REQUIRE(fs::create_directory(fallback));
+  test::write_binary(fallback / plugins::portable_wasm_plugin_binary_filename(), make_reference_plugin_module());
+  const auto plain = plugins::load_portable_wasm_plugin_package(fallback, backend, services);
+  std::string plain_error = "unknown load error";
+  if (!plain.issues.empty()) plain_error = plain.issues.front().message;
+  CHECK_MESSAGE(plain.ok(), plain_error);
+  CHECK(plain.plugin.has_value());
+}
+
+#if !defined(MOBAGEN_TEST_WASI_ASSET_STORE_GUEST)
+#define MOBAGEN_TEST_WASI_ASSET_STORE_GUEST ""
+#endif
+
+TEST_CASE("WAMR backend: the wasi-built asset store guest loads with its shared-memory capability manifest") {
+  using namespace mobagen::plugins;
+  namespace fs = std::filesystem;
+
+  /* todo 18: the portable asset store guest built by the wasi-sdk stage
+   * (shared-memory-capable: -matomics -mbulk-memory, annotation table,
+   * target_features +atomics) loads through WAMR and its build-tree
+   * module.manifest declares shared-memory: true — accepted by a
+   * shared-heap contract, rejected when a legacy manifest lacks the flag.
+   * Absent stage outputs = loud SKIP (no wasi-sdk fetched). */
+  if constexpr (std::string_view{MOBAGEN_TEST_WASI_ASSET_STORE_GUEST} == "") {
+    std::fprintf(stderr, "SKIP: wasi asset store guest path not compiled in\n");
+    return;
+  } else {
+    const fs::path guest_wasm = MOBAGEN_TEST_WASI_ASSET_STORE_GUEST;
+    const fs::path package_dir = guest_wasm.parent_path();
+    const fs::path manifest_path = package_dir / portable_wasm_plugin_manifest_filename();
+    if (!fs::is_regular_file(guest_wasm) || !fs::is_regular_file(manifest_path)) {
+      std::fprintf(stderr, "SKIP: wasi asset store guest absent under %s (run `python3 scripts/toolchains.py fetch wasi-sdk`)\n",
+                   package_dir.string().c_str());
+      return;
+    }
+
+    WamrBackend backend;
+    REQUIRE(backend.available());
+
+    std::vector<std::byte> bytecode;
+    {
+      std::ifstream input(guest_wasm, std::ios::binary);
+      std::string bytes{std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+      bytecode.assign(reinterpret_cast<const std::byte*>(bytes.data()), reinterpret_cast<const std::byte*>(bytes.data() + bytes.size()));
+      REQUIRE(bytecode.size() > 8);
+    }
+
+    /* The wasm itself instantiates and answers the plugin descriptor query. */
+    auto instantiated = backend.instantiate(bytecode, nullptr);
+    REQUIRE_MESSAGE(instantiated.ok(), instantiated.error.value_or("unknown WAMR error"));
+    const std::array allocate_arguments{MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE, MOBAGEN_WASM_EXCHANGE_ALIGNMENT};
+    const auto allocation = instantiated.instance->invoke(WasmPluginExport::Allocate, allocate_arguments);
+    REQUIRE(allocation.ok());
+    const std::array query_arguments{*allocation.value, MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE};
+    const auto queried = instantiated.instance->invoke(WasmPluginExport::Query, query_arguments);
+    REQUIRE(queried.ok());
+    CHECK(*queried.value == MOBAGEN_WASM_STATUS_OK);
+    /* descriptor landed at the allocated offset inside the guest heap */
+    CHECK(read_u32(instantiated.instance->memory(), *allocation.value) == MOBAGEN_WASM_PLUGIN_DESCRIPTOR_V1_SIZE);
+    CHECK(read_u32(instantiated.instance->memory(), *allocation.value + 4) == MOBAGEN_WASM_PLUGIN_ABI_VERSION);
+    instantiated.instance.reset();
+
+    /* The generated manifest carries the capability stamp. */
+    std::ifstream manifest_input(manifest_path, std::ios::binary);
+    const std::string manifest_text{std::istreambuf_iterator<char>{manifest_input}, std::istreambuf_iterator<char>{}};
+    const auto parsed = mobagen::modules::parse_module_manifest(manifest_text, manifest_path.string());
+    REQUIRE(parsed.ok());
+    CHECK(parsed.manifest->shared_memory);
+    CHECK(parsed.manifest->threads == mobagen::modules::ModuleThreadsPolicy::None);
+    REQUIRE(parsed.manifest->exports.size() == 9);
+
+    /* End to end through the package loader (manifest validated eagerly). */
+    const auto loaded = load_portable_wasm_plugin_package(package_dir, backend);
+    std::string load_error = "unknown load error";
+    if (!loaded.issues.empty()) load_error = loaded.issues.front().message;
+    REQUIRE_MESSAGE(loaded.ok(), load_error);
+    CHECK(loaded.plugin->provider().id == "mobagen.assets.default");
+
+    /* A shared-heap contract accepts the capable guest; a legacy manifest
+     * without the stamp is rejected loudly (SharedMemoryCapabilityMissing). */
+    PortableWasmModuleContract shared_heap_contract;
+    shared_heap_contract.api_version = 1;
+    shared_heap_contract.abi_version = 1;
+    shared_heap_contract.shared_memory = true;
+    shared_heap_contract.requires_shared_memory_capability = true;
+    const auto accepted = verify_portable_wasm_module_contract(package_dir, shared_heap_contract);
+    CHECK(accepted.issues.empty());
+
+    const mobagen::test::TemporaryWasmDirectory scratch;
+    const auto legacy = scratch.path() / "legacy.plugin";
+    REQUIRE(fs::create_directory(legacy));
+    fs::copy(guest_wasm, legacy / portable_wasm_plugin_binary_filename(), fs::copy_options::overwrite_existing);
+    mobagen::test::write_text(legacy / portable_wasm_plugin_manifest_filename(),
+                              "schema: 2\napi: 1\nabi: 1\nentry: mobagen_module_entry_v1\nexports: []\n");
+    const auto rejected = verify_portable_wasm_module_contract(legacy, shared_heap_contract);
+    REQUIRE(rejected.issues.size() == 1);
+    CHECK(rejected.issues.front().code == PortableWasmPluginLoadIssueCode::SharedMemoryCapabilityMissing);
+  }
 }

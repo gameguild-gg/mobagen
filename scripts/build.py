@@ -168,6 +168,7 @@ class Platform(ABC):
         self.detect_toolchain()
         self._cmake_configure()
         self.build()
+        _deploy_desktop_module_packages(self)
         if self.cfg.run_after:
             self.run_target()
 
@@ -202,19 +203,18 @@ class WebPlatform(Platform):
             return {}
 
     def _install_emsdk(self) -> None:
-        if not self.EMSDK_DIR.exists():
-            info("Cloning emsdk into external/emsdk/ ...")
-            run(["git", "clone",
-                 "https://github.com/emscripten-core/emsdk.git",
-                 str(self.EMSDK_DIR)])
-        else:
-            info("emsdk directory already exists, skipping clone.")
-
-        emsdk = self._emsdk_bin()
-        info("Installing latest emsdk toolchain ...")
-        run([str(emsdk), "install", "latest"], cwd=self.EMSDK_DIR)
-        run([str(emsdk), "activate", "latest"], cwd=self.EMSDK_DIR)
-        ok("emsdk installed and activated.")
+        # Shared helper (scripts/toolchains.py uses the same one); kept here to
+        # preserve the plan's emsdk quarantine: "latest" pin, not a versioned
+        # one, so it must follow the same behavior as before the extraction.
+        try:
+            from emsdk_toolchain import install_emsdk
+        except ImportError:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from emsdk_toolchain import install_emsdk
+        info("Cloning emsdk into external/emsdk/ ..."
+             if not self.EMSDK_DIR.exists()
+             else "emsdk directory already exists, skipping clone.")
+        install_emsdk(self.EMSDK_DIR)
 
     def detect_toolchain(self) -> None:
         if shutil.which("emcmake"):
@@ -253,38 +253,175 @@ class WebPlatform(Platform):
             "-DEMSCRIPTEN=1",
             f"-DCMAKE_BUILD_TYPE={self.cfg.build_type}",
             "-DENABLE_TEST_COVERAGE=OFF",
+            # Reset cached C/CXX flags: the root CMakeLists appends the variant
+            # flags to CMAKE_*_FLAGS, so a stale cache from a differently-flagged
+            # configure would stack conflicting -sUSE_PTHREADS=0/1 settings.
+            "-DCMAKE_C_FLAGS=",
+            "-DCMAKE_CXX_FLAGS=",
             "-H.", f"-B{self.cfg.build_dir}",
         ]
 
-    def _cmake_configure(self, extra: Optional[list[str]] = None) -> None:
-        build_dir = self.cfg.build_dir
+    def _configure_variant(self, build_dir: Path, shared: bool) -> None:
         if self.cfg.clean and build_dir.exists():
             info(f"Cleaning {build_dir}")
             shutil.rmtree(build_dir)
         build_dir.mkdir(parents=True, exist_ok=True)
 
-        env = None
         cmd = self.configure_args()
-        if extra:
-            cmd += extra
+        # configure_args targets cfg.build_dir; retarget at this variant's dir.
+        cmd = [c if not c.startswith("-B") else f"-B{build_dir}" for c in cmd]
+        cmd.append(f"-DMOBAGEN_WEB_SHARED={'ON' if shared else 'OFF'}")
         for kv in self.cfg.extra_cmake:
             cmd.append(f"-D{kv}" if not kv.startswith("-D") else kv)
-        run(cmd, env=env)
+        run(cmd)
 
-    def build(self) -> None:
-        env = None
-        cmd = ["cmake", "--build", str(self.cfg.build_dir),
+    def _build_variant(self, build_dir: Path) -> None:
+        cmd = ["cmake", "--build", str(build_dir),
                "--parallel", str(self.cfg.parallel)]
         if self.cfg.target != "all":
             cmd += ["--target", self.cfg.target]
-        run(cmd, env=env)
+        run(cmd)
+
+    def execute(self) -> None:
+        self.detect_toolchain()
+
+        # Two build variants (dynamic-loading-all-platforms todo 5): shared
+        # (pthreads + shared memory -> needs crossOriginIsolated) and isolated
+        # (always-bootable fallback). Both trees always ship; a shared-only
+        # Pages deploy would brick non-isolated browsers. CPM sources are
+        # shared via external/cpm.cmake's CPM_SOURCE_CACHE=<repo>/external.
+        variants = [
+            ("shared", self.cfg.build_dir, True),
+            ("isolated", self.cfg.build_dir.with_name(self.cfg.build_dir.name + "-isolated"), False),
+        ]
+        for name, build_dir, shared in variants:
+            info(f"--- Web variant: {name} -> {build_dir} ---")
+            self._configure_variant(build_dir, shared)
+            self._build_variant(build_dir)
+            # wasm is data: bin/plugins/ is served alongside the bundles in
+            # both trees (never a jniLibs-style native lib placement).
+            _deploy_module_packages(build_dir, build_dir / "bin" / "plugins", allow_aot=False)
+
+        if self.cfg.run_after:
+            self.run_target()
 
     def run_target(self) -> None:
-        bin_dir = self.cfg.build_dir / "bin"
-        if not bin_dir.exists():
-            die(f"Build output not found at {bin_dir}. Build first.")
-        info(f"Serving {bin_dir} at http://localhost:8000 (Ctrl+C to stop)")
-        run([sys.executable, "-m", "http.server", "8000"], cwd=bin_dir, check=False)
+        shared_root = self.cfg.build_dir / "bin"
+        isolated_root = self.cfg.build_dir.with_name(
+            self.cfg.build_dir.name + "-isolated"
+        ) / "bin"
+        if not shared_root.exists():
+            die(f"Build output not found at {shared_root}. Build first.")
+        if not isolated_root.exists():
+            warn(
+                f"Isolated variant not found at {isolated_root}; serving the "
+                f"shared tree at / without an isolated fallback."
+            )
+        _serve_web_coop_coep(isolated_root, shared_root)
+
+
+def _serve_web_coop_coep(
+    isolated_root: Path, shared_root: Optional[Path], port: int = 8000
+) -> None:
+    """Serve the web trees with COOP/COEP isolation headers.
+
+    Layout mirrors the static-host deployment the pages assume (see
+    htmls/mobagen_variant.js): / -> isolated tree (always bootable),
+    /shared/ -> shared tree, /isolated/ -> isolated tree alias. With the
+    headers below every context is crossOriginIsolated, so the in-page
+    variant picker upgrades to the shared bundle under /shared/.
+    """
+    import http.server
+    import urllib.parse
+
+    class CoopCoepHandler(http.server.SimpleHTTPRequestHandler):
+        def end_headers(self) -> None:
+            self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+            self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+            super().end_headers()
+
+        def translate_path(self, path: str) -> str:
+            rel = urllib.parse.unquote(urllib.parse.urlsplit(path).path)
+            if shared_root is not None and rel.startswith("/shared/"):
+                root, rest = shared_root, rel[len("/shared/"):]
+            elif rel.startswith("/isolated/"):
+                root, rest = isolated_root, rel[len("/isolated/"):]
+            else:
+                root, rest = isolated_root, rel.lstrip("/")
+            parts = [p for p in rest.split("/") if p not in ("", ".")]
+            if any(p == ".." for p in parts):
+                return str(root / "__traversal_blocked__")
+            if not parts:
+                return str(root)
+            return str(root.joinpath(*parts))
+
+    isolated_display = isolated_root if isolated_root.exists() else shared_root
+    info(
+        f"Serving http://localhost:{port} "
+        f"/ -> {isolated_display} | /shared/ -> {shared_root} "
+        f"(COOP+COEP on every response; Ctrl+C to stop)"
+    )
+    with http.server.ThreadingHTTPServer(("", port), CoopCoepHandler) as httpd:
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            ok("Dev server stopped.")
+
+
+# ---------------------------------------------------------------------------
+# Module package delivery (.plugin v2, dynamic-loading-all-platforms todo 21)
+# ---------------------------------------------------------------------------
+def _deploy_module_packages(build_dir: Path, dest: Path, *, allow_aot: bool = True) -> None:
+    """Copy every built .plugin v2 package tree into a delivery location.
+
+    Package sources (whichever exist in the build tree):
+      <build>/plugins/<provider>.plugin          — emcc guests (web trees)
+      <build>/plugins-wasi/<provider>.plugin     — wasi guests (desktop/android)
+
+    Layout stays the strict package dir the loader whitelist expects:
+      <dest>/<provider>.plugin/{plugin.wasm[, plugin.aot], module.manifest}
+    plugin.aarch64.aot is never shipped (aux cross-compile artifact; a host
+    never loads it). allow_aot=False (iOS/web) drops plugin.aot so those
+    packages stay interpreter-only.
+    """
+    sources = []
+    for pattern in ("plugins", "plugins-wasi"):
+        root = build_dir / pattern
+        if not root.is_dir():
+            continue
+        for package in sorted(root.iterdir()):
+            if not package.is_dir() or package.suffix != ".plugin":
+                continue
+            if not (package / "plugin.wasm").is_file():
+                warn(f"Module packages: skipping {package} (no plugin.wasm — not a v2 package)")
+                continue
+            sources.append(package)
+    if not sources:
+        info(f"Module packages: none found under {build_dir}/plugins* — nothing to deploy.")
+        return
+
+    dest.mkdir(parents=True, exist_ok=True)
+    for package in sources:
+        target = dest / package.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(package, target)
+        # plugin.aarch64.aot is a wamrc cross-compile auxiliary — no host
+        # loads it, and the package whitelist rejects unknown files.
+        cross_aot = target / "plugin.aarch64.aot"
+        if cross_aot.exists():
+            cross_aot.unlink()
+        if not allow_aot:
+            aot = target / "plugin.aot"
+            if aot.exists():
+                aot.unlink()
+        extra = " + plugin.aot" if (target / "plugin.aot").exists() else ""
+        ok(f"Module package: {target} (plugin.wasm{extra} + module.manifest)")
+
+
+def _deploy_desktop_module_packages(platform_obj: "Platform") -> None:
+    # Desktop (linux/osx/windows): bin/plugins/ beside the binaries.
+    _deploy_module_packages(platform_obj.cfg.build_dir, platform_obj.cfg.build_dir / "bin" / "plugins")
 
 # ---------------------------------------------------------------------------
 # Linux
@@ -528,6 +665,10 @@ class IosPlatform(Platform):
             cmd += ["--target", self.cfg.target]
         cmd += ["--", "-sdk", sdk, "-allowProvisioningUpdates"]
         run(cmd)
+        # iOS ships module packages as bundle RESOURCES (interpreter-only —
+        # allow_aot=False; the todo 4/20 AOT guards keep iOS interpreter-only).
+        for app_bundle in sorted(self.cfg.build_dir.rglob("*.app")):
+            _deploy_module_packages(self.cfg.build_dir, app_bundle / "plugins", allow_aot=False)
 
     def _find_app_bundle(self) -> Path:
         app_bundles = sorted(self.cfg.build_dir.rglob("*.app"))
@@ -975,6 +1116,14 @@ class AndroidPlatform(Platform):
             build_dir = self._configure_abi(abi)
             self._build_abi(build_dir)
             abi_dirs[abi] = build_dir
+
+        # Module packages ride the APK as app ASSETS (wasm is data — never
+        # jniLibs, which is for native libraries System.loadLibrary loads).
+        assets_plugins = REPO_ROOT / "platforms" / "android" / "app" / "src" / "main" / "assets" / "plugins"
+        if assets_plugins.exists():
+            shutil.rmtree(assets_plugins)
+        for build_dir in abi_dirs.values():
+            _deploy_module_packages(build_dir, assets_plugins)
 
         # Prepare android/ Gradle project
         self._write_local_properties()
