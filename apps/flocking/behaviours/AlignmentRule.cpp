@@ -9,6 +9,17 @@ glm::vec2 AlignmentRule::computeForce(const std::vector<BoidView>& boids, int se
   // Bonus: use spatial hashing to avoid O(n^2) complexity. Implement that on World.
 
   // begin solution
+  glm::vec2 velocityTotal = glm::vec2(0, 0);
+  float numOfNeighbours = 0.0f;
+
+  for (const BoidView& boidInRange : neighborhood)
+  {
+    velocityTotal += boidInRange.velocity;
+    numOfNeighbours++;
+  }
+
+  if (numOfNeighbours != 0)
+    averageVelocity = velocityTotal / numOfNeighbours;
 
   return averageVelocity;
   // end solution
