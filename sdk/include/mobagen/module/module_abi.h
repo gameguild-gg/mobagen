@@ -161,7 +161,7 @@ typedef struct MobagenModuleHostApiV1 {
 } MobagenModuleHostApiV1;
 
 /* Generic function-ptr carrier; callers marshal through the signature-id. */
-typedef void MOBAGEN_MODULE_CALL (*MobagenModuleAnyFn)(void);
+typedef void (MOBAGEN_MODULE_CALL *MobagenModuleAnyFn)(void);
 
 typedef struct MobagenModuleExportEntryV1 {
   const char* name; /* export symbol name, as emitted by the annotation */

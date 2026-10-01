@@ -258,7 +258,7 @@ class WebPlatform(Platform):
             # configure would stack conflicting -sUSE_PTHREADS=0/1 settings.
             "-DCMAKE_C_FLAGS=",
             "-DCMAKE_CXX_FLAGS=",
-            "-H.", f"-B{self.cfg.build_dir}",
+            "-S.", f"-B{self.cfg.build_dir}",
         ]
 
     def _configure_variant(self, build_dir: Path, shared: bool) -> None:
@@ -455,7 +455,7 @@ class LinuxPlatform(Platform):
         return [
             "cmake",
             f"-DCMAKE_BUILD_TYPE={self.cfg.build_type}",
-            "-H.", f"-B{self.cfg.build_dir}",
+            "-S.", f"-B{self.cfg.build_dir}",
         ]
 
 # ---------------------------------------------------------------------------
@@ -477,7 +477,7 @@ class OsxPlatform(Platform):
         return [
             "cmake",
             f"-DCMAKE_BUILD_TYPE={self.cfg.build_type}",
-            "-H.", f"-B{self.cfg.build_dir}",
+            "-S.", f"-B{self.cfg.build_dir}",
         ]
 
 # ---------------------------------------------------------------------------
@@ -501,7 +501,10 @@ class WindowsPlatform(Platform):
                 "with the 'Desktop development with C++' workload."
             )
 
-        for year, version in [("2022", "17"), ("2019", "16")]:
+        # Newest first: vswhere ranges are open-ended ("[17," also matches 18+),
+        # so a VS 2026-only machine must be probed with 18 before 17/16 fall
+        # through to a generator string CMake cannot resolve on that install.
+        for year, version in [("2026", "18"), ("2022", "17"), ("2019", "16")]:
             path = capture([
                 str(vswhere), "-version", f"[{version},",
                 "-property", "installationPath",
@@ -512,7 +515,7 @@ class WindowsPlatform(Platform):
                 return generator, path
 
         # Found VS but without ClangCL — warn and fall back to default toolset
-        for year, version in [("2022", "17"), ("2019", "16")]:
+        for year, version in [("2026", "18"), ("2022", "17"), ("2019", "16")]:
             path = capture([str(vswhere), "-version", f"[{version},",
                             "-property", "installationPath"])
             if path:
@@ -531,12 +534,29 @@ class WindowsPlatform(Platform):
         if platform.system() != "Windows":
             die("Windows platform selected but host is not Windows.")
         self._generator, self._vs_path = self._find_vs()
+        # cmake: PATH first, then the copy bundled with the VS install (not on
+        # PATH unless the installer's "add to PATH" box was ticked).
+        self._cmake = shutil.which("cmake")
+        if self._cmake is None:
+            bundled = (
+                Path(self._vs_path) / "Common7" / "IDE" / "CommonExtensions"
+                / "Microsoft" / "CMake" / "CMake" / "bin" / "cmake.exe"
+            )
+            if bundled.exists():
+                self._cmake = str(bundled)
+        if self._cmake is None:
+            die(
+                "cmake not found. Install CMake (https://cmake.org/download/, tick "
+                "'Add CMake to the system PATH') or select it in the Visual Studio "
+                "Installer ('C++ CMake tools for Windows')."
+            )
         ok(f"Found: {self._generator} at {self._vs_path}")
+        ok(f"cmake: {self._cmake}")
 
     def configure_args(self) -> list[str]:
         args = [
-            "cmake",
-            "-H.", f"-B{self.cfg.build_dir}",
+            self._cmake,
+            "-S.", f"-B{self.cfg.build_dir}",
             "-G", self._generator,
             f"-DCMAKE_BUILD_TYPE={self.cfg.build_type}",
             "-DENABLE_TEST_COVERAGE=OFF",
@@ -548,7 +568,7 @@ class WindowsPlatform(Platform):
 
     def build(self) -> None:
         run([
-            "cmake", "--build", str(self.cfg.build_dir),
+            self._cmake, "--build", str(self.cfg.build_dir),
             "--config", self.cfg.build_type,
             "--parallel", str(self.cfg.parallel),
         ] + (["--target", self.cfg.target] if self.cfg.target != "all" else []))
@@ -635,7 +655,7 @@ class IosPlatform(Platform):
             f"-DCMAKE_OSX_DEPLOYMENT_TARGET={self.cfg.ios_deployment_target}",
             f"-DIOS_DEPLOYMENT_TARGET={self.cfg.ios_deployment_target}",
             "-DENABLE_TEST_COVERAGE=OFF",
-            "-H.", f"-B{self.cfg.build_dir}",
+            "-S.", f"-B{self.cfg.build_dir}",
         ]
         if self.cfg.simulator:
             args += [
@@ -1028,7 +1048,7 @@ class AndroidPlatform(Platform):
         if sdl_src is None:
             warn(
                 "Could not find CPM-downloaded SDL3 source to copy Java files.\n"
-                "  Run 'cmake -H. -Bbuild-android-arm64-v8a ...' first, "
+                "  Run 'cmake -S. -Bbuild-android-arm64-v8a ...' first, "
                 "or set CPM_SOURCE_CACHE."
             )
             return
