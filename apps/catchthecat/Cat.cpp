@@ -20,6 +20,16 @@ Point2D Cat::Move(CatWorld* world) {
 
   std::unordered_map<int, std::pair<int, float>> cameFromMap;
 
+  //pq.push();
+
+  std::pair<float, int> current;
+  while (!pq.empty())
+  {
+    current = pq.top();
+
+    for (std::pair<float, int> next : world->neighbors(current))
+  }
+
   /*switch (rand) {
     case 0:
       return CatWorld::NE(pos);
