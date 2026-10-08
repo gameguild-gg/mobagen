@@ -26,6 +26,10 @@ void RecursiveBacktrackerExample::Clear(World* world) {
   //   top-left cell: stack.push_back({0, 0})
   // begin solution
 
+  visited.clear();
+  stack.clear();
+  stack.push_back({0, 0});
+
   // end solution
 }
 
@@ -49,6 +53,60 @@ bool RecursiveBacktrackerExample::Step(World* w) {
   //   return true while there is still work (stack not empty after the move)
   // begin solution
 
+  if (stack.empty()) {
+    return false;
+  }
+
+  Point2D currentPoint = stack.back();
+  visited[currentPoint.y][currentPoint.x] = true;
+
+  std::vector<Point2D> neighbors = getVisitables(w, currentPoint);
+  if (neighbors.empty()) {
+    stack.pop_back();
+    return true;
+  }
+  else if (neighbors.size() == 1) {
+    visited[neighbors.back().y][neighbors.back().x] = true;
+    stack.push_back(neighbors.back());
+    if (neighbors.back().x > currentPoint.x) {
+      w->SetEast(currentPoint, false);
+      return true;
+    }
+    else if (neighbors.back().x < currentPoint.x) {
+      w->SetWest(currentPoint, false);
+      return true;
+    }
+    else if (neighbors.back().y > currentPoint.y) {
+      w->SetSouth(currentPoint, false);
+      return true;
+    }
+    else if (neighbors.back().y < currentPoint.y) {
+      w->SetNorth(currentPoint, false);
+      return true;
+    }
+  }
+  else if (neighbors.size() > 1) {
+    Point2D neighbor = neighbors[SeededRandom::next() % neighbors.size()];
+    visited[neighbor.y][neighbor.x] = true;
+    stack.push_back(neighbor);
+    if (neighbor.x > currentPoint.x) {
+      w->SetEast(currentPoint, false);
+      return true;
+    }
+    else if (neighbor.x < currentPoint.x) {
+      w->SetWest(currentPoint, false);
+      return true;
+    }
+    else if (neighbor.y > currentPoint.y) {
+      w->SetSouth(currentPoint, false);
+      return true;
+    }
+    else if (neighbor.y < currentPoint.y) {
+      w->SetNorth(currentPoint, false);
+      return true;
+    }
+  }
+
   // end solution
   return false;
 }
@@ -61,6 +119,20 @@ std::vector<Point2D> RecursiveBacktrackerExample::getVisitables(World* w, const 
   //   (0 <= x < w->GetWidth(), 0 <= y < w->GetHeight()) and not visited
   // begin solution
 
+  std::vector<Point2D> visitable;
+  if (point.y - 1 >= 0 && !visited[point.y - 1][point.x]) {
+    visitable.push_back(Point2D(point.x, point.y - 1));
+  }
+  if (point.x + 1 < w->GetWidth() && !visited[point.y][point.x + 1]) {
+    visitable.push_back(Point2D(point.x + 1, point.y));
+  }
+  if (point.y + 1 < w->GetHeight() && !visited[point.y + 1][point.x]) {
+    visitable.push_back(Point2D(point.x, point.y + 1));
+  }
+  if (point.x - 1 >= 0 && !visited[point.y][point.x - 1]) {
+    visitable.push_back(Point2D(point.x - 1, point.y));
+  }
+
   // end solution
-  return {};
+  return visitable;
 }
