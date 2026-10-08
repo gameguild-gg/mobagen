@@ -2,6 +2,12 @@
 #define AGENT_H
 
 #include <glm/glm.hpp>
+namespace glm {
+  inline bool operator<(const glm::ivec2& a, const glm::ivec2& b) {
+    if (a.x != b.x) return a.x < b.x;
+    return a.y < b.y;
+  }
+}
 #include <functional>
 #include <vector>
 
